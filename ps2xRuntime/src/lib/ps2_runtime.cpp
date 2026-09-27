@@ -2456,6 +2456,7 @@ extern std::atomic<uint32_t> g_ssx3VuBudgetHits;
 extern std::atomic<uint32_t> g_ssx3VuStops;
 extern std::atomic<uint32_t> g_ssx3Xgkicks;
 static std::atomic<bool> g_ssx3DumpRequested{false}; // SSX3 debug: F9 in the game window
+extern std::atomic<uint32_t> g_ssx3PrimBurst;       // SSX3 debug: F10 in the game window
 
 // SSX3 debug: write a GS frame (block-address base, fbw in 64px units) to a 24-bit BMP.
 static void ssx3DumpFrameBmp(GS &gs, const char *path, uint32_t fbp, uint32_t fbw, uint32_t psm)
@@ -2569,6 +2570,8 @@ static void ssx3LogDrawDiagnostics(GS &gsCore, const GSRegisters &gs)
             std::snprintf(path, sizeof(path), "ssx3_dump%02u_draw_fbp%03x.bmp", ssx3DumpIndex, fbps[i].second);
             ssx3DumpFrameBmp(gsCore, path, fbps[i].second, info & 0xFFu, info >> 8);
         }
+        std::snprintf(path, sizeof(path), "ssx3_dump%02u_zbuf_e0.bmp", ssx3DumpIndex);
+        ssx3DumpFrameBmp(gsCore, path, 0xE0u, 8u, 0x31u); // Z24 depth buffer used in races
         RUNTIME_LOG("[ssx3:dump] wrote dump " << ssx3DumpIndex << std::endl);
         if (ssx3DumpIndex == 1u)
             g_ssx3PrimLogArm.store(true);
@@ -2706,6 +2709,11 @@ void PS2Runtime::run()
         });
         uint32_t presentWidth = FB_WIDTH;
         uint32_t presentHeight = DEFAULT_DISPLAY_HEIGHT;
+        if (IsKeyPressed(KEY_F10))
+        {
+            g_ssx3PrimBurst.store(80u);
+            RUNTIME_LOG("[ssx3:prim] F10 pressed, logging a burst of 80 sampled primitives" << std::endl);
+        }
         if (IsKeyPressed(KEY_F9))
         {
             g_ssx3DumpRequested.store(true);

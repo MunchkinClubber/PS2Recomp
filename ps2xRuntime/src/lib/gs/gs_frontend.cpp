@@ -17,6 +17,7 @@ std::atomic<uint32_t> g_ssx3FbpInfo[512];    // SSX3 debug: last fbw | psm << 8 
 std::atomic<uint32_t> g_ssx3SpriteTexTbp[16384]; // SSX3 debug: textured sprites per TEX0.TBP0
 std::atomic<uint32_t> g_ssx3PrimType[8];     // SSX3 debug
 std::atomic<uint32_t> g_ssx3PrimLogTotal{0};  // SSX3 debug: prim detail lines written
+std::atomic<uint32_t> g_ssx3PrimBurst{0};     // SSX3 debug: F10 burst - log every 131st prim while > 0
 std::atomic<bool> g_ssx3PrimLogArm{false};    // SSX3 debug: set by the runtime once past the intro
 
 namespace
@@ -1626,7 +1627,12 @@ void GS::vertexKick(bool drawing)
             ++ssx3PrimSeq;
             // Once armed (past the intro), sample: every display-buffer (0x70) draw until 40
             // logged, and every 997th other draw until 80 logged.
-            if (g_ssx3PrimLogArm.load(std::memory_order_relaxed) && g_ssx3PrimLogTotal.load(std::memory_order_relaxed) < 120u)
+            if (g_ssx3PrimBurst.load(std::memory_order_relaxed) > 0u && (ssx3PrimSeq % 131ull) == 0ull)
+            {
+                if (g_ssx3PrimBurst.fetch_sub(1u, std::memory_order_relaxed) > 0u)
+                    ssx3LogPrim(batch, ssx3PrimSeq);
+            }
+            else if (g_ssx3PrimLogArm.load(std::memory_order_relaxed) && g_ssx3PrimLogTotal.load(std::memory_order_relaxed) < 120u)
             {
                 static uint32_t dispLogged = 0, otherLogged = 0;
                 const bool isDisp = fbp == 0x70u;
