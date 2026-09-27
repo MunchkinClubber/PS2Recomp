@@ -9,6 +9,7 @@
 // loading screen). Route these entry points to host-side implementations instead.
 
 #include "../Syscalls/Common.h"
+#include "../Syscalls/Sync.h"
 #include "game_overrides.h"
 
 #include <cctype>
@@ -180,6 +181,70 @@ namespace
         ps2_syscalls::sceSifSendCmd(rdram, ctx, runtime);
     }
 
+    // Renderer DMA state machine (object base in a0, state word at +0x5a8c):
+    //   0 idle -> kick GIF(+0x5ab0) & VIF1(+0x5aa8), state 1
+    //   VIF1 done (0x382688): 1 -> 2, iSignalSema(+0x5ac8)
+    //   T5 in state 2: kick GIF(+0x5aa0) & VIF1(+0x5a9c), state 3
+    //   VIF1 done (0x382688): 3 -> 4
+    //   GIF done (0x3825f8): ++count(+0x5abc); in state 4 with count >= limit(+0x5ab8) -> 5, signal
+    //   T5 in state 5: flip, state 0 (main thread busy-waits on state==0 at 0x382730).
+    // On hardware the PATH3 GIF chain finishes after VIF1 (PATH1/2 have priority), so the GIF
+    // interrupt lands in state 4. Here both DMAs complete instantly and the GIF completion is
+    // delivered first, so state 4 is never left unless some unrelated GIF DMA happens to follow
+    // (the FMV's image uploads did, which is why the movie ran and the game froze right after).
+    // Treat GIF completions that already happened as arriving after VIF1.
+    constexpr uint32_t kRendererVif1Done = 0x00382688u;
+    constexpr uint32_t kGifChcr = 0x1000A000u;
+
+    void ssx3RendererVif1Done(uint8_t *rdram, R5900Context *ctx, PS2Runtime *runtime)
+    {
+        returnToCaller(ctx);
+        const uint32_t obj = getRegU32(ctx, 4);
+        auto rd = [&](uint32_t off) -> uint32_t
+        {
+            uint32_t v = 0u;
+            std::memcpy(&v, rdram + ((obj + off) & PS2_RAM_MASK), sizeof(v));
+            return v;
+        };
+        auto wr = [&](uint32_t off, uint32_t v)
+        { std::memcpy(rdram + ((obj + off) & PS2_RAM_MASK), &v, sizeof(v)); };
+
+        const uint32_t state = rd(0x5a8cu);
+        bool signal = false;
+        if (state == 1u)
+        {
+            wr(0x5a8cu, 2u);
+            signal = true;
+        }
+        else if (state == 3u)
+        {
+            wr(0x5a8cu, 4u);
+            const bool gifIdle = (runtime->memory().readIORegister(kGifChcr) & 0x100u) == 0u;
+            const int32_t count = static_cast<int32_t>(rd(0x5abcu));
+            const int32_t limit = static_cast<int32_t>(rd(0x5ab8u));
+            if (gifIdle && count >= limit)
+            {
+                wr(0x5a8cu, 5u);
+                wr(0x5abcu, 0u);
+                signal = true;
+            }
+            static int logCount = 0;
+            if (logCount < 8)
+            {
+                ++logCount;
+                std::fprintf(stderr, "[ssx3:render] VIF1 done in state 3: gifIdle=%d count=%d limit=%d -> state %u\n",
+                             gifIdle ? 1 : 0, (int)count, (int)limit, (unsigned)rd(0x5a8cu));
+            }
+        }
+        if (signal)
+        {
+            const uint32_t ra = getRegU32(ctx, 31);
+            SET_GPR_U32(ctx, 4, rd(0x5ac8u));
+            ps2_syscalls::iSignalSema(rdram, ctx, runtime);
+            ctx->pc = ra;
+        }
+    }
+
     void applySsx3Overrides(PS2Runtime &runtime)
     {
         runtime.replaceFunction(kSifStopModule, ssx3SifStopModule);
@@ -187,7 +252,8 @@ namespace
         runtime.replaceFunction(kSifSearchModuleByName, ssx3SifSearchModuleByName);
         runtime.replaceFunction(kSifSearchModuleByAddress, ssx3SifSearchModuleByAddress);
         runtime.replaceFunction(kSifSendCmd, ssx3SifSendCmd);
-        std::fprintf(stderr, "[ssx3:override] loadfile helpers + SIF SET_SREG mirror installed\n");
+        runtime.replaceFunction(kRendererVif1Done, ssx3RendererVif1Done);
+        std::fprintf(stderr, "[ssx3:override] loadfile helpers + SIF SET_SREG mirror + renderer DMA ordering fix installed\n");
     }
 }
 
