@@ -2815,7 +2815,7 @@ void PS2Runtime::run()
             g_ssx3VuCaptureLeft.store(24u);
             g_ssx3VifCaptureLeft.store(8u);
             g_ssx3LightSearchLeft.store(6u);
-            g_ssx3LightTraceLeft.store(60u);
+            g_ssx3LightTraceLeft.store(0u);
             // Also watch direct EE stores into VU1 data memory rows 7..16 (0x1100C000 window).
             g_ssx3WatchLo.store(0x1100C070u);
             g_ssx3WatchHi.store(0x1100C110u);

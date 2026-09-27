@@ -620,30 +620,30 @@ void PS2Memory::processVIF1Data(const uint8_t *data, uint32_t sizeBytes)
             // SSX3 debug: locate where the terrain lighting constants (UNPACK V4-32 num=11 -> addr 6)
             // come from in EE RAM / scratchpad, for the first few uploads after F11.
             if (g_ssx3LightSearchLeft.load(std::memory_order_relaxed) > 0u && vn == 3u && vl == 0u &&
-                num == 11u && (imm & 0x3FFu) == 6u && pos + 176u <= sizeBytes)
+                num == 10u && (imm & 0x3FFu) == 7u && pos + 160u <= sizeBytes)
             {
                 g_ssx3LightSearchLeft.fetch_sub(1u, std::memory_order_relaxed);
                 std::string where;
                 char tmp[64];
-                for (uint32_t a = 0; a + 176u <= PS2_RAM_SIZE; a += 16u)
-                    if (std::memcmp(m_rdram + a, data + pos, 176u) == 0)
+                for (uint32_t a = 0; a + 160u <= PS2_RAM_SIZE; a += 16u)
+                    if (std::memcmp(m_rdram + a, data + pos, 160u) == 0)
                     {
                         std::snprintf(tmp, sizeof(tmp), " ram:0x%x", a);
                         where += tmp;
                     }
-                for (uint32_t a = 0; a + 176u <= PS2_SCRATCHPAD_SIZE; a += 16u)
-                    if (std::memcmp(m_scratchpad + a, data + pos, 176u) == 0)
+                for (uint32_t a = 0; a + 160u <= PS2_SCRATCHPAD_SIZE; a += 16u)
+                    if (std::memcmp(m_scratchpad + a, data + pos, 160u) == 0)
                     {
                         std::snprintf(tmp, sizeof(tmp), " spr:0x%x", a);
                         where += tmp;
                         // Watch EE writes to the lighting rows (7..16) of this scratchpad copy.
-                        g_ssx3WatchLo.store(PS2_SCRATCHPAD_BASE + a + 16u);
-                        g_ssx3WatchHi.store(PS2_SCRATCHPAD_BASE + a + 176u);
+                        g_ssx3WatchLo.store(PS2_SCRATCHPAD_BASE + a);
+                        g_ssx3WatchHi.store(PS2_SCRATCHPAD_BASE + a + 160u);
                     }
                 const float *fv = reinterpret_cast<const float *>(data + pos);
-                std::fprintf(stderr, "[ssx3:light] UNPACK addr6 num11 flg=%u found at:%s | row7=(%g,%g,%g,%g) row8=(%g,%g,%g,%g)\n",
+                std::fprintf(stderr, "[ssx3:light] UNPACK addr7 num10 flg=%u found at:%s | row7=(%g,%g,%g,%g) row8=(%g,%g,%g,%g)\n",
                              (unsigned)((imm >> 15) & 1u), where.empty() ? " (nowhere)" : where.c_str(),
-                             fv[4], fv[5], fv[6], fv[7], fv[8], fv[9], fv[10], fv[11]);
+                             fv[0], fv[1], fv[2], fv[3], fv[4], fv[5], fv[6], fv[7]);
             }
 
             if (m_vu1Data && totalBytes > 0 && pos + totalBytes <= sizeBytes)
