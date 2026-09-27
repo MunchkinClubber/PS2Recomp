@@ -87,6 +87,8 @@ namespace
         return std::nullopt;
     }
 }
+void ps2xForceLinkSsx3Overrides(); // Kernel/Overrides/SSX3.cpp
+
 namespace ps2_game_overrides
 {
     AutoRegister::AutoRegister(const Descriptor &descriptor)
@@ -125,6 +127,8 @@ namespace ps2_game_overrides
                        uint32_t fileCrc32,
                        bool fileCrcValid)
     {
+
+        ps2xForceLinkSsx3Overrides();
 
         std::vector<Descriptor> descriptors;
         {
