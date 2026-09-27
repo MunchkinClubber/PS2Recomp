@@ -2475,6 +2475,13 @@ namespace ps2_stubs
         {
             std::unique_lock<std::mutex> lock(g_mpeg_stub_mutex);
             MpegPlaybackState &playback = getPlaybackState(mpegAddr);
+            if (playback.decodedFrames.empty() && playback.sawSequenceEnd && !playback.streamEnded)
+            {
+                // Sequence end already delivered and nothing left queued: finish the stream (flush the
+                // decoder's last pictures) instead of waiting for data that will never come.
+                playback.streamEnded = true;
+                flushDecoderIfEnded(playback);
+            }
             if (playback.decodedFrames.empty() &&
                 !g_mpeg_stub_state.currentCdStreamEofSeen &&
                 !playback.streamEnded &&
@@ -2491,7 +2498,10 @@ namespace ps2_stubs
                     ++g_mpeg_stub_state.getPictureWaitTraceCount;
                 }
                 MpegRegisteredCallback nodataCb{};
-                const bool askForData = !g_mpegNodataInFlight[mpegAddr] && findNodataCallback(mpegAddr, nodataCb);
+                // Never ask for more once the stream has ended: the player may already have torn down the
+                // objects its callback uses (SSX 3 jumped through a null vtable doing exactly that).
+                const bool askForData = !playback.streamEnded && !playback.sawSequenceEnd &&
+                                        !g_mpegNodataInFlight[mpegAddr] && findNodataCallback(mpegAddr, nodataCb);
                 if (askForData)
                 {
                     g_mpegNodataInFlight[mpegAddr] = true;
