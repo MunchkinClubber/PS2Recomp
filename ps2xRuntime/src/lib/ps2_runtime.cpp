@@ -2406,6 +2406,8 @@ namespace
 }
 
 std::string ssx3TakeProfile(size_t topN);
+extern std::atomic<uint64_t> g_ssx3GsKicks;
+extern std::atomic<uint64_t> g_ssx3GsUploads;
 extern std::atomic<uint64_t> g_ssx3T3Own;
 extern std::atomic<uint64_t> g_ssx3T3Handler;
 
@@ -2514,6 +2516,20 @@ void PS2Runtime::run()
                     RUNTIME_LOG(td.str() << std::endl);
                 }
                 RUNTIME_LOG(ssx3TakeProfile(40) << std::endl);
+                {
+                    static uint64_t ssx3LastKicks = 0;
+                    static uint64_t ssx3LastUploads = 0;
+                    const uint64_t kicks = g_ssx3GsKicks.load();
+                    const uint64_t uploads = g_ssx3GsUploads.load();
+                    const GSFrameReg &f0 = m_gs.getContextFrame(0);
+                    const GSFrameReg &f1 = m_gs.getContextFrame(1);
+                    RUNTIME_LOG("[ssx3:gs] kicks+=" << (kicks - ssx3LastKicks) << " uploads+=" << (uploads - ssx3LastUploads)
+                                << " drawFbp0=" << f0.fbp << " drawFbp1=" << f1.fbp
+                                << std::hex << " dispfb1=0x" << gs.dispfb1 << " dispfb2=0x" << gs.dispfb2
+                                << " pmode=0x" << gs.pmode << std::dec << std::endl);
+                    ssx3LastKicks = kicks;
+                    ssx3LastUploads = uploads;
+                }
                 RUNTIME_LOG("[ssx3:t3count] own=" << g_ssx3T3Own.load() << " handler=" << g_ssx3T3Handler.load() << std::endl);
 
             }

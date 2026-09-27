@@ -10,6 +10,9 @@
 #include <iostream>
 #include <sstream>
 
+std::atomic<uint64_t> g_ssx3GsKicks{0};      // SSX3 debug
+std::atomic<uint64_t> g_ssx3GsUploads{0};    // SSX3 debug
+
 namespace
 {
     static constexpr uint32_t kHostFrameWidth = 640u;
@@ -794,6 +797,7 @@ void GS::uploadImageNativeUnlocked(uint64_t bitbltbuf,
                                    const uint8_t *data,
                                    uint32_t sizeBytes)
 {
+    g_ssx3GsUploads.fetch_add(1, std::memory_order_relaxed);
     if (!data || sizeBytes == 0 || !m_backend)
         return;
 
@@ -1528,6 +1532,7 @@ void GS::vertexKick(bool drawing)
 {
     ++m_vtxCount;
     ++m_vtxIndex;
+    g_ssx3GsKicks.fetch_add(1, std::memory_order_relaxed);
 
     PS2_IF_AGRESSIVE_LOGS({
         const uint32_t debugIndex = s_debugGsVertexKickCount.fetch_add(1, std::memory_order_relaxed);
