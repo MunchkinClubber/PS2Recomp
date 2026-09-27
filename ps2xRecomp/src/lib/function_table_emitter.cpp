@@ -105,8 +105,19 @@ namespace ps2recomp
             addEntry(address, name);
         }
 
+        // Deterministic order: when several functions carry a label for the same resume
+        // address, the enclosing one (lowest start) owns the slot.
+        std::vector<uint32_t> resumeOwners;
+        resumeOwners.reserve(cg.m_resumeEntryTargetsByOwner.size());
         for (const auto &[ownerStart, targets] : cg.m_resumeEntryTargetsByOwner)
         {
+            (void)targets;
+            resumeOwners.push_back(ownerStart);
+        }
+        std::sort(resumeOwners.begin(), resumeOwners.end());
+        for (uint32_t ownerStart : resumeOwners)
+        {
+            const auto &targets = cg.m_resumeEntryTargetsByOwner.at(ownerStart);
             const std::string ownerName = cg.getFunctionName(ownerStart);
             if (ownerName.empty())
             {

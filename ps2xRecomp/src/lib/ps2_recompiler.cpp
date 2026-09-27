@@ -2009,11 +2009,6 @@ namespace ps2recomp
                 continue;
             }
 
-            if (isEntryFunctionName(function.name))
-            {
-                continue;
-            }
-
             auto decodedIt = m_decodedFunctions.find(function.start);
             if (decodedIt == m_decodedFunctions.end())
             {
@@ -2023,6 +2018,34 @@ namespace ps2recomp
             const auto &instructions = decodedIt->second;
             CodeGenerator::AnalysisResult analysisResult =
                 m_codeGenerator->collectInternalBranchTargets(function, instructions, &m_functions);
+
+            if (isEntryFunctionName(function.name))
+            {
+                // Entry functions (config entry_points, discovered pointer targets) are real
+                // functions too: a thread preempted inside a call they make resumes at the
+                // return address, so register their resume labels.
+                // Targets inside a regular (non-entry) function stay with that function.
+                auto &entryTargets = m_resumeEntryTargetsByOwner[function.start];
+                for (uint32_t target : analysisResult.resumeEntryPoints)
+                {
+                    bool coveredByRegular = false;
+                    for (const auto &other : m_functions)
+                    {
+                        if (other.isRecompiled && !other.isStub && !other.isSkipped &&
+                            !isEntryFunctionName(other.name) &&
+                            target >= other.start && target < other.end)
+                        {
+                            coveredByRegular = true;
+                            break;
+                        }
+                    }
+                    if (!coveredByRegular)
+                    {
+                        entryTargets.push_back(target);
+                    }
+                }
+                continue;
+            }
 
             auto &ownerTargets = m_resumeEntryTargetsByOwner[function.start];
             ownerTargets.insert(ownerTargets.end(),
