@@ -493,6 +493,7 @@ static void UploadFrame(Texture2D &tex, PS2Runtime *rt, uint32_t &outWidth, uint
 std::atomic<uint32_t> g_ssx3VuCaptureLeft{0};
 extern std::atomic<uint32_t> g_ssx3VifCaptureLeft;
 extern std::atomic<uint32_t> g_ssx3LightSearchLeft;
+extern std::atomic<uint32_t> g_ssx3LightTraceLeft;
 extern std::atomic<uint32_t> g_ssx3WatchLo, g_ssx3WatchHi;
 static std::atomic<uint32_t> g_ssx3WatchLogged{0};
 // SSX3 debug: log EE stores into the watched window (scratchpad copy of the lighting rows).
@@ -2814,6 +2815,10 @@ void PS2Runtime::run()
             g_ssx3VuCaptureLeft.store(24u);
             g_ssx3VifCaptureLeft.store(8u);
             g_ssx3LightSearchLeft.store(6u);
+            g_ssx3LightTraceLeft.store(60u);
+            // Also watch direct EE stores into VU1 data memory rows 7..16 (0x1100C000 window).
+            g_ssx3WatchLo.store(0x1100C070u);
+            g_ssx3WatchHi.store(0x1100C110u);
             RUNTIME_LOG("[ssx3:cap] F11 pressed, capturing the next 24 VIF1 streams and VU1 runs" << std::endl);
         }
         if (IsKeyPressed(KEY_F10))

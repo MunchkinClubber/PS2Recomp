@@ -301,6 +301,7 @@ void PS2Memory::processVIF1Data(uint32_t srcPhys, uint32_t sizeBytes)
 std::atomic<uint32_t> g_ssx3VifCaptureLeft{0}; // SSX3 debug: F11 captures the next VIF1 streams
 std::atomic<uint32_t> g_ssx3LightSearchLeft{0}; // SSX3 debug: F11 locates lighting constant sources
 std::atomic<uint32_t> g_ssx3WatchLo{0}, g_ssx3WatchHi{0}; // SSX3 debug: EE write watch window
+std::atomic<uint32_t> g_ssx3LightTraceLeft{0}; // SSX3 debug: F11 traces VU1 rows 7..16 traffic
 static uint32_t g_ssx3VifCaptureIndex = 0u;
 
 void PS2Memory::processVIF1Data(const uint8_t *data, uint32_t sizeBytes)
@@ -427,6 +428,13 @@ void PS2Memory::processVIF1Data(const uint8_t *data, uint32_t sizeBytes)
         else if (opcode == VIF_MSCAL || opcode == VIF_MSCALF)
         {
             uint32_t startPC = (uint32_t)imm * 8u;
+            if (g_ssx3LightTraceLeft.load(std::memory_order_relaxed) > 0u && startPC == 0x1150u && m_vu1Data)
+            {
+                g_ssx3LightTraceLeft.fetch_sub(1u, std::memory_order_relaxed);
+                const float *r = reinterpret_cast<const float *>(m_vu1Data + 7u * 16u);
+                std::fprintf(stderr, "[ssx3:ltrace] MSCAL 0x1150 row7=(%g,%g,%g,%g) row8=(%g,%g,%g,%g)\n",
+                             r[0], r[1], r[2], r[3], r[4], r[5], r[6], r[7]);
+            }
 
             const uint32_t runTop = vif1_regs.tops & 0x3FFu;
             const uint32_t runItop = vif1_regs.itops & 0x3FFu;
@@ -595,6 +603,19 @@ void PS2Memory::processVIF1Data(const uint8_t *data, uint32_t sizeBytes)
                 vuAddr = (vuAddr + (vif1_regs.tops & 0x3FFu)) & 0x3FFu;
 
             const bool zeroExtend = (imm & 0x4000u) != 0u;
+
+            if (g_ssx3LightTraceLeft.load(std::memory_order_relaxed) > 0u && vuAddr <= 16u && vuAddr + writeVectorCount > 7u)
+            {
+                g_ssx3LightTraceLeft.fetch_sub(1u, std::memory_order_relaxed);
+                std::fprintf(stderr, "[ssx3:ltrace] UNPACK vn=%u vl=%u m=%d num=%u addr=%u(flg=%u) mask=%08x mode=%u cycle=%04x row=%08x,%08x,%08x,%08x first=%08x,%08x,%08x,%08x\n",
+                             (unsigned)vn, (unsigned)vl, maskEnable ? 1 : 0, (unsigned)writeVectorCount, (unsigned)vuAddr,
+                             (unsigned)((imm >> 15) & 1u), vif1_regs.mask, vif1_regs.mode, vif1_regs.cycle,
+                             vif1_regs.row[0], vif1_regs.row[1], vif1_regs.row[2], vif1_regs.row[3],
+                             pos + 16u <= sizeBytes ? *reinterpret_cast<const uint32_t *>(data + pos) : 0u,
+                             pos + 16u <= sizeBytes ? *reinterpret_cast<const uint32_t *>(data + pos + 4) : 0u,
+                             pos + 16u <= sizeBytes ? *reinterpret_cast<const uint32_t *>(data + pos + 8) : 0u,
+                             pos + 16u <= sizeBytes ? *reinterpret_cast<const uint32_t *>(data + pos + 12) : 0u);
+            }
 
             // SSX3 debug: locate where the terrain lighting constants (UNPACK V4-32 num=11 -> addr 6)
             // come from in EE RAM / scratchpad, for the first few uploads after F11.
