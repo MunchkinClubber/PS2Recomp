@@ -383,11 +383,6 @@ public:
     uint32_t guestHeapBase() const;
     uint32_t guestHeapEnd() const;
     uint32_t guestHeapLimit() const;
-    // Move the runtime's own allocations (HLE stub buffers, packets, callback data) into a fixed
-    // window the game never touches. Needed for games whose own allocator claims everything from
-    // SetupHeap's base to EndOfHeap (SSX 3): EndOfHeap then reports `base` as the end of memory.
-    void reservePrivateGuestHeap(uint32_t base, uint32_t limit);
-    bool hasPrivateGuestHeap() const;
     uint32_t reserveAsyncCallbackStack(uint32_t size, uint32_t alignment = 16u);
 
     void drainCompletedDmacHandlers(uint8_t *rdram);
@@ -518,8 +513,6 @@ private:
     uint32_t m_guestHeapLimit = PS2_RAM_SIZE;
     uint32_t m_guestHeapSuggestedBase = 0x00100000u;
     bool m_guestHeapConfigured = false;
-    uint32_t m_privateGuestHeapBase = 0u;
-    uint32_t m_privateGuestHeapLimit = 0u;
     uint32_t m_asyncCallbackStackFloor = 0x01F00000u;
     uint32_t m_asyncCallbackStackTop = PS2_RAM_SIZE;
 

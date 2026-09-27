@@ -1855,12 +1855,42 @@ void PS2Runtime::freeGuestBlockLocked(uint32_t guestAddr)
     coalesceGuestHeapLocked();
 }
 
+// Optional private window for the runtime's own guest allocations (HLE stub buffers, packets,
+// callback data). Needed for games whose allocator claims everything from SetupHeap's base to
+// EndOfHeap (SSX 3); EndOfHeap then reports the window base as the end of game memory.
+static uint32_t g_privateGuestHeapBase = 0u;
+static uint32_t g_privateGuestHeapLimit = 0u;
+
+void ps2xReservePrivateGuestHeap(PS2Runtime &runtime, uint32_t base, uint32_t limit)
+{
+    g_privateGuestHeapBase = base;
+    g_privateGuestHeapLimit = limit;
+    runtime.configureGuestHeap(base, limit);
+}
+
+bool ps2xHasPrivateGuestHeap()
+{
+    return g_privateGuestHeapLimit > g_privateGuestHeapBase;
+}
+
 void PS2Runtime::configureGuestHeap(uint32_t guestBase, uint32_t guestLimit)
 {
     std::lock_guard<std::mutex> lock(m_guestHeapMutex);
-    if (m_privateGuestHeapLimit > m_privateGuestHeapBase)
+    if (g_privateGuestHeapLimit > g_privateGuestHeapBase)
     {
-        return; // runtime allocations live in the reserved private window; leave it alone
+        // Runtime allocations live in a reserved private window (see ps2xReservePrivateGuestHeap).
+        // Set it up once, directly: the window may sit above kGuestHeapHardLimit, which
+        // resetGuestHeapLocked would clamp. Later SetupHeap calls leave it alone.
+        if (!m_guestHeapConfigured || m_guestHeapBase != g_privateGuestHeapBase)
+        {
+            m_guestHeapBlocks.clear();
+            m_guestHeapBlocks.push_back({g_privateGuestHeapBase, g_privateGuestHeapLimit - g_privateGuestHeapBase, true});
+            m_guestHeapBase = g_privateGuestHeapBase;
+            m_guestHeapEnd = g_privateGuestHeapBase;
+            m_guestHeapLimit = g_privateGuestHeapLimit;
+            m_guestHeapConfigured = true;
+        }
+        return;
     }
     uint32_t normalizedBase = alignGuestHeapValue(clampGuestHeapBase(guestBase), kGuestHeapDefaultAlignment);
     if (normalizedBase == 0u)
@@ -2024,36 +2054,12 @@ uint32_t PS2Runtime::guestHeapEnd() const
     return m_guestHeapConfigured ? m_guestHeapEnd : m_guestHeapSuggestedBase;
 }
 
-void PS2Runtime::reservePrivateGuestHeap(uint32_t base, uint32_t limit)
-{
-    std::lock_guard<std::mutex> lock(m_guestHeapMutex);
-    m_privateGuestHeapBase = base;
-    m_privateGuestHeapLimit = limit;
-    if (limit > base)
-    {
-        // Set up directly: the window may sit above kGuestHeapHardLimit (e.g. between the
-        // game's EndOfHeap and the main thread stack), which resetGuestHeapLocked would clamp.
-        m_guestHeapBlocks.clear();
-        m_guestHeapBlocks.push_back({base, limit - base, true});
-        m_guestHeapBase = base;
-        m_guestHeapEnd = base;
-        m_guestHeapLimit = limit;
-        m_guestHeapConfigured = true;
-    }
-}
-
-bool PS2Runtime::hasPrivateGuestHeap() const
-{
-    std::lock_guard<std::mutex> lock(m_guestHeapMutex);
-    return m_privateGuestHeapLimit > m_privateGuestHeapBase;
-}
-
 uint32_t PS2Runtime::guestHeapLimit() const
 {
     std::lock_guard<std::mutex> lock(m_guestHeapMutex);
-    if (m_privateGuestHeapLimit > m_privateGuestHeapBase)
+    if (g_privateGuestHeapLimit > g_privateGuestHeapBase)
     {
-        return m_privateGuestHeapBase;
+        return g_privateGuestHeapBase;
     }
     return m_guestHeapConfigured ? m_guestHeapLimit : m_guestHeapSuggestedBase;
 }

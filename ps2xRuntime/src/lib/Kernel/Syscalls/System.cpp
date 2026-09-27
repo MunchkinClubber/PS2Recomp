@@ -1,6 +1,8 @@
 #include "Common.h"
 #include "System.h"
 
+bool ps2xHasPrivateGuestHeap(); // ps2_runtime.cpp
+
 namespace ps2_syscalls
 {
     void GsSetCrt(uint8_t *rdram, R5900Context *ctx, PS2Runtime *runtime)
@@ -571,7 +573,7 @@ namespace ps2_syscalls
                           << std::dec << std::endl;
             });
 
-            setReturnU32(ctx, runtime->hasPrivateGuestHeap() ? heapBase : runtime->guestHeapBase());
+            setReturnU32(ctx, ps2xHasPrivateGuestHeap() ? heapBase : runtime->guestHeapBase());
             return;
         }
 

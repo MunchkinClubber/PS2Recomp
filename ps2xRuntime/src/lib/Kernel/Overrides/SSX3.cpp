@@ -18,6 +18,8 @@
 #include <mutex>
 #include <string>
 
+void ps2xReservePrivateGuestHeap(PS2Runtime &runtime, uint32_t base, uint32_t limit); // ps2_runtime.cpp
+
 namespace
 {
     constexpr int32_t kKeUnknownModule = -202;
@@ -262,7 +264,7 @@ namespace
         // MPEG callback data, SIF packets...). Those overlapping allocations corrupted the game's free
         // lists, and after the EA intro malloc_consolidate (0x31EEE8) looped forever on a cyclic bin.
         // Give the runtime the unused 896 KB between EndOfHeap and the main stack instead.
-        runtime.reservePrivateGuestHeap(kSsx3RuntimeHeapBase, kSsx3RuntimeHeapLimit);
+        ps2xReservePrivateGuestHeap(runtime, kSsx3RuntimeHeapBase, kSsx3RuntimeHeapLimit);
         std::fprintf(stderr, "[ssx3:override] loadfile helpers + SIF SET_SREG mirror + renderer DMA ordering fix + private runtime heap installed\n");
     }
 }
