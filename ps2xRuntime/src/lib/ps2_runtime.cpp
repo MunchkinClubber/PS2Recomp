@@ -2522,7 +2522,7 @@ static void ssx3LogDrawDiagnostics(GS &gsCore, const GSRegisters &gs)
             ssx3DumpFrameBmp(gsCore, path, fbps[i].second, info & 0xFFu, info >> 8);
         }
         RUNTIME_LOG("[ssx3:dump] wrote dump " << ssx3DumpIndex << std::endl);
-        if (ssx3DumpIndex == 4u)
+        if (ssx3DumpIndex == 1u)
             g_ssx3PrimLogArm.store(true);
         ++ssx3DumpIndex;
     }
