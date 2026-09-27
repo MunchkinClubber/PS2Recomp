@@ -2411,6 +2411,7 @@ extern std::atomic<uint32_t> g_ssx3DrawFbp[512];
 extern std::atomic<uint32_t> g_ssx3FbpInfo[512];
 extern std::atomic<uint32_t> g_ssx3SpriteTexTbp[16384];
 extern std::atomic<uint32_t> g_ssx3PrimType[8];
+extern std::atomic<bool> g_ssx3PrimLogArm;
 
 // SSX3 debug: write a GS frame (block-address base, fbw in 64px units) to a 24-bit BMP.
 static void ssx3DumpFrameBmp(GS &gs, const char *path, uint32_t fbp, uint32_t fbw, uint32_t psm)
@@ -2521,6 +2522,8 @@ static void ssx3LogDrawDiagnostics(GS &gsCore, const GSRegisters &gs)
             ssx3DumpFrameBmp(gsCore, path, fbps[i].second, info & 0xFFu, info >> 8);
         }
         RUNTIME_LOG("[ssx3:dump] wrote dump " << ssx3DumpIndex << std::endl);
+        if (ssx3DumpIndex == 4u)
+            g_ssx3PrimLogArm.store(true);
         ++ssx3DumpIndex;
     }
 }

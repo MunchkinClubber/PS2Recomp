@@ -16,6 +16,36 @@ std::atomic<uint32_t> g_ssx3DrawFbp[512];    // SSX3 debug: prims per FRAME.FBP
 std::atomic<uint32_t> g_ssx3FbpInfo[512];    // SSX3 debug: last fbw | psm << 8 per FBP
 std::atomic<uint32_t> g_ssx3SpriteTexTbp[16384]; // SSX3 debug: textured sprites per TEX0.TBP0
 std::atomic<uint32_t> g_ssx3PrimType[8];     // SSX3 debug
+std::atomic<uint32_t> g_ssx3PrimLogTotal{0};  // SSX3 debug: prim detail lines written
+std::atomic<bool> g_ssx3PrimLogArm{false};    // SSX3 debug: set by the runtime once past the intro
+
+namespace
+{
+    // SSX3 debug: describe one primitive (sampled) so display-copy / scene draws can be checked.
+    void ssx3LogPrim(const GSPrimitiveBatch &batch, uint64_t seq)
+    {
+        const GSContext &c = batch.state.context;
+        const GSPrimReg &p = batch.state.prim;
+        char buf[768];
+        int n = std::snprintf(buf, sizeof(buf),
+                              "[ssx3:prim] #%llu type=%u tme=%d abe=%d fst=%d ctxt=%d iip=%d frame(fbp=0x%x w=%u psm=0x%x msk=0x%x) "
+                              "zbuf(zbp=0x%x psm=0x%x zmsk=%d) scis(%u-%u,%u-%u) ofs(%u,%u) tex0(tbp=0x%x tbw=%u psm=0x%x tw=%u th=%u tcc=%u tfx=%u) "
+                              "alpha=0x%llx test=0x%llx fba=%llu",
+                              (unsigned long long)seq, (unsigned)p.type, p.tme, p.abe, p.fst, p.ctxt, p.iip,
+                              c.frame.fbp, c.frame.fbw, c.frame.psm, c.frame.fbmsk,
+                              c.zbuf.zbp, c.zbuf.psm, c.zbuf.zmask ? 1 : 0,
+                              c.scissor.x0, c.scissor.x1, c.scissor.y0, c.scissor.y1, c.xyoffset.ofx >> 4, c.xyoffset.ofy >> 4,
+                              c.tex0.tbp0, c.tex0.tbw, c.tex0.psm, c.tex0.tw, c.tex0.th, c.tex0.tcc, c.tex0.tfx,
+                              (unsigned long long)c.alpha, (unsigned long long)c.test, (unsigned long long)c.fba);
+        for (int i = 0; i < batch.vertexCount && n > 0 && n < (int)sizeof(buf); ++i)
+        {
+            const GSVertex &v = batch.vertices[static_cast<size_t>(i)];
+            n += std::snprintf(buf + n, sizeof(buf) - n, " v%d(%.1f,%.1f z=%.0f rgba=%u,%u,%u,%u uv=%u,%u st=%.3f,%.3f q=%.3f)", i,
+                               v.x, v.y, v.z, v.r, v.g, v.b, v.a, v.u, v.v, v.s, v.t, v.q);
+        }
+        RUNTIME_LOG(buf << std::endl);
+    }
+}
 
 namespace
 {
@@ -1592,6 +1622,21 @@ void GS::vertexKick(bool drawing)
             g_ssx3PrimType[batch.state.prim.type & 7u].fetch_add(1, std::memory_order_relaxed);
             if (batch.state.prim.type == GS_PRIM_SPRITE && batch.state.prim.tme)
                 g_ssx3SpriteTexTbp[dc.tex0.tbp0 & 0x3FFFu].fetch_add(1, std::memory_order_relaxed);
+            static uint64_t ssx3PrimSeq = 0;
+            ++ssx3PrimSeq;
+            // Once armed (past the intro), sample: every display-buffer (0x70) draw until 40
+            // logged, and every 997th other draw until 80 logged.
+            if (g_ssx3PrimLogArm.load(std::memory_order_relaxed) && g_ssx3PrimLogTotal.load(std::memory_order_relaxed) < 120u)
+            {
+                static uint32_t dispLogged = 0, otherLogged = 0;
+                const bool isDisp = fbp == 0x70u;
+                if ((isDisp && dispLogged < 40u) || (!isDisp && otherLogged < 80u && (ssx3PrimSeq % 997ull) == 0ull))
+                {
+                    (isDisp ? dispLogged : otherLogged)++;
+                    g_ssx3PrimLogTotal.fetch_add(1, std::memory_order_relaxed);
+                    ssx3LogPrim(batch, ssx3PrimSeq);
+                }
+            }
         }
         updatePreferredDisplaySourceForDraw(batch);
         m_backend->Submit(batch);
