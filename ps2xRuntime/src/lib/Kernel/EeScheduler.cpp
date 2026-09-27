@@ -854,7 +854,20 @@ void EeScheduler::transferIfRequested(bool interruptSafe)
 int EeScheduler::createSemaphore(int initCount, int maxCount, uint32_t attr, uint32_t option)
 {
     assertExecutor();
-    if (maxCount <= 0 || initCount < 0 || initCount > maxCount)
+    // The EE kernel only rejects a negative initial count; it does not validate
+    // max_count. Retail games create semaphores with max_count == 0 and use them
+    // as ordinary unbounded semaphores (SSX 3's frame-sync semaphore does exactly
+    // this). Rejecting them hands the game id -1, and every WaitSema on it then
+    // returns immediately. Treat a non-positive max as "no limit".
+    if (initCount < 0)
+    {
+        return KE_ERROR;
+    }
+    if (maxCount <= 0)
+    {
+        maxCount = std::numeric_limits<int>::max();
+    }
+    if (initCount > maxCount)
     {
         return KE_ERROR;
     }
