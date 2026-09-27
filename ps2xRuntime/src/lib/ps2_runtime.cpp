@@ -494,9 +494,18 @@ std::atomic<uint32_t> g_ssx3VuCaptureLeft{0};
 extern std::atomic<uint32_t> g_ssx3VifCaptureLeft;
 static int ssx3VuCaptureBegin(const VU1State &st, const uint8_t *code, const uint8_t *data, uint32_t pc, uint32_t top, uint32_t itop)
 {
+    // Capture the first run of each distinct microprogram entry (up to 24) while armed, so every
+    // renderer in the scene is represented, not just whichever one happens to run next.
     static int index = 0;
+    static std::vector<uint32_t> seenPcs;
     if (g_ssx3VuCaptureLeft.load(std::memory_order_relaxed) == 0u)
+    {
+        seenPcs.clear();
         return -1;
+    }
+    if (std::find(seenPcs.begin(), seenPcs.end(), pc) != seenPcs.end())
+        return -1;
+    seenPcs.push_back(pc);
     g_ssx3VuCaptureLeft.fetch_sub(1u, std::memory_order_relaxed);
     char path[64];
     std::snprintf(path, sizeof(path), "vu1cap_%02d.bin", index);
@@ -2771,7 +2780,7 @@ void PS2Runtime::run()
         if (IsKeyPressed(KEY_F11))
         {
             g_ssx3VuCaptureLeft.store(24u);
-            g_ssx3VifCaptureLeft.store(24u);
+            g_ssx3VifCaptureLeft.store(8u);
             RUNTIME_LOG("[ssx3:cap] F11 pressed, capturing the next 24 VIF1 streams and VU1 runs" << std::endl);
         }
         if (IsKeyPressed(KEY_F10))
