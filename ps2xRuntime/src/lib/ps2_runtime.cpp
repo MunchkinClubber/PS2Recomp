@@ -2561,7 +2561,7 @@ static void ssx3DumpFrameBmp(GS &gs, const char *path, uint32_t fbp, uint32_t fb
 
 // SSX3 debug: per-interval draw targets, textured-sprite sources, presentation source,
 // and periodic BMP dumps of the displayed and most-drawn framebuffers.
-static void ssx3LogDrawDiagnostics(GS &gsCore, const GSRegisters &gs)
+static void ssx3LogDrawDiagnostics(GS &gsCore, const GSRegisters &gs, const uint8_t *vram)
 {
     // Per-interval draw targets, textured-sprite sources, presentation source.
     std::vector<std::pair<uint32_t, uint32_t>> fbps;
@@ -2618,6 +2618,16 @@ static void ssx3LogDrawDiagnostics(GS &gsCore, const GSRegisters &gs)
             const uint32_t info = g_ssx3FbpInfo[fbps[i].second].load();
             std::snprintf(path, sizeof(path), "ssx3_dump%02u_draw_fbp%03x.bmp", ssx3DumpIndex, fbps[i].second);
             ssx3DumpFrameBmp(gsCore, path, fbps[i].second, info & 0xFFu, info >> 8);
+        }
+        if (manualDump && vram)
+        {
+            // Raw GS local memory (4 MB) for offline texture/CLUT decoding.
+            std::snprintf(path, sizeof(path), "ssx3_dump%02u_vram.bin", ssx3DumpIndex);
+            if (std::FILE *vf = std::fopen(path, "wb"))
+            {
+                std::fwrite(vram, 1, PS2_GS_VRAM_SIZE, vf);
+                std::fclose(vf);
+            }
         }
         std::snprintf(path, sizeof(path), "ssx3_dump%02u_zbuf_e0.bmp", ssx3DumpIndex);
         ssx3DumpFrameBmp(gsCore, path, 0xE0u, 8u, 0x31u); // Z24 depth buffer used in races
@@ -2750,7 +2760,7 @@ void PS2Runtime::run()
                     ssx3LastKicks = kicks;
                     ssx3LastUploads = uploads;
 
-                    ssx3LogDrawDiagnostics(m_gs, gs);
+                    ssx3LogDrawDiagnostics(m_gs, gs, m_memory.getGSVRAM());
                 }
                 RUNTIME_LOG("[ssx3:t3count] own=" << g_ssx3T3Own.load() << " handler=" << g_ssx3T3Handler.load() << std::endl);
 
