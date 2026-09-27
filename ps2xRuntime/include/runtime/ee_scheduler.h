@@ -334,6 +334,8 @@ public:
     void dispatchIrq(bool dmac, uint32_t cause);
     void setVSyncFlag(uint32_t flagAddress, uint32_t tickAddress);
     [[nodiscard]] uint64_t currentVSyncTick() const noexcept;
+    // Complete an external wait (see completeExternalWait) after `vsyncs` emulated VBlanks.
+    void scheduleExternalWakeAfterVSyncs(uint32_t type, uint64_t token, uint32_t vsyncs);
     uint32_t setGsVSyncCallback(uint32_t callback, uint32_t gp, uint32_t sp);
 
     [[noreturn]] void waitVSync(uint64_t afterTick, int fixedResult = -1, std::function<void(R5900Context &)> completion = {});

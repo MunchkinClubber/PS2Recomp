@@ -493,6 +493,9 @@ namespace ps2_stubs
             uint32_t imageBufferAddr = 0u;
             bool sawInput = false;
             bool sawSequenceEnd = false;
+            // SSX3: end codes fed while the game's stream was merely empty (see sceMpegAddBs)
+            uint64_t pendingEndCodeSinceTick = 0u;
+            bool lastFeedSwallowedEndCode = false;
             bool streamEnded = false;
             bool decoderFailed = false;
             uint64_t cdStreamGeneration = 0u;
@@ -1884,6 +1887,40 @@ namespace ps2_stubs
         {
             std::lock_guard<std::mutex> lock(g_mpeg_stub_mutex);
             MpegPlaybackState &playback = getPlaybackState(mpegAddr);
+            // Players such as EA's feed a few MPEG sequence-end codes (00 00 01 B7) from the no-data
+            // callback whenever their stream ring is momentarily empty. On hardware that only happens at
+            // the real end of a movie because streaming stays ahead; here the decoder can ask before the
+            // streaming thread has refilled, and a premature sequence end resets the decoder and freezes
+            // the picture. Hold such end-code-only feeds back for a short grace period: if real data
+            // follows, playback continues; if not, the end code is honoured.
+            {
+                bool onlyEndCodes = byteCount >= 4u && byteCount <= 256u && (byteCount % 4u) == 0u;
+                for (uint32_t off = 0; onlyEndCodes && off < byteCount; off += 4u)
+                {
+                    const uint8_t *w = getConstMemPtr(rdram, dataAddr + off);
+                    onlyEndCodes = w && w[0] == 0x00u && w[1] == 0x00u && w[2] == 0x01u && w[3] == kMpegSequenceEnd;
+                }
+                playback.lastFeedSwallowedEndCode = false;
+                if (onlyEndCodes && !playback.streamEnded)
+                {
+                    constexpr uint64_t kEndCodeGraceVSyncs = 30u;
+                    const uint64_t now = runtime->eeScheduler().currentVSyncTick() + 1u;
+                    if (playback.pendingEndCodeSinceTick == 0u)
+                    {
+                        playback.pendingEndCodeSinceTick = now;
+                    }
+                    if (now - playback.pendingEndCodeSinceTick < kEndCodeGraceVSyncs)
+                    {
+                        playback.lastFeedSwallowedEndCode = true;
+                        setReturnS32(ctx, static_cast<int32_t>(byteCount));
+                        return;
+                    }
+                }
+                else if (!onlyEndCodes)
+                {
+                    playback.pendingEndCodeSinceTick = 0u;
+                }
+            }
             const size_t framesBefore = playback.decodedFrames.size();
             while (copied < byteCount)
             {
@@ -2340,15 +2377,26 @@ namespace ps2_stubs
             {
                 runtime->guestFree(cbDataAddr);
                 const int32_t ret = static_cast<int32_t>(getRegU32(&done, 2));
+                bool retryNextVSync = false;
                 {
                     std::lock_guard<std::mutex> lock(g_mpeg_stub_mutex);
                     g_mpegNodataInFlight[mpegAddr] = false;
+                    MpegPlaybackState &playback = getPlaybackState(mpegAddr);
                     if (ret == 0)
                     {
-                        getPlaybackState(mpegAddr).streamEnded = true;
+                        playback.streamEnded = true;
                     }
+                    // Nothing new was available: give the streaming thread a frame before asking again.
+                    retryNextVSync = playback.lastFeedSwallowedEndCode && playback.decodedFrames.empty() && !playback.streamEnded;
                 }
-                runtime->eeScheduler().completeExternalWait(kMpegPictureWaitType, mpegAddr, KE_OK);
+                if (retryNextVSync)
+                {
+                    runtime->eeScheduler().scheduleExternalWakeAfterVSyncs(kMpegPictureWaitType, mpegAddr, 1u);
+                }
+                else
+                {
+                    runtime->eeScheduler().completeExternalWait(kMpegPictureWaitType, mpegAddr, KE_OK);
+                }
             };
             runtime->eeScheduler().queueInvocation(std::move(invocation));
         }

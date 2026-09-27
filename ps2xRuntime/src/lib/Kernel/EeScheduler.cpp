@@ -1454,6 +1454,15 @@ void EeScheduler::completeVSync(uint64_t tick)
     publishSnapshot();
 }
 
+void EeScheduler::scheduleExternalWakeAfterVSyncs(uint32_t type, uint64_t token, uint32_t vsyncs)
+{
+    assertExecutor();
+    const uint32_t n = vsyncs == 0u ? 1u : vsyncs;
+    scheduleEvent(m_eeCycle + static_cast<uint64_t>(n) * kVBlankPeriodCycles,
+                  std::chrono::steady_clock::now() + n * kVBlankPeriod,
+                  EeEvent{EeEventType::ExternalWake, type, token});
+}
+
 void EeScheduler::completeExternalWait(uint32_t type, uint64_t token, int result)
 {
     assertExecutor();
