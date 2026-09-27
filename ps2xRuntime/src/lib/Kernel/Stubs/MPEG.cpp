@@ -2402,6 +2402,67 @@ namespace ps2_stubs
         }
     }
 
+    void sceMpegGetPicture(uint8_t *rdram, R5900Context *ctx, PS2Runtime *runtime);
+
+    namespace
+    {
+        // Run the no-data callback on the calling thread, as libmpeg does (never returns: transfers to
+        // the scheduler). When it finishes: if it produced data, retry GetPicture; if it only had
+        // "nothing yet" (end codes held back), return success so the game's loop can run and top up its
+        // stream -- EA's player refills once per frame from the same thread that calls GetPicture, so
+        // blocking here would deadlock. The caller keeps showing its previous picture for that frame.
+        [[noreturn]] void invokeMpegNodataCallbackSync(uint8_t *rdram, R5900Context *ctx, PS2Runtime *runtime,
+                                                       uint32_t mpegAddr, const MpegRegisteredCallback &cb)
+        {
+            const uint32_t cbDataAddr = runtime->guestMalloc(16u, 16u);
+            if (cbDataAddr != 0u)
+            {
+                const uint32_t typeWord = kMpegCbNodata;
+                std::memcpy(rdram + (cbDataAddr & PS2_RAM_MASK), &typeWord, sizeof(typeWord));
+            }
+
+            GuestInvocation invocation{};
+            invocation.kind = GuestInvocationKind::HleCall;
+            invocation.context = *ctx;
+            invocation.context.pc = cb.func;
+            SET_GPR_U32(&invocation.context, 4, mpegAddr);
+            SET_GPR_U32(&invocation.context, 5, cbDataAddr);
+            SET_GPR_U32(&invocation.context, 6, cb.data);
+            SET_GPR_U32(&invocation.context, 7, 0u);
+            SET_GPR_U32(&invocation.context, 29, 0u);
+            SET_GPR_U32(&invocation.context, 31, 0u);
+            invocation.onComplete = [rdram, runtime, cbDataAddr, mpegAddr](const R5900Context &done, R5900Context &parent)
+            {
+                if (cbDataAddr != 0u)
+                {
+                    runtime->guestFree(cbDataAddr);
+                }
+                const int32_t ret = static_cast<int32_t>(getRegU32(&done, 2));
+                bool retry = true;
+                {
+                    std::lock_guard<std::mutex> lock(g_mpeg_stub_mutex);
+                    g_mpegNodataInFlight[mpegAddr] = false;
+                    MpegPlaybackState &playback = getPlaybackState(mpegAddr);
+                    if (ret == 0)
+                    {
+                        playback.streamEnded = true;
+                    }
+                    if (playback.decodedFrames.empty() && !playback.streamEnded && playback.lastFeedSwallowedEndCode)
+                    {
+                        retry = false;
+                    }
+                }
+                if (retry)
+                {
+                    sceMpegGetPicture(rdram, &parent, runtime);
+                    return;
+                }
+                setReturnS32(&parent, 0); // nothing new this frame; keep the previous picture
+            };
+            runtime->eeScheduler().invokeCurrent(std::move(invocation));
+        }
+    }
+
     void sceMpegGetPicture(uint8_t *rdram, R5900Context *ctx, PS2Runtime *runtime)
     {
         const uint32_t mpegAddr = getRegU32(ctx, 4);
@@ -2436,6 +2497,10 @@ namespace ps2_stubs
                     g_mpegNodataInFlight[mpegAddr] = true;
                 }
                 lock.unlock();
+                if (askForData && runtime->hasFunction(nodataCb.func))
+                {
+                    invokeMpegNodataCallbackSync(rdram, ctx, runtime, mpegAddr, nodataCb);
+                }
                 if (askForData)
                 {
                     queueMpegNodataCallback(rdram, ctx, runtime, mpegAddr, nodataCb);
