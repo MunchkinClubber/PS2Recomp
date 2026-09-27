@@ -1460,9 +1460,29 @@ void GSCpuBackend::DrawLine(const GSPrimitiveBatch &batch)
     }
 }
 
+extern std::atomic<bool> g_ssx3PrimLogArm;         // SSX3 debug (gs_frontend.cpp)
+std::atomic<uint32_t> g_ssx3Transfers{0};           // SSX3 debug: transfers started
+std::atomic<uint32_t> g_ssx3TransferLogged{0};
+
 void GSCpuBackend::BeginTransfer(const GSTransferCommand &command)
 {
     std::lock_guard<std::mutex> lock(m_mutex);
+    g_ssx3Transfers.fetch_add(1u, std::memory_order_relaxed);
+    // Log every transfer once armed, plus (from boot) any into the 0x2a00-0x3800 block range the
+    // post-intro screen samples its tiles from, except the FMV frame buffer at 0x2a08.
+    const uint32_t xdbp = command.bitbltbuf.dbp;
+    const bool xInTileRange = xdbp >= 0x2a00u && xdbp < 0x3800u && xdbp != 0x2a08u;
+    if ((xInTileRange || g_ssx3PrimLogArm.load(std::memory_order_relaxed)) &&
+        g_ssx3TransferLogged.fetch_add(1u, std::memory_order_relaxed) < 200u)
+    {
+        char buf[256];
+        std::snprintf(buf, sizeof(buf),
+                      "[ssx3:xfer] dir=%u dbp=0x%x dbw=%u dpsm=0x%x dsa=(%u,%u) sbp=0x%x sbw=%u spsm=0x%x ssa=(%u,%u) size=%ux%u",
+                      command.direction, command.bitbltbuf.dbp, command.bitbltbuf.dbw, command.bitbltbuf.dpsm,
+                      command.trxpos.dsax, command.trxpos.dsay, command.bitbltbuf.sbp, command.bitbltbuf.sbw,
+                      command.bitbltbuf.spsm, command.trxpos.ssax, command.trxpos.ssay, command.trxreg.rrw, command.trxreg.rrh);
+        RUNTIME_LOG(buf << std::endl);
+    }
     m_transfer = command;
     m_transferState.x = command.trxpos.dsax;
     m_transferState.y = command.trxpos.dsay;
