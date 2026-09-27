@@ -2505,6 +2505,7 @@ extern std::atomic<uint32_t> g_ssx3VuStops;
 extern std::atomic<uint32_t> g_ssx3Xgkicks;
 static std::atomic<bool> g_ssx3DumpRequested{false}; // SSX3 debug: F9 in the game window
 extern std::atomic<uint32_t> g_ssx3PrimBurst;       // SSX3 debug: F10 in the game window
+extern std::atomic<uint32_t> g_ssx3TransferLogged;
 
 // SSX3 debug: write a GS frame (block-address base, fbw in 64px units) to a 24-bit BMP.
 static void ssx3DumpFrameBmp(GS &gs, const char *path, uint32_t fbp, uint32_t fbw, uint32_t psm)
@@ -2766,6 +2767,7 @@ void PS2Runtime::run()
         if (IsKeyPressed(KEY_F10))
         {
             g_ssx3PrimBurst.store(80u);
+            g_ssx3TransferLogged.store(120u); // allow 80 more [ssx3:xfer] lines (cap is 200)
             RUNTIME_LOG("[ssx3:prim] F10 pressed, logging a burst of 80 sampled primitives" << std::endl);
         }
         if (IsKeyPressed(KEY_F9))

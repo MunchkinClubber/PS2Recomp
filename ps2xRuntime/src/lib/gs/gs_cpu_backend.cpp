@@ -1462,7 +1462,7 @@ void GSCpuBackend::DrawLine(const GSPrimitiveBatch &batch)
 
 extern std::atomic<bool> g_ssx3PrimLogArm;         // SSX3 debug (gs_frontend.cpp)
 std::atomic<uint32_t> g_ssx3Transfers{0};           // SSX3 debug: transfers started
-std::atomic<uint32_t> g_ssx3TransferLogged{0};
+std::atomic<uint32_t> g_ssx3TransferLogged{0}; // reset by F10 (ps2_runtime.cpp)
 
 void GSCpuBackend::BeginTransfer(const GSTransferCommand &command)
 {

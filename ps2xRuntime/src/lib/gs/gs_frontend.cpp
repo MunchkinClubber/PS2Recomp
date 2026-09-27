@@ -27,16 +27,18 @@ namespace
     {
         const GSContext &c = batch.state.context;
         const GSPrimReg &p = batch.state.prim;
-        char buf[768];
+        char buf[1024];
         int n = std::snprintf(buf, sizeof(buf),
                               "[ssx3:prim] #%llu type=%u tme=%d abe=%d fst=%d ctxt=%d iip=%d frame(fbp=0x%x w=%u psm=0x%x msk=0x%x) "
-                              "zbuf(zbp=0x%x psm=0x%x zmsk=%d) scis(%u-%u,%u-%u) ofs(%u,%u) tex0(tbp=0x%x tbw=%u psm=0x%x tw=%u th=%u tcc=%u tfx=%u) "
+                              "zbuf(zbp=0x%x psm=0x%x zmsk=%d) scis(%u-%u,%u-%u) ofs(%u,%u) tex0(tbp=0x%x tbw=%u psm=0x%x tw=%u th=%u tcc=%u tfx=%u cbp=0x%x cpsm=0x%x csm=%u csa=%u cld=%u) tex1=0x%llx clamp=0x%llx "
                               "alpha=0x%llx test=0x%llx fba=%llu",
                               (unsigned long long)seq, (unsigned)p.type, p.tme, p.abe, p.fst, p.ctxt, p.iip,
                               c.frame.fbp, c.frame.fbw, c.frame.psm, c.frame.fbmsk,
                               c.zbuf.zbp, c.zbuf.psm, c.zbuf.zmask ? 1 : 0,
                               c.scissor.x0, c.scissor.x1, c.scissor.y0, c.scissor.y1, c.xyoffset.ofx >> 4, c.xyoffset.ofy >> 4,
                               c.tex0.tbp0, c.tex0.tbw, c.tex0.psm, c.tex0.tw, c.tex0.th, c.tex0.tcc, c.tex0.tfx,
+                              c.tex0.cbp, c.tex0.cpsm, c.tex0.csm, c.tex0.csa, c.tex0.cld,
+                              (unsigned long long)c.tex1, (unsigned long long)c.clamp,
                               (unsigned long long)c.alpha, (unsigned long long)c.test, (unsigned long long)c.fba);
         for (int i = 0; i < batch.vertexCount && n > 0 && n < (int)sizeof(buf); ++i)
         {
