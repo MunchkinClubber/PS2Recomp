@@ -301,6 +301,8 @@ void PS2Memory::processVIF1Data(uint32_t srcPhys, uint32_t sizeBytes)
 std::atomic<uint32_t> g_ssx3VifCaptureLeft{0}; // SSX3 debug: F11 captures the next VIF1 streams
 std::atomic<uint32_t> g_ssx3LightSearchLeft{0}; // SSX3 debug: F11 locates lighting constant sources
 std::atomic<uint32_t> g_ssx3WatchLo{0}, g_ssx3WatchHi{0}; // SSX3 debug: EE write watch window
+extern std::atomic<uint32_t> g_ps2WatchLo; // ps2_runtime.cpp
+extern std::atomic<uint32_t> g_ps2WatchHi;
 std::atomic<uint32_t> g_ssx3LightTraceLeft{0}; // SSX3 debug: F11 traces VU1 rows 7..16 traffic
 static uint32_t g_ssx3VifCaptureIndex = 0u;
 
@@ -625,12 +627,20 @@ void PS2Memory::processVIF1Data(const uint8_t *data, uint32_t sizeBytes)
                 g_ssx3LightSearchLeft.fetch_sub(1u, std::memory_order_relaxed);
                 std::string where;
                 char tmp[64];
+                uint32_t lastRam = 0u;
                 for (uint32_t a = 0; a + 160u <= PS2_RAM_SIZE; a += 16u)
                     if (std::memcmp(m_rdram + a, data + pos, 160u) == 0)
                     {
                         std::snprintf(tmp, sizeof(tmp), " ram:0x%x", a);
                         where += tmp;
+                        lastRam = a;
                     }
+                // Watch EE stores into the highest match (the master copy, not the DMA packet copies).
+                if (lastRam != 0u && g_ps2WatchHi.load() == 0u)
+                {
+                    g_ps2WatchLo.store(lastRam);
+                    g_ps2WatchHi.store(lastRam + 160u);
+                }
                 for (uint32_t a = 0; a + 160u <= PS2_SCRATCHPAD_SIZE; a += 16u)
                     if (std::memcmp(m_scratchpad + a, data + pos, 160u) == 0)
                     {

@@ -496,6 +496,17 @@ extern std::atomic<uint32_t> g_ssx3LightSearchLeft;
 extern std::atomic<uint32_t> g_ssx3LightTraceLeft;
 extern std::atomic<uint32_t> g_ssx3WatchLo, g_ssx3WatchHi;
 static std::atomic<uint32_t> g_ssx3WatchLogged{0};
+std::atomic<uint32_t> g_ps2WatchLo{0};
+std::atomic<uint32_t> g_ps2WatchHi{0};
+static std::atomic<uint32_t> g_ps2WatchLogged{0};
+void ps2WatchHit(const R5900Context *ctx, uint32_t guestAddr, uint32_t size, uint64_t valueLo, uint64_t valueHi)
+{
+    if (g_ps2WatchLogged.fetch_add(1u, std::memory_order_relaxed) >= 200u)
+        return;
+    std::fprintf(stderr, "[ssx3:rwatch] pc=0x%x ra=0x%x store%u addr=0x%x lo=0x%016llx hi=0x%016llx\n",
+                 ctx ? (unsigned)ctx->pc : 0u, ctx ? (unsigned)getRegU32(ctx, 31) : 0u, (unsigned)(size * 8u),
+                 (unsigned)guestAddr, (unsigned long long)valueLo, (unsigned long long)valueHi);
+}
 // SSX3 debug: log EE stores into the watched window (scratchpad copy of the lighting rows).
 static void ssx3WatchStore(const R5900Context *ctx, uint32_t vaddr, uint32_t size, uint64_t lo, uint64_t hi)
 {

@@ -237,6 +237,10 @@ inline uint8_t ps2PathWatchExtractByteFromWrite(uint32_t writeAddr, uint32_t wat
     return static_cast<uint8_t>((valueHi >> ((byteIndex - 8u) * 8u)) & 0xFFu);
 }
 
+extern std::atomic<uint32_t> g_ps2WatchLo;
+extern std::atomic<uint32_t> g_ps2WatchHi;
+void ps2WatchHit(const R5900Context *ctx, uint32_t guestAddr, uint32_t size, uint64_t valueLo, uint64_t valueHi);
+
 inline void ps2TraceGuestWrite(uint8_t *rdram,
                                uint32_t guestAddr,
                                uint32_t size,
@@ -246,13 +250,11 @@ inline void ps2TraceGuestWrite(uint8_t *rdram,
                                const R5900Context *ctx)
 {
     (void)rdram;
-    (void)guestAddr;
-    (void)size;
-    (void)valueLo;
-    (void)valueHi;
     (void)op;
-    (void)ctx;
-    // TODO we dont need this anymore so on next release it will be deleted
+    // Debug write watch: a single guest address window, off (0,0) by default.
+    const uint32_t watchHi = g_ps2WatchHi.load(std::memory_order_relaxed);
+    if (watchHi != 0u && guestAddr < watchHi && guestAddr + size > g_ps2WatchLo.load(std::memory_order_relaxed))
+        ps2WatchHit(ctx, guestAddr, size, valueLo, valueHi);
 }
 
 inline void ps2TraceGuestRangeWrite(uint8_t *rdram,
