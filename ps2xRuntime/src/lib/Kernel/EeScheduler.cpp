@@ -8,6 +8,9 @@
 #include <cstring>
 #include <limits>
 #include <stdexcept>
+#include <cstdio>
+#include <string>
+std::string ssx3DispatchHistory();
 
 namespace
 {
@@ -245,6 +248,16 @@ void EeScheduler::run()
                     }
                 }
                 continue;
+            }
+            {
+                // SSX3 debug: a thread "returned" to pc=0 with no invocation pending
+                R5900Context *ssx3c = &context;
+                std::fprintf(stderr, "[ssx3:dormant] thread %d reached pc=0: ra=0x%x sp=0x%x v0=0x%llx a0=0x%x s0=0x%x s1=0x%x s2=0x%x\n  history: %s\n",
+                             running->id, (unsigned)getRegU32(ssx3c, 31), (unsigned)getRegU32(ssx3c, 29),
+                             (unsigned long long)GPR_U64(ssx3c, 2), (unsigned)getRegU32(ssx3c, 4),
+                             (unsigned)getRegU32(ssx3c, 16), (unsigned)getRegU32(ssx3c, 17), (unsigned)getRegU32(ssx3c, 18),
+                             ssx3DispatchHistory().c_str());
+                std::fflush(stderr);
             }
             makeDormant(*running);
             m_currentThreadId = 0;

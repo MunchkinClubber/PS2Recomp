@@ -2511,3 +2511,9 @@ void PS2Runtime::run()
 
     RUNTIME_LOG("[run] exiting loop");
 }
+
+// SSX3 debug: expose dispatch history to the EE scheduler
+std::string ssx3DispatchHistory()
+{
+    return formatDispatchHistory();
+}
