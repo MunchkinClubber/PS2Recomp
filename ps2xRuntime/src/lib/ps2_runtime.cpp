@@ -2570,6 +2570,7 @@ static void ssx3DumpFrameBmp(GS &gs, const char *path, uint32_t fbp, uint32_t fb
 
 // SSX3 debug: per-interval draw targets, textured-sprite sources, presentation source,
 // and periodic BMP dumps of the displayed and most-drawn framebuffers.
+static const uint8_t *g_ssx3RdramForDump = nullptr; // SSX3 debug: EE RAM for F9 dumps
 static void ssx3LogDrawDiagnostics(GS &gsCore, const GSRegisters &gs, const uint8_t *vram)
 {
     // Per-interval draw targets, textured-sprite sources, presentation source.
@@ -2631,6 +2632,15 @@ static void ssx3LogDrawDiagnostics(GS &gsCore, const GSRegisters &gs, const uint
         if (manualDump && vram)
         {
             // Raw GS local memory (4 MB) for offline texture/CLUT decoding.
+            if (g_ssx3RdramForDump)
+            {
+                std::snprintf(path, sizeof(path), "ssx3_dump%02u_eeram.bin", ssx3DumpIndex);
+                if (std::FILE *ef = std::fopen(path, "wb"))
+                {
+                    std::fwrite(g_ssx3RdramForDump, 1, PS2_RAM_SIZE, ef);
+                    std::fclose(ef);
+                }
+            }
             std::snprintf(path, sizeof(path), "ssx3_dump%02u_vram.bin", ssx3DumpIndex);
             if (std::FILE *vf = std::fopen(path, "wb"))
             {
@@ -2769,6 +2779,7 @@ void PS2Runtime::run()
                     ssx3LastKicks = kicks;
                     ssx3LastUploads = uploads;
 
+                    g_ssx3RdramForDump = m_memory.getRDRAM();
                     ssx3LogDrawDiagnostics(m_gs, gs, m_memory.getGSVRAM());
                 }
                 RUNTIME_LOG("[ssx3:t3count] own=" << g_ssx3T3Own.load() << " handler=" << g_ssx3T3Handler.load() << std::endl);
