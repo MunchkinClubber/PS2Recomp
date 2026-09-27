@@ -492,6 +492,24 @@ static void UploadFrame(Texture2D &tex, PS2Runtime *rt, uint32_t &outWidth, uint
 // "VU1C", startPC, top, itop, vf[32][4], vi[16], acc[4], q, p, i, r, code[16K], data[16K].
 std::atomic<uint32_t> g_ssx3VuCaptureLeft{0};
 extern std::atomic<uint32_t> g_ssx3VifCaptureLeft;
+extern std::atomic<uint32_t> g_ssx3LightSearchLeft;
+extern std::atomic<uint32_t> g_ssx3WatchLo, g_ssx3WatchHi;
+static std::atomic<uint32_t> g_ssx3WatchLogged{0};
+// SSX3 debug: log EE stores into the watched window (scratchpad copy of the lighting rows).
+static void ssx3WatchStore(const R5900Context *ctx, uint32_t vaddr, uint32_t size, uint64_t lo, uint64_t hi)
+{
+    const uint32_t wlo = g_ssx3WatchLo.load(std::memory_order_relaxed);
+    if (wlo == 0u)
+        return;
+    const uint32_t phys = vaddr & 0x7FFFFFFFu;
+    if (phys + size <= wlo || phys >= g_ssx3WatchHi.load(std::memory_order_relaxed))
+        return;
+    if (g_ssx3WatchLogged.fetch_add(1u, std::memory_order_relaxed) >= 120u)
+        return;
+    std::fprintf(stderr, "[ssx3:watch] pc=0x%x ra=0x%x store%u addr=0x%x lo=0x%016llx hi=0x%016llx\n",
+                 (unsigned)ctx->pc, (unsigned)getRegU32(ctx, 31), (unsigned)(size * 8u), (unsigned)vaddr,
+                 (unsigned long long)lo, (unsigned long long)hi);
+}
 static int ssx3VuCaptureBegin(const VU1State &st, const uint8_t *code, const uint8_t *data, uint32_t pc, uint32_t top, uint32_t itop)
 {
     // Capture the first run of each distinct microprogram entry (up to 24) while armed, so every
@@ -2252,6 +2270,7 @@ void PS2Runtime::Store16(uint8_t *rdram, R5900Context *ctx, uint32_t vaddr, uint
 
 void PS2Runtime::Store32(uint8_t *rdram, R5900Context *ctx, uint32_t vaddr, uint32_t value)
 {
+    ssx3WatchStore(ctx, vaddr, 4u, value, 0u);
     ps2TraceGuestWrite(rdram, vaddr, 4u, value, 0u, "WRITE32", ctx);
     try
     {
@@ -2266,6 +2285,7 @@ void PS2Runtime::Store32(uint8_t *rdram, R5900Context *ctx, uint32_t vaddr, uint
 
 void PS2Runtime::Store64(uint8_t *rdram, R5900Context *ctx, uint32_t vaddr, uint64_t value)
 {
+    ssx3WatchStore(ctx, vaddr, 8u, value, 0u);
     ps2TraceGuestWrite(rdram, vaddr, 8u, value, 0u, "WRITE64", ctx);
     try
     {
@@ -2282,6 +2302,7 @@ void PS2Runtime::Store128(uint8_t *rdram, R5900Context *ctx, uint32_t vaddr, __m
     alignas(16) uint64_t _parts[2];
     _mm_storeu_si128(reinterpret_cast<__m128i *>(_parts), value);
     ps2TraceGuestWrite(rdram, vaddr, 16u, _parts[0], _parts[1], "WRITE128", ctx);
+    ssx3WatchStore(ctx, vaddr, 16u, _parts[0], _parts[1]);
     try
     {
         m_memory.write128(vaddr, value);
@@ -2792,6 +2813,7 @@ void PS2Runtime::run()
         {
             g_ssx3VuCaptureLeft.store(24u);
             g_ssx3VifCaptureLeft.store(8u);
+            g_ssx3LightSearchLeft.store(6u);
             RUNTIME_LOG("[ssx3:cap] F11 pressed, capturing the next 24 VIF1 streams and VU1 runs" << std::endl);
         }
         if (IsKeyPressed(KEY_F10))
