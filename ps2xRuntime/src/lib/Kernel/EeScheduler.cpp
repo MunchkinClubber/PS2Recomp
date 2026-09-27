@@ -249,6 +249,7 @@ void EeScheduler::run()
                 }
                 continue;
             }
+            if (running->id > 0)
             {
                 // SSX3 debug: a thread "returned" to pc=0 with no invocation pending
                 R5900Context *ssx3c = &context;
@@ -309,7 +310,18 @@ void EeScheduler::run()
         {
             m_insideInterrupt = !running->invocations.empty() && running->invocations.back().kind == GuestInvocationKind::Interrupt;
             m_guestExecuting.store(true, std::memory_order_release);
+            const uint32_t ssx3EntryPc = context.pc;
+            const int ssx3Tid = running->id;
             function(m_rdram, &context, &m_runtime);
+            if (context.pc == 0u && ssx3Tid > 0)
+            {
+                // SSX3 debug: which guest function jumped to address 0, and from which branch
+                R5900Context *ssx3c = &context;
+                std::fprintf(stderr, "[ssx3:jr0] thread %d: function entered at 0x%x left with pc=0; last branch at 0x%x ra=0x%x sp=0x%x v0=0x%x a0=0x%x\n",
+                             ssx3Tid, ssx3EntryPc, (unsigned)ssx3c->branch_pc, (unsigned)getRegU32(ssx3c, 31),
+                             (unsigned)getRegU32(ssx3c, 29), (unsigned)getRegU32(ssx3c, 2), (unsigned)getRegU32(ssx3c, 4));
+                std::fflush(stderr);
+            }
             m_guestExecuting.store(false, std::memory_order_release);
             m_insideInterrupt = false;
         }
