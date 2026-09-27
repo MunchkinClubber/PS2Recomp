@@ -4,7 +4,7 @@
 namespace
 {
     constexpr uint32_t kCdSectorSize = 2048;
-    constexpr uint32_t kCdPseudoLbnStart = 0x00100000;
+    constexpr uint32_t kCdPseudoLbnStart = 0x00500000; // SSX3: above any real DVD-DL LBN so it never shadows CD image sectors
 
     struct CdFileEntry
     {

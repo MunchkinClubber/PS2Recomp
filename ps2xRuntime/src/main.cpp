@@ -226,6 +226,32 @@ int main(int argc, char *argv[])
             return 1;
         }
 
+        // SSX3: optional CD image for raw sector reads (sceCdRead by LBN).
+        // Usage: ps2EntryRunner.exe <elf> [disc.iso]   or set PS2X_CD_IMAGE.
+        {
+            std::filesystem::path cdImagePath;
+            if (argc >= 3 && argv[2] && argv[2][0] != '\0')
+            {
+                cdImagePath = std::filesystem::path(argv[2]);
+            }
+            else if (const char *envIso = std::getenv("PS2X_CD_IMAGE"); envIso && envIso[0] != '\0')
+            {
+                cdImagePath = std::filesystem::path(envIso);
+            }
+            if (!cdImagePath.empty())
+            {
+                if (!std::filesystem::exists(cdImagePath))
+                {
+                    std::cerr << "CD image not found: " << cdImagePath.string() << std::endl;
+                    return 1;
+                }
+                PS2Runtime::IoPaths ioPaths = PS2Runtime::getIoPaths();
+                ioPaths.cdImage = cdImagePath;
+                PS2Runtime::setIoPaths(ioPaths);
+                std::cout << "Using CD image: " << cdImagePath.string() << std::endl;
+            }
+        }
+
         runtime.run();
 
 #ifdef _DEBUG

@@ -2339,6 +2339,21 @@ void PS2Runtime::HandleIntegerOverflow(R5900Context *ctx)
     raiseCop0Exception(ctx, EXCEPTION_INTEGER_OVERFLOW);
 }
 
+namespace
+{
+    // SSX3 debug helpers (kept outside PS2_IF_AGRESSIVE_LOGS macro: commas break macro args)
+    const char *ssx3StatusName(unsigned v)
+    {
+        static const char *k[] = {"Running", "Ready", "Waiting", "WaitSusp", "Suspended", "Dormant"};
+        return v < 6 ? k[v] : "?";
+    }
+    const char *ssx3WaitName(unsigned v)
+    {
+        static const char *k[] = {"None", "Sleep", "Sema", "EventFlag", "VSync", "External", "Mpeg"};
+        return v < 7 ? k[v] : "?";
+    }
+}
+
 void PS2Runtime::run()
 {
     m_stopRequested.store(false, std::memory_order_relaxed);
@@ -2417,6 +2432,32 @@ void PS2Runtime::run()
                                                << " gsw=" << curGs
                                                << " vif=" << curVif
                                                << std::endl);
+                // SSX3 debug: dump EE thread / semaphore state
+                {
+                    std::ostringstream td;
+                    td << "[run:threads] eeCycle=" << eeSnapshot.eeCycle << " running=" << eeSnapshot.runningThreadId << std::hex;
+                    for (const auto &t : eeSnapshot.threads)
+                    {
+                        const auto st = static_cast<unsigned>(t.status);
+                        const auto wr = static_cast<unsigned>(t.waitReason);
+                        td << "\n   T" << std::dec << t.id << " prio=" << t.currentPriority
+                           << " " << ssx3StatusName(st)
+                           << " wait=" << ssx3WaitName(wr) << "(" << t.waitId << ")"
+                           << std::hex << " pc=0x" << t.pc << " ra=0x" << t.ra << " entry=0x" << t.entry
+                           << " depth=" << std::dec << t.invocationDepth << std::hex;
+                    }
+                    for (const auto &sm : eeSnapshot.semaphores)
+                    {
+                        if (sm.waiters)
+                            td << std::dec << "\n   Sema" << sm.id << " count=" << sm.count << "/" << sm.maxCount << " waiters=" << sm.waiters;
+                    }
+                    for (const auto &ef : eeSnapshot.eventFlags)
+                    {
+                        if (ef.waiters)
+                            td << std::dec << "\n   EvFlag" << ef.id << std::hex << " bits=0x" << ef.bits << std::dec << " waiters=" << ef.waiters;
+                    }
+                    RUNTIME_LOG(td.str() << std::endl);
+                }
 
             }
         });
