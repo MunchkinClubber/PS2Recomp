@@ -972,9 +972,25 @@ bool PS2Runtime::loadELF(const std::string &elfPath)
     }
     {
         std::lock_guard<std::mutex> lock(m_asyncCallbackStackMutex);
-        const uint32_t hardLimit = std::min(kGuestHeapHardLimit, PS2_RAM_SIZE);
-        m_asyncCallbackStackFloor = std::min(std::max(hardLimit, suggestedHeapBase), PS2_RAM_SIZE);
-        m_asyncCallbackStackTop = PS2_RAM_SIZE;
+        // Interrupt/callback handler stacks. On real hardware these run on the kernel's private
+        // stack, never in game RAM. The top of RAM is a normal place for a game's main thread
+        // stack (crt0 commonly uses 0x1FE0000-0x2000000), so carving handler stacks from there
+        // silently corrupts saved registers of the main thread (seen in SSX 3).
+        // If the game image starts at or above 0x100000, the 0x80000-0x100000 kernel-reserved
+        // range is unused by the game, so place handler stacks there instead.
+        constexpr uint32_t kKernelScratchFloor = 0x00080000u;
+        constexpr uint32_t kKernelScratchTop = 0x00100000u;
+        if (moduleBase >= kKernelScratchTop)
+        {
+            m_asyncCallbackStackFloor = kKernelScratchFloor;
+            m_asyncCallbackStackTop = kKernelScratchTop;
+        }
+        else
+        {
+            const uint32_t hardLimit = std::min(kGuestHeapHardLimit, PS2_RAM_SIZE);
+            m_asyncCallbackStackFloor = std::min(std::max(hardLimit, suggestedHeapBase), PS2_RAM_SIZE);
+            m_asyncCallbackStackTop = PS2_RAM_SIZE;
+        }
     }
 
     LoadedModule module;
