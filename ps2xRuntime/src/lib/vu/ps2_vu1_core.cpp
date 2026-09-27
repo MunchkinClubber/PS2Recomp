@@ -1,3 +1,4 @@
+#include <atomic>
 #include "runtime/ps2_vu1.h"
 #include "runtime/gs/ps2_gif_arbiter.h"
 #include "runtime/gs/gs_frontend.h"
@@ -13,6 +14,11 @@
 #include <filesystem>
 #include <limits>
 #include <ps2_log.h>
+
+std::atomic<uint32_t> g_ssx3VuRuns{0};        // SSX3 debug: VU1 run() calls
+std::atomic<uint32_t> g_ssx3VuBudgetHits{0};  // SSX3 debug: runs that ran out of cycle budget
+std::atomic<uint32_t> g_ssx3VuStops{0};       // SSX3 debug: runs stopped by reserved instr etc.
+std::atomic<uint32_t> g_ssx3Xgkicks{0};       // SSX3 debug: XGKICK packets submitted
 
 namespace
 {
@@ -919,6 +925,7 @@ void VU1Interpreter::finishXgkick()
     if (!m_xgkick.active)
         return;
 
+    g_ssx3Xgkicks.fetch_add(1u, std::memory_order_relaxed);
     if (m_activeMemory)
         m_activeMemory->submitGifPacket(GifPathId::Path1, m_xgkick.packet.data(), m_xgkick.totalBytes);
     else if (m_activeGs)
@@ -1824,6 +1831,14 @@ void VU1Interpreter::run(uint8_t *vuCode, uint32_t codeSize,
             break;
     }
 
+    if (m_unit == Unit::VU1)
+    {
+        g_ssx3VuRuns.fetch_add(1u, std::memory_order_relaxed);
+        if (!programEnded && m_stopRequested)
+            g_ssx3VuStops.fetch_add(1u, std::memory_order_relaxed);
+        else if (!programEnded)
+            g_ssx3VuBudgetHits.fetch_add(1u, std::memory_order_relaxed);
+    }
     if (programEnded)
     {
         flushPipelines();

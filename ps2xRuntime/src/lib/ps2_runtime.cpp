@@ -2451,6 +2451,11 @@ extern std::atomic<uint32_t> g_ssx3SpriteTexTbp[16384];
 extern std::atomic<uint32_t> g_ssx3PrimType[8];
 extern std::atomic<bool> g_ssx3PrimLogArm;
 extern std::atomic<uint32_t> g_ssx3Transfers;
+extern std::atomic<uint32_t> g_ssx3VuRuns;
+extern std::atomic<uint32_t> g_ssx3VuBudgetHits;
+extern std::atomic<uint32_t> g_ssx3VuStops;
+extern std::atomic<uint32_t> g_ssx3Xgkicks;
+static std::atomic<bool> g_ssx3DumpRequested{false}; // SSX3 debug: F9 in the game window
 
 // SSX3 debug: write a GS frame (block-address base, fbw in 64px units) to a 24-bit BMP.
 static void ssx3DumpFrameBmp(GS &gs, const char *path, uint32_t fbp, uint32_t fbw, uint32_t psm)
@@ -2542,12 +2547,15 @@ static void ssx3LogDrawDiagnostics(GS &gsCore, const GSRegisters &gs)
     uint32_t prefDest = 0u;
     const bool hasPref = gsCore.getPreferredDisplaySource(pref, prefDest);
     ds << " xfers=" << g_ssx3Transfers.exchange(0u);
+    ds << " vu1(runs=" << g_ssx3VuRuns.exchange(0u) << " budgetHit=" << g_ssx3VuBudgetHits.exchange(0u)
+       << " stopped=" << g_ssx3VuStops.exchange(0u) << " xgkick=" << g_ssx3Xgkicks.exchange(0u) << ")";
     ds << " preferred=" << (hasPref ? 1 : 0) << std::hex << " prefSrc=0x" << pref.fbp << " prefDest=0x" << prefDest << std::dec;
     RUNTIME_LOG(ds.str() << std::endl);
 
     static uint32_t ssx3DumpTick = 0;
     static uint32_t ssx3DumpIndex = 0;
-    if ((++ssx3DumpTick % 5u) == 0u && ssx3DumpIndex < 12u)
+    const bool manualDump = g_ssx3DumpRequested.exchange(false);
+    if (manualDump || ((++ssx3DumpTick % 5u) == 0u && ssx3DumpIndex < 12u))
     {
         char path[128];
         const uint32_t dfbp = static_cast<uint32_t>(gs.dispfb1 & 0x1FFu);
@@ -2698,6 +2706,11 @@ void PS2Runtime::run()
         });
         uint32_t presentWidth = FB_WIDTH;
         uint32_t presentHeight = DEFAULT_DISPLAY_HEIGHT;
+        if (IsKeyPressed(KEY_F9))
+        {
+            g_ssx3DumpRequested.store(true);
+            RUNTIME_LOG("[ssx3:dump] F9 pressed, dumping at next interval" << std::endl);
+        }
         UploadFrame(frameTex, this, presentWidth, presentHeight);
 
         BeginDrawing();
