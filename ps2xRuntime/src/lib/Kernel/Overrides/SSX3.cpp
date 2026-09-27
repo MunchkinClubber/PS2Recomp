@@ -194,6 +194,10 @@ namespace
     // (the FMV's image uploads did, which is why the movie ran and the game froze right after).
     // Treat GIF completions that already happened as arriving after VIF1.
     constexpr uint32_t kRendererVif1Done = 0x00382688u;
+    // crt0 (0x100148) sets the main stack to 0x1FE0000-0x2000000 and EndOfHeap stays 0x1F00000, so
+    // 0x1F00000-0x1FE0000 is unused by the game.
+    constexpr uint32_t kSsx3RuntimeHeapBase = 0x01F00000u;
+    constexpr uint32_t kSsx3RuntimeHeapLimit = 0x01FE0000u;
     constexpr uint32_t kGifChcr = 0x1000A000u;
 
     void ssx3RendererVif1Done(uint8_t *rdram, R5900Context *ctx, PS2Runtime *runtime)
@@ -253,7 +257,13 @@ namespace
         runtime.replaceFunction(kSifSearchModuleByAddress, ssx3SifSearchModuleByAddress);
         runtime.replaceFunction(kSifSendCmd, ssx3SifSendCmd);
         runtime.replaceFunction(kRendererVif1Done, ssx3RendererVif1Done);
-        std::fprintf(stderr, "[ssx3:override] loadfile helpers + SIF SET_SREG mirror + renderer DMA ordering fix installed\n");
+        // The game's allocator (init at 0x31AED0) takes [malloc(0x400)+0x800, EndOfHeap()), i.e. all RAM
+        // from SetupHeap's base -- exactly where the runtime put its own heap (sceMpegCreate buffers,
+        // MPEG callback data, SIF packets...). Those overlapping allocations corrupted the game's free
+        // lists, and after the EA intro malloc_consolidate (0x31EEE8) looped forever on a cyclic bin.
+        // Give the runtime the unused 896 KB between EndOfHeap and the main stack instead.
+        runtime.reservePrivateGuestHeap(kSsx3RuntimeHeapBase, kSsx3RuntimeHeapLimit);
+        std::fprintf(stderr, "[ssx3:override] loadfile helpers + SIF SET_SREG mirror + renderer DMA ordering fix + private runtime heap installed\n");
     }
 }
 

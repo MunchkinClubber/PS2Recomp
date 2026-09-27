@@ -571,7 +571,7 @@ namespace ps2_syscalls
                           << std::dec << std::endl;
             });
 
-            setReturnU32(ctx, runtime->guestHeapBase());
+            setReturnU32(ctx, runtime->hasPrivateGuestHeap() ? heapBase : runtime->guestHeapBase());
             return;
         }
 
