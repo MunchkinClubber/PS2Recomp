@@ -78,7 +78,7 @@ namespace ps2recomp
                 return fmt::format("{{ int32_t tmp = FPU_CVT_W_S(ctx->f[{}]); std::memcpy(&ctx->f[{}], &tmp, sizeof(tmp)); }}", fs, fd);
             case COP1_S_RSQRT:
                 // EE RSQRT.S: fd = fs / sqrt(ft).
-                return fmt::format("ctx->f[{}] = ctx->f[{}] / sqrtf(ctx->f[{}]);", fd, fs, ft);
+                return fmt::format("ctx->f[{}] = ctx->f[{}] / sqrtf(fabsf(ctx->f[{}]));", fd, fs, ft);
             case COP1_S_ADDA:
                 return fmt::format("FPU_SET_ACC(ctx, FPU_ADD_S(ctx->f[{}], ctx->f[{}]));", fs, ft);
             case COP1_S_SUBA:
