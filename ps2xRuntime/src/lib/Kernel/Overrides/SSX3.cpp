@@ -13,6 +13,7 @@
 
 #include <cctype>
 #include <cstdio>
+#include <cstring>
 #include <mutex>
 #include <string>
 
@@ -150,13 +151,43 @@ namespace
         std::fprintf(stderr, "[ssx3:lf] sceSifSearchModuleByAddress(0x%x) -> %d\n", (unsigned)getRegU32(ctx, 4), (int)kKeUnknownModule);
     }
 
+    // EE-side libkernel SIF software-register table (sceSifGetSreg 0x425CF0 / sceSifSetSreg 0x425D08).
+    constexpr uint32_t kEeSifSregTable = 0x0052BE00u;
+    constexpr uint32_t kSifSendCmd = 0x004261B0u;
+    constexpr uint32_t kSifCmdSetSreg = 0x80000001u;
+
+    // SSX 3 boot handshake (FUN_0040B130): the EE sends SIF_CMD_SET_SREG(1, 1) to the IOP and then
+    // spins until its own sreg 1 becomes non-zero, i.e. until an IOP module echoes readiness back.
+    // The HLE runtime drops SIF commands, so nothing ever answers. Mirror SET_SREG into the EE-side
+    // table (EE and IOP are one machine here), then continue with the normal handler.
+    void ssx3SifSendCmd(uint8_t *rdram, R5900Context *ctx, PS2Runtime *runtime)
+    {
+        returnToCaller(ctx);
+        const uint32_t cid = getRegU32(ctx, 4);
+        const uint32_t packet = getRegU32(ctx, 5);
+        if (cid == kSifCmdSetSreg && packet != 0u)
+        {
+            uint32_t reg = 0u;
+            uint32_t value = 0u;
+            std::memcpy(&reg, rdram + ((packet + 0x10u) & PS2_RAM_MASK), sizeof(reg));
+            std::memcpy(&value, rdram + ((packet + 0x14u) & PS2_RAM_MASK), sizeof(value));
+            if (reg < 32u)
+            {
+                std::memcpy(rdram + kEeSifSregTable + reg * 4u, &value, sizeof(value));
+                std::fprintf(stderr, "[ssx3:sif] SET_SREG(%u, 0x%x) mirrored to EE sreg table\n", (unsigned)reg, (unsigned)value);
+            }
+        }
+        ps2_syscalls::sceSifSendCmd(rdram, ctx, runtime);
+    }
+
     void applySsx3Overrides(PS2Runtime &runtime)
     {
         runtime.replaceFunction(kSifStopModule, ssx3SifStopModule);
         runtime.replaceFunction(kSifUnloadModule, ssx3SifUnloadModule);
         runtime.replaceFunction(kSifSearchModuleByName, ssx3SifSearchModuleByName);
         runtime.replaceFunction(kSifSearchModuleByAddress, ssx3SifSearchModuleByAddress);
-        std::fprintf(stderr, "[ssx3:override] loadfile helpers routed to host implementations\n");
+        runtime.replaceFunction(kSifSendCmd, ssx3SifSendCmd);
+        std::fprintf(stderr, "[ssx3:override] loadfile helpers + SIF SET_SREG mirror installed\n");
     }
 }
 
