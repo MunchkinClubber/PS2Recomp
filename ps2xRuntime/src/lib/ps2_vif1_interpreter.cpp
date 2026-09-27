@@ -1,3 +1,5 @@
+#include <cstdio>
+#include <atomic>
 // Based on Blackline Interactive implementation
 #include "runtime/ps2_memory.h"
 #include <cstring>
@@ -295,10 +297,29 @@ void PS2Memory::processVIF1Data(uint32_t srcPhys, uint32_t sizeBytes)
     processVIF1Data(m_rdram + srcPhys, sizeBytes);
 }
 
+std::atomic<uint32_t> g_ssx3VifCaptureLeft{0}; // SSX3 debug: F11 captures the next VIF1 streams
+static uint32_t g_ssx3VifCaptureIndex = 0u;
+
 void PS2Memory::processVIF1Data(const uint8_t *data, uint32_t sizeBytes)
 {
     if (sizeBytes == 0u)
         return;
+
+    if (g_ssx3VifCaptureLeft.load(std::memory_order_relaxed) > 0u)
+    {
+        g_ssx3VifCaptureLeft.fetch_sub(1u, std::memory_order_relaxed);
+        char path[64];
+        std::snprintf(path, sizeof(path), "vif1cap_%02u.bin", g_ssx3VifCaptureIndex++);
+        if (std::FILE *f = std::fopen(path, "wb"))
+        {
+            // header: "VIF1", VIFRegisters (23 words), stream size, then the stream
+            std::fwrite("VIF1", 1, 4, f);
+            std::fwrite(&vif1_regs, sizeof(vif1_regs), 1, f);
+            std::fwrite(&sizeBytes, sizeof(sizeBytes), 1, f);
+            std::fwrite(data, 1, sizeBytes, f);
+            std::fclose(f);
+        }
+    }
 
     uint32_t pos = 0;
 

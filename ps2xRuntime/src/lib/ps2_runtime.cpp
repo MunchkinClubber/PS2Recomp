@@ -488,6 +488,52 @@ static void UploadFrame(Texture2D &tex, PS2Runtime *rt, uint32_t &outWidth, uint
     s_hasUploadedFrame = true;
 }
 
+// SSX3 debug: F11 captures the VU1 state around the next MSCALs (vu1cap_NN.bin / _after.bin):
+// "VU1C", startPC, top, itop, vf[32][4], vi[16], acc[4], q, p, i, r, code[16K], data[16K].
+std::atomic<uint32_t> g_ssx3VuCaptureLeft{0};
+extern std::atomic<uint32_t> g_ssx3VifCaptureLeft;
+static int ssx3VuCaptureBegin(const VU1State &st, const uint8_t *code, const uint8_t *data, uint32_t pc, uint32_t top, uint32_t itop)
+{
+    static int index = 0;
+    if (g_ssx3VuCaptureLeft.load(std::memory_order_relaxed) == 0u)
+        return -1;
+    g_ssx3VuCaptureLeft.fetch_sub(1u, std::memory_order_relaxed);
+    char path[64];
+    std::snprintf(path, sizeof(path), "vu1cap_%02d.bin", index);
+    if (std::FILE *f = std::fopen(path, "wb"))
+    {
+        std::fwrite("VU1C", 1, 4, f);
+        std::fwrite(&pc, 4, 1, f);
+        std::fwrite(&top, 4, 1, f);
+        std::fwrite(&itop, 4, 1, f);
+        std::fwrite(st.vf, sizeof(st.vf), 1, f);
+        std::fwrite(st.vi, sizeof(st.vi), 1, f);
+        std::fwrite(st.acc, sizeof(st.acc), 1, f);
+        std::fwrite(&st.q, 4, 1, f);
+        std::fwrite(&st.p, 4, 1, f);
+        std::fwrite(&st.i, 4, 1, f);
+        std::fwrite(&st.r, 4, 1, f);
+        std::fwrite(code, 1, PS2_VU1_CODE_SIZE, f);
+        std::fwrite(data, 1, PS2_VU1_DATA_SIZE, f);
+        std::fclose(f);
+    }
+    return index++;
+}
+static void ssx3VuCaptureEnd(int index, const VU1State &st, const uint8_t *data)
+{
+    if (index < 0)
+        return;
+    char path[64];
+    std::snprintf(path, sizeof(path), "vu1cap_%02d_after.bin", index);
+    if (std::FILE *f = std::fopen(path, "wb"))
+    {
+        std::fwrite(st.vf, sizeof(st.vf), 1, f);
+        std::fwrite(st.vi, sizeof(st.vi), 1, f);
+        std::fwrite(data, 1, PS2_VU1_DATA_SIZE, f);
+        std::fclose(f);
+    }
+}
+
 PS2Runtime::PS2Runtime()
 {
     m_iopHost = std::make_unique<PS2IopHostAdapter>(*this);
@@ -690,9 +736,11 @@ bool PS2Runtime::syncCoreSubsystems()
                                          (cpuContext->vu0_fbrst & (1u << 10)) != 0u;
                                      m_vu1.state().tBitEnabled =
                                          (cpuContext->vu0_fbrst & (1u << 11)) != 0u;
+                                     const int ssx3Cap = ssx3VuCaptureBegin(m_vu1.state(), m_memory.getVU1Code(), m_memory.getVU1Data(), startPC, top, itop);
                                      m_vu1.execute(m_memory.getVU1Code(), PS2_VU1_CODE_SIZE,
                                                    m_memory.getVU1Data(), PS2_VU1_DATA_SIZE,
                                                    m_gs, &m_memory, startPC, top, itop, 65536);
+                                     ssx3VuCaptureEnd(ssx3Cap, m_vu1.state(), m_memory.getVU1Data());
                                      cpuContext->vu0_vpu_stat =
                                          (cpuContext->vu0_vpu_stat & ~0x0600u) |
                                          (m_vu1.state().stoppedByD ? 0x0200u : 0u) |
@@ -2709,6 +2757,12 @@ void PS2Runtime::run()
         });
         uint32_t presentWidth = FB_WIDTH;
         uint32_t presentHeight = DEFAULT_DISPLAY_HEIGHT;
+        if (IsKeyPressed(KEY_F11))
+        {
+            g_ssx3VuCaptureLeft.store(24u);
+            g_ssx3VifCaptureLeft.store(24u);
+            RUNTIME_LOG("[ssx3:cap] F11 pressed, capturing the next 24 VIF1 streams and VU1 runs" << std::endl);
+        }
         if (IsKeyPressed(KEY_F10))
         {
             g_ssx3PrimBurst.store(80u);
