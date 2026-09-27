@@ -204,6 +204,40 @@ namespace ps2_stubs
         return snapshot;
     }
 
+    // ---- sceCdCallback emulation ------------------------------------------------------
+    // libcdvd calls the user callback (registered with sceCdCallback) with the finished
+    // command's function code whenever a non-blocking command completes. Our commands
+    // complete synchronously, so queue the callback to run right after the call returns.
+    // Games with their own async file layer (EA titles, e.g. SSX 3) mark jobs finished from
+    // this callback and otherwise spin forever waiting on them.
+    namespace
+    {
+        uint32_t g_cdUserCallback = 0u;
+
+        constexpr int kCdFuncRead = 1;
+        constexpr int kCdFuncSeek = 4;
+        constexpr int kCdFuncStandby = 5;
+        constexpr int kCdFuncStop = 6;
+        constexpr int kCdFuncPause = 7;
+
+        void queueCdUserCallback(R5900Context *ctx, PS2Runtime *runtime, int func)
+        {
+            const uint32_t callback = g_cdUserCallback;
+            if (callback == 0u || runtime == nullptr || !runtime->hasFunction(callback))
+            {
+                return;
+            }
+            GuestInvocation invocation{};
+            invocation.kind = GuestInvocationKind::HleCall;
+            invocation.context = *ctx;
+            invocation.context.pc = callback;
+            SET_GPR_U32(&invocation.context, 4, static_cast<uint32_t>(func));
+            SET_GPR_U32(&invocation.context, 29, 0u); // scheduler assigns a handler stack
+            SET_GPR_U32(&invocation.context, 31, 0u);
+            runtime->eeScheduler().queueInvocation(std::move(invocation));
+        }
+    }
+
     void sceCdRead(uint8_t *rdram, R5900Context *ctx, PS2Runtime *runtime)
     {
         const uint32_t a0 = getRegU32(ctx, 4); // usually lbn
@@ -317,6 +351,7 @@ namespace ps2_stubs
         {
             g_cdStreamingLbn = selected.lbn + selected.sectors;
             setReturnS32(ctx, 1); // command accepted/success
+            queueCdUserCallback(ctx, runtime, kCdFuncRead);
             return;
         }
 
@@ -355,7 +390,10 @@ namespace ps2_stubs
 
     void sceCdCallback(uint8_t *rdram, R5900Context *ctx, PS2Runtime *runtime)
     {
-        setReturnS32(ctx, 0);
+        // Returns the previously registered callback, like libcdvd.
+        const uint32_t previous = g_cdUserCallback;
+        g_cdUserCallback = getRegU32(ctx, 4);
+        setReturnU32(ctx, previous);
     }
 
     void sceCdChangeThreadPriority(uint8_t *rdram, R5900Context *ctx, PS2Runtime *runtime)
@@ -445,6 +483,7 @@ namespace ps2_stubs
     void sceCdPause(uint8_t *rdram, R5900Context *ctx, PS2Runtime *runtime)
     {
         setReturnS32(ctx, 1);
+        queueCdUserCallback(ctx, runtime, kCdFuncPause);
     }
 
     void sceCdPosToInt(uint8_t *rdram, R5900Context *ctx, PS2Runtime *runtime)
@@ -652,11 +691,13 @@ namespace ps2_stubs
     {
         restartCdStreamAt(getRegU32(ctx, 4), runtime);
         setReturnS32(ctx, 1);
+        queueCdUserCallback(ctx, runtime, kCdFuncSeek);
     }
 
     void sceCdStandby(uint8_t *rdram, R5900Context *ctx, PS2Runtime *runtime)
     {
         setReturnS32(ctx, 1);
+        queueCdUserCallback(ctx, runtime, kCdFuncStandby);
     }
 
     void sceCdStatus(uint8_t *rdram, R5900Context *ctx, PS2Runtime *runtime)
@@ -689,6 +730,7 @@ namespace ps2_stubs
     void sceCdStop(uint8_t *rdram, R5900Context *ctx, PS2Runtime *runtime)
     {
         setReturnS32(ctx, 1);
+        queueCdUserCallback(ctx, runtime, kCdFuncStop);
     }
 
     void sceCdStPause(uint8_t *rdram, R5900Context *ctx, PS2Runtime *runtime)
