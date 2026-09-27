@@ -1,3 +1,4 @@
+#include <cstdio>
 #include "Common.h"
 #include "Sync.h"
 #include "runtime/ee_scheduler.h"
@@ -84,6 +85,9 @@ namespace ps2_syscalls
                                           param->max_count,
                                           param->attr,
                                           param->option));
+        std::fprintf(stderr, "[ssx3:sema] CreateSema init=%d max=%d -> id=%d ra=0x%x\n", (int)param->init_count, (int)param->max_count,
+                     (int)getRegU32(ctx, 2), (unsigned)getRegU32(ctx, 31));
+        std::fflush(stderr);
     }
 
     void DeleteSema(uint8_t *rdram, R5900Context *ctx, PS2Runtime *runtime)
@@ -108,13 +112,35 @@ namespace ps2_syscalls
 
     void WaitSema(uint8_t *rdram, R5900Context *ctx, PS2Runtime *runtime)
     {
+        {
+            // SSX3 debug
+            static int ssx3Count = 0;
+            if (ssx3Count < 40)
+            {
+                ++ssx3Count;
+                EeScheduler &ee = scheduler(rdram, ctx, runtime);
+                const int id = static_cast<int>(getRegU32(ctx, 4));
+                const EeSemaphore *sem = ee.semaphore(id);
+                std::fprintf(stderr, "[ssx3:sema] WaitSema id=%d exists=%d count=%d tid=%d ra=0x%x\n", id, sem ? 1 : 0,
+                             sem ? sem->count : -999, ee.currentThreadId(), (unsigned)getRegU32(ctx, 31));
+                std::fflush(stderr);
+            }
+        }
         scheduler(rdram, ctx, runtime).waitSemaphore(static_cast<int>(getRegU32(ctx, 4)));
     }
 
     void PollSema(uint8_t *rdram, R5900Context *ctx, PS2Runtime *runtime)
     {
+        const int ssx3Id = static_cast<int>(getRegU32(ctx, 4));
         setReturnS32(ctx,
-                     scheduler(rdram, ctx, runtime).pollSemaphore(static_cast<int>(getRegU32(ctx, 4))));
+                     scheduler(rdram, ctx, runtime).pollSemaphore(ssx3Id));
+        static int ssx3Count = 0;
+        if (ssx3Count < 40)
+        {
+            ++ssx3Count;
+            std::fprintf(stderr, "[ssx3:sema] PollSema id=%d -> %d ra=0x%x\n", ssx3Id, (int)getRegU32(ctx, 2), (unsigned)getRegU32(ctx, 31));
+            std::fflush(stderr);
+        }
     }
 
     void iPollSema(uint8_t *rdram, R5900Context *ctx, PS2Runtime *runtime)
