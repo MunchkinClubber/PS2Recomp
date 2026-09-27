@@ -2280,6 +2280,80 @@ namespace ps2_stubs
         setReturnU32(ctx, getPlaybackState(mpegAddr).decodeMode);
     }
 
+    // libmpeg "no data" callback (sceMpegCbNodata == 1). Retail players (EA's, e.g. SSX 3) do not push
+    // the bitstream themselves; libmpeg calls this callback whenever the decoder runs dry, and the game
+    // answers by reading more of the movie and calling sceMpegAddBs. The HLE decoder never invoked it, so
+    // sceMpegGetPicture waited forever with sawInput=0. Queue the callback when starved; when it returns,
+    // wake the picture waiter so GetPicture retries (and asks again if still starved). A zero return means
+    // "no more data" -> end of stream.
+    namespace
+    {
+        constexpr uint32_t kMpegCbNodata = 1u;
+        std::unordered_map<uint32_t, bool> g_mpegNodataInFlight;
+
+        bool findNodataCallback(uint32_t mpegAddr, MpegRegisteredCallback &out)
+        {
+            auto it = g_mpeg_stub_state.callbacksByMpeg.find(mpegAddr);
+            if (it == g_mpeg_stub_state.callbacksByMpeg.end())
+            {
+                return false;
+            }
+            for (const MpegRegisteredCallback &cb : it->second)
+            {
+                if (!cb.stream && cb.type == kMpegCbNodata && cb.func != 0u)
+                {
+                    out = cb;
+                    return true;
+                }
+            }
+            return false;
+        }
+
+        void queueMpegNodataCallback(uint8_t *rdram, R5900Context *ctx, PS2Runtime *runtime,
+                                     uint32_t mpegAddr, const MpegRegisteredCallback &cb)
+        {
+            if (!runtime->hasFunction(cb.func))
+            {
+                return;
+            }
+            const uint32_t cbDataAddr = runtime->guestMalloc(16u, 16u);
+            if (cbDataAddr == 0u)
+            {
+                return;
+            }
+            const uint32_t typeWord = kMpegCbNodata;
+            std::memcpy(rdram + (cbDataAddr & PS2_RAM_MASK), &typeWord, sizeof(typeWord));
+
+            R5900Context callbackCtx = *ctx;
+            SET_GPR_U32(&callbackCtx, 4, mpegAddr);
+            SET_GPR_U32(&callbackCtx, 5, cbDataAddr);
+            SET_GPR_U32(&callbackCtx, 6, cb.data);
+            SET_GPR_U32(&callbackCtx, 7, 0u);
+            SET_GPR_U32(&callbackCtx, 29, 0u);
+            SET_GPR_U32(&callbackCtx, 31, 0u);
+            callbackCtx.pc = cb.func;
+
+            GuestInvocation invocation{};
+            invocation.kind = GuestInvocationKind::RpcCallback;
+            invocation.context = callbackCtx;
+            invocation.onComplete = [runtime, cbDataAddr, mpegAddr](const R5900Context &done, R5900Context &)
+            {
+                runtime->guestFree(cbDataAddr);
+                const int32_t ret = static_cast<int32_t>(getRegU32(&done, 2));
+                {
+                    std::lock_guard<std::mutex> lock(g_mpeg_stub_mutex);
+                    g_mpegNodataInFlight[mpegAddr] = false;
+                    if (ret == 0)
+                    {
+                        getPlaybackState(mpegAddr).streamEnded = true;
+                    }
+                }
+                runtime->eeScheduler().completeExternalWait(kMpegPictureWaitType, mpegAddr, KE_OK);
+            };
+            runtime->eeScheduler().queueInvocation(std::move(invocation));
+        }
+    }
+
     void sceMpegGetPicture(uint8_t *rdram, R5900Context *ctx, PS2Runtime *runtime)
     {
         const uint32_t mpegAddr = getRegU32(ctx, 4);
@@ -2307,7 +2381,17 @@ namespace ps2_stubs
                     });
                     ++g_mpeg_stub_state.getPictureWaitTraceCount;
                 }
+                MpegRegisteredCallback nodataCb{};
+                const bool askForData = !g_mpegNodataInFlight[mpegAddr] && findNodataCallback(mpegAddr, nodataCb);
+                if (askForData)
+                {
+                    g_mpegNodataInFlight[mpegAddr] = true;
+                }
                 lock.unlock();
+                if (askForData)
+                {
+                    queueMpegNodataCallback(rdram, ctx, runtime, mpegAddr, nodataCb);
+                }
                 runtime->eeScheduler().waitExternal(
                     EeWaitReason::Mpeg,
                     kMpegPictureWaitType,
