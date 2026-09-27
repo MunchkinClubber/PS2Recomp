@@ -1,3 +1,4 @@
+#include <atomic>
 #include "runtime/ee_scheduler.h"
 
 #include "ps2_log.h"
@@ -11,6 +12,8 @@
 #include <cstdio>
 #include <string>
 std::string ssx3DispatchHistory();
+std::atomic<uint64_t> g_ssx3T3Own{0};
+std::atomic<uint64_t> g_ssx3T3Handler{0};
 
 namespace
 {
@@ -340,6 +343,29 @@ void EeScheduler::run()
             const uint32_t ssx3EntryPc = context.pc;
             const int ssx3Tid = running->id;
             const bool ssx3InHandler = !running->invocations.empty();
+            if (ssx3Tid == 3)
+            {
+                // SSX3 debug: how often does worker T3 run its own code vs interrupt handlers?
+                if (ssx3InHandler) { ++g_ssx3T3Handler; } else { ++g_ssx3T3Own; }
+                static int ssx3T3Logs = 0;
+                if (!ssx3InHandler && ssx3T3Logs < 40)
+                {
+                    ++ssx3T3Logs;
+                    std::fprintf(stderr, "[ssx3:t3] own code at 0x%x\n", (unsigned)context.pc);
+                    std::fflush(stderr);
+                }
+                if (ssx3InHandler)
+                {
+                    static int ssx3T3HLogs = 0;
+                    if (ssx3T3HLogs < 20)
+                    {
+                        ++ssx3T3HLogs;
+                        std::fprintf(stderr, "[ssx3:t3] handler kind=%d at 0x%x\n",
+                                     (int)running->invocations.back().kind, (unsigned)context.pc);
+                        std::fflush(stderr);
+                    }
+                }
+            }
             if (ssx3Tid == 1 && (ssx3EntryPc == 0x31adb0u || ssx3EntryPc == 0x31af34u || ssx3EntryPc == 0x31af80u || ssx3EntryPc == 0x3e4418u || ssx3EntryPc == 0x1001c0u))
             {
                 R5900Context *ssx3w = &context;

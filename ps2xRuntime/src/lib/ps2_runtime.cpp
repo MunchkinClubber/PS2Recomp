@@ -2406,6 +2406,8 @@ namespace
 }
 
 std::string ssx3TakeProfile(size_t topN);
+extern std::atomic<uint64_t> g_ssx3T3Own;
+extern std::atomic<uint64_t> g_ssx3T3Handler;
 
 void PS2Runtime::run()
 {
@@ -2512,6 +2514,7 @@ void PS2Runtime::run()
                     RUNTIME_LOG(td.str() << std::endl);
                 }
                 RUNTIME_LOG(ssx3TakeProfile(40) << std::endl);
+                RUNTIME_LOG("[ssx3:t3count] own=" << g_ssx3T3Own.load() << " handler=" << g_ssx3T3Handler.load() << std::endl);
 
             }
         });
