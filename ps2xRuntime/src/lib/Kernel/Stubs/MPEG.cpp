@@ -16,6 +16,7 @@ extern "C"
 }
 #endif
 
+#include <cstdio>
 #include <deque>
 #include <memory>
 
@@ -2471,6 +2472,7 @@ namespace ps2_stubs
         uint32_t height = kStubMovieHeight;
         uint32_t frameCount = 0u;
         bool haveFrame = false;
+        bool finished = false;
         MpegDecodedFrame frame;
         {
             std::unique_lock<std::mutex> lock(g_mpeg_stub_mutex);
@@ -2594,6 +2596,8 @@ namespace ps2_stubs
                 height = playback.height;
                 frameCount = playback.picturesServed;
             }
+            finished = !haveFrame && playback.decodedFrames.empty() &&
+                       (playback.streamEnded || (playback.decoderFailed && playback.sawInput));
         }
 
         mpegGuestWrite32(rdram, mpegAddr + 0x00u, width);
@@ -2610,6 +2614,19 @@ namespace ps2_stubs
                 *reinterpret_cast<uint32_t *>(inner + 0xe4) = getRegU32(ctx, 6);
                 *reinterpret_cast<uint32_t *>(inner + 0xdc) = 0;
                 *reinterpret_cast<uint32_t *>(inner + 0xe0) = 0;
+                // libmpeg's sceMpegIsEnd is `return mp->sys->isEnd` (inner + 0x0); games that are not
+                // bound to the IsEnd stub read it directly (SSX 3: 0x402B38). Without this the player
+                // loop re-presents the last picture forever once the stream ends.
+                *reinterpret_cast<uint32_t *>(inner + 0x00) = finished ? 1u : 0u;
+                if (finished)
+                {
+                    static uint32_t s_isEndLogCount = 0u;
+                    if (s_isEndLogCount < 8u)
+                    {
+                        ++s_isEndLogCount;
+                        std::fprintf(stderr, "[MPEG:GetPicture] stream finished, mpeg=0x%x isEnd set\n", mpegAddr);
+                    }
+                }
             }
         }
 
