@@ -1,6 +1,7 @@
 #!/usr/bin/env python3
 """Find code addresses reachable only through pointers (vtables, callback tables,
-lui/addiu-built function pointers) that a Ghidra function map does not cover.
+lui/addiu-built function pointers) or direct JAL calls that a Ghidra function map
+does not cover.
 
 Stripped retail games often have tiny virtual methods (getters/setters, empty
 virtuals) that Ghidra never turns into functions because nothing calls them
@@ -57,6 +58,10 @@ def main():
         for pc in range(a, b, 4):
             ins = struct.unpack_from('<I', elf, o + pc - a)[0]
             op, rs, rt, imm = ins >> 26, (ins >> 21) & 31, (ins >> 16) & 31, ins & 0xffff
+            if op == 0x03:  # JAL: direct call targets Ghidra never turned into functions
+                v = ((pc + 4) & 0xf0000000) | ((ins & 0x03ffffff) << 2)
+                if in_text(v) and v not in starts:
+                    found.setdefault(v, set()).add('jal')
             if op == 0x0f:
                 last[rt] = (imm << 16, pc)
             elif op in (0x09, 0x0d) and rs in last and pc - last[rs][1] <= 32:
