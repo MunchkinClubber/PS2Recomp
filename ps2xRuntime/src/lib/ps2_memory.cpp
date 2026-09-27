@@ -99,6 +99,15 @@ namespace
 
     constexpr uint32_t kGsCsrRegOffset = 0x1000u;
 
+    // CSR bits 14-15 are the GIF->GS FIFO status (00 = neither, 01 = empty, 10 = almost full).
+    // This runtime consumes GIF packets synchronously, so from the EE's point of view the FIFO
+    // is always drained. Games (e.g. SSX 3) spin on "(CSR & 0xC000) == 0x4000" before touching
+    // the GS, which never completes if these bits read back as 00.
+    inline uint64_t gsCsrReadValue(uint64_t raw)
+    {
+        return (raw & ~0xC000ull) | 0x4000ull;
+    }
+
     // Atomically apply a 32-bit write to one half (off=0 low dword, off=4 high
     // dword) of the GS CSR register. Bits 0..1 of the low dword (SIGNAL/FINISH) are
     // write-one-to-clear; everything else is a plain merge. Uses compare_exchange
@@ -748,7 +757,7 @@ uint32_t PS2Memory::read32(uint32_t address)
         const uint32_t regOff = (address - PS2_GS_PRIV_REG_BASE) & ~0x7u;
         if (regOff == kGsCsrRegOffset)
         {
-            uint64_t val = gs_regs.csr.load();
+            uint64_t val = gsCsrReadValue(gs_regs.csr.load());
             return (uint32_t)(val >> (off * 8));
         }
         uint64_t *reg = gsRegPtr(gs_regs, address);
@@ -795,7 +804,7 @@ uint64_t PS2Memory::read64(uint32_t address)
         const uint32_t regOff = (address - PS2_GS_PRIV_REG_BASE) & ~0x7u;
         if (regOff == kGsCsrRegOffset)
         {
-            return gs_regs.csr.load();
+            return gsCsrReadValue(gs_regs.csr.load());
         }
         uint64_t *reg = gsRegPtr(gs_regs, address);
         return reg ? *reg : 0;
@@ -2308,7 +2317,7 @@ uint32_t PS2Memory::readIORegister(uint32_t address)
         const uint32_t regOff = (address - PS2_GS_PRIV_REG_BASE) & ~0x7u;
         if (regOff == kGsCsrRegOffset)
         {
-            return static_cast<uint32_t>((gs_regs.csr.load() >> (off * 8u)) & 0xFFFFFFFFull);
+            return static_cast<uint32_t>((gsCsrReadValue(gs_regs.csr.load()) >> (off * 8u)) & 0xFFFFFFFFull);
         }
         if (uint64_t *reg = gsRegPtr(gs_regs, address))
         {
