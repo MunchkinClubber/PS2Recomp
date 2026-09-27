@@ -312,6 +312,7 @@ void EeScheduler::run()
             m_guestExecuting.store(true, std::memory_order_release);
             const uint32_t ssx3EntryPc = context.pc;
             const int ssx3Tid = running->id;
+            const bool ssx3InHandler = !running->invocations.empty();
             if (ssx3Tid == 1 && (ssx3EntryPc == 0x31adb0u || ssx3EntryPc == 0x31af34u || ssx3EntryPc == 0x31af80u || ssx3EntryPc == 0x3e4418u || ssx3EntryPc == 0x1001c0u))
             {
                 R5900Context *ssx3w = &context;
@@ -320,7 +321,7 @@ void EeScheduler::run()
                 std::fflush(stderr);
             }
             function(m_rdram, &context, &m_runtime);
-            if (context.pc == 0u && ssx3Tid > 0)
+            if (context.pc == 0u && ssx3Tid > 0 && !ssx3InHandler)
             {
                 // SSX3 debug: which guest function jumped to address 0, and from which branch
                 R5900Context *ssx3c = &context;
