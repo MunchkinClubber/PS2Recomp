@@ -312,6 +312,13 @@ void EeScheduler::run()
             m_guestExecuting.store(true, std::memory_order_release);
             const uint32_t ssx3EntryPc = context.pc;
             const int ssx3Tid = running->id;
+            if (ssx3Tid == 1 && (ssx3EntryPc == 0x31adb0u || ssx3EntryPc == 0x31af34u || ssx3EntryPc == 0x31af80u || ssx3EntryPc == 0x3e4418u || ssx3EntryPc == 0x1001c0u))
+            {
+                R5900Context *ssx3w = &context;
+                std::fprintf(stderr, "[ssx3:resume] T1 resume at 0x%x sp=0x%x ra=0x%x v0=0x%x\n", ssx3EntryPc,
+                             (unsigned)getRegU32(ssx3w, 29), (unsigned)getRegU32(ssx3w, 31), (unsigned)getRegU32(ssx3w, 2));
+                std::fflush(stderr);
+            }
             function(m_rdram, &context, &m_runtime);
             if (context.pc == 0u && ssx3Tid > 0)
             {

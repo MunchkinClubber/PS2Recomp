@@ -1,3 +1,4 @@
+#include <cstdio>
 #include "ps2_runtime.h"
 #include "ps2_log.h"
 #include "ps2_stubs.h"
@@ -1396,7 +1397,20 @@ bool PS2Runtime::dispatchGuestBranch(uint8_t *rdram,
 
     RecompiledFunction targetFn = lookupFunction(targetPc);
     const uint32_t entryPc = ctx->pc;
+    const bool ssx3Watch = (targetPc == 0x31adb0u || targetPc == 0x31af80u || targetPc == 0x3dcbd8u || targetPc == 0x3df488u);
+    if (ssx3Watch)
+    {
+        std::fprintf(stderr, "[ssx3:call] 0x%x -> 0x%x enter sp=0x%x ra=0x%x\n", sourcePc, targetPc,
+                     (unsigned)getRegU32(ctx, 29), (unsigned)getRegU32(ctx, 31));
+        std::fflush(stderr);
+    }
     targetFn(rdram, ctx, this);
+    if (ssx3Watch)
+    {
+        std::fprintf(stderr, "[ssx3:call] 0x%x -> 0x%x back pc=0x%x sp=0x%x ra=0x%x (fallthrough 0x%x)\n", sourcePc, targetPc,
+                     (unsigned)ctx->pc, (unsigned)getRegU32(ctx, 29), (unsigned)getRegU32(ctx, 31), fallthroughPc);
+        std::fflush(stderr);
+    }
 
     if (isStopRequested() || ctx->pc == 0u)
     {
@@ -1405,6 +1419,17 @@ bool PS2Runtime::dispatchGuestBranch(uint8_t *rdram,
 
     if (ctx->pc == entryPc)
     {
+        {
+            // SSX3 debug: callee came back with pc still at its own entry -> treated as "returned"
+            static int ssx3HeurCount = 0;
+            if (ssx3HeurCount < 400)
+            {
+                ++ssx3HeurCount;
+                std::fprintf(stderr, "[ssx3:heur] call 0x%x -> 0x%x came back at entry; forcing fallthrough 0x%x sp=0x%x ra=0x%x\n",
+                             sourcePc, targetPc, fallthroughPc, (unsigned)getRegU32(ctx, 29), (unsigned)getRegU32(ctx, 31));
+                std::fflush(stderr);
+            }
+        }
         ctx->pc = fallthroughPc;
     }
 
