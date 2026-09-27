@@ -12,6 +12,10 @@
 
 std::atomic<uint64_t> g_ssx3GsKicks{0};      // SSX3 debug
 std::atomic<uint64_t> g_ssx3GsUploads{0};    // SSX3 debug
+std::atomic<uint32_t> g_ssx3DrawFbp[512];    // SSX3 debug: prims per FRAME.FBP
+std::atomic<uint32_t> g_ssx3FbpInfo[512];    // SSX3 debug: last fbw | psm << 8 per FBP
+std::atomic<uint32_t> g_ssx3SpriteTexTbp[16384]; // SSX3 debug: textured sprites per TEX0.TBP0
+std::atomic<uint32_t> g_ssx3PrimType[8];     // SSX3 debug
 
 namespace
 {
@@ -1580,6 +1584,15 @@ void GS::vertexKick(bool drawing)
     if (drawing && m_backend)
     {
         GSPrimitiveBatch batch = buildDrawBatch(needed);
+        {
+            const GSContext &dc = batch.state.context;
+            const uint32_t fbp = dc.frame.fbp & 0x1FFu;
+            g_ssx3DrawFbp[fbp].fetch_add(1, std::memory_order_relaxed);
+            g_ssx3FbpInfo[fbp].store((dc.frame.fbw & 0xFFu) | (static_cast<uint32_t>(dc.frame.psm) << 8), std::memory_order_relaxed);
+            g_ssx3PrimType[batch.state.prim.type & 7u].fetch_add(1, std::memory_order_relaxed);
+            if (batch.state.prim.type == GS_PRIM_SPRITE && batch.state.prim.tme)
+                g_ssx3SpriteTexTbp[dc.tex0.tbp0 & 0x3FFFu].fetch_add(1, std::memory_order_relaxed);
+        }
         updatePreferredDisplaySourceForDraw(batch);
         m_backend->Submit(batch);
         recordDrawDebugEventUnlocked(needed);

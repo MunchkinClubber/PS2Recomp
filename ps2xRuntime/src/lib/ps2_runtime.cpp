@@ -2407,6 +2407,123 @@ namespace
 
 std::string ssx3TakeProfile(size_t topN);
 extern std::atomic<uint64_t> g_ssx3GsKicks;
+extern std::atomic<uint32_t> g_ssx3DrawFbp[512];
+extern std::atomic<uint32_t> g_ssx3FbpInfo[512];
+extern std::atomic<uint32_t> g_ssx3SpriteTexTbp[16384];
+extern std::atomic<uint32_t> g_ssx3PrimType[8];
+
+// SSX3 debug: write a GS frame (block-address base, fbw in 64px units) to a 24-bit BMP.
+static void ssx3DumpFrameBmp(GS &gs, const char *path, uint32_t fbp, uint32_t fbw, uint32_t psm)
+{
+    const uint32_t w = 640u, h = 448u;
+    if (fbw == 0u)
+        fbw = 10u;
+    std::FILE *f = std::fopen(path, "wb");
+    if (!f)
+        return;
+    const uint32_t rowBytes = w * 3u;
+    const uint32_t dataSize = rowBytes * h;
+    uint8_t hdr[54] = {'B', 'M'};
+    auto put32 = [&](int off, uint32_t v) { std::memcpy(hdr + off, &v, 4); };
+    put32(2, 54u + dataSize);
+    put32(10, 54u);
+    put32(14, 40u);
+    put32(18, w);
+    put32(22, h);
+    hdr[26] = 1;
+    hdr[28] = 24;
+    put32(34, dataSize);
+    std::fwrite(hdr, 1, 54, f);
+    std::vector<uint8_t> row(rowBytes);
+    const uint32_t base = fbp * 32u;
+    for (uint32_t yy = 0; yy < h; ++yy)
+    {
+        const uint32_t y = h - 1u - yy;
+        for (uint32_t x = 0; x < w; ++x)
+        {
+            const uint32_t c = gs.ReadVram(psm, base, fbw, x, y);
+            uint8_t r, g, b;
+            if ((psm & 0xFu) == 0x2u || (psm & 0xFu) == 0xAu)
+            {
+                r = static_cast<uint8_t>((c & 0x1Fu) << 3);
+                g = static_cast<uint8_t>(((c >> 5) & 0x1Fu) << 3);
+                b = static_cast<uint8_t>(((c >> 10) & 0x1Fu) << 3);
+            }
+            else
+            {
+                r = static_cast<uint8_t>(c);
+                g = static_cast<uint8_t>(c >> 8);
+                b = static_cast<uint8_t>(c >> 16);
+            }
+            row[x * 3u + 0u] = b;
+            row[x * 3u + 1u] = g;
+            row[x * 3u + 2u] = r;
+        }
+        std::fwrite(row.data(), 1, rowBytes, f);
+    }
+    std::fclose(f);
+}
+
+// SSX3 debug: per-interval draw targets, textured-sprite sources, presentation source,
+// and periodic BMP dumps of the displayed and most-drawn framebuffers.
+static void ssx3LogDrawDiagnostics(GS &gsCore, const GSRegisters &gs)
+{
+    // Per-interval draw targets, textured-sprite sources, presentation source.
+    std::vector<std::pair<uint32_t, uint32_t>> fbps;
+    for (uint32_t i = 0; i < 512u; ++i)
+    {
+        const uint32_t n = g_ssx3DrawFbp[i].exchange(0u);
+        if (n)
+            fbps.emplace_back(n, i);
+    }
+    std::sort(fbps.rbegin(), fbps.rend());
+    std::vector<std::pair<uint32_t, uint32_t>> tbps;
+    for (uint32_t i = 0; i < 16384u; ++i)
+    {
+        const uint32_t n = g_ssx3SpriteTexTbp[i].exchange(0u);
+        if (n)
+            tbps.emplace_back(n, i);
+    }
+    std::sort(tbps.rbegin(), tbps.rend());
+    std::ostringstream ds;
+    ds << "[ssx3:draw] prims(pt,ln,ls,tri,ts,tf,spr)=";
+    for (uint32_t i = 0; i < 7u; ++i)
+        ds << (i ? "," : "") << g_ssx3PrimType[i].exchange(0u);
+    ds << " fbp:";
+    for (size_t i = 0; i < fbps.size() && i < 6u; ++i)
+    {
+        const uint32_t info = g_ssx3FbpInfo[fbps[i].second].load();
+        ds << " 0x" << std::hex << fbps[i].second << std::dec << "(w" << (info & 0xFFu) << ",psm" << std::hex << (info >> 8) << std::dec << ")=" << fbps[i].first;
+    }
+    ds << " sprTex:";
+    for (size_t i = 0; i < tbps.size() && i < 6u; ++i)
+        ds << " 0x" << std::hex << tbps[i].second << std::dec << "=" << tbps[i].first;
+    GSFrameReg pref{};
+    uint32_t prefDest = 0u;
+    const bool hasPref = gsCore.getPreferredDisplaySource(pref, prefDest);
+    ds << " preferred=" << (hasPref ? 1 : 0) << std::hex << " prefSrc=0x" << pref.fbp << " prefDest=0x" << prefDest << std::dec;
+    RUNTIME_LOG(ds.str() << std::endl);
+
+    static uint32_t ssx3DumpTick = 0;
+    static uint32_t ssx3DumpIndex = 0;
+    if ((++ssx3DumpTick % 5u) == 0u && ssx3DumpIndex < 12u)
+    {
+        char path[128];
+        const uint32_t dfbp = static_cast<uint32_t>(gs.dispfb1 & 0x1FFu);
+        const uint32_t dfbw = static_cast<uint32_t>((gs.dispfb1 >> 9) & 0x3Fu);
+        const uint32_t dpsm = static_cast<uint32_t>((gs.dispfb1 >> 15) & 0x1Fu);
+        std::snprintf(path, sizeof(path), "ssx3_dump%02u_disp_fbp%03x.bmp", ssx3DumpIndex, dfbp);
+        ssx3DumpFrameBmp(gsCore, path, dfbp, dfbw, dpsm);
+        for (size_t i = 0; i < fbps.size() && i < 2u; ++i)
+        {
+            const uint32_t info = g_ssx3FbpInfo[fbps[i].second].load();
+            std::snprintf(path, sizeof(path), "ssx3_dump%02u_draw_fbp%03x.bmp", ssx3DumpIndex, fbps[i].second);
+            ssx3DumpFrameBmp(gsCore, path, fbps[i].second, info & 0xFFu, info >> 8);
+        }
+        RUNTIME_LOG("[ssx3:dump] wrote dump " << ssx3DumpIndex << std::endl);
+        ++ssx3DumpIndex;
+    }
+}
 extern std::atomic<uint64_t> g_ssx3GsUploads;
 extern std::atomic<uint64_t> g_ssx3T3Own;
 extern std::atomic<uint64_t> g_ssx3T3Handler;
@@ -2529,6 +2646,8 @@ void PS2Runtime::run()
                                 << " pmode=0x" << gs.pmode << std::dec << std::endl);
                     ssx3LastKicks = kicks;
                     ssx3LastUploads = uploads;
+
+                    ssx3LogDrawDiagnostics(m_gs, gs);
                 }
                 RUNTIME_LOG("[ssx3:t3count] own=" << g_ssx3T3Own.load() << " handler=" << g_ssx3T3Handler.load() << std::endl);
 
