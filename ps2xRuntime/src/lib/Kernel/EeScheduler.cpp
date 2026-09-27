@@ -171,6 +171,33 @@ void EeScheduler::run()
         if (m_currentThreadId == 0)
         {
             GuestThread *next = selectReady();
+            if (!next)
+            {
+                // SSX3 debug/self-heal: a thread marked Ready but missing from every
+                // ready queue can never be scheduled again. Re-queue it and report.
+                for (auto &[orphanId, orphan] : m_threads)
+                {
+                    if (orphanId <= 0 || orphan.status != EeThreadStatus::Ready)
+                    {
+                        continue;
+                    }
+                    const auto &queue = m_readyQueues[orphan.currentPriority];
+                    if (std::find(queue.begin(), queue.end(), orphanId) != queue.end())
+                    {
+                        continue;
+                    }
+                    static int ssx3OrphanLogs = 0;
+                    if (ssx3OrphanLogs < 50)
+                    {
+                        ++ssx3OrphanLogs;
+                        std::fprintf(stderr, "[ssx3:orphan] thread %d was Ready but not queued (prio=%d depth=%zu pc=0x%x); re-queued\n",
+                                     orphanId, orphan.currentPriority, orphan.invocations.size(), (unsigned)orphan.activeContext().pc);
+                        std::fflush(stderr);
+                    }
+                    enqueueReady(orphan, false);
+                }
+                next = selectReady();
+            }
             if (!next && m_pendingInvocations.empty())
             {
                 copyMainContextToRuntime();
