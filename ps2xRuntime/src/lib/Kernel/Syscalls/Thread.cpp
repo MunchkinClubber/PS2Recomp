@@ -1,3 +1,4 @@
+#include <cstdio>
 #include "Common.h"
 #include "Thread.h"
 #include "runtime/ee_scheduler.h"
@@ -73,6 +74,9 @@ namespace ps2_syscalls
                                                  bool deleteThread)
         {
             EeScheduler &ee = runtime->eeScheduler();
+            std::fprintf(stderr, "[ssx3:thread] exit tid=%d delete=%d pc=0x%x ra=0x%x\n", tid, deleteThread ? 1 : 0,
+                         (unsigned)ctx->pc, (unsigned)getRegU32(ctx, 31));
+            std::fflush(stderr);
             const auto handlers = runtime->takeEeExitHandlers(tid);
             std::vector<GuestInvocation> invocations;
             invocations.reserve(handlers.size());
@@ -187,6 +191,7 @@ namespace ps2_syscalls
 
     void CreateThread(uint8_t *rdram, R5900Context *ctx, PS2Runtime *runtime)
     {
+        std::fprintf(stderr, "[ssx3:thread] CreateThread a0=0x%x ra=0x%x\n", (unsigned)getRegU32(ctx, 4), (unsigned)getRegU32(ctx, 31)); std::fflush(stderr);
         const uint32_t address = getRegU32(ctx, 4);
         if (address == 0u)
         {
@@ -252,6 +257,7 @@ namespace ps2_syscalls
 
     void StartThread(uint8_t *rdram, R5900Context *ctx, PS2Runtime *runtime)
     {
+        std::fprintf(stderr, "[ssx3:thread] StartThread a0=0x%x ra=0x%x\n", (unsigned)getRegU32(ctx, 4), (unsigned)getRegU32(ctx, 31)); std::fflush(stderr);
         EeScheduler &ee = scheduler(rdram, ctx, runtime);
         const int id = static_cast<int>(getRegU32(ctx, 4));
         const uint32_t arg = getRegU32(ctx, 5);
