@@ -1,3 +1,5 @@
+#include <vector>
+#include <mutex>
 #include <cstdio>
 #include "ps2_runtime.h"
 #include "ps2_log.h"
@@ -152,8 +154,16 @@ namespace
         return true;
     }
 
+    // SSX3 debug: per-target dispatch counts, dumped on run:tick
+    std::mutex g_ssx3ProfMutex;
+    std::unordered_map<uint32_t, uint64_t> g_ssx3Prof;
+
     void pushDispatchPc(uint32_t pc)
     {
+        {
+            std::lock_guard<std::mutex> ssx3Lock(g_ssx3ProfMutex);
+            ++g_ssx3Prof[pc];
+        }
         DispatchHistory &h = g_dispatchHistory;
         h.pcs[h.next] = pc;
         h.next = (h.next + 1u) % static_cast<uint32_t>(h.pcs.size());
@@ -2395,6 +2405,8 @@ namespace
     }
 }
 
+std::string ssx3TakeProfile(size_t topN);
+
 void PS2Runtime::run()
 {
     m_stopRequested.store(false, std::memory_order_relaxed);
@@ -2499,6 +2511,7 @@ void PS2Runtime::run()
                     }
                     RUNTIME_LOG(td.str() << std::endl);
                 }
+                RUNTIME_LOG(ssx3TakeProfile(40) << std::endl);
 
             }
         });
@@ -2557,4 +2570,23 @@ void PS2Runtime::run()
 std::string ssx3DispatchHistory()
 {
     return formatDispatchHistory();
+}
+
+// SSX3 debug: top dispatched guest PCs since last call
+std::string ssx3TakeProfile(size_t topN)
+{
+    std::unordered_map<uint32_t, uint64_t> snap;
+    {
+        std::lock_guard<std::mutex> lock(g_ssx3ProfMutex);
+        snap.swap(g_ssx3Prof);
+    }
+    std::vector<std::pair<uint32_t, uint64_t>> v(snap.begin(), snap.end());
+    std::sort(v.begin(), v.end(), [](const auto &a, const auto &b) { return a.second > b.second; });
+    std::ostringstream o;
+    o << "[ssx3:prof] distinct=" << v.size();
+    for (size_t i = 0; i < v.size() && i < topN; ++i)
+    {
+        o << " " << std::hex << "0x" << v[i].first << std::dec << ":" << v[i].second;
+    }
+    return o.str();
 }
