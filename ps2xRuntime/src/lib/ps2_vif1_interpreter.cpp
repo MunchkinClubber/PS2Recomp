@@ -326,6 +326,10 @@ static void ssx3FrameRecWrite(uint32_t type, const void *a, uint32_t aSize, cons
     if (bSize)
         std::fwrite(b, 1, bSize, g_ssx3FrameRec);
 }
+bool ssx3FrameRecActive()
+{
+    return g_ssx3FrameRec != nullptr || g_ssx3FrameRecArm.load(std::memory_order_relaxed) != 0u;
+}
 void ssx3FrameRecord(PS2Memory &mem, uint32_t type, const void *hdr, uint32_t hdrSize, const uint8_t *data, uint32_t size)
 {
     if (g_ssx3FrameRecArm.load(std::memory_order_relaxed) == 0u && !g_ssx3FrameRec)

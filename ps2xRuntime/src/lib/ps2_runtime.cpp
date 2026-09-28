@@ -157,6 +157,8 @@ namespace
     // SSX3 debug: per-target dispatch counts, dumped on run:tick
     std::mutex g_ssx3ProfMutex;
     std::unordered_map<uint32_t, uint64_t> g_ssx3Prof;
+    // SSX3 debug: per-frame call counts (key = tid<<32 | pc) while the F12 recorder runs
+    std::unordered_map<uint64_t, uint32_t> g_ssx3FrameCalls;
 
     void pushDispatchPc(uint32_t pc)
     {
@@ -1258,9 +1260,47 @@ const char *describeGuestBranchKind(PS2Runtime::GuestBranchKind kind)
     }
 }
 
+std::atomic<bool> g_ssx3FrameCallsOn{false};
+bool ssx3FrameRecActive(); // ps2_vif1_interpreter.cpp
+void ssx3FrameRecord(PS2Memory &mem, uint32_t type, const void *hdr, uint32_t hdrSize, const uint8_t *data, uint32_t size);
+
+// SSX3 debug: write the calls made since the previous flush as an 'F' record into the F12 recording.
+void ssx3FrameCallsFlush(PS2Runtime &runtime, uint32_t tag, uint32_t a0, uint32_t a1)
+{
+    if (!g_ssx3FrameCallsOn.load(std::memory_order_relaxed))
+        return;
+    std::unordered_map<uint64_t, uint32_t> snap;
+    {
+        std::lock_guard<std::mutex> lock(g_ssx3ProfMutex);
+        snap.swap(g_ssx3FrameCalls);
+    }
+    if (!ssx3FrameRecActive())
+    {
+        g_ssx3FrameCallsOn.store(false);
+        return;
+    }
+    std::vector<uint32_t> out;
+    out.reserve(snap.size() * 3u);
+    for (const auto &kv : snap)
+    {
+        out.push_back(static_cast<uint32_t>(kv.first >> 32));
+        out.push_back(static_cast<uint32_t>(kv.first));
+        out.push_back(kv.second);
+    }
+    const uint32_t hdr[4] = {tag, static_cast<uint32_t>(runtime.eeScheduler().currentThreadId()), a0, a1};
+    ssx3FrameRecord(runtime.memory(), 'F', hdr, sizeof(hdr), reinterpret_cast<const uint8_t *>(out.data()),
+                    static_cast<uint32_t>(out.size() * 4u));
+}
+
 PS2Runtime::RecompiledFunction PS2Runtime::lookupFunction(uint32_t address)
 {
     pushDispatchPc(address);
+    if (g_ssx3FrameCallsOn.load(std::memory_order_relaxed) && m_eeScheduler)
+    {
+        const uint64_t key = (static_cast<uint64_t>(static_cast<uint32_t>(m_eeScheduler->currentThreadId())) << 32) | address;
+        std::lock_guard<std::mutex> lock(g_ssx3ProfMutex);
+        ++g_ssx3FrameCalls[key];
+    }
 
     uint32_t slot = 0u;
     if (generatedFunctionTableSlot(address, slot))
@@ -2862,6 +2902,12 @@ void PS2Runtime::run()
         {
             extern std::atomic<uint32_t> g_ssx3FrameRecArm; // ps2_vif1_interpreter.cpp
             g_ssx3FrameRecArm.store(1u);
+            extern std::atomic<bool> g_ssx3FrameCallsOn;
+            {
+                std::lock_guard<std::mutex> lock(g_ssx3ProfMutex);
+                g_ssx3FrameCalls.clear();
+            }
+            g_ssx3FrameCallsOn.store(true);
             g_ssx3DumpRequested.store(true);
             RUNTIME_LOG("[ssx3:rec] F12 pressed, recording ~1.5 s of VIF1/GIF traffic to ssx3_framecap.bin" << std::endl);
         }

@@ -20,6 +20,8 @@
 
 void ps2xReservePrivateGuestHeap(PS2Runtime &runtime, uint32_t base, uint32_t limit); // ps2_runtime.cpp
 
+void ssx3FrameCallsFlush(PS2Runtime &runtime, uint32_t tag, uint32_t a0, uint32_t a1); // ps2_runtime.cpp
+
 namespace
 {
     constexpr int32_t kKeUnknownModule = -202;
@@ -251,8 +253,70 @@ namespace
         }
     }
 
+    // Frame buffer claim / submit (renderer object in a0; buffer index +0x5a10, states +0x5a90[2]:
+    // 0 free, 1 building, 2 ready, 3 rendering). 0x232488 skips the whole frame (draw + submit) when
+    // the claim fails. Diagnostics for the alternating terrain/rider frames: count failures and mark
+    // claims/submits in the F12 recording together with the calls made since the previous mark.
+    constexpr uint32_t kRendererClaim = 0x003826E0u;
+    constexpr uint32_t kRendererSubmit = 0x00377A10u;
+    PS2Runtime::RecompiledFunction g_ssx3OrigSubmit = nullptr;
+
+    void ssx3RendererClaim(uint8_t *rdram, R5900Context *ctx, PS2Runtime *runtime)
+    {
+        const uint32_t obj = getRegU32(ctx, 4);
+        const uint32_t ra = getRegU32(ctx, 31);
+        auto rd = [&](uint32_t off) -> uint32_t
+        {
+            uint32_t v = 0u;
+            std::memcpy(&v, rdram + ((obj + off) & PS2_RAM_MASK), sizeof(v));
+            return v;
+        };
+        const uint32_t idx = rd(0x5a10u) & 1u;
+        const uint32_t slot = obj + 0x5a90u + idx * 4u;
+        uint32_t st = rd(0x5a90u + idx * 4u);
+        uint32_t result = 0u;
+        if (st == 0u)
+        {
+            st = 1u;
+            std::memcpy(rdram + (slot & PS2_RAM_MASK), &st, sizeof(st));
+            result = 1u;
+        }
+        else if (st == 1u)
+        {
+            result = 1u;
+        }
+        static uint32_t claims = 0u, fails = 0u;
+        ++claims;
+        if (!result)
+        {
+            ++fails;
+            if (fails <= 16u || (fails & 255u) == 0u)
+                std::fprintf(stderr, "[ssx3:claim] FAIL #%u of %u: buf=%u states=%u,%u T5state=%u ra=0x%x tid=%d\n",
+                             fails, claims, idx, rd(0x5a90u), rd(0x5a94u), rd(0x5a8cu), ra,
+                             runtime->eeScheduler().currentThreadId());
+        }
+        ssx3FrameCallsFlush(*runtime, 'C' | (result << 8) | (idx << 16), ra, rd(0x5a90u) | (rd(0x5a94u) << 8) | (rd(0x5a8cu) << 16));
+        setReturnS32(ctx, static_cast<int32_t>(result));
+        ctx->pc = ra;
+    }
+
+    void ssx3RendererSubmit(uint8_t *rdram, R5900Context *ctx, PS2Runtime *runtime)
+    {
+        const uint32_t obj = getRegU32(ctx, 4);
+        uint32_t idx = 0u, head = 0u, cur = 0u;
+        std::memcpy(&idx, rdram + ((obj + 0x5a10u) & PS2_RAM_MASK), 4);
+        std::memcpy(&head, rdram + ((obj + 0x5a0cu) & PS2_RAM_MASK), 4);
+        std::memcpy(&cur, rdram + ((obj + 0x5a00u) & PS2_RAM_MASK), 4);
+        ssx3FrameCallsFlush(*runtime, 'S' | (idx << 16), getRegU32(ctx, 31), cur - head);
+        g_ssx3OrigSubmit(rdram, ctx, runtime);
+    }
+
     void applySsx3Overrides(PS2Runtime &runtime)
     {
+        g_ssx3OrigSubmit = runtime.lookupFunction(kRendererSubmit);
+        if (g_ssx3OrigSubmit)
+            runtime.replaceFunction(kRendererSubmit, ssx3RendererSubmit);
+        runtime.replaceFunction(kRendererClaim, ssx3RendererClaim);
         runtime.replaceFunction(kSifStopModule, ssx3SifStopModule);
         runtime.replaceFunction(kSifUnloadModule, ssx3SifUnloadModule);
         runtime.replaceFunction(kSifSearchModuleByName, ssx3SifSearchModuleByName);
