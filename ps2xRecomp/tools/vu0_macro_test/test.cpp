@@ -60,7 +60,7 @@ int main(){
           case 0x2b: name="MAX"; apply(E[fd],[&](int k){return std::max(S.v[k],T.v[k]);}); break;
           case 0x2c: name="SUB"; apply(E[fd],[&](int k){return S.v[k]-T.v[k];}); break;
           case 0x2d: name="MSUB"; apply(E[fd],[&](int k){return acc.v[k]-S.v[k]*T.v[k];}); break;
-          case 0x2e: name="OPMSUB"; { const int a[3]={2,0,1},b[3]={1,2,0}; apply(E[fd],[&](int k){return acc.v[k]-S.v[a[k]]*T.v[b[k]];},true);} break;
+          case 0x2e: name="OPMSUB"; { const int a[3]={1,2,0},b[3]={2,0,1}; apply(E[fd],[&](int k){return acc.v[k]-S.v[a[k]]*T.v[b[k]];},true);} break;
           case 0x2f: name="MINI"; apply(E[fd],[&](int k){return std::min(S.v[k],T.v[k]);}); break;
           default: continue;
         }

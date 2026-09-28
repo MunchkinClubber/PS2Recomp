@@ -7,5 +7,6 @@ register values and compares with a small reference model of the PS2 semantics.
     g++ -std=c++20 -I ps2xRecomp/include -I <fmt/toml includes> gen.cpp libps2_recomp_lib.a librabbitizer.a libfmt.a -o gen && ./gen
     g++ -std=c++20 -msse4.1 -I ps2xRuntime/include -I ps2xRuntime/src/lib -I ps2xRuntime/src/lib/Kernel -I <ps2xIOP include> test.cpp -o test && ./test
 
+Note: OPMSUB uses the same swizzle as OPMULA (games swap the operands: OPMULA ACC,a,b ; OPMSUB d,b,a).
 Known remaining differences: the w lane of VOPMULA/VOPMSUB when the dest mask includes w
 (real code always uses .xyz).
