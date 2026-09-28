@@ -1260,6 +1260,7 @@ const char *describeGuestBranchKind(PS2Runtime::GuestBranchKind kind)
     }
 }
 
+
 std::atomic<bool> g_ssx3FrameCallsOn{false};
 bool ssx3FrameRecActive(); // ps2_vif1_interpreter.cpp
 void ssx3FrameRecord(PS2Memory &mem, uint32_t type, const void *hdr, uint32_t hdrSize, const uint8_t *data, uint32_t size);
@@ -1291,6 +1292,7 @@ void ssx3FrameCallsFlush(PS2Runtime &runtime, uint32_t tag, uint32_t a0, uint32_
     ssx3FrameRecord(runtime.memory(), 'F', hdr, sizeof(hdr), reinterpret_cast<const uint8_t *>(out.data()),
                     static_cast<uint32_t>(out.size() * 4u));
 }
+
 
 PS2Runtime::RecompiledFunction PS2Runtime::lookupFunction(uint32_t address)
 {
@@ -1625,6 +1627,29 @@ void PS2Runtime::executeVU0Microprogram(uint8_t *rdram, R5900Context *ctx, uint3
         return;
     }
 
+    // F12 recorder: 'U' = VU0 microprogram call {pc, caller ra} + inputs, 'u' = outputs.
+    const bool ssx3RecVu0 = g_ssx3FrameCallsOn.load(std::memory_order_relaxed);
+    auto ssx3RecordVu0 = [&](uint32_t type)
+    {
+        struct
+        {
+            uint32_t pc, ra, status, mac, clip, pad[3];
+            uint16_t vi[16];
+            float vf[32][4];
+        } rec{};
+        rec.pc = startPC;
+        rec.ra = getRegU32(ctx, 31);
+        rec.status = ctx->vu0_status;
+        rec.mac = ctx->vu0_mac_flags;
+        rec.clip = ctx->vu0_clip_flags;
+        std::memcpy(rec.vi, ctx->vi, sizeof(rec.vi));
+        for (uint32_t i = 0; i < 32u; ++i)
+            _mm_storeu_ps(rec.vf[i], ctx->vu0_vf[i]);
+        ssx3FrameRecord(m_memory, type, &rec, sizeof(rec), nullptr, 0u);
+    };
+    if (ssx3RecVu0)
+        ssx3RecordVu0('U');
+
     m_vu0.reset();
     copyVu0ContextToState(ctx, m_vu0.state());
     m_vu0.execute(vu0Code, PS2_VU0_CODE_SIZE,
@@ -1632,6 +1657,8 @@ void PS2Runtime::executeVU0Microprogram(uint8_t *rdram, R5900Context *ctx, uint3
                   m_gs, &m_memory,
                   startPC, 0u, ctx->vu0_itop, 1u << 20);
     copyVu0StateToContext(m_vu0.state(), ctx);
+    if (ssx3RecVu0)
+        ssx3RecordVu0('u');
 }
 
 void PS2Runtime::vu0StartMicroProgram(uint8_t *rdram, R5900Context *ctx, uint32_t address)
