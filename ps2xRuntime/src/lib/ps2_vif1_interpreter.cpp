@@ -358,10 +358,25 @@ void ssx3FrameRecord(PS2Memory &mem, uint32_t type, const void *hdr, uint32_t hd
     }
 }
 
+extern std::atomic<uint64_t> g_perfVif1Ns; // ps2_runtime.cpp
+namespace
+{
+    struct Vif1PerfScope
+    {
+        std::chrono::steady_clock::time_point t0 = std::chrono::steady_clock::now();
+        ~Vif1PerfScope()
+        {
+            g_perfVif1Ns.fetch_add(static_cast<uint64_t>(std::chrono::duration_cast<std::chrono::nanoseconds>(std::chrono::steady_clock::now() - t0).count()),
+                                   std::memory_order_relaxed);
+        }
+    };
+}
+
 void PS2Memory::processVIF1Data(const uint8_t *data, uint32_t sizeBytes)
 {
     if (sizeBytes == 0u)
         return;
+    Vif1PerfScope perfScope;
 
     ssx3FrameRecord(*this, 'V', &vif1_regs, sizeof(vif1_regs), data, sizeBytes);
 

@@ -160,8 +160,17 @@ namespace
     // SSX3 debug: per-frame call counts (key = tid<<32 | pc) while the F12 recorder runs
     std::unordered_map<uint64_t, uint32_t> g_ssx3FrameCalls;
 
+    // SSX3 debug: per-target dispatch counting takes a mutex and a hash-map update on every guest
+    // call, so it is off unless SSX3_PROF=1 is set in the environment.
+    const bool g_ssx3ProfEnabled = []
+    {
+        const char *v = std::getenv("SSX3_PROF");
+        return v && *v && *v != '0';
+    }();
+
     void pushDispatchPc(uint32_t pc)
     {
+        if (g_ssx3ProfEnabled)
         {
             std::lock_guard<std::mutex> ssx3Lock(g_ssx3ProfMutex);
             ++g_ssx3Prof[pc];
@@ -498,6 +507,8 @@ extern std::atomic<uint32_t> g_ssx3LightSearchLeft;
 extern std::atomic<uint32_t> g_ssx3LightTraceLeft;
 extern std::atomic<uint32_t> g_ssx3WatchLo, g_ssx3WatchHi;
 static std::atomic<uint32_t> g_ssx3WatchLogged{0};
+std::atomic<uint64_t> g_perfGsNs{0};
+std::atomic<uint64_t> g_perfVif1Ns{0};
 std::atomic<uint32_t> g_ps2WatchLo{0};
 std::atomic<uint32_t> g_ps2WatchHi{0};
 static std::atomic<uint32_t> g_ps2WatchLogged{0};
@@ -783,7 +794,13 @@ bool PS2Runtime::syncCoreSubsystems()
 
     m_gs.init(gsVram, static_cast<uint32_t>(PS2_GS_VRAM_SIZE), &m_memory.gs());
     m_gifArbiter.setProcessPacketFn([this](const uint8_t *data, uint32_t size)
-                                    { m_gs.processGIFPacket(data, size); });
+                                    {
+                                        extern std::atomic<uint64_t> g_perfGsNs;
+                                        const auto t0 = std::chrono::steady_clock::now();
+                                        m_gs.processGIFPacket(data, size);
+                                        g_perfGsNs.fetch_add(static_cast<uint64_t>(std::chrono::duration_cast<std::chrono::nanoseconds>(std::chrono::steady_clock::now() - t0).count()),
+                                                             std::memory_order_relaxed);
+                                    });
     m_memory.setGifArbiter(&m_gifArbiter);
     m_memory.setVu1MscalCallback([this](uint32_t startPC, uint32_t top, uint32_t itop)
                                  {

@@ -13,6 +13,7 @@
 #include "game_overrides.h"
 
 #include <atomic>
+#include <chrono>
 #include <cctype>
 #include <cstdio>
 #include <cstring>
@@ -23,6 +24,7 @@ void ps2xReservePrivateGuestHeap(PS2Runtime &runtime, uint32_t base, uint32_t li
 
 void ssx3FrameCallsFlush(PS2Runtime &runtime, uint32_t tag, uint32_t a0, uint32_t a1); // ps2_runtime.cpp
 extern std::atomic<uint32_t> g_ps2WatchChain; // ps2_runtime.cpp
+extern std::atomic<uint64_t> g_perfVif1Ns, g_perfGsNs; // ps2_runtime.cpp
 
 namespace
 {
@@ -310,6 +312,30 @@ namespace
         std::memcpy(&head, rdram + ((obj + 0x5a0cu) & PS2_RAM_MASK), 4);
         std::memcpy(&cur, rdram + ((obj + 0x5a00u) & PS2_RAM_MASK), 4);
         ssx3FrameCallsFlush(*runtime, 'S' | (idx << 16), getRegU32(ctx, 31), cur - head);
+        {
+            // Frame-rate / time-split report every ~2 s: VIF1 time includes VU1 execution and the
+            // GS work its XGKICKs trigger; GS is also reported on its own (PATH3 included).
+            static auto last = std::chrono::steady_clock::now();
+            static uint32_t frames = 0u;
+            static uint64_t lastVif = 0u, lastGs = 0u;
+            ++frames;
+            const auto now = std::chrono::steady_clock::now();
+            const double secs = std::chrono::duration<double>(now - last).count();
+            if (secs >= 2.0)
+            {
+                const uint64_t vif = g_perfVif1Ns.load(std::memory_order_relaxed);
+                const uint64_t gs = g_perfGsNs.load(std::memory_order_relaxed);
+                const double vifMs = (vif - lastVif) / 1e6 / frames;
+                const double gsMs = (gs - lastGs) / 1e6 / frames;
+                const double frameMs = secs * 1000.0 / frames;
+                std::fprintf(stderr, "[ssx3:perf] %.1f fps, per frame: %.1f ms total, VIF1+VU1 %.1f ms (of which GS %.1f ms), rest %.1f ms\n",
+                             frames / secs, frameMs, vifMs, gsMs, frameMs - vifMs);
+                last = now;
+                frames = 0u;
+                lastVif = vif;
+                lastGs = gs;
+            }
+        }
         g_ssx3OrigSubmit(rdram, ctx, runtime);
     }
 
