@@ -13,6 +13,7 @@ namespace ps2recomp
     public:
         explicit VuTranslator(CodeGenerator &codeGenerator);
         std::string translate(const Instruction &inst);
+        std::string translateImpl(const Instruction &inst);
 
     private:
         CodeGenerator &m_codeGenerator;

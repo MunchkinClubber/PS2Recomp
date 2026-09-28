@@ -18,6 +18,20 @@ namespace ps2recomp
 
     std::string VuTranslator::translate(const Instruction &inst)
     {
+        std::string code = translateImpl(inst);
+        // vf0 is the read-only constant (0,0,0,1). Any macro op that could have targeted it (a zero
+        // register field) restores it afterwards, so a write to vf0 is discarded like on hardware.
+        const uint8_t format = inst.rs;
+        const bool maybeWritesVf0 =
+            (format == COP2_QMTC2 && inst.rd == 0) ||
+            (format >= COP2_CO && (inst.rd == 0 || inst.rt == 0 || inst.sa == 0));
+        if (maybeWritesVf0)
+            code += " ctx->vu0_vf[0] = _mm_set_ps(1.0f, 0.0f, 0.0f, 0.0f);";
+        return code;
+    }
+
+    std::string VuTranslator::translateImpl(const Instruction &inst)
+    {
         uint8_t format = inst.rs; // Use parsed rs field for COP2 format
         uint8_t rt = inst.rt;
         uint8_t rd = inst.rd;
