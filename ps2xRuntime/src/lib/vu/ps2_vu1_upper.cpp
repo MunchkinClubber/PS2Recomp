@@ -217,10 +217,10 @@ void VU1Interpreter::execUpper(uint32_t instr)
             result[c] = acc[c] - vs[c] * vt[c];
         applyFmacDest(vd, result, dest);
         return;
-    case 0x2E: // OPMSUB
-        result[0] = acc[0] - vs[1] * vt[2];
-        result[1] = acc[1] - vs[2] * vt[0];
-        result[2] = acc[2] - vs[0] * vt[1];
+    case 0x2E: // OPMSUB: fd = ACC - fs.zxy * ft.yzx (second half of the cross product after OPMULA)
+        result[0] = acc[0] - vs[2] * vt[1];
+        result[1] = acc[1] - vs[0] * vt[2];
+        result[2] = acc[2] - vs[1] * vt[0];
         result[3] = 0.0f;
         applyFmacDest(vd, result, dest);
         return;
