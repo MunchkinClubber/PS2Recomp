@@ -576,6 +576,10 @@ int EeScheduler::startThread(int id, uint32_t arg, const R5900Context &caller, b
     }
 
     target->context = R5900Context{};
+    // VU0 vf0 is hardwired to (0,0,0,1). Macro-mode code reads it (e.g. VADDw.xyz vf1, vf0, vf0 to
+    // make 1.0); with a zeroed context every new thread saw vf0.w = 0 until a microprogram ran.
+    // SSX 3's loader thread builds the player's inverse-bind matrices that way -> all zero.
+    target->context.vu0_vf[0] = _mm_set_ps(1.0f, 0.0f, 0.0f, 0.0f);
     target->context.pc = target->entry;
     target->arg = arg;
     target->suspendCount = 0;
