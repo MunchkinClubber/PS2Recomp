@@ -311,8 +311,61 @@ namespace
         g_ssx3OrigSubmit(rdram, ctx, runtime);
     }
 
+    // Skinned-model instance setup (0x30D8B8: a0 = instance list, a2 = model header). Entry +0x38 is the
+    // inverse-bind matrix array (a2 + 0x60 + [a2+0x18]). The player's arrays come out zero in races;
+    // log every setup so the bad one can be traced back to its model data.
+    constexpr uint32_t kModelInstanceSetup = 0x0030D8B8u;
+    PS2Runtime::RecompiledFunction g_ssx3OrigModelSetup = nullptr;
+
+    void ssx3ModelSetup(uint8_t *rdram, R5900Context *ctx, PS2Runtime *runtime)
+    {
+        const uint32_t list = getRegU32(ctx, 4);
+        const uint32_t a1 = getRegU32(ctx, 5);
+        const uint32_t hdr = getRegU32(ctx, 6);
+        const uint32_t a3 = getRegU32(ctx, 7);
+        const uint32_t ra = getRegU32(ctx, 31);
+        auto rd = [&](uint32_t addr) -> uint32_t
+        {
+            uint32_t v = 0u;
+            std::memcpy(&v, rdram + (addr & PS2_RAM_MASK), sizeof(v));
+            return v;
+        };
+        g_ssx3OrigModelSetup(rdram, ctx, runtime);
+        static uint32_t logged = 0u;
+        if (logged >= 400u)
+            return;
+        ++logged;
+        const uint32_t count = rd(list + 8u);
+        const uint32_t entry = rd(list + 0xCu) + (count ? count - 1u : 0u) * 0x58u;
+        const uint32_t inv = rd(entry + 0x38u);
+        uint32_t bones = rd(hdr + 0x04u);
+        if (bones > 128u)
+            bones = 128u;
+        uint32_t zeroRot = 0u;
+        for (uint32_t b = 0; b < bones; ++b)
+        {
+            bool allZero = true;
+            for (uint32_t w = 0; w < 12u; ++w)
+                if ((rd(inv + b * 64u + w * 4u) & 0x7FFFFFFFu) != 0u)
+                    allZero = false;
+            zeroRot += allZero ? 1u : 0u;
+        }
+        std::fprintf(stderr,
+                     "[ssx3:model] ra=0x%x list=0x%x a1=%u hdr=0x%x a3=0x%x tid=%d entry=0x%x inv=0x%x bones=%u zeroRotBones=%u"
+                     " hdr: %08x %08x %08x %08x %08x %08x %08x %08x | %08x %08x %08x %08x %08x %08x %08x %08x"
+                     " inv0: %08x %08x %08x %08x %08x %08x %08x %08x %08x %08x %08x %08x\n",
+                     ra, list, a1, hdr, a3, runtime->eeScheduler().currentThreadId(), entry, inv, bones, zeroRot,
+                     rd(hdr), rd(hdr + 4), rd(hdr + 8), rd(hdr + 12), rd(hdr + 16), rd(hdr + 20), rd(hdr + 24), rd(hdr + 28),
+                     rd(hdr + 32), rd(hdr + 36), rd(hdr + 40), rd(hdr + 44), rd(hdr + 48), rd(hdr + 52), rd(hdr + 56), rd(hdr + 60),
+                     rd(inv), rd(inv + 4), rd(inv + 8), rd(inv + 12), rd(inv + 16), rd(inv + 20), rd(inv + 24), rd(inv + 28),
+                     rd(inv + 32), rd(inv + 36), rd(inv + 40), rd(inv + 44));
+    }
+
     void applySsx3Overrides(PS2Runtime &runtime)
     {
+        g_ssx3OrigModelSetup = runtime.lookupFunction(kModelInstanceSetup);
+        if (g_ssx3OrigModelSetup)
+            runtime.replaceFunction(kModelInstanceSetup, ssx3ModelSetup);
         g_ssx3OrigSubmit = runtime.lookupFunction(kRendererSubmit);
         if (g_ssx3OrigSubmit)
             runtime.replaceFunction(kRendererSubmit, ssx3RendererSubmit);
