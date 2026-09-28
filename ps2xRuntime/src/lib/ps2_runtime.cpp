@@ -501,9 +501,27 @@ static std::atomic<uint32_t> g_ssx3WatchLogged{0};
 std::atomic<uint32_t> g_ps2WatchLo{0};
 std::atomic<uint32_t> g_ps2WatchHi{0};
 static std::atomic<uint32_t> g_ps2WatchLogged{0};
+// SSX3 debug: when set, a 32-bit store to the watched word re-arms the watch on the 256 bytes it
+// points to (follow a pointer field to the data it is set to).
+std::atomic<uint32_t> g_ps2WatchChain{0};
 void ps2WatchHit(const R5900Context *ctx, uint32_t guestAddr, uint32_t size, uint64_t valueLo, uint64_t valueHi)
 {
-    if (g_ps2WatchLogged.fetch_add(1u, std::memory_order_relaxed) >= 200u)
+    if (g_ps2WatchChain.load(std::memory_order_relaxed) != 0u && size == 4u &&
+        guestAddr == g_ps2WatchLo.load(std::memory_order_relaxed))
+    {
+        const uint32_t target = static_cast<uint32_t>(valueLo);
+        std::fprintf(stderr, "[ssx3:rwatch] chain: pc=0x%x ra=0x%x wrote pointer 0x%x at 0x%x -> now watching 0x%x..0x%x\n",
+                     ctx ? (unsigned)ctx->pc : 0u, ctx ? (unsigned)getRegU32(ctx, 31) : 0u, (unsigned)target,
+                     (unsigned)guestAddr, (unsigned)target, (unsigned)(target + 256u));
+        if (target >= 0x100000u && target < 0x2000000u)
+        {
+            g_ps2WatchChain.store(0u);
+            g_ps2WatchLo.store(target);
+            g_ps2WatchHi.store(target + 256u);
+        }
+        return;
+    }
+    if (g_ps2WatchLogged.fetch_add(1u, std::memory_order_relaxed) >= 600u)
         return;
     std::fprintf(stderr, "[ssx3:rwatch] pc=0x%x ra=0x%x store%u addr=0x%x lo=0x%016llx hi=0x%016llx\n",
                  ctx ? (unsigned)ctx->pc : 0u, ctx ? (unsigned)getRegU32(ctx, 31) : 0u, (unsigned)(size * 8u),

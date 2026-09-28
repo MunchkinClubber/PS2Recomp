@@ -12,6 +12,7 @@
 #include "../Syscalls/Sync.h"
 #include "game_overrides.h"
 
+#include <atomic>
 #include <cctype>
 #include <cstdio>
 #include <cstring>
@@ -21,6 +22,7 @@
 void ps2xReservePrivateGuestHeap(PS2Runtime &runtime, uint32_t base, uint32_t limit); // ps2_runtime.cpp
 
 void ssx3FrameCallsFlush(PS2Runtime &runtime, uint32_t tag, uint32_t a0, uint32_t a1); // ps2_runtime.cpp
+extern std::atomic<uint32_t> g_ps2WatchChain; // ps2_runtime.cpp
 
 namespace
 {
@@ -361,8 +363,80 @@ namespace
                      rd(inv + 32), rd(inv + 36), rd(inv + 40), rd(inv + 44));
     }
 
+    // Skeleton object: constructor 0x30D4B8 returns it; +0x34 world bones, +0x38 inverse-bind array.
+    // The player's inverse-bind array is all zero in races. Watch the first race skeleton's +0x38
+    // pointer, then the data it is pointed at, to find who fills (or clears) it.
+    constexpr uint32_t kSkeletonCtor = 0x0030D4B8u;
+    constexpr uint32_t kSkinPaletteBuild = 0x00310640u;
+    PS2Runtime::RecompiledFunction g_ssx3OrigSkeletonCtor = nullptr;
+    PS2Runtime::RecompiledFunction g_ssx3OrigPaletteBuild = nullptr;
+
+    void ssx3SkeletonCtor(uint8_t *rdram, R5900Context *ctx, PS2Runtime *runtime)
+    {
+        const uint32_t ra = getRegU32(ctx, 31);
+        const int tid = runtime->eeScheduler().currentThreadId();
+        g_ssx3OrigSkeletonCtor(rdram, ctx, runtime);
+        const uint32_t obj = getRegU32(ctx, 2);
+        static int count = 0;
+        static bool armed = false;
+        if (count < 64)
+        {
+            ++count;
+            std::fprintf(stderr, "[ssx3:skel] ctor obj=0x%x ra=0x%x tid=%d\n", obj, ra, tid);
+        }
+        if (!armed && tid == 3 && obj != 0u)
+        {
+            armed = true;
+            g_ps2WatchChain.store(1u);
+            g_ps2WatchLo.store(obj + 0x38u);
+            g_ps2WatchHi.store(obj + 0x3Cu);
+            std::fprintf(stderr, "[ssx3:skel] watching inverse-bind pointer of skeleton 0x%x\n", obj);
+        }
+    }
+
+    void ssx3PaletteBuild(uint8_t *rdram, R5900Context *ctx, PS2Runtime *runtime)
+    {
+        const uint32_t skel = getRegU32(ctx, 4);
+        auto rd = [&](uint32_t addr) -> uint32_t
+        {
+            uint32_t v = 0u;
+            std::memcpy(&v, rdram + (addr & PS2_RAM_MASK), sizeof(v));
+            return v;
+        };
+        static uint32_t seen[16] = {};
+        static uint32_t nseen = 0u;
+        bool known = false;
+        for (uint32_t i = 0; i < nseen; ++i)
+            known |= seen[i] == skel;
+        if (!known && nseen < 16u)
+        {
+            seen[nseen++] = skel;
+            const uint32_t inv = rd(skel + 0x38u);
+            uint32_t zero = 0u;
+            for (uint32_t b = 0; b < 8u; ++b)
+            {
+                bool z = true;
+                for (uint32_t w = 0; w < 12u; ++w)
+                    if ((rd(inv + b * 64u + w * 4u) & 0x7FFFFFFFu) != 0u)
+                        z = false;
+                zero += z ? 1u : 0u;
+            }
+            std::fprintf(stderr, "[ssx3:skel] palette skel=0x%x bones=%u world=0x%x inv=0x%x zeroRot(first 8)=%u fields: %08x %08x %08x %08x %08x %08x %08x %08x %08x %08x %08x %08x\n",
+                         skel, rd(skel + 0x10u), rd(skel + 0x34u), inv, zero,
+                         rd(skel), rd(skel + 4), rd(skel + 8), rd(skel + 12), rd(skel + 16), rd(skel + 20),
+                         rd(skel + 24), rd(skel + 28), rd(skel + 32), rd(skel + 36), rd(skel + 40), rd(skel + 44));
+        }
+        g_ssx3OrigPaletteBuild(rdram, ctx, runtime);
+    }
+
     void applySsx3Overrides(PS2Runtime &runtime)
     {
+        g_ssx3OrigSkeletonCtor = runtime.lookupFunction(kSkeletonCtor);
+        if (g_ssx3OrigSkeletonCtor)
+            runtime.replaceFunction(kSkeletonCtor, ssx3SkeletonCtor);
+        g_ssx3OrigPaletteBuild = runtime.lookupFunction(kSkinPaletteBuild);
+        if (g_ssx3OrigPaletteBuild)
+            runtime.replaceFunction(kSkinPaletteBuild, ssx3PaletteBuild);
         g_ssx3OrigModelSetup = runtime.lookupFunction(kModelInstanceSetup);
         if (g_ssx3OrigModelSetup)
             runtime.replaceFunction(kModelInstanceSetup, ssx3ModelSetup);
