@@ -1355,7 +1355,10 @@ bool PS2Memory::writeIORegister(uint32_t address, uint32_t value)
                     uint32_t asr1 = m_ioRegisters[channelBase + 0x50];
                     uint32_t asp = (chcr >> 4) & 0x3u;
                     const bool tieEnabled = (chcr & (1u << 7)) != 0u;
-                    const int kMaxChainTags = 4096;
+                    // Safety cap only (runaway/cyclic chains). SSX 3's per-frame display list is
+                    // well over 4096 tags in busy scenes; the old 4096 cap silently dropped the rest
+                    // of the frame (riders, hair and hats, which are drawn late).
+                    const int kMaxChainTags = 1 << 20;
                     std::vector<uint8_t> chainBuf;
 
                     auto appendData = [&](uint32_t srcAddr, uint32_t qwCount)
@@ -1532,6 +1535,13 @@ bool PS2Memory::writeIORegister(uint32_t address, uint32_t value)
                             break;
                     }
 
+                    if (tagsProcessed >= kMaxChainTags)
+                    {
+                        static uint32_t capLogs = 0u;
+                        if (capLogs++ < 8u)
+                            std::fprintf(stderr, "[dma] chain on 0x%x hit the %d-tag safety cap at tag 0x%x\n",
+                                         (unsigned)channelBase, kMaxChainTags, (unsigned)tagAddr);
+                    }
                     m_ioRegisters[channelBase + 0x30] = tagAddr;
                     m_ioRegisters[channelBase + 0x40] = asr0;
                     m_ioRegisters[channelBase + 0x50] = asr1;
