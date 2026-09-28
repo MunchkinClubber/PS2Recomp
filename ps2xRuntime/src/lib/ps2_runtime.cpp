@@ -1630,14 +1630,21 @@ void PS2Runtime::executeVU0Microprogram(uint8_t *rdram, R5900Context *ctx, uint3
     m_vu0.execute(vu0Code, PS2_VU0_CODE_SIZE,
                   vu0Data, PS2_VU0_DATA_SIZE,
                   m_gs, &m_memory,
-                  startPC, 0u, ctx->vu0_itop, 4096);
+                  startPC, 0u, ctx->vu0_itop, 1u << 20);
     copyVu0StateToContext(m_vu0.state(), ctx);
 }
 
 void PS2Runtime::vu0StartMicroProgram(uint8_t *rdram, R5900Context *ctx, uint32_t address)
 {
-    // VCALLMS and VCALLMSR both route here.
-    executeVU0Microprogram(rdram, ctx, address);
+    // VCALLMSR route. VCALLMSR always starts at CMSAR0 (control register 27, in 8-byte units).
+    // Older translations computed the address from ctx->vi[27], which is past the 16-entry VI
+    // array and aliases the R register -- a random microprogram every call. Ignore the passed
+    // address and use CMSAR0.
+    (void)address;
+    const uint32_t start = (ctx->vu0_cmsar0 & 0x1FFu) << 3;
+    ctx->vu0_pc = start;
+    ctx->vu0_tpc = start;
+    executeVU0Microprogram(rdram, ctx, start);
 }
 
 void PS2Runtime::handleSyscall(uint8_t *rdram, R5900Context *ctx)
