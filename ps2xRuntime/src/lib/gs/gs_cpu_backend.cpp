@@ -871,6 +871,18 @@ void GSCpuBackend::WritePixel(const GSDrawState &state, int x, int y, int z, uin
     const u32 zbp = GSInternal::framePageBaseToBlock(ctx.zbuf.zbp);
     const u32 zpsm = ctx.zbuf.psm;
 
+    // The GS clamps Z to the depth buffer format's range (Z24: 0xFFFFFF, Z16: 0xFFFF). Without
+    // this, VU output with Z past the range (e.g. negative floats converted to huge values)
+    // stored truncated low bits and wrecked later depth tests.
+    {
+        uint32_t zc = static_cast<uint32_t>(z);
+        if (zpsm == GS_PSM_Z24)
+            zc = std::min<uint32_t>(zc, 0xFFFFFFu);
+        else if (zpsm == GS_PSM_Z16 || zpsm == GS_PSM_Z16S)
+            zc = std::min<uint32_t>(zc, 0xFFFFu);
+        z = static_cast<int>(zc);
+    }
+
     const PixelWriteMask writeMask = classifyAlphaTest(ctx.test, a, static_cast<uint8_t>(fpsm));
     if (!writeMask.writesAnything())
     {
