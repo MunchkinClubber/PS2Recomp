@@ -10,6 +10,8 @@
 #include <string>
 #include <vector>
 
+void ssx3FrameRecord(PS2Memory &mem, uint32_t type, const void *hdr, uint32_t hdrSize, const uint8_t *data, uint32_t size); // ps2_vif1_interpreter.cpp
+
 namespace
 {
     inline void inRange(uint32_t offset, size_t bytes, size_t regionSize, const char *op, uint32_t address)
@@ -1956,6 +1958,9 @@ void PS2Memory::submitGifPacket(GifPathId pathId, const uint8_t *data, uint32_t 
 {
     if (!data || sizeBytes < 16)
         return;
+
+    if (pathId == GifPathId::Path3)
+        ssx3FrameRecord(*this, 'G', nullptr, 0u, data, sizeBytes);
 
     if (pathId == GifPathId::Path3)
     {

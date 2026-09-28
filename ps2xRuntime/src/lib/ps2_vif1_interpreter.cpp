@@ -1,6 +1,8 @@
 #include <string>
 #include <cstdio>
 #include <atomic>
+#include <chrono>
+#include <mutex>
 // Based on Blackline Interactive implementation
 #include "runtime/ps2_memory.h"
 #include <cstring>
@@ -306,10 +308,57 @@ extern std::atomic<uint32_t> g_ps2WatchHi;
 std::atomic<uint32_t> g_ssx3LightTraceLeft{0}; // SSX3 debug: F11 traces VU1 rows 7..16 traffic
 static uint32_t g_ssx3VifCaptureIndex = 0u;
 
+// SSX3 debug: F12 frame recorder. Records every VIF1 stream and PATH3 GIF packet for ~1.5 s,
+// starting with a snapshot of VU1 code/data, VIF1 registers and GS VRAM, so a frame can be
+// replayed offline (ssx3_framecap.bin). Record = type(u32) size(u32) payload.
+std::atomic<uint32_t> g_ssx3FrameRecArm{0};
+static std::FILE *g_ssx3FrameRec = nullptr;
+static std::chrono::steady_clock::time_point g_ssx3FrameRecEnd;
+static std::mutex g_ssx3FrameRecMutex;
+static void ssx3FrameRecWrite(uint32_t type, const void *a, uint32_t aSize, const void *b, uint32_t bSize)
+{
+    const uint32_t total = aSize + bSize;
+    std::fwrite(&type, 4, 1, g_ssx3FrameRec);
+    std::fwrite(&total, 4, 1, g_ssx3FrameRec);
+    if (aSize)
+        std::fwrite(a, 1, aSize, g_ssx3FrameRec);
+    if (bSize)
+        std::fwrite(b, 1, bSize, g_ssx3FrameRec);
+}
+void ssx3FrameRecord(PS2Memory &mem, uint32_t type, const void *hdr, uint32_t hdrSize, const uint8_t *data, uint32_t size)
+{
+    if (g_ssx3FrameRecArm.load(std::memory_order_relaxed) == 0u && !g_ssx3FrameRec)
+        return;
+    std::lock_guard<std::mutex> lock(g_ssx3FrameRecMutex);
+    if (!g_ssx3FrameRec && g_ssx3FrameRecArm.exchange(0u) != 0u)
+    {
+        g_ssx3FrameRec = std::fopen("ssx3_framecap.bin", "wb");
+        if (!g_ssx3FrameRec)
+            return;
+        std::fwrite("SFRC", 1, 4, g_ssx3FrameRec);
+        ssx3FrameRecWrite('S' | ('C' << 8), mem.getVU1Code(), PS2_VU1_CODE_SIZE, nullptr, 0);
+        ssx3FrameRecWrite('S' | ('D' << 8), mem.getVU1Data(), PS2_VU1_DATA_SIZE, nullptr, 0);
+        ssx3FrameRecWrite('S' | ('G' << 8), mem.getGSVRAM(), PS2_GS_VRAM_SIZE, nullptr, 0);
+        g_ssx3FrameRecEnd = std::chrono::steady_clock::now() + std::chrono::milliseconds(1500);
+        std::fprintf(stderr, "[ssx3:rec] frame recording started\n");
+    }
+    if (!g_ssx3FrameRec)
+        return;
+    ssx3FrameRecWrite(type, hdr, hdrSize, data, size);
+    if (std::chrono::steady_clock::now() >= g_ssx3FrameRecEnd)
+    {
+        std::fclose(g_ssx3FrameRec);
+        g_ssx3FrameRec = nullptr;
+        std::fprintf(stderr, "[ssx3:rec] frame recording finished (ssx3_framecap.bin)\n");
+    }
+}
+
 void PS2Memory::processVIF1Data(const uint8_t *data, uint32_t sizeBytes)
 {
     if (sizeBytes == 0u)
         return;
+
+    ssx3FrameRecord(*this, 'V', &vif1_regs, sizeof(vif1_regs), data, sizeBytes);
 
     if (g_ssx3VifCaptureLeft.load(std::memory_order_relaxed) > 0u)
     {

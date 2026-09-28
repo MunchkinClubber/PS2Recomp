@@ -2832,6 +2832,13 @@ void PS2Runtime::run()
             g_ssx3WatchHi.store(0x1100C110u);
             RUNTIME_LOG("[ssx3:cap] F11 pressed, capturing the next 24 VIF1 streams and VU1 runs" << std::endl);
         }
+        if (IsKeyPressed(KEY_F12))
+        {
+            extern std::atomic<uint32_t> g_ssx3FrameRecArm; // ps2_vif1_interpreter.cpp
+            g_ssx3FrameRecArm.store(1u);
+            g_ssx3DumpRequested.store(true);
+            RUNTIME_LOG("[ssx3:rec] F12 pressed, recording ~1.5 s of VIF1/GIF traffic to ssx3_framecap.bin" << std::endl);
+        }
         if (IsKeyPressed(KEY_F10))
         {
             g_ssx3PrimBurst.store(80u);
