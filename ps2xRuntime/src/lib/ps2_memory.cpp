@@ -1930,6 +1930,8 @@ std::vector<uint32_t> PS2Memory::consumeCompletedDmacCauses()
     return causes;
 }
 
+uint32_t g_path3ReleaseLimit = 0u; // see flushMaskedPath3Packets / VIF MSKPATH3
+
 void PS2Memory::flushMaskedPath3Packets(bool drainImmediately)
 {
     if (m_path3Masked || m_path3MaskedFifo.empty())
@@ -1943,12 +1945,17 @@ void PS2Memory::flushMaskedPath3Packets(bool drainImmediately)
             m_gifPacketCallback(packetData, packetSize);
     };
 
-    for (const auto &packet : m_path3MaskedFifo)
+    // g_path3ReleaseLimit (set by the VIF MSKPATH3 handler) limits how many queued PATH3 packets
+    // an unmask window releases; 0 = all.
+    const size_t limit = g_path3ReleaseLimit != 0u ? std::min<size_t>(g_path3ReleaseLimit, m_path3MaskedFifo.size())
+                                                   : m_path3MaskedFifo.size();
+    for (size_t i = 0; i < limit; ++i)
     {
+        const auto &packet = m_path3MaskedFifo[i];
         if (packet.size() >= 16u)
             emit(packet.data(), static_cast<uint32_t>(packet.size()));
     }
-    m_path3MaskedFifo.clear();
+    m_path3MaskedFifo.erase(m_path3MaskedFifo.begin(), m_path3MaskedFifo.begin() + static_cast<std::ptrdiff_t>(limit));
 
     if (m_gifArbiter && drainImmediately)
         m_gifArbiter->drain();
@@ -1966,7 +1973,40 @@ void PS2Memory::submitGifPacket(GifPathId pathId, const uint8_t *data, uint32_t 
     {
         if (m_path3Masked)
         {
-            m_path3MaskedFifo.emplace_back(data, data + sizeBytes);
+            // PATH3 masking works at GIF packet granularity (a packet ends at a tag with EOP=1):
+            // each MSKPATH3 unmask window lets the next whole packet through. Queue a DMA chain as
+            // its individual EOP-terminated packets so the windows can release them one at a time.
+            uint32_t packetStart = 0u;
+            uint32_t pos = 0u;
+            while (pos + 16u <= sizeBytes)
+            {
+                uint64_t tagLo = 0;
+                uint64_t tagHi = 0;
+                std::memcpy(&tagLo, data + pos, 8);
+                std::memcpy(&tagHi, data + pos + 8, 8);
+                pos += 16u;
+                const uint32_t nloop = static_cast<uint32_t>(tagLo & 0x7FFFu);
+                const bool eop = ((tagLo >> 15) & 1u) != 0u;
+                const uint32_t flg = static_cast<uint32_t>((tagLo >> 58) & 3u);
+                uint32_t nreg = static_cast<uint32_t>((tagLo >> 60) & 0xFu);
+                if (nreg == 0u)
+                    nreg = 16u;
+                uint64_t payload = 0u;
+                if (flg == 0u)
+                    payload = static_cast<uint64_t>(nloop) * nreg * 16u;
+                else if (flg == 1u)
+                    payload = ((static_cast<uint64_t>(nloop) * nreg * 8u) + 15u) & ~static_cast<uint64_t>(15u);
+                else
+                    payload = static_cast<uint64_t>(nloop) * 16u;
+                pos = static_cast<uint32_t>(std::min<uint64_t>(sizeBytes, pos + payload));
+                if (eop || pos >= sizeBytes)
+                {
+                    m_path3MaskedFifo.emplace_back(data + packetStart, data + pos);
+                    packetStart = pos;
+                }
+            }
+            if (packetStart < sizeBytes && sizeBytes - packetStart >= 16u)
+                m_path3MaskedFifo.emplace_back(data + packetStart, data + sizeBytes);
             return;
         }
         flushMaskedPath3Packets(false);

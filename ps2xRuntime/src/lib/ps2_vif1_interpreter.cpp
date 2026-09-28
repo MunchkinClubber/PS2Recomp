@@ -307,6 +307,7 @@ extern std::atomic<uint32_t> g_ps2WatchLo; // ps2_runtime.cpp
 extern std::atomic<uint32_t> g_ps2WatchHi;
 std::atomic<uint32_t> g_ssx3LightTraceLeft{0}; // SSX3 debug: F11 traces VU1 rows 7..16 traffic
 static uint32_t g_ssx3VifCaptureIndex = 0u;
+extern uint32_t g_path3ReleaseLimit; // ps2_memory.cpp
 
 // SSX3 debug: F12 frame recorder. Records every VIF1 stream and PATH3 GIF packet for ~1.5 s,
 // starting with a snapshot of VU1 code/data, VIF1 registers and GS VRAM, so a frame can be
@@ -463,7 +464,14 @@ void PS2Memory::processVIF1Data(const uint8_t *data, uint32_t sizeBytes)
             const bool wasMasked = m_path3Masked;
             m_path3Masked = (imm & 0x8000u) != 0u;
             if (wasMasked && !m_path3Masked)
+            {
+                // An unmask window inside a VIF stream lets one PATH3 packet through before the
+                // stream masks PATH3 again (games such as SSX 3 stream textures this way between
+                // draws). Anything still queued goes out if the stream ends unmasked.
+                g_path3ReleaseLimit = 1u;
                 flushMaskedPath3Packets();
+                g_path3ReleaseLimit = 0u;
+            }
             continue;
         }
         else if (opcode == VIF_MARK)
@@ -914,4 +922,8 @@ void PS2Memory::processVIF1Data(const uint8_t *data, uint32_t sizeBytes)
             continue;
         }
     }
+
+    // PATH3 stays unmasked after the stream: let the rest of the queued PATH3 packets through.
+    if (!m_path3Masked && !m_path3MaskedFifo.empty())
+        flushMaskedPath3Packets();
 }
