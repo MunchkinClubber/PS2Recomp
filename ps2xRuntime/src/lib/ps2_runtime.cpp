@@ -522,6 +522,7 @@ static void ssx3WatchStore(const R5900Context *ctx, uint32_t vaddr, uint32_t siz
                  (unsigned)ctx->pc, (unsigned)getRegU32(ctx, 31), (unsigned)(size * 8u), (unsigned)vaddr,
                  (unsigned long long)lo, (unsigned long long)hi);
 }
+void ssx3FrameRecord(PS2Memory &mem, uint32_t type, const void *hdr, uint32_t hdrSize, const uint8_t *data, uint32_t size); // ps2_vif1_interpreter.cpp
 static int ssx3VuCaptureBegin(const VU1State &st, const uint8_t *code, const uint8_t *data, uint32_t pc, uint32_t top, uint32_t itop)
 {
     // Capture the first run of each distinct microprogram entry (up to 24) while armed, so every
@@ -775,6 +776,11 @@ bool PS2Runtime::syncCoreSubsystems()
                                          (cpuContext->vu0_fbrst & (1u << 10)) != 0u;
                                      m_vu1.state().tBitEnabled =
                                          (cpuContext->vu0_fbrst & (1u << 11)) != 0u;
+                                     {
+                                         // F12 recorder: VU1 registers persist across MSCALs, so record them per call.
+                                         const uint32_t hdr[3] = {startPC, top, itop};
+                                         ssx3FrameRecord(m_memory, 'M', hdr, sizeof(hdr), reinterpret_cast<const uint8_t *>(&m_vu1.state()), sizeof(VU1State));
+                                     }
                                      const int ssx3Cap = ssx3VuCaptureBegin(m_vu1.state(), m_memory.getVU1Code(), m_memory.getVU1Data(), startPC, top, itop);
                                      m_vu1.execute(m_memory.getVU1Code(), PS2_VU1_CODE_SIZE,
                                                    m_memory.getVU1Data(), PS2_VU1_DATA_SIZE,
@@ -786,6 +792,10 @@ bool PS2Runtime::syncCoreSubsystems()
                                          (m_vu1.state().stoppedByT ? 0x0400u : 0u); });
     m_memory.setVu1MscntCallback([this](uint32_t top, uint32_t itop)
                                  {
+                                     {
+                                         const uint32_t hdr[3] = {0xFFFFFFFFu, top, itop};
+                                         ssx3FrameRecord(m_memory, 'N', hdr, sizeof(hdr), reinterpret_cast<const uint8_t *>(&m_vu1.state()), sizeof(VU1State));
+                                     }
                                      R5900Context *cpuContext = m_eeScheduler ? m_eeScheduler->currentContext() : nullptr;
                                      if (!cpuContext)
                                      {
