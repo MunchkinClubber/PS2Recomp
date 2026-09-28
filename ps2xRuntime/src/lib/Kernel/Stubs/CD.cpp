@@ -347,6 +347,16 @@ namespace ps2_stubs
             }
         }
 
+        {
+            // SSX3 debug: log disc reads (map LBNs to files with ssx3_iso_files.txt)
+            static uint32_t readLogCount = 0;
+            if (readLogCount < 20000u)
+            {
+                ++readLogCount;
+                std::fprintf(stderr, "[ssx3:cdread] lbn=%u sectors=%u buf=0x%x ok=%d ra=0x%x\n",
+                             selected.lbn, selected.sectors, selected.buf, ok ? 1 : 0, getRegU32(ctx, 31));
+            }
+        }
         if (ok)
         {
             g_cdStreamingLbn = selected.lbn + selected.sectors;
