@@ -2614,6 +2614,7 @@ static void ssx3DumpFrameBmp(GS &gs, const char *path, uint32_t fbp, uint32_t fb
 // SSX3 debug: per-interval draw targets, textured-sprite sources, presentation source,
 // and periodic BMP dumps of the displayed and most-drawn framebuffers.
 static const uint8_t *g_ssx3RdramForDump = nullptr; // SSX3 debug: EE RAM for F9 dumps
+static PS2Memory *g_ssx3MemForDump = nullptr;       // SSX3 debug: VU/scratchpad memory for F9 dumps
 static void ssx3LogDrawDiagnostics(GS &gsCore, const GSRegisters &gs, const uint8_t *vram)
 {
     // Per-interval draw targets, textured-sprite sources, presentation source.
@@ -2682,6 +2683,20 @@ static void ssx3LogDrawDiagnostics(GS &gsCore, const GSRegisters &gs, const uint
                 {
                     std::fwrite(g_ssx3RdramForDump, 1, PS2_RAM_SIZE, ef);
                     std::fclose(ef);
+                }
+            }
+            if (g_ssx3MemForDump)
+            {
+                // VU0 code 4K, VU0 data 4K, VU1 code 16K, VU1 data 16K, scratchpad 16K
+                std::snprintf(path, sizeof(path), "ssx3_dump%02u_vumem.bin", ssx3DumpIndex);
+                if (std::FILE *uf = std::fopen(path, "wb"))
+                {
+                    std::fwrite(g_ssx3MemForDump->getVU0Code(), 1, PS2_VU0_CODE_SIZE, uf);
+                    std::fwrite(g_ssx3MemForDump->getVU0Data(), 1, PS2_VU0_DATA_SIZE, uf);
+                    std::fwrite(g_ssx3MemForDump->getVU1Code(), 1, PS2_VU1_CODE_SIZE, uf);
+                    std::fwrite(g_ssx3MemForDump->getVU1Data(), 1, PS2_VU1_DATA_SIZE, uf);
+                    std::fwrite(g_ssx3MemForDump->getScratchpad(), 1, PS2_SCRATCHPAD_SIZE, uf);
+                    std::fclose(uf);
                 }
             }
             std::snprintf(path, sizeof(path), "ssx3_dump%02u_vram.bin", ssx3DumpIndex);
@@ -2823,6 +2838,7 @@ void PS2Runtime::run()
                     ssx3LastUploads = uploads;
 
                     g_ssx3RdramForDump = m_memory.getRDRAM();
+                    g_ssx3MemForDump = &m_memory;
                     ssx3LogDrawDiagnostics(m_gs, gs, m_memory.getGSVRAM());
                 }
                 RUNTIME_LOG("[ssx3:t3count] own=" << g_ssx3T3Own.load() << " handler=" << g_ssx3T3Handler.load() << std::endl);
