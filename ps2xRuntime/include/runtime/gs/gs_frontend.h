@@ -144,6 +144,8 @@ public:
     uint32_t consumeLocalToHostBytes(uint8_t *dst, uint32_t maxBytes);
 
     void refreshDisplaySnapshot();
+    // Waits until every queued draw/transfer has reached local memory (threaded rasteriser).
+    void syncLocalMemory();
 
     void WriteVram(uint32_t psm, uint32_t base, uint32_t bw, uint32_t x, uint32_t y, uint32_t value);
     uint32_t ReadVram(uint32_t psm, uint32_t base, uint32_t bw, uint32_t x, uint32_t y) const;

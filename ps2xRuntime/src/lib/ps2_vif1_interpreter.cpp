@@ -316,6 +316,7 @@ std::atomic<uint32_t> g_ssx3FrameRecArm{0};
 static std::FILE *g_ssx3FrameRec = nullptr;
 static std::chrono::steady_clock::time_point g_ssx3FrameRecEnd;
 static std::mutex g_ssx3FrameRecMutex;
+void (*g_ps2GsSyncHook)() = nullptr; // set by PS2Runtime: drains the threaded GS rasteriser
 static void ssx3FrameRecWrite(uint32_t type, const void *a, uint32_t aSize, const void *b, uint32_t bSize)
 {
     const uint32_t total = aSize + bSize;
@@ -343,6 +344,8 @@ void ssx3FrameRecord(PS2Memory &mem, uint32_t type, const void *hdr, uint32_t hd
         std::fwrite("SFRC", 1, 4, g_ssx3FrameRec);
         ssx3FrameRecWrite('S' | ('C' << 8), mem.getVU1Code(), PS2_VU1_CODE_SIZE, nullptr, 0);
         ssx3FrameRecWrite('S' | ('D' << 8), mem.getVU1Data(), PS2_VU1_DATA_SIZE, nullptr, 0);
+        if (g_ps2GsSyncHook)
+            g_ps2GsSyncHook();
         ssx3FrameRecWrite('S' | ('G' << 8), mem.getGSVRAM(), PS2_GS_VRAM_SIZE, nullptr, 0);
         g_ssx3FrameRecEnd = std::chrono::steady_clock::now() + std::chrono::milliseconds(1500);
         std::fprintf(stderr, "[ssx3:rec] frame recording started\n");

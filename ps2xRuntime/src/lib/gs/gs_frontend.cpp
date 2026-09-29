@@ -235,6 +235,13 @@ GSContext &GS::activeContext()
     return m_ctx[m_prim.ctxt ? 1 : 0];
 }
 
+void GS::syncLocalMemory()
+{
+    std::lock_guard<std::mutex> backendLock(m_backendLifetimeMutex);
+    if (m_backend)
+        m_backend->Sync(GSSyncReason::DebugReadback);
+}
+
 void GS::snapshotVRAM()
 {
     // Presentation/debug snapshots run outside m_stateMutex so the EE can keep

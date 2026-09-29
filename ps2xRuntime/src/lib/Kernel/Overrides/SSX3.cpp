@@ -25,6 +25,7 @@ void ps2xReservePrivateGuestHeap(PS2Runtime &runtime, uint32_t base, uint32_t li
 void ssx3FrameCallsFlush(PS2Runtime &runtime, uint32_t tag, uint32_t a0, uint32_t a1); // ps2_runtime.cpp
 extern std::atomic<uint32_t> g_ps2WatchChain; // ps2_runtime.cpp
 extern std::atomic<uint64_t> g_perfVif1Ns, g_perfGsNs; // ps2_runtime.cpp
+extern std::atomic<uint64_t> g_perfGsWorkerNs, g_perfGsWaitNs; // gs_cpu_backend.cpp
 
 namespace
 {
@@ -317,7 +318,7 @@ namespace
             // GS work its XGKICKs trigger; GS is also reported on its own (PATH3 included).
             static auto last = std::chrono::steady_clock::now();
             static uint32_t frames = 0u;
-            static uint64_t lastVif = 0u, lastGs = 0u;
+            static uint64_t lastVif = 0u, lastGs = 0u, lastWorker = 0u, lastWait = 0u;
             ++frames;
             const auto now = std::chrono::steady_clock::now();
             const double secs = std::chrono::duration<double>(now - last).count();
@@ -325,15 +326,21 @@ namespace
             {
                 const uint64_t vif = g_perfVif1Ns.load(std::memory_order_relaxed);
                 const uint64_t gs = g_perfGsNs.load(std::memory_order_relaxed);
+                const uint64_t worker = g_perfGsWorkerNs.load(std::memory_order_relaxed);
+                const uint64_t wait = g_perfGsWaitNs.load(std::memory_order_relaxed);
                 const double vifMs = (vif - lastVif) / 1e6 / frames;
                 const double gsMs = (gs - lastGs) / 1e6 / frames;
+                const double workerMs = (worker - lastWorker) / 1e6 / frames;
+                const double waitMs = (wait - lastWait) / 1e6 / frames;
                 const double frameMs = secs * 1000.0 / frames;
-                std::fprintf(stderr, "[ssx3:perf] %.1f fps, per frame: %.1f ms total, VIF1+VU1 %.1f ms (of which GS %.1f ms), rest %.1f ms\n",
-                             frames / secs, frameMs, vifMs, gsMs, frameMs - vifMs);
+                std::fprintf(stderr, "[ssx3:perf] %.1f fps, per frame: %.1f ms total, VIF1+VU1 %.1f ms (of which GS submit %.1f ms), rest %.1f ms | raster workers busy %.1f ms (summed), EE waited on GS %.1f ms\n",
+                             frames / secs, frameMs, vifMs, gsMs, frameMs - vifMs, workerMs, waitMs);
                 last = now;
                 frames = 0u;
                 lastVif = vif;
                 lastGs = gs;
+                lastWorker = worker;
+                lastWait = wait;
             }
         }
         g_ssx3OrigSubmit(rdram, ctx, runtime);

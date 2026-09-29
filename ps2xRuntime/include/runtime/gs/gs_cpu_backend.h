@@ -4,13 +4,22 @@
 #include "runtime/gs/gs_texture_page_cache.h"
 
 #include <array>
+#include <atomic>
+#include <condition_variable>
+#include <functional>
+#include <memory>
 #include <mutex>
+#include <thread>
 #include <vector>
+
+struct GSPixelPipe;
+struct GSTexSampler;
 
 class GSCpuBackend final : public GSRasterBackend
 {
 public:
     GSCpuBackend();
+    ~GSCpuBackend() override;
 
     void Initialize(uint8_t *vram, uint32_t vramSize) override;
     void Reset() override;
@@ -34,6 +43,61 @@ public:
     GSTransferSnapshot GetTransferSnapshot() const override;
 
 private:
+    // ---- Threaded rasteriser -------------------------------------------------------------
+    // Submit() only queues primitives; worker threads rasterise them, each owning an
+    // interleaved set of 8-row screen bands. Every other operation that touches VRAM is queued
+    // as an ordered "global" command (all workers meet at a barrier, worker 0 runs it), and
+    // every read-back waits for the queue first (SyncUnlocked). PS2_GS_THREADS=0 disables it.
+    struct Command
+    {
+        bool global = false;
+        GSPrimitiveBatch batch{};
+        std::function<void()> fn;
+    };
+    struct alignas(64) WorkerSlot
+    {
+        std::atomic<uint64_t> done{0};
+    };
+    struct DirtyRange
+    {
+        uint64_t key;
+        uint32_t start;
+        uint32_t end;
+    };
+    static constexpr uint32_t kRingSize = 4096u;
+    void StartWorkersUnlocked();
+    void StopWorkers();
+    void WorkerMain(uint32_t index);
+    void EnqueueUnlocked(Command &&command);
+    void EnqueueGlobalUnlocked(std::function<void()> fn);
+    void SyncUnlocked() const;
+    void NoteDrawHazardsUnlocked(const GSPrimitiveBatch &batch);
+    uint64_t MinDone() const;
+    bool threaded() const { return m_threadCount != 0u; }
+
+    uint32_t m_threadCount = 0;      // 0 = synchronous
+    int m_threadMode = -1;           // -1 = not decided yet
+    std::unique_ptr<Command[]> m_ring;
+    std::unique_ptr<WorkerSlot[]> m_workerDone;
+    std::vector<std::thread> m_workers;
+    alignas(64) std::atomic<uint64_t> m_writeIdx{0};
+    std::atomic<bool> m_stopWorkers{false};
+    std::atomic<uint32_t> m_sleepers{0};
+    std::mutex m_wakeMutex;
+    std::condition_variable m_wakeCv;
+    std::vector<DirtyRange> m_dirty;
+
+    struct PaletteCache
+    {
+        std::array<uint32_t, 256> palette{};
+        uint64_t version = 0;
+        uint64_t key = ~0ull;
+    };
+    std::array<PaletteCache, 17> m_paletteCaches{};
+
+    void BeginTransferUnlocked(const GSTransferCommand &command);
+    void UploadImageUnlocked(const uint8_t *data, uint32_t sizeBytes);
+    void ClearFramebufferUnlocked(const GSContext &context, uint32_t rgba);
     void ResetUnlocked();
     void LoadClutUnlocked(const GSTex0Reg &tex0, const GSTexClutReg &texclut);
     uint32_t ReadVramUnlocked(uint32_t psm, uint32_t base, uint32_t bw, uint32_t x, uint32_t y) const;
@@ -47,6 +111,13 @@ private:
     void WritePixel(const GSDrawState &state, int x, int y, int z, uint8_t r, uint8_t g, uint8_t b, uint8_t a, uint8_t fog);
     uint32_t SampleTexture(const GSDrawState &state, float s, float t, float q, uint16_t u, uint16_t v);
     uint32_t LookupCLUT(const GSDrawState &state, uint8_t index, uint8_t cpsm, uint8_t csm, uint8_t csa, uint8_t sourcePsm);
+
+    // Fast paths: per-primitive decoded state, used by triangles and sprites.
+    void SetupPixelPipe(const GSDrawState &state, GSPixelPipe &pipe) const;
+    void SetupSampler(const GSDrawState &state, GSTexSampler &sampler);
+    void WritePixelFast(const GSPixelPipe &pipe, int x, int y, uint32_t z, uint8_t r, uint8_t g, uint8_t b, uint8_t a, uint8_t fog);
+    uint32_t SampleFast(const GSTexSampler &sampler, float s, float t, float q, uint16_t u, uint16_t v) const;
+    uint32_t FetchTexel(const GSTexSampler &sampler, int u, int v) const;
 
     void PerformLocalToLocalTransfer();
     void PerformLocalToHostTransfer();
@@ -72,6 +143,7 @@ private:
     std::array<WriteVramFunc, kPsmHandlerCount> m_writeVramFuncs{};
     std::array<uint16_t, 512> m_clut{};
     std::array<uint32_t, 2> m_clutCbp{};
+    uint64_t m_clutVersion = 1;
     GSMem::TexturePageCache m_texturePageCache;
 
     GSTransferCommand m_transfer{};

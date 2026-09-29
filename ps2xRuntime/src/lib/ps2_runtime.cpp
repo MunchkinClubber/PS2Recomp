@@ -793,6 +793,13 @@ bool PS2Runtime::syncCoreSubsystems()
     }
 
     m_gs.init(gsVram, static_cast<uint32_t>(PS2_GS_VRAM_SIZE), &m_memory.gs());
+    {
+        extern void (*g_ps2GsSyncHook)();
+        static GS *s_gsForSync = nullptr;
+        s_gsForSync = &m_gs;
+        g_ps2GsSyncHook = []()
+        { if (s_gsForSync) s_gsForSync->syncLocalMemory(); };
+    }
     m_gifArbiter.setProcessPacketFn([this](const uint8_t *data, uint32_t size)
                                     {
                                         extern std::atomic<uint64_t> g_perfGsNs;
@@ -2948,6 +2955,7 @@ void PS2Runtime::run()
 
                     g_ssx3RdramForDump = m_memory.getRDRAM();
                     g_ssx3MemForDump = &m_memory;
+                    m_gs.syncLocalMemory();
                     ssx3LogDrawDiagnostics(m_gs, gs, m_memory.getGSVRAM());
                 }
                 RUNTIME_LOG("[ssx3:t3count] own=" << g_ssx3T3Own.load() << " handler=" << g_ssx3T3Handler.load() << std::endl);

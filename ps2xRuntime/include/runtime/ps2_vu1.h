@@ -211,6 +211,15 @@ private:
 
     std::array<FlagPipelineEntry, kMaxFlagEntries> m_flagPipeline{};
     ScalarPipelineEntry m_fdiv{};
+    uint64_t m_nextCommitCycle = 0;
+    // Bit i set <=> entry i of the matching pipeline array is valid.
+    uint32_t m_flagMask = 0, m_efuMask = 0, m_storeMask = 0, m_vfMask = 0, m_viMask = 0, m_accMask = 0;
+    void resetXgkickState();
+    void noteCommitCycle(uint64_t cycle)
+    {
+        if (cycle < m_nextCommitCycle)
+            m_nextCommitCycle = cycle;
+    }
     std::array<ScalarPipelineEntry, 2> m_efu{};
     std::array<PendingStore, kMaxPendingStores> m_storePipeline{};
     std::array<PendingVfWrite, kMaxPendingVfWrites> m_vfWritePipeline{};
