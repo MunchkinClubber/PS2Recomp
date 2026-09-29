@@ -1,6 +1,7 @@
 #include <bit>
 #include <atomic>
 #include "runtime/ps2_vu1.h"
+#include "runtime/vu1_native.h"
 #include "runtime/gs/ps2_gif_arbiter.h"
 #include "runtime/gs/gs_frontend.h"
 #include "runtime/ps2_memory.h"
@@ -1691,6 +1692,34 @@ void VU1Interpreter::execute(uint8_t *vuCode, uint32_t codeSize,
     m_state.vf[0][1] = 0.0f;
     m_state.vf[0][2] = 0.0f;
     m_state.vf[0][3] = 1.0f;
+    if (m_unit == Unit::VU1)
+    {
+        // Statically recompiled program (vu1_native.cpp) when one matches the code in micro memory.
+        const uint64_t startCycle = m_cycle;
+        bool handedOff = false;
+        m_activeVuData = vuData;
+        m_activeVuDataSize = dataSize;
+        m_activeGs = &gs;
+        m_activeMemory = memory;
+        if (vu1NativeLookupAndRun(*this, vuCode, vuData, dataSize, gs, memory, m_state.pc, maxCycles, handedOff))
+        {
+            if (handedOff)
+            {
+                const uint64_t used = m_cycle - startCycle;
+                run(vuCode, codeSize, vuData, dataSize, gs, memory,
+                    used < maxCycles ? static_cast<uint32_t>(maxCycles - used) : 1u);
+            }
+            else
+            {
+                g_ssx3VuRuns.fetch_add(1u, std::memory_order_relaxed);
+                m_state.ebit = false;
+                m_state.haltAfterDelaySlot = false;
+                m_pendingHaltD = false;
+                m_pendingHaltT = false;
+            }
+            return;
+        }
+    }
     run(vuCode, codeSize, vuData, dataSize, gs, memory, maxCycles);
 }
 

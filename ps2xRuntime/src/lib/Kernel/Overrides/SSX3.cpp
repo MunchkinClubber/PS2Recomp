@@ -26,6 +26,7 @@ void ssx3FrameCallsFlush(PS2Runtime &runtime, uint32_t tag, uint32_t a0, uint32_
 extern std::atomic<uint32_t> g_ps2WatchChain; // ps2_runtime.cpp
 extern std::atomic<uint64_t> g_perfVif1Ns, g_perfGsNs; // ps2_runtime.cpp
 extern std::atomic<uint64_t> g_perfGsWorkerNs, g_perfGsWaitNs; // gs_cpu_backend.cpp
+extern std::atomic<uint64_t> g_vu1NativeRuns, g_vu1NativeMisses, g_vu1NativeHandoffs; // vu1_native.cpp
 
 namespace
 {
@@ -319,6 +320,7 @@ namespace
             static auto last = std::chrono::steady_clock::now();
             static uint32_t frames = 0u;
             static uint64_t lastVif = 0u, lastGs = 0u, lastWorker = 0u, lastWait = 0u;
+            static uint64_t lastNative = 0u, lastMiss = 0u, lastHandoff = 0u;
             ++frames;
             const auto now = std::chrono::steady_clock::now();
             const double secs = std::chrono::duration<double>(now - last).count();
@@ -333,8 +335,16 @@ namespace
                 const double workerMs = (worker - lastWorker) / 1e6 / frames;
                 const double waitMs = (wait - lastWait) / 1e6 / frames;
                 const double frameMs = secs * 1000.0 / frames;
-                std::fprintf(stderr, "[ssx3:perf] %.1f fps, per frame: %.1f ms total, VIF1+VU1 %.1f ms (of which GS submit %.1f ms), rest %.1f ms | raster workers busy %.1f ms (summed), EE waited on GS %.1f ms\n",
-                             frames / secs, frameMs, vifMs, gsMs, frameMs - vifMs, workerMs, waitMs);
+                const uint64_t native = g_vu1NativeRuns.load(std::memory_order_relaxed);
+                const uint64_t miss = g_vu1NativeMisses.load(std::memory_order_relaxed);
+                const uint64_t handoff = g_vu1NativeHandoffs.load(std::memory_order_relaxed);
+                std::fprintf(stderr, "[ssx3:perf] %.1f fps, per frame: %.1f ms total, VIF1+VU1 %.1f ms (of which GS submit %.1f ms), rest %.1f ms | raster workers busy %.1f ms (summed), EE waited on GS %.1f ms | VU1 native %llu, interpreted %llu, handoffs %llu\n",
+                             frames / secs, frameMs, vifMs, gsMs, frameMs - vifMs, workerMs, waitMs,
+                             static_cast<unsigned long long>(native - lastNative), static_cast<unsigned long long>(miss - lastMiss),
+                             static_cast<unsigned long long>(handoff - lastHandoff));
+                lastNative = native;
+                lastMiss = miss;
+                lastHandoff = handoff;
                 last = now;
                 frames = 0u;
                 lastVif = vif;

@@ -62,6 +62,10 @@ public:
     VU1State &state() { return m_state; }
     const VU1State &state() const { return m_state; }
 
+    // Statically recompiled microprograms and the offline translator reach the interpreter's
+    // decoder and pipeline internals through this.
+    friend struct VU1NativeAccess;
+
 private:
     enum Pipeline : uint8_t
     {
