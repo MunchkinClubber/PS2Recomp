@@ -40,6 +40,7 @@ std::atomic<uint64_t> g_perfGsUploadBarriers{0}; // uploads that had to wait beh
 std::atomic<uint64_t> g_perfGsSyncCount[9]{};
 std::atomic<uint64_t> g_perfGsSyncNs[9]{};
 std::atomic<uint64_t> g_perfGsQueueFullNs{0};
+std::atomic<uint64_t> g_perfGsCommands{0}; // draw commands published (batches)
 
 namespace
 {
@@ -672,7 +673,19 @@ void GSCpuBackend::Submit(const GSPrimitiveBatch &batch)
         }
         command.palette = m_sharedPalette;
     }
-    EnqueueUnlocked(std::move(command));
+    if (m_hasPending && m_pendingPrims < kMaxBatchPrims && m_pending.palette == command.palette &&
+        m_pending.batch.vertexCount == batch.vertexCount &&
+        std::memcmp(&m_pending.batch.state, &batch.state, sizeof(GSDrawState)) == 0)
+    {
+        m_pending.more.insert(m_pending.more.end(), batch.vertices.begin(), batch.vertices.end());
+        ++m_pendingPrims;
+        return;
+    }
+    FlushPendingUnlocked();
+    m_pending = std::move(command);
+    m_pending.more.reserve(kMaxBatchPrims * 3u);
+    m_hasPending = true;
+    m_pendingPrims = 1;
 }
 
 void GSCpuBackend::LoadClut(const GSTex0Reg &tex0, const GSTexClutReg &texclut)
@@ -803,7 +816,9 @@ void GSCpuBackend::LoadClutUnlocked(const GSTex0Reg &tex0, const GSTexClutReg &t
 
 void GSCpuBackend::Flush()
 {
-    // Queued work is picked up by the raster workers as soon as it is submitted.
+    // Publish the draw batch being collected; queued work is picked up by the raster workers.
+    std::lock_guard<std::mutex> lock(m_mutex);
+    FlushPendingUnlocked();
 }
 
 void GSCpuBackend::TextureFlush()
@@ -1068,6 +1083,17 @@ void GSCpuBackend::WorkerMain(uint32_t index)
         {
             t_drawPalette = command.palette ? command.palette->data() : nullptr;
             DrawPrimitive(command.batch);
+            if (!command.more.empty())
+            {
+                GSPrimitiveBatch prim = command.batch;
+                for (size_t i = 0; i + 3u <= command.more.size(); i += 3u)
+                {
+                    prim.vertices[0] = command.more[i];
+                    prim.vertices[1] = command.more[i + 1u];
+                    prim.vertices[2] = command.more[i + 2u];
+                    DrawPrimitive(prim);
+                }
+            }
             t_drawPalette = nullptr;
         }
         else if (index == 0u)
@@ -1099,8 +1125,26 @@ void GSCpuBackend::WorkerMain(uint32_t index)
     }
 }
 
+void GSCpuBackend::FlushPendingUnlocked() const
+{
+    if (!m_hasPending)
+        return;
+    m_hasPending = false;
+    m_pendingPrims = 0;
+    const_cast<GSCpuBackend *>(this)->EnqueueRawUnlocked(std::move(m_pending));
+    m_pending = Command{};
+}
+
 void GSCpuBackend::EnqueueUnlocked(Command &&command)
 {
+    FlushPendingUnlocked();
+    EnqueueRawUnlocked(std::move(command));
+}
+
+void GSCpuBackend::EnqueueRawUnlocked(Command &&command)
+{
+    if (!command.global)
+        g_perfGsCommands.fetch_add(1u, std::memory_order_relaxed);
     const uint64_t idx = m_writeIdx.load(std::memory_order_relaxed);
     if (idx - MinDone() >= kRingSize)
     {
@@ -1207,6 +1251,7 @@ void GSCpuBackend::SyncUnlocked(int reason) const
 {
     if (!threaded())
         return;
+    FlushPendingUnlocked();
     const uint64_t target = m_writeIdx.load(std::memory_order_acquire);
     if (MinDone() >= target)
         return;

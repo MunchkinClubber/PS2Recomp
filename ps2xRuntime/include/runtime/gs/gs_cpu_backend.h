@@ -54,6 +54,7 @@ private:
         GSPrimitiveBatch batch{};
         std::shared_ptr<const std::array<uint32_t, 256>> palette; // decoded CLUT for indexed textures
         std::function<void()> fn;
+        std::vector<GSVertex> more; // further primitives with the same state (3 vertices each)
     };
     struct alignas(64) WorkerSlot
     {
@@ -69,7 +70,16 @@ private:
     void StartWorkersUnlocked();
     void StopWorkers();
     void WorkerMain(uint32_t index);
-    void EnqueueUnlocked(Command &&command);
+    void EnqueueUnlocked(Command &&command);    // publishes the pending draw batch first
+    void EnqueueRawUnlocked(Command &&command);
+    void FlushPendingUnlocked() const;         // publish the draw batch being collected
+    // Consecutive draws with identical state and palette are collected into one command (up to
+    // kMaxBatchPrims) before being published, so the ring and every worker handle far fewer
+    // commands. Mutable: syncs (const) publish it before waiting.
+    static constexpr uint32_t kMaxBatchPrims = 64u;
+    mutable Command m_pending;
+    mutable bool m_hasPending = false;
+    mutable uint32_t m_pendingPrims = 0;
     // `touchStart/End`: VRAM bytes the command itself writes (for CanRunDirectUnlocked).
     void EnqueueGlobalUnlocked(std::function<void()> fn, uint32_t touchStart = 0u, uint32_t touchEnd = 0x400000u);
     void SyncUnlocked(int reason) const;
