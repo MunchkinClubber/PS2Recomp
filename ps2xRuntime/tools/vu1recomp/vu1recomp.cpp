@@ -47,6 +47,7 @@ namespace
     uint32_t kCodeSize = 0x4000u;
     uint32_t kPcMask = 0x3FFFu;
     uint32_t kDataMask = 0x3FF0u;
+    bool g_scalarUpper = false; // --scalar: per-lane upper ops only (no 4-lane SIMD forms)
 
     std::string fmt(const char *f, ...)
     {
@@ -181,10 +182,87 @@ namespace
         const std::string Q = "N(s.q)", I = "N(s.i)";
         auto acc = [](int c) { return fmt("N(s.acc[%d])", c); };
 
+        // 4-lane form (images without MAC/status): kind 0 add, 1 sub, 2 madd, 3 msub, 4 max,
+        // 5 min, 6 mul; operand 0..3 = broadcast ft lane, 4 = ft vector, 5 = Q, 6 = I.
+        auto simd = [&](int kind, int operand) -> bool
+        {
+            if (flags || g_scalarUpper)
+                return false;
+            static const char *fn[7] = {"v4Add", "v4Sub", "v4Madd", "v4Msub", "v4Max", "v4Min", "v4Mul"};
+            std::string b;
+            if (operand < 4)
+                b = fmt("VN1(vf[%u][%d])", ft, operand);
+            else if (operand == 4)
+                b = fmt("VN(vf[%u])", ft);
+            else if (operand == 5)
+                b = "VN1(s.q)";
+            else
+                b = "VN1(s.i)";
+            const bool useAcc = kind == 2 || kind == 3;
+            int laneMask = 0;
+            for (int c = 0; c < 4; ++c)
+                if (dest & laneBit(c))
+                    laneMask |= 1 << c;
+            u.code += fmt("        alignas(16) float ut[4];\n        _mm_store_ps(ut, %s(%sVN(vf[%u]), %s, %d));\n", fn[kind],
+                          useAcc ? "VN(s.acc), " : "", fs, b.c_str(), laneMask);
+            for (int c = 0; c < 4; ++c)
+                if (dest & laneBit(c))
+                    u.code += fmt("        const float u%d = ut[%d];\n", c, c);
+            return true;
+        };
+        auto simdKind = [&](uint8_t code, int &kind, int &operand) -> bool
+        {
+            // same encoding for the op field (0x00..0x2F) and the special field of acc ops
+            if (code <= 0x0F) { kind = code >> 2; operand = code & 3; return true; }
+            if (code >= 0x18 && code <= 0x1B) { kind = 6; operand = code & 3; return true; }
+            switch (code)
+            {
+            case 0x1C: kind = 6; operand = 5; return true;
+            case 0x1E: kind = 6; operand = 6; return true;
+            case 0x20: kind = 0; operand = 5; return true;
+            case 0x21: kind = 2; operand = 5; return true;
+            case 0x22: kind = 0; operand = 6; return true;
+            case 0x23: kind = 2; operand = 6; return true;
+            case 0x24: kind = 1; operand = 5; return true;
+            case 0x25: kind = 3; operand = 5; return true;
+            case 0x26: kind = 1; operand = 6; return true;
+            case 0x27: kind = 3; operand = 6; return true;
+            case 0x28: kind = 0; operand = 4; return true;
+            case 0x29: kind = 2; operand = 4; return true;
+            case 0x2A: kind = 6; operand = 4; return true;
+            case 0x2C: kind = 1; operand = 4; return true;
+            case 0x2D: kind = 3; operand = 4; return true;
+            default: return false;
+            }
+        };
+
         if (op <= 0x2F)
         {
             u.vfReg = fd;
             u.vfLanes = dest;
+            {
+                int kind = 0, operand = 0;
+                bool ok = simdKind(op, kind, operand);
+                if (!ok && op >= 0x10 && op <= 0x17) { ok = true; kind = op < 0x14 ? 4 : 5; operand = op & 3; }
+                if (!ok && op == 0x1D) { ok = true; kind = 4; operand = 6; }
+                if (!ok && op == 0x1F) { ok = true; kind = 5; operand = 6; }
+                if (!ok && op == 0x2B) { ok = true; kind = 4; operand = 4; }
+                if (!ok && op == 0x2F) { ok = true; kind = 5; operand = 4; }
+                if (ok)
+                {
+                    if (op == 0x1C || op == 0x20 || op == 0x21 || op == 0x24 || op == 0x25)
+                        u.readsQ = true;
+                    if (op == 0x1D || op == 0x1E || op == 0x1F || op == 0x22 || op == 0x23 || op == 0x26 || op == 0x27)
+                        u.readsI = true;
+                    if (simd(kind, operand))
+                    {
+                        if (fd == 0)
+                            u.vfReg = 0;
+                        return u;
+                    }
+                    u.readsQ = u.readsI = false;
+                }
+            }
             switch (op)
             {
             case 0x00: case 0x01: case 0x02: case 0x03:
@@ -246,6 +324,23 @@ namespace
             u.vfLanes = dest;
             lanes(body);
         };
+        {
+            int kind = 0, operand = 0;
+            if (simdKind(sp, kind, operand) && kind != 4 && kind != 5)
+            {
+                if (sp == 0x1C || sp == 0x20 || sp == 0x21 || sp == 0x24 || sp == 0x25)
+                    u.readsQ = true;
+                if (sp == 0x1E || sp == 0x22 || sp == 0x23 || sp == 0x26 || sp == 0x27)
+                    u.readsI = true;
+                if (simd(kind, operand))
+                {
+                    u.acc = true;
+                    u.vfLanes = dest;
+                    return u;
+                }
+                u.readsQ = u.readsI = false;
+            }
+        }
         switch (sp)
         {
         case 0x00: case 0x01: case 0x02: case 0x03:
@@ -965,6 +1060,12 @@ namespace
 
 int main(int argc, char **argv)
 {
+    if (argc >= 2 && std::string(argv[1]) == "--scalar")
+    {
+        g_scalarUpper = true;
+        ++argv;
+        --argc;
+    }
     if (argc >= 2 && std::string(argv[1]) == "--vu0")
     {
         g_vu0 = true;

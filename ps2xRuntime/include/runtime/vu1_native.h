@@ -16,6 +16,7 @@
 #include "runtime/ps2_vu1.h"
 
 #include <cmath>
+#include <emmintrin.h>
 #include <cstdint>
 #include <cstring>
 #include <limits>
@@ -228,6 +229,113 @@ namespace vu1n
             return r;
         return fixExact(r, static_cast<long double>(acc) - static_cast<long double>(a) * static_cast<long double>(b));
     }
+
+    // ---- 4-lane forms of the above (non-flag images) ---------------------------------------
+    // Same IEEE single operations on all four lanes; when any lane falls outside the fast-path
+    // range the lanes are recomputed with the scalar functions, so results are identical.
+    VU1N_INLINE __m128 VN(const float *v)
+    {
+        const __m128i b = _mm_castps_si128(_mm_loadu_ps(v));
+        const __m128i expMask = _mm_set1_epi32(0x7F800000);
+        const __m128i e = _mm_and_si128(b, expMask);
+        const __m128i sign = _mm_and_si128(b, _mm_set1_epi32(static_cast<int>(0x80000000u)));
+        const __m128i isZero = _mm_cmpeq_epi32(e, _mm_setzero_si128());
+        const __m128i isMax = _mm_cmpeq_epi32(e, expMask);
+        const __m128i maxed = _mm_or_si128(sign, _mm_set1_epi32(0x7F7FFFFF));
+        __m128i r = _mm_or_si128(_mm_andnot_si128(isZero, b), _mm_and_si128(isZero, sign));
+        r = _mm_or_si128(_mm_andnot_si128(isMax, r), _mm_and_si128(isMax, maxed));
+        return _mm_castsi128_ps(r);
+    }
+    VU1N_INLINE __m128 VN1(float v) { return _mm_set1_ps(N(v)); }
+    VU1N_INLINE __m128i vexp(__m128 v)
+    {
+        return _mm_and_si128(_mm_srli_epi32(_mm_castps_si128(v), 23), _mm_set1_epi32(0xFF));
+    }
+    // lanes whose exponent lies in [lo, hi]
+    VU1N_INLINE __m128i vexpIn(__m128i e, int lo, int hi)
+    {
+        return _mm_andnot_si128(_mm_or_si128(_mm_cmplt_epi32(e, _mm_set1_epi32(lo)), _mm_cmpgt_epi32(e, _mm_set1_epi32(hi))),
+                                _mm_set1_epi32(-1));
+    }
+    // all lanes selected by `lanes` (bit i = lane i) pass
+    VU1N_INLINE bool vall(__m128i m, int lanes) { return (_mm_movemask_ps(_mm_castsi128_ps(m)) & lanes) == lanes; }
+    VU1N_INLINE __m128 v4Add(__m128 a, __m128 b, int lanes)
+    {
+        const __m128 r = _mm_add_ps(a, b);
+        if (vall(vexpIn(vexp(r), 2, 253), lanes))
+            return r;
+        alignas(16) float x[4], y[4], o[4];
+        _mm_store_ps(x, a);
+        _mm_store_ps(y, b);
+        for (int i = 0; i < 4; ++i)
+            o[i] = fAdd(x[i], y[i]);
+        return _mm_load_ps(o);
+    }
+    VU1N_INLINE __m128 v4Sub(__m128 a, __m128 b, int lanes)
+    {
+        const __m128 r = _mm_sub_ps(a, b);
+        if (vall(vexpIn(vexp(r), 2, 253), lanes))
+            return r;
+        alignas(16) float x[4], y[4], o[4];
+        _mm_store_ps(x, a);
+        _mm_store_ps(y, b);
+        for (int i = 0; i < 4; ++i)
+            o[i] = fSub(x[i], y[i]);
+        return _mm_load_ps(o);
+    }
+    VU1N_INLINE __m128 v4Mul(__m128 a, __m128 b, int lanes)
+    {
+        const __m128 r = _mm_mul_ps(a, b);
+        if (vall(vexpIn(vexp(r), 2, 253), lanes))
+            return r;
+        alignas(16) float x[4], y[4], o[4];
+        _mm_store_ps(x, a);
+        _mm_store_ps(y, b);
+        for (int i = 0; i < 4; ++i)
+            o[i] = fMul(x[i], y[i]);
+        return _mm_load_ps(o);
+    }
+    // fMadd / fMsub fast path: er in [3, 252], ep <= 253, er + 17 >= ep
+    VU1N_INLINE bool v4MaddFast(__m128 r, __m128 p, int lanes)
+    {
+        const __m128i er = vexp(r), ep = vexp(p);
+        const __m128i ok = _mm_and_si128(vexpIn(er, 3, 252),
+                                         _mm_andnot_si128(_mm_or_si128(_mm_cmpgt_epi32(ep, _mm_set1_epi32(253)),
+                                                                       _mm_cmplt_epi32(_mm_add_epi32(er, _mm_set1_epi32(17)), ep)),
+                                                          _mm_set1_epi32(-1)));
+        return vall(ok, lanes);
+    }
+    VU1N_INLINE __m128 v4Madd(__m128 acc, __m128 a, __m128 b, int lanes)
+    {
+        const __m128 p = _mm_mul_ps(a, b);
+        const __m128 r = _mm_add_ps(acc, p);
+        if (v4MaddFast(r, p, lanes))
+            return r;
+        alignas(16) float c[4], x[4], y[4], o[4];
+        _mm_store_ps(c, acc);
+        _mm_store_ps(x, a);
+        _mm_store_ps(y, b);
+        for (int i = 0; i < 4; ++i)
+            o[i] = fMadd(c[i], x[i], y[i]);
+        return _mm_load_ps(o);
+    }
+    VU1N_INLINE __m128 v4Msub(__m128 acc, __m128 a, __m128 b, int lanes)
+    {
+        const __m128 p = _mm_mul_ps(a, b);
+        const __m128 r = _mm_sub_ps(acc, p);
+        if (v4MaddFast(r, p, lanes))
+            return r;
+        alignas(16) float c[4], x[4], y[4], o[4];
+        _mm_store_ps(c, acc);
+        _mm_store_ps(x, a);
+        _mm_store_ps(y, b);
+        for (int i = 0; i < 4; ++i)
+            o[i] = fMsub(c[i], x[i], y[i]);
+        return _mm_load_ps(o);
+    }
+    // vmax(a, b) = a > b ? a : b and vmin(a, b) = a < b ? a : b (operands are normalised: no NaN)
+    VU1N_INLINE __m128 v4Max(__m128 a, __m128 b, int) { return _mm_max_ps(a, b); }
+    VU1N_INLINE __m128 v4Min(__m128 a, __m128 b, int) { return _mm_min_ps(a, b); }
 
     inline int32_t floatToInt(float value, float scale)
     {

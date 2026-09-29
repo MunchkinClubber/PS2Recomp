@@ -428,9 +428,6 @@ bool vu1NativeLookupAndRun(VU1Interpreter &vu, uint8_t *vuCode, uint8_t *vuData,
     c.memSize = dataSize;
     c.cyc = VU1NativeAccess::cycle(vu);
     c.budgetEnd = c.cyc + maxCycles;
-    for (auto &r : c.vfReady)
-        for (auto &l : r)
-            l = 0;
     c.workingClip = VU1NativeAccess::workingClip(vu);
     c.xgPacket = VU1NativeAccess::xgkickBuffer(vu);
     c.xgBufSize = VU1NativeAccess::xgkickBufferSize();
@@ -438,12 +435,24 @@ bool vu1NativeLookupAndRun(VU1Interpreter &vu, uint8_t *vuCode, uint8_t *vuData,
     c.memory = memory;
 
     (vu0 ? g_vu0NativeRuns : g_vu1NativeRuns).fetch_add(1u, std::memory_order_relaxed);
-    // Same floating-point environment as VU1Interpreter::run.
+    // Same floating-point environment as VU1Interpreter::run (round toward zero). On MSVC x64
+    // all float math is SSE, so the MXCSR rounding field is set directly (fegetround/fesetround
+    // also touch the x87 control word and are out-of-line calls).
+#if defined(_MSC_VER) && defined(_M_X64)
+    const unsigned int previousCsr = _mm_getcsr();
+    const unsigned int vuCsr = (previousCsr & ~0x6000u) | 0x6000u;
+    if (vuCsr != previousCsr)
+        _mm_setcsr(vuCsr);
+    const VU1NativeExit exit = image->fn(c, startPC);
+    if (vuCsr != previousCsr)
+        _mm_setcsr(previousCsr);
+#else
     const int previousRounding = std::fegetround();
     const bool vuRounding = std::fesetround(FE_TOWARDZERO) == 0;
     const VU1NativeExit exit = image->fn(c, startPC);
     if (vuRounding && previousRounding != -1)
         std::fesetround(previousRounding);
+#endif
     if (exit == VU1NativeExit::Handoff)
     {
         handedOff = true;
