@@ -343,8 +343,27 @@ public:
     void processVIF0Data(const uint8_t *data, uint32_t sizeBytes);
     void processVIF1Data(uint32_t srcPhysAddr, uint32_t sizeBytes);
     void processVIF1Data(const uint8_t *data, uint32_t sizeBytes);
-    void processPendingTransfers();
+    // allowAsync: the transfers may run on the GPU worker thread (VIF1/GIF DMA kicks from the
+    // EE). Other callers (library stubs that inspect the result) get synchronous processing.
+    void processPendingTransfers(bool allowAsync = false);
     std::vector<uint32_t> consumeCompletedDmacCauses();
+
+    // Asynchronous VIF1/GIF (VU1 + GS front end) worker. gpuSync waits until every queued job
+    // has run; it is a no-op on the worker itself and when nothing is queued.
+    enum GpuSyncReason : uint32_t
+    {
+        kGpuSyncDma = 0,
+        kGpuSyncPrivRead,
+        kGpuSyncCsr,
+        kGpuSyncVifReg,
+        kGpuSyncVu1Mem,
+        kGpuSyncGsCall,
+        kGpuSyncOther,
+        kGpuSyncReasonCount
+    };
+    void gpuSync(uint32_t reason);
+    struct GpuJob;
+    void runGpuJob(GpuJob &job);
 
     int pollDmaRegisters();
 

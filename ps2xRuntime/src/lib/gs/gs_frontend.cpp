@@ -10,6 +10,16 @@
 #include <iostream>
 #include <sstream>
 
+// Set by PS2Memory once the asynchronous VIF1/GIF worker runs: GS entry points used by the EE
+// (library stubs, read-backs) wait until the worker has processed everything queued before them.
+extern void (*g_ps2GpuSyncHook)();
+#define PS2_GPU_SYNC_FROM_EE()   \
+    do                           \
+    {                            \
+        if (g_ps2GpuSyncHook)    \
+            g_ps2GpuSyncHook();  \
+    } while (0)
+
 std::atomic<uint64_t> g_ssx3GsKicks{0};      // SSX3 debug
 std::atomic<uint64_t> g_ssx3GsUploads{0};    // SSX3 debug
 std::atomic<uint32_t> g_ssx3DrawFbp[512];    // SSX3 debug: prims per FRAME.FBP
@@ -164,6 +174,7 @@ void GS::init(uint8_t *vram, uint32_t vramSize, GSRegisters *privRegs)
 
 void GS::reset()
 {
+    PS2_GPU_SYNC_FROM_EE();
     std::lock_guard<std::recursive_mutex> lock(m_stateMutex);
     std::memset(m_ctx, 0, sizeof(m_ctx));
     m_prim = {};
@@ -237,6 +248,7 @@ GSContext &GS::activeContext()
 
 void GS::syncLocalMemory()
 {
+    PS2_GPU_SYNC_FROM_EE();
     std::lock_guard<std::mutex> backendLock(m_backendLifetimeMutex);
     if (m_backend)
         m_backend->Sync(GSSyncReason::DebugReadback);
@@ -244,6 +256,7 @@ void GS::syncLocalMemory()
 
 void GS::snapshotVRAM()
 {
+    PS2_GPU_SYNC_FROM_EE();
     // Presentation/debug snapshots run outside m_stateMutex so the EE can keep
     // feeding the GS while a backend performs host-side conversion. Keep the
     // selected backend alive and unswappable for the duration of the call.
@@ -785,6 +798,7 @@ void GS::processGIFPacket(const uint8_t *data, uint32_t sizeBytes)
 
 bool GS::processNativePackedGIFPacket(const uint8_t *data, uint32_t sizeBytes)
 {
+    PS2_GPU_SYNC_FROM_EE();
     std::lock_guard<std::recursive_mutex> lock(m_stateMutex);
     if (!data || sizeBytes < 16u || !m_backend)
         return false;
@@ -830,6 +844,7 @@ void GS::uploadImageNative(uint64_t bitbltbuf,
                            const uint8_t *data,
                            uint32_t sizeBytes)
 {
+    PS2_GPU_SYNC_FROM_EE();
     std::lock_guard<std::recursive_mutex> lock(m_stateMutex);
     uploadImageNativeUnlocked(bitbltbuf, trxpos, trxreg, trxdir, data, sizeBytes);
 }
@@ -1109,6 +1124,7 @@ void GS::writeRegisterPacked(uint8_t regDesc, uint64_t lo, uint64_t hi)
 
 void GS::writeRegister(uint8_t regAddr, uint64_t value)
 {
+    PS2_GPU_SYNC_FROM_EE();
     std::lock_guard<std::recursive_mutex> lock(m_stateMutex);
     writeRegisterUnlocked(regAddr, value);
 }
@@ -1688,6 +1704,7 @@ void GS::vertexKick(bool drawing)
 
 void GS::processImageData(const uint8_t *data, uint32_t sizeBytes)
 {
+    PS2_GPU_SYNC_FROM_EE();
     if (m_backend)
         m_backend->UploadImage(data, sizeBytes);
 }
@@ -1695,18 +1712,21 @@ void GS::processImageData(const uint8_t *data, uint32_t sizeBytes)
 
 bool GS::clearFramebufferContext(uint32_t contextIndex, uint32_t rgba)
 {
+    PS2_GPU_SYNC_FROM_EE();
     std::lock_guard<std::recursive_mutex> lock(m_stateMutex);
     return m_backend && m_backend->ClearFramebuffer(m_ctx[(contextIndex != 0u) ? 1 : 0], rgba);
 }
 
 bool GS::clearActiveFramebuffer(uint32_t rgba)
 {
+    PS2_GPU_SYNC_FROM_EE();
     std::lock_guard<std::recursive_mutex> lock(m_stateMutex);
     return m_backend && m_backend->ClearFramebuffer(activeContext(), rgba);
 }
 
 uint32_t GS::consumeLocalToHostBytes(uint8_t *dst, uint32_t maxBytes)
 {
+    PS2_GPU_SYNC_FROM_EE();
     std::lock_guard<std::recursive_mutex> lock(m_stateMutex);
     return m_backend ? m_backend->ConsumeLocalToHostBytes(dst, maxBytes) : 0u;
 }
@@ -1742,12 +1762,14 @@ void GS::setRasterBackend(std::unique_ptr<GSRasterBackend> backend)
 
 uint32_t GS::ReadVram(uint32_t psm, uint32_t base, uint32_t bw, uint32_t x, uint32_t y) const
 {
+    PS2_GPU_SYNC_FROM_EE();
     std::lock_guard<std::recursive_mutex> lock(m_stateMutex);
     return m_backend ? m_backend->ReadVram(psm, base, bw, x, y) : 0u;
 }
 
 void GS::WriteVram(uint32_t psm, uint32_t base, uint32_t bw, uint32_t x, uint32_t y, uint32_t value)
 {
+    PS2_GPU_SYNC_FROM_EE();
     std::lock_guard<std::recursive_mutex> lock(m_stateMutex);
     if (m_backend)
         m_backend->WriteVram(psm, base, bw, x, y, value);

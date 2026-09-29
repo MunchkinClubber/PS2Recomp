@@ -860,10 +860,13 @@ bool PS2Runtime::syncCoreSubsystems()
                                                    m_memory.getVU1Data(), PS2_VU1_DATA_SIZE,
                                                    m_gs, &m_memory, startPC, top, itop, 65536);
                                      ssx3VuCaptureEnd(ssx3Cap, m_vu1.state(), m_memory.getVU1Data());
-                                     cpuContext->vu0_vpu_stat =
-                                         (cpuContext->vu0_vpu_stat & ~0x0600u) |
-                                         (m_vu1.state().stoppedByD ? 0x0200u : 0u) |
-                                         (m_vu1.state().stoppedByT ? 0x0400u : 0u); });
+                                     {
+                                         // Runs on the GPU worker thread: only touch the EE context when the bits change.
+                                         const uint32_t stopBits = (m_vu1.state().stoppedByD ? 0x0200u : 0u) |
+                                                                   (m_vu1.state().stoppedByT ? 0x0400u : 0u);
+                                         if ((cpuContext->vu0_vpu_stat & 0x0600u) != stopBits)
+                                             cpuContext->vu0_vpu_stat = (cpuContext->vu0_vpu_stat & ~0x0600u) | stopBits;
+                                     } });
     m_memory.setVu1MscntCallback([this](uint32_t top, uint32_t itop)
                                  {
                                      {
@@ -882,10 +885,13 @@ bool PS2Runtime::syncCoreSubsystems()
                                      m_vu1.resume(m_memory.getVU1Code(), PS2_VU1_CODE_SIZE,
                                                   m_memory.getVU1Data(), PS2_VU1_DATA_SIZE,
                                                   m_gs, &m_memory, top, itop, 65536);
-                                     cpuContext->vu0_vpu_stat =
-                                         (cpuContext->vu0_vpu_stat & ~0x0600u) |
-                                         (m_vu1.state().stoppedByD ? 0x0200u : 0u) |
-                                         (m_vu1.state().stoppedByT ? 0x0400u : 0u); });
+                                     {
+                                         // Runs on the GPU worker thread: only touch the EE context when the bits change.
+                                         const uint32_t stopBits = (m_vu1.state().stoppedByD ? 0x0200u : 0u) |
+                                                                   (m_vu1.state().stoppedByT ? 0x0400u : 0u);
+                                         if ((cpuContext->vu0_vpu_stat & 0x0600u) != stopBits)
+                                             cpuContext->vu0_vpu_stat = (cpuContext->vu0_vpu_stat & ~0x0600u) | stopBits;
+                                     } });
     resetIop();
     m_vu0.reset();
     m_vu1.reset();

@@ -12,6 +12,16 @@
 #include <algorithm>
 #include <string>
 #include <vector>
+#include <condition_variable>
+#include <deque>
+#include <cstdlib>
+#include <thread>
+#include "ThreadNaming.h"
+#if defined(_MSC_VER)
+#include <intrin.h>
+#else
+#include <immintrin.h>
+#endif
 
 void ssx3FrameRecord(PS2Memory &mem, uint32_t type, const void *hdr, uint32_t hdrSize, const uint8_t *data, uint32_t size); // ps2_vif1_interpreter.cpp
 
@@ -43,102 +53,224 @@ namespace
 
 }
 
-// ---- VIF1 overlap measurement ------------------------------------------------------------------
-// After each VIF1 DMA kick (processed synchronously on the EE thread), record the first EE
-// access that could observe VIF1/VU1/GS state (or a syscall) and how long after the kick it came:
-// the window in which VIF1+VU1 could run on another thread. Reported with the [ssx3:perf] lines.
+// ---- Asynchronous VIF1/GIF worker ---------------------------------------------------------------
+// VIF1 and GIF (PATH3) DMA kicks from the EE are completed immediately (as before: the DMA data is
+// captured into owned buffers at kick time) and their processing - VIF1 unpacks, VU1 micro
+// programs, GS front end - runs on one worker thread in kick order. EE accesses that could observe
+// that state (VU1 memory, VIF1 registers, GS privileged registers other than CSR status, GS
+// library calls, synchronous transfers) wait for the worker first (gpuSync). PS2_ASYNC_GPU=0
+// processes everything on the EE thread as before.
+struct PS2Memory::GpuJob
+{
+    std::vector<std::vector<uint8_t>> gif;  // PATH3 packets
+    std::vector<std::vector<uint8_t>> vif1; // VIF1 streams
+    std::function<void()> fn;               // extra work run after the streams
+    bool drain = true;
+    bool countKick = false;
+};
+
+void vif1Observe(uint32_t) {} // old overlap measurement hook (ps2_runtime.cpp still calls it)
+void (*g_ps2GpuSyncHook)() = nullptr; // called by GS entry points used from the EE (gs_frontend.cpp)
+
 namespace
 {
-    bool s_vif1Watch = false;
-    std::chrono::steady_clock::time_point s_vif1WatchStart;
-    uint64_t s_vif1KickNs = 0, s_vif1Kicks = 0;
-    struct Vif1Obs
-    {
-        uint64_t count = 0, ns = 0, minNs = ~0ull;
-    };
-    std::map<uint32_t, Vif1Obs> s_vif1Obs;
-    // Event sequence after the longest kick of the report window.
-    struct Vif1Seq
-    {
-        uint32_t key;
-        uint32_t us;
-    };
-    std::vector<Vif1Seq> s_vif1Seq, s_vif1SeqBest;
-    uint64_t s_vif1SeqKickNs = 0, s_vif1SeqBestKickNs = 0;
-    bool s_vif1SeqActive = false;
-}
+    std::atomic<uint64_t> s_vif1KickNs{0}, s_vif1Kicks{0};
+    std::atomic<uint64_t> s_gpuSyncNs[PS2Memory::kGpuSyncReasonCount]{};
+    std::atomic<uint64_t> s_gpuSyncCount[PS2Memory::kGpuSyncReasonCount]{};
+    std::atomic<uint64_t> s_gpuBusyNs{0}, s_gpuBackpressureNs{0}, s_gpuJobs{0};
 
-void vif1Observe(uint32_t key)
-{
-    if (s_vif1SeqActive)
+    thread_local bool t_onGpuWorker = false;
+
+    bool gpuAsyncEnabled()
     {
-        const uint64_t us = static_cast<uint64_t>(std::chrono::duration_cast<std::chrono::microseconds>(
-                                                      std::chrono::steady_clock::now() - s_vif1WatchStart)
-                                                      .count());
-        s_vif1Seq.push_back({key, static_cast<uint32_t>(std::min<uint64_t>(us, 0xFFFFFFFFu))});
-        if (s_vif1Seq.size() >= 24u || us > 20000u)
+        static const bool enabled = []()
         {
-            s_vif1SeqActive = false;
-            if (s_vif1SeqKickNs >= s_vif1SeqBestKickNs)
+            const char *v = std::getenv("PS2_ASYNC_GPU");
+            const bool on = !(v && v[0] == '0');
+            std::fprintf(stderr, "[gpu] asynchronous VIF1/GIF worker %s (PS2_ASYNC_GPU=0 disables)\n", on ? "on" : "off");
+            return on;
+        }();
+        return enabled;
+    }
+
+    struct GpuWorker
+    {
+        PS2Memory *memory = nullptr;
+        std::mutex mutex;
+        std::condition_variable cv;
+        std::deque<PS2Memory::GpuJob> queue;
+        std::atomic<uint64_t> enqueued{0}, done{0};
+        std::atomic<uint32_t> pendingVif{0};
+        std::atomic<uint32_t> queued{0};
+        std::thread thread;
+
+        void run()
+        {
+            t_onGpuWorker = true;
+            ThreadNaming::SetCurrentThreadName("GPU worker");
+            for (;;)
             {
-                s_vif1SeqBest = s_vif1Seq;
-                s_vif1SeqBestKickNs = s_vif1SeqKickNs;
+                if (queued.load(std::memory_order_acquire) == 0u)
+                {
+                    for (int i = 0; i < 4000 && queued.load(std::memory_order_acquire) == 0u; ++i)
+                        _mm_pause();
+                }
+                PS2Memory::GpuJob job;
+                {
+                    std::unique_lock<std::mutex> lock(mutex);
+                    cv.wait(lock, [&]()
+                            { return !queue.empty(); });
+                    job = std::move(queue.front());
+                    queue.pop_front();
+                    queued.fetch_sub(1u, std::memory_order_relaxed);
+                }
+                const auto t0 = std::chrono::steady_clock::now();
+                const bool hadVif = !job.vif1.empty();
+                memory->runGpuJob(job);
+                job = PS2Memory::GpuJob{};
+                s_gpuBusyNs.fetch_add(static_cast<uint64_t>(std::chrono::duration_cast<std::chrono::nanoseconds>(std::chrono::steady_clock::now() - t0).count()),
+                                      std::memory_order_relaxed);
+                s_gpuJobs.fetch_add(1u, std::memory_order_relaxed);
+                if (hadVif)
+                    pendingVif.fetch_sub(1u, std::memory_order_relaxed);
+                done.fetch_add(1u, std::memory_order_release);
             }
         }
+
+        bool idle() const
+        {
+            return done.load(std::memory_order_acquire) >= enqueued.load(std::memory_order_acquire);
+        }
+    };
+    GpuWorker *g_gpuWorker = nullptr; // created on first use, never destroyed (detached thread)
+
+    void gpuSyncGlobal(uint32_t reason)
+    {
+        GpuWorker *w = g_gpuWorker;
+        if (!w || t_onGpuWorker)
+            return;
+        const uint64_t target = w->enqueued.load(std::memory_order_acquire);
+        if (w->done.load(std::memory_order_acquire) >= target)
+            return;
+        const auto t0 = std::chrono::steady_clock::now();
+        for (int i = 0; i < 4000 && w->done.load(std::memory_order_acquire) < target; ++i)
+            _mm_pause();
+        while (w->done.load(std::memory_order_acquire) < target)
+            std::this_thread::yield();
+        s_gpuSyncCount[reason].fetch_add(1u, std::memory_order_relaxed);
+        s_gpuSyncNs[reason].fetch_add(static_cast<uint64_t>(std::chrono::duration_cast<std::chrono::nanoseconds>(std::chrono::steady_clock::now() - t0).count()),
+                                      std::memory_order_relaxed);
     }
-    if (!s_vif1Watch)
-        return;
-    s_vif1Watch = false;
-    const uint64_t ns = static_cast<uint64_t>(std::chrono::duration_cast<std::chrono::nanoseconds>(
-                                                  std::chrono::steady_clock::now() - s_vif1WatchStart)
-                                                  .count());
-    Vif1Obs &o = s_vif1Obs[key];
-    ++o.count;
-    o.ns += ns;
-    o.minNs = std::min(o.minNs, ns);
+
+    bool gpuBusy()
+    {
+        return g_gpuWorker && !g_gpuWorker->idle();
+    }
+}
+
+void PS2Memory::gpuSync(uint32_t reason)
+{
+    gpuSyncGlobal(reason < kGpuSyncReasonCount ? reason : kGpuSyncOther);
+}
+
+namespace
+{
+    void gpuEnqueue(PS2Memory *memory, PS2Memory::GpuJob &&job)
+    {
+        if (!g_gpuWorker)
+        {
+            g_gpuWorker = new GpuWorker();
+            g_gpuWorker->memory = memory;
+            g_ps2GpuSyncHook = []()
+            { gpuSyncGlobal(PS2Memory::kGpuSyncGsCall); };
+            g_gpuWorker->thread = std::thread([]()
+                                              { g_gpuWorker->run(); });
+            g_gpuWorker->thread.detach();
+        }
+        GpuWorker &w = *g_gpuWorker;
+        const bool hasVif = !job.vif1.empty();
+        if (hasVif)
+        {
+            // Keep the EE at most a couple of display lists ahead of the worker.
+            constexpr uint32_t kMaxPendingVif = 3u;
+            if (w.pendingVif.load(std::memory_order_acquire) >= kMaxPendingVif)
+            {
+                const auto t0 = std::chrono::steady_clock::now();
+                while (w.pendingVif.load(std::memory_order_acquire) >= kMaxPendingVif)
+                    std::this_thread::yield();
+                s_gpuBackpressureNs.fetch_add(static_cast<uint64_t>(std::chrono::duration_cast<std::chrono::nanoseconds>(std::chrono::steady_clock::now() - t0).count()),
+                                              std::memory_order_relaxed);
+            }
+            w.pendingVif.fetch_add(1u, std::memory_order_relaxed);
+        }
+        {
+            std::lock_guard<std::mutex> lock(w.mutex);
+            w.queue.push_back(std::move(job));
+            w.enqueued.fetch_add(1u, std::memory_order_release);
+            w.queued.fetch_add(1u, std::memory_order_release);
+        }
+        w.cv.notify_one();
+    }
+}
+
+void PS2Memory::runGpuJob(GpuJob &job)
+{
+    for (const auto &packet : job.gif)
+        submitGifPacket(GifPathId::Path3, packet.data(), static_cast<uint32_t>(packet.size()), false);
+    const auto t0 = std::chrono::steady_clock::now();
+    for (const auto &stream : job.vif1)
+        processVIF1Data(stream.data(), static_cast<uint32_t>(stream.size()));
+    if (job.fn)
+        job.fn();
+    if (job.drain && m_gifArbiter)
+        m_gifArbiter->drain();
+    if (job.countKick && !job.vif1.empty())
+    {
+        s_vif1Kicks.fetch_add(1u, std::memory_order_relaxed);
+        s_vif1KickNs.fetch_add(static_cast<uint64_t>(std::chrono::duration_cast<std::chrono::nanoseconds>(std::chrono::steady_clock::now() - t0).count()),
+                               std::memory_order_relaxed);
+    }
 }
 
 void vif1ObsReport(double frames)
 {
-    std::vector<std::pair<uint32_t, Vif1Obs>> v(s_vif1Obs.begin(), s_vif1Obs.end());
-    std::sort(v.begin(), v.end(), [](const auto &a, const auto &b)
-              { return a.second.count > b.second.count; });
+    static uint64_t lastKicks = 0, lastKickNs = 0, lastBusy = 0, lastBp = 0, lastJobs = 0;
+    static uint64_t lastSyncNs[PS2Memory::kGpuSyncReasonCount]{}, lastSyncCount[PS2Memory::kGpuSyncReasonCount]{};
+    static const char *names[PS2Memory::kGpuSyncReasonCount] = {"dma", "privread", "csr", "vifreg", "vu1mem", "gscall", "other"};
+    const uint64_t kicks = s_vif1Kicks.load(), kickNs = s_vif1KickNs.load(), busy = s_gpuBusyNs.load(),
+                   bp = s_gpuBackpressureNs.load(), jobs = s_gpuJobs.load();
     std::string text;
-    for (size_t i = 0; i < v.size() && i < 8u; ++i)
+    double syncMs = 0.0;
+    for (uint32_t i = 0; i < PS2Memory::kGpuSyncReasonCount; ++i)
     {
-        char item[96];
-        std::snprintf(item, sizeof(item), " %08x %.1fx avg %.2fms min %.2fms;", v[i].first, v[i].second.count / frames,
-                      v[i].second.ns / 1e6 / static_cast<double>(v[i].second.count), v[i].second.minNs / 1e6);
-        text += item;
-    }
-    std::fprintf(stderr, "[ssx3:perf]   VIF1 kicks %.1f/frame, %.2f ms/frame; next observer:%s\n", s_vif1Kicks / frames,
-                 s_vif1KickNs / 1e6 / frames, text.c_str());
-    if (!s_vif1SeqBest.empty())
-    {
-        std::string seq;
-        for (const Vif1Seq &e : s_vif1SeqBest)
+        const uint64_t c = s_gpuSyncCount[i].load(), ns = s_gpuSyncNs[i].load();
+        if (c != lastSyncCount[i])
         {
-            char item[40];
-            std::snprintf(item, sizeof(item), " %08x@%uus", e.key, e.us);
-            seq += item;
+            char item[64];
+            std::snprintf(item, sizeof(item), " %s %.1fx/%.2fms", names[i], (c - lastSyncCount[i]) / frames,
+                          (ns - lastSyncNs[i]) / 1e6 / frames);
+            text += item;
         }
-        std::fprintf(stderr, "[ssx3:perf]   after a %.2f ms VIF1 kick:%s\n", s_vif1SeqBestKickNs / 1e6, seq.c_str());
+        syncMs += (ns - lastSyncNs[i]) / 1e6 / frames;
+        lastSyncCount[i] = c;
+        lastSyncNs[i] = ns;
     }
-    s_vif1SeqBest.clear();
-    s_vif1SeqBestKickNs = 0;
-    s_vif1Obs.clear();
-    s_vif1Kicks = 0;
-    s_vif1KickNs = 0;
+    std::fprintf(stderr, "[ssx3:perf]   VIF1 kicks %.1f/frame, %.2f ms/frame | GPU worker: %s, busy %.1f ms/frame, %.1f jobs/frame; EE waited %.2f ms/frame (syncs:%s), backpressure %.2f ms/frame\n",
+                 (kicks - lastKicks) / frames, (kickNs - lastKickNs) / 1e6 / frames, gpuAsyncEnabled() ? "async" : "off",
+                 (busy - lastBusy) / 1e6 / frames, (jobs - lastJobs) / frames, syncMs, text.empty() ? " none" : text.c_str(),
+                 (bp - lastBp) / 1e6 / frames);
+    lastKicks = kicks;
+    lastKickNs = kickNs;
+    lastBusy = busy;
+    lastBp = bp;
+    lastJobs = jobs;
 }
 
 namespace
 {
     inline bool isGsPrivReg(uint32_t addr)
     {
-        const bool r = Ps2AddressInRange(addr, PS2_GS_PRIV_REG_BASE, PS2_GS_PRIV_REG_SIZE);
-        if (r)
-            vif1Observe(0x12000000u | ((addr - PS2_GS_PRIV_REG_BASE) & 0xFFF0u));
-        return r;
+        return Ps2AddressInRange(addr, PS2_GS_PRIV_REG_BASE, PS2_GS_PRIV_REG_SIZE);
     }
 
     inline bool isIoRegister(uint32_t addr)
@@ -643,8 +775,8 @@ uint8_t *PS2Memory::mapVuMemory(uint32_t physAddr, uint32_t size, uint32_t &offs
 
 const uint8_t *PS2Memory::mapVuMemory(uint32_t physAddr, uint32_t size, uint32_t &offset, uint32_t &limit) const
 {
-    if (physAddr >= 0x11000000u && physAddr < 0x11010000u)
-        vif1Observe(0x11000000u | (physAddr & 0xC000u));
+    if (physAddr >= PS2_VU1_CODE_BASE && physAddr < PS2_VU1_DATA_BASE + PS2_VU1_DATA_SIZE && gpuBusy())
+        gpuSyncGlobal(kGpuSyncVu1Mem); // VU1 memory belongs to the GPU worker while it runs
     auto mapRange = [&](uint32_t base, uint32_t rangeSize, const uint8_t *ptr) -> const uint8_t *
     {
         if (!ptr || physAddr < base)
@@ -862,6 +994,8 @@ uint32_t PS2Memory::read32(uint32_t address)
             uint64_t val = gsCsrReadValue(gs_regs.csr.load());
             return (uint32_t)(val >> (off * 8));
         }
+        if (gpuBusy())
+            gpuSyncGlobal(kGpuSyncPrivRead);
         uint64_t *reg = gsRegPtr(gs_regs, address);
         if (!reg)
             return 0;
@@ -908,6 +1042,8 @@ uint64_t PS2Memory::read64(uint32_t address)
         {
             return gsCsrReadValue(gs_regs.csr.load());
         }
+        if (gpuBusy())
+            gpuSyncGlobal(kGpuSyncPrivRead);
         uint64_t *reg = gsRegPtr(gs_regs, address);
         return reg ? *reg : 0;
     }
@@ -1070,13 +1206,28 @@ void PS2Memory::write32(uint32_t address, uint32_t value)
         {
             // CSR: bits 0..1 of the low dword are write-one-to-clear status bits.
             // Done as a single atomic RMW -- see writeCsrHalf's comment.
+            // Clearing SIGNAL/FINISH or resetting the GS waits for the queued GS work first.
+            if (off == 0u && (value & 0x203u) != 0u && gpuBusy())
+                gpuSyncGlobal(kGpuSyncCsr);
             writeCsrHalf(gs_regs.csr, off, value);
         }
         else if (uint64_t *reg = gsRegPtr(gs_regs, address))
         {
-            uint64_t mask = 0xFFFFFFFFULL << (off * 8);
-            uint64_t newVal = (*reg & ~mask) | ((uint64_t)value << (off * 8));
-            *reg = newVal;
+            auto apply = [reg, off, value]()
+            {
+                uint64_t mask = 0xFFFFFFFFULL << (off * 8);
+                *reg = (*reg & ~mask) | ((uint64_t)value << (off * 8));
+            };
+            if (gpuBusy())
+            {
+                // Display registers (DISPFB etc.) take effect in order with the queued drawing.
+                GpuJob job;
+                job.fn = apply;
+                job.drain = false;
+                gpuEnqueue(this, std::move(job));
+            }
+            else
+                apply();
         }
         return;
     }
@@ -1129,11 +1280,22 @@ void PS2Memory::write64(uint32_t address, uint64_t value)
         {
             // CSR: bits 0..1 are write-one-to-clear status bits. Done as a single
             // atomic RMW -- see writeCsrFull's comment.
+            if ((value & 0x203u) != 0u && gpuBusy())
+                gpuSyncGlobal(kGpuSyncCsr);
             writeCsrFull(gs_regs.csr, value);
         }
         else if (uint64_t *reg = gsRegPtr(gs_regs, address))
         {
-            *reg = value;
+            if (gpuBusy())
+            {
+                GpuJob job;
+                job.fn = [reg, value]()
+                { *reg = value; };
+                job.drain = false;
+                gpuEnqueue(this, std::move(job));
+            }
+            else
+                *reg = value;
         }
         return;
     }
@@ -1192,7 +1354,15 @@ void PS2Memory::write128(uint32_t address, __m128i value)
     {
         alignas(16) uint8_t fifoData[16];
         _mm_storeu_si128(reinterpret_cast<__m128i *>(fifoData), value);
-        processVIF1Data(fifoData, sizeof(fifoData));
+        if (gpuAsyncEnabled())
+        {
+            GpuJob job;
+            job.vif1.emplace_back(fifoData, fifoData + sizeof(fifoData));
+            job.drain = false;
+            gpuEnqueue(this, std::move(job));
+        }
+        else
+            processVIF1Data(fifoData, sizeof(fifoData));
         return;
     }
 
@@ -1235,8 +1405,6 @@ void PS2Memory::write128(uint32_t address, __m128i value)
 
 bool PS2Memory::writeIORegister(uint32_t address, uint32_t value)
 {
-    if (address >= 0x10002000u)
-        vif1Observe(0x80000000u | (address & ~0xFFu));
     size_t timerIndex = 0u;
     uint32_t timerOffset = 0u;
     if (decodeEeTimerRegister(address, timerIndex, timerOffset))
@@ -1328,6 +1496,9 @@ bool PS2Memory::writeIORegister(uint32_t address, uint32_t value)
         m_ioRegisters[address] = next;
         return true;
     }
+
+    if (address >= 0x10003C00u && address < 0x10003E00u && gpuBusy())
+        gpuSyncGlobal(kGpuSyncVifReg); // VIF1 state belongs to the GPU worker while it runs
 
     m_ioRegisters[address] = value;
 
@@ -1685,7 +1856,9 @@ bool PS2Memory::writeIORegister(uint32_t address, uint32_t value)
                     (channelBase == 0x1000A000u) ? (m_gifPacketCallback || m_gifArbiter != nullptr) : true;
                 if (autoProcessTransfers)
                 {
-                    processPendingTransfers();
+                    // VIF1 transfers towards memory (GS downloads) stay synchronous.
+                    const bool toMemory = channelBase == 0x10009000u && (value & 0x1u) == 0u;
+                    processPendingTransfers(!toMemory);
                 }
             }
         }
@@ -1783,7 +1956,7 @@ void PS2Memory::completeDmacChannel(uint32_t channelBase, uint32_t cause)
     queueCompletedDmacCause(cause);
 }
 
-void PS2Memory::processPendingTransfers()
+void PS2Memory::processPendingTransfers(bool allowAsync)
 {
     const bool hadGif = !m_pendingGifTransfers.empty();
     uint32_t observedGifQwc = 0u;
@@ -1802,66 +1975,55 @@ void PS2Memory::processPendingTransfers()
         gifStat = (gifStat & ~kGifFqcMask) | (observedGifQwc << 24u);
     }
 
-    for (size_t idx = 0; idx < m_pendingGifTransfers.size(); ++idx)
+    // Capture every GIF / VIF1 transfer into an owned buffer: the EE may overwrite the source as
+    // soon as the channel reports completion (which happens right below).
+    auto materialize = [&](PendingTransfer &p, std::vector<uint8_t> &out) -> bool
     {
-        auto &p = m_pendingGifTransfers[idx];
         if (!p.chainData.empty())
+        {
+            out = std::move(p.chainData);
+            return true;
+        }
+        if (p.qwc == 0u)
+            return false;
+        uint32_t srcPhys = 0;
+        try
+        {
+            srcPhys = translateAddress(p.srcAddr);
+        }
+        catch (const std::exception &)
+        {
+            return false;
+        }
+        const uint8_t *base = p.fromScratchpad ? m_scratchpad : m_rdram;
+        const uint32_t limit = p.fromScratchpad ? PS2_SCRATCHPAD_SIZE : PS2_RAM_SIZE;
+        const uint64_t bytes64 = std::min<uint64_t>(static_cast<uint64_t>(p.qwc) * 16ull, limit);
+        uint32_t bytesLeft = static_cast<uint32_t>(bytes64);
+        out.resize(bytesLeft);
+        uint32_t written = 0u;
+        while (bytesLeft > 0u)
+        {
+            if (srcPhys >= limit)
+                srcPhys = 0u;
+            const uint32_t chunk = std::min(bytesLeft, limit - srcPhys);
+            std::memcpy(out.data() + written, base + srcPhys, chunk);
+            written += chunk;
+            bytesLeft -= chunk;
+            srcPhys += chunk;
+        }
+        return true;
+    };
+
+    GpuJob job;
+    job.countKick = true;
+    for (auto &p : m_pendingGifTransfers)
+    {
+        std::vector<uint8_t> data;
+        if (materialize(p, data) && data.size() >= 16u)
         {
             m_seenGifCopy = true;
             m_gifCopyCount.fetch_add(1, std::memory_order_relaxed);
-            submitGifPacket(GifPathId::Path3, p.chainData.data(), static_cast<uint32_t>(p.chainData.size()), false);
-        }
-        else if (p.qwc > 0)
-        {
-            const uint64_t bytes64 = static_cast<uint64_t>(p.qwc) * 16ull;
-            uint32_t sizeBytes = (bytes64 > 0xFFFFFFFFull) ? 0xFFFFFFFFu : static_cast<uint32_t>(bytes64);
-            uint32_t srcPhys = 0;
-            try
-            {
-                srcPhys = translateAddress(p.srcAddr);
-            }
-            catch (const std::exception &)
-            {
-                continue;
-            }
-            if (p.fromScratchpad)
-            {
-                uint32_t bytesLeft = sizeBytes;
-                while (bytesLeft >= 16)
-                {
-                    if (srcPhys >= PS2_SCRATCHPAD_SIZE)
-                        srcPhys = 0;
-                    uint32_t chunk = bytesLeft;
-                    if (srcPhys + chunk > PS2_SCRATCHPAD_SIZE)
-                        chunk = PS2_SCRATCHPAD_SIZE - srcPhys;
-                    if (chunk == 0)
-                        break;
-                    m_seenGifCopy = true;
-                    m_gifCopyCount.fetch_add(1, std::memory_order_relaxed);
-                    submitGifPacket(GifPathId::Path3, m_scratchpad + srcPhys, chunk, false);
-                    bytesLeft -= chunk;
-                    srcPhys += chunk;
-                }
-            }
-            else
-            {
-                uint32_t bytesLeft = sizeBytes;
-                while (bytesLeft >= 16)
-                {
-                    if (srcPhys >= PS2_RAM_SIZE)
-                        srcPhys = 0;
-                    uint32_t chunk = bytesLeft;
-                    if (srcPhys + chunk > PS2_RAM_SIZE)
-                        chunk = PS2_RAM_SIZE - srcPhys;
-                    if (chunk == 0)
-                        break;
-                    m_seenGifCopy = true;
-                    m_gifCopyCount.fetch_add(1, std::memory_order_relaxed);
-                    submitGifPacket(GifPathId::Path3, m_rdram + srcPhys, chunk, false);
-                    bytesLeft -= chunk;
-                    srcPhys += chunk;
-                }
-            }
+            job.gif.push_back(std::move(data));
         }
     }
     m_pendingGifTransfers.clear();
@@ -1925,81 +2087,23 @@ void PS2Memory::processPendingTransfers()
     m_pendingVif0Transfers.clear();
 
     const bool hadVif1 = !m_pendingVif1Transfers.empty();
-    const auto vif1Start = std::chrono::steady_clock::now();
     for (auto &p : m_pendingVif1Transfers)
     {
-        if (!p.chainData.empty())
-        {
-            processVIF1Data(p.chainData.data(), static_cast<uint32_t>(p.chainData.size()));
-        }
-        else if (p.qwc > 0)
-        {
-            uint32_t srcPhys = 0;
-            const uint64_t bytes64 = static_cast<uint64_t>(p.qwc) * 16ull;
-            uint32_t sizeBytes = (bytes64 > 0xFFFFFFFFull) ? 0xFFFFFFFFu : static_cast<uint32_t>(bytes64);
-            try
-            {
-                srcPhys = translateAddress(p.srcAddr);
-            }
-            catch (const std::exception &)
-            {
-                continue;
-            }
-            if (p.fromScratchpad)
-            {
-                uint32_t bytesLeft = sizeBytes;
-                while (bytesLeft > 0)
-                {
-                    if (srcPhys >= PS2_SCRATCHPAD_SIZE)
-                        srcPhys = 0;
-                    uint32_t chunk = bytesLeft;
-                    if (srcPhys + chunk > PS2_SCRATCHPAD_SIZE)
-                        chunk = PS2_SCRATCHPAD_SIZE - srcPhys;
-                    if (chunk == 0)
-                        break;
-                    processVIF1Data(m_scratchpad + srcPhys, chunk);
-                    bytesLeft -= chunk;
-                    srcPhys += chunk;
-                }
-            }
-            else
-            {
-                uint32_t bytesLeft = sizeBytes;
-                while (bytesLeft > 0)
-                {
-                    if (srcPhys >= PS2_RAM_SIZE)
-                        srcPhys = 0;
-                    uint32_t chunk = bytesLeft;
-                    if (srcPhys + chunk > PS2_RAM_SIZE)
-                        chunk = PS2_RAM_SIZE - srcPhys;
-                    if (chunk == 0)
-                        break;
-                    processVIF1Data(srcPhys, chunk);
-                    bytesLeft -= chunk;
-                    srcPhys += chunk;
-                }
-            }
-        }
+        std::vector<uint8_t> data;
+        if (materialize(p, data) && !data.empty())
+            job.vif1.push_back(std::move(data));
     }
     m_pendingVif1Transfers.clear();
 
-    if (m_gifArbiter)
-        m_gifArbiter->drain();
-    if (hadVif1)
+    if (allowAsync && gpuAsyncEnabled())
     {
-        const auto vif1End = std::chrono::steady_clock::now();
-        ++s_vif1Kicks;
-        s_vif1KickNs += static_cast<uint64_t>(std::chrono::duration_cast<std::chrono::nanoseconds>(vif1End - vif1Start).count());
-        s_vif1Watch = true;
-        s_vif1WatchStart = vif1End;
-        if (s_vif1SeqActive && s_vif1SeqKickNs >= s_vif1SeqBestKickNs)
-        {
-            s_vif1SeqBest = s_vif1Seq; // the previous kick's sequence ended at this kick
-            s_vif1SeqBestKickNs = s_vif1SeqKickNs;
-        }
-        s_vif1Seq.clear();
-        s_vif1SeqActive = true;
-        s_vif1SeqKickNs = static_cast<uint64_t>(std::chrono::duration_cast<std::chrono::nanoseconds>(vif1End - vif1Start).count());
+        if (!job.gif.empty() || !job.vif1.empty())
+            gpuEnqueue(this, std::move(job));
+    }
+    else
+    {
+        gpuSyncGlobal(kGpuSyncDma);
+        runGpuJob(job);
     }
 
     static constexpr uint32_t GIF_CHANNEL = 0x1000A000;
@@ -2063,6 +2167,8 @@ uint32_t g_path3ReleaseLimit = 0u; // see flushMaskedPath3Packets / VIF MSKPATH3
 
 void PS2Memory::flushMaskedPath3Packets(bool drainImmediately)
 {
+    if (!t_onGpuWorker && gpuBusy())
+        gpuSyncGlobal(kGpuSyncOther);
     if (m_path3Masked || m_path3MaskedFifo.empty())
         return;
 
@@ -2092,6 +2198,8 @@ void PS2Memory::flushMaskedPath3Packets(bool drainImmediately)
 
 void PS2Memory::submitGifPacket(GifPathId pathId, const uint8_t *data, uint32_t sizeBytes, bool drainImmediately, bool path2DirectHl)
 {
+    if (!t_onGpuWorker && gpuBusy())
+        gpuSyncGlobal(kGpuSyncOther); // GIF state belongs to the GPU worker while it runs
     if (!data || sizeBytes < 16)
         return;
 
@@ -2463,8 +2571,6 @@ int PS2Memory::pollDmaRegisters()
 
 uint32_t PS2Memory::readIORegister(uint32_t address)
 {
-    if (address >= 0x10002000u)
-        vif1Observe(address & ~0xFFu);
     size_t timerIndex = 0u;
     uint32_t timerOffset = 0u;
     if (decodeEeTimerRegister(address, timerIndex, timerOffset))
