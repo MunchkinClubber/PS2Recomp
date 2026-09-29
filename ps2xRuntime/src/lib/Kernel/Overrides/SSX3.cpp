@@ -29,6 +29,7 @@ extern std::atomic<uint64_t> g_perfGsWorkerNs, g_perfGsWaitNs; // gs_cpu_backend
 extern std::atomic<uint64_t> g_vu1NativeRuns, g_vu1NativeMisses, g_vu1NativeHandoffs; // vu1_native.cpp
 extern std::atomic<uint64_t> g_vu0NativeRuns, g_vu0NativeMisses; // vu1_native.cpp
 extern std::atomic<uint64_t> g_perfVu0Ns, g_perfVu0Calls; // ps2_runtime.cpp
+void vif1ObsReport(double frames);                        // ps2_memory.cpp
 extern std::atomic<uint64_t> g_perfGsSyncCount[9], g_perfGsSyncNs[9], g_perfGsQueueFullNs; // gs_cpu_backend.cpp
 
 namespace
@@ -362,10 +363,7 @@ namespace
                     lastV0Native = v0native;
                     lastV0Miss = v0miss;
                 }
-                {
-                    extern void vif1ObsReport(double frames);
-                    vif1ObsReport(static_cast<double>(frames));
-                }
+                vif1ObsReport(static_cast<double>(frames));
                 {
                     // Where the EE thread waited for the raster threads (per frame).
                     static const char *names[9] = {"reset", "clut", "sync", "readvram", "snapshot", "xferstate", "epochs", "xfer", "readback"};
