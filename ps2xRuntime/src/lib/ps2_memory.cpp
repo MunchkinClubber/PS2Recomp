@@ -3,6 +3,9 @@
 #include "runtime/gs/gs_frontend.h"
 #include "ps2_log.h"
 #include <atomic>
+#include <chrono>
+#include <cstdio>
+#include <map>
 #include <cstring>
 #include <limits>
 #include <stdexcept>
@@ -38,9 +41,66 @@ namespace
         std::memcpy(base + offset, &value, sizeof(T));
     }
 
+}
+
+// ---- VIF1 overlap measurement ------------------------------------------------------------------
+// After each VIF1 DMA kick (processed synchronously on the EE thread), record the first EE
+// access that could observe VIF1/VU1/GS state (or a syscall) and how long after the kick it came:
+// the window in which VIF1+VU1 could run on another thread. Reported with the [ssx3:perf] lines.
+namespace
+{
+    bool s_vif1Watch = false;
+    std::chrono::steady_clock::time_point s_vif1WatchStart;
+    uint64_t s_vif1KickNs = 0, s_vif1Kicks = 0;
+    struct Vif1Obs
+    {
+        uint64_t count = 0, ns = 0, minNs = ~0ull;
+    };
+    std::map<uint32_t, Vif1Obs> s_vif1Obs;
+}
+
+void vif1Observe(uint32_t key)
+{
+    if (!s_vif1Watch)
+        return;
+    s_vif1Watch = false;
+    const uint64_t ns = static_cast<uint64_t>(std::chrono::duration_cast<std::chrono::nanoseconds>(
+                                                  std::chrono::steady_clock::now() - s_vif1WatchStart)
+                                                  .count());
+    Vif1Obs &o = s_vif1Obs[key];
+    ++o.count;
+    o.ns += ns;
+    o.minNs = std::min(o.minNs, ns);
+}
+
+void vif1ObsReport(double frames)
+{
+    std::vector<std::pair<uint32_t, Vif1Obs>> v(s_vif1Obs.begin(), s_vif1Obs.end());
+    std::sort(v.begin(), v.end(), [](const auto &a, const auto &b)
+              { return a.second.count > b.second.count; });
+    std::string text;
+    for (size_t i = 0; i < v.size() && i < 8u; ++i)
+    {
+        char item[96];
+        std::snprintf(item, sizeof(item), " %08x %.1fx avg %.2fms min %.2fms;", v[i].first, v[i].second.count / frames,
+                      v[i].second.ns / 1e6 / static_cast<double>(v[i].second.count), v[i].second.minNs / 1e6);
+        text += item;
+    }
+    std::fprintf(stderr, "[ssx3:perf]   VIF1 kicks %.1f/frame, %.2f ms/frame; next observer:%s\n", s_vif1Kicks / frames,
+                 s_vif1KickNs / 1e6 / frames, text.c_str());
+    s_vif1Obs.clear();
+    s_vif1Kicks = 0;
+    s_vif1KickNs = 0;
+}
+
+namespace
+{
     inline bool isGsPrivReg(uint32_t addr)
     {
-        return Ps2AddressInRange(addr, PS2_GS_PRIV_REG_BASE, PS2_GS_PRIV_REG_SIZE);
+        const bool r = Ps2AddressInRange(addr, PS2_GS_PRIV_REG_BASE, PS2_GS_PRIV_REG_SIZE);
+        if (r)
+            vif1Observe(0x12000000u | ((addr - PS2_GS_PRIV_REG_BASE) & 0xFFF0u));
+        return r;
     }
 
     inline bool isIoRegister(uint32_t addr)
@@ -545,6 +605,8 @@ uint8_t *PS2Memory::mapVuMemory(uint32_t physAddr, uint32_t size, uint32_t &offs
 
 const uint8_t *PS2Memory::mapVuMemory(uint32_t physAddr, uint32_t size, uint32_t &offset, uint32_t &limit) const
 {
+    if (physAddr >= 0x11000000u && physAddr < 0x11010000u)
+        vif1Observe(0x11000000u | (physAddr & 0xC000u));
     auto mapRange = [&](uint32_t base, uint32_t rangeSize, const uint8_t *ptr) -> const uint8_t *
     {
         if (!ptr || physAddr < base)
@@ -1135,6 +1197,8 @@ void PS2Memory::write128(uint32_t address, __m128i value)
 
 bool PS2Memory::writeIORegister(uint32_t address, uint32_t value)
 {
+    if (address >= 0x10002000u)
+        vif1Observe(0x80000000u | (address & ~0xFFu));
     size_t timerIndex = 0u;
     uint32_t timerOffset = 0u;
     if (decodeEeTimerRegister(address, timerIndex, timerOffset))
@@ -1823,6 +1887,7 @@ void PS2Memory::processPendingTransfers()
     m_pendingVif0Transfers.clear();
 
     const bool hadVif1 = !m_pendingVif1Transfers.empty();
+    const auto vif1Start = std::chrono::steady_clock::now();
     for (auto &p : m_pendingVif1Transfers)
     {
         if (!p.chainData.empty())
@@ -1882,6 +1947,14 @@ void PS2Memory::processPendingTransfers()
 
     if (m_gifArbiter)
         m_gifArbiter->drain();
+    if (hadVif1)
+    {
+        const auto vif1End = std::chrono::steady_clock::now();
+        ++s_vif1Kicks;
+        s_vif1KickNs += static_cast<uint64_t>(std::chrono::duration_cast<std::chrono::nanoseconds>(vif1End - vif1Start).count());
+        s_vif1Watch = true;
+        s_vif1WatchStart = vif1End;
+    }
 
     static constexpr uint32_t GIF_CHANNEL = 0x1000A000;
     static constexpr uint32_t VIF0_CHANNEL = 0x10008000;
@@ -2344,6 +2417,8 @@ int PS2Memory::pollDmaRegisters()
 
 uint32_t PS2Memory::readIORegister(uint32_t address)
 {
+    if (address >= 0x10002000u)
+        vif1Observe(address & ~0xFFu);
     size_t timerIndex = 0u;
     uint32_t timerOffset = 0u;
     if (decodeEeTimerRegister(address, timerIndex, timerOffset))

@@ -363,6 +363,10 @@ namespace
                     lastV0Miss = v0miss;
                 }
                 {
+                    extern void vif1ObsReport(double frames);
+                    vif1ObsReport(static_cast<double>(frames));
+                }
+                {
                     // Where the EE thread waited for the raster threads (per frame).
                     static const char *names[9] = {"reset", "clut", "sync", "readvram", "snapshot", "xferstate", "epochs", "xfer", "readback"};
                     static uint64_t lastCount[9]{}, lastNs[9]{}, lastFull = 0u;
