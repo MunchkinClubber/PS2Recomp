@@ -464,8 +464,21 @@ namespace
         return {(smode2 & 0x1ull) != 0ull, ((smode2 >> 1) & 0x1ull) != 0ull};
     }
 
+    // Interlaced field mode (SMODE2.INT=1, FFMD=0) scans out every other line of a full-height
+    // frame buffer, alternating per field; a CRT offsets the fields by half a line, so the picture
+    // is stable. Showing each field line-doubled ("bob") made the whole image jump by a line every
+    // frame, so by default the frame buffer is shown as is (both fields woven).
+    // PS2_FIELD_PRESENT=bob restores line doubling.
+    const bool s_fieldBob = []
+    {
+        const char *v = std::getenv("PS2_FIELD_PRESENT");
+        return v && (v[0] == 'b' || v[0] == 'B');
+    }();
+
     void applyFieldPresentation(std::vector<uint8_t> &pixels, uint32_t width, uint32_t height, bool oddField)
     {
+        if (!s_fieldBob)
+            return;
         if (pixels.empty() || width == 0u || height < 2u)
             return;
         const std::vector<uint8_t> source = pixels;
