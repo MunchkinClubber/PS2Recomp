@@ -1034,13 +1034,13 @@ int main(int argc, char **argv)
     out += "    inline void divq(VU1NativeCtx &c, float num, float den)\n    {\n"
            "        uint32_t di = 0u;\n        float r;\n"
            "        if (den == 0.0f)\n        {\n            di = num == 0.0f ? 0x10u : 0x20u;\n"
-           "            r = std::signbit(num) != std::signbit(den) ? -std::numeric_limits<float>::max() : std::numeric_limits<float>::max();\n        }\n"
+           "            r = signOfF(num) != signOfF(den) ? -std::numeric_limits<float>::max() : std::numeric_limits<float>::max();\n        }\n"
            "        else\n            r = num / den;\n        queueQ(c, r, 7u, di);\n    }\n";
     out += "    inline void sqrtq(VU1NativeCtx &c, float v) { queueQ(c, std::sqrt(std::fabs(v)), 7u, v < 0.0f ? 0x10u : 0u); }\n";
     out += "    inline void rsqrtq(VU1NativeCtx &c, float num, float rad)\n    {\n"
            "        const float den = std::sqrt(std::fabs(rad));\n        uint32_t di = rad < 0.0f ? 0x10u : 0u;\n        float r;\n"
            "        if (den != 0.0f)\n            r = num / den;\n        else\n        {\n            di = num == 0.0f ? 0x10u : 0x20u;\n"
-           "            r = std::signbit(num) ? -std::numeric_limits<float>::max() : std::numeric_limits<float>::max();\n        }\n"
+           "            r = signOfF(num) ? -std::numeric_limits<float>::max() : std::numeric_limits<float>::max();\n        }\n"
            "        queueQ(c, r, 13u, di);\n    }\n";
     out += "    inline void rnext(VU1State &s)\n    {\n"
            "        const uint32_t x = (s.r >> 4) & 1u, y = (s.r >> 22) & 1u;\n"

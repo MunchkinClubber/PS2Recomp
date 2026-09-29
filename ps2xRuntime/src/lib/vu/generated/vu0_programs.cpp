@@ -38,7 +38,7 @@ namespace
         if (den == 0.0f)
         {
             di = num == 0.0f ? 0x10u : 0x20u;
-            r = std::signbit(num) != std::signbit(den) ? -std::numeric_limits<float>::max() : std::numeric_limits<float>::max();
+            r = signOfF(num) != signOfF(den) ? -std::numeric_limits<float>::max() : std::numeric_limits<float>::max();
         }
         else
             r = num / den;
@@ -55,7 +55,7 @@ namespace
         else
         {
             di = num == 0.0f ? 0x10u : 0x20u;
-            r = std::signbit(num) ? -std::numeric_limits<float>::max() : std::numeric_limits<float>::max();
+            r = signOfF(num) ? -std::numeric_limits<float>::max() : std::numeric_limits<float>::max();
         }
         queueQ(c, r, 13u, di);
     }

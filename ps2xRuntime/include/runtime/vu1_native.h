@@ -144,6 +144,21 @@ namespace vu1n
         return v;
     }
 
+    // Sign bit without a CRT call (MSVC's std::signbit is an out-of-line _dsign).
+    VU1N_INLINE bool signOf(long double e)
+    {
+        const double d = static_cast<double>(e);
+        uint64_t b;
+        std::memcpy(&b, &d, 8);
+        return (b >> 63) != 0u;
+    }
+    VU1N_INLINE bool signOfF(float f)
+    {
+        uint32_t b;
+        std::memcpy(&b, &f, 4);
+        return (b >> 31) != 0u;
+    }
+
     VU1N_INLINE uint32_t expOf(float v)
     {
         uint32_t b;
@@ -154,7 +169,7 @@ namespace vu1n
     // Value side of VU1Interpreter::normalizeFmacExactResult.
     inline float fixExact(float r, long double e)
     {
-        const bool negative = std::signbit(e);
+        const bool negative = signOf(e);
         const long double mag = std::fabs(e);
         uint32_t bits = negative ? 0x80000000u : 0u;
         float out = r;
@@ -348,7 +363,7 @@ namespace vu1n
     // Flags and value fix-up of VU1Interpreter::normalizeFmacExactResult.
     inline uint32_t exactFlags(float &value, long double e)
     {
-        const bool negative = std::signbit(e);
+        const bool negative = signOf(e);
         const long double mag = std::fabs(e);
         uint32_t flags = negative ? 0x2u : 0u;
         uint32_t bits = negative ? 0x80000000u : 0u;
