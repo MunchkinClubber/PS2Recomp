@@ -54,6 +54,24 @@ namespace
     {
         return t_bandCount == 1u || ((static_cast<uint32_t>(y) >> 3u) % t_bandCount) == t_bandIndex;
     }
+
+    // Whether any row in [y0, y1] belongs to this thread's band: lets a worker skip the setup of
+    // primitives that lie entirely in other workers' rows.
+    inline bool bandTouches(int y0, int y1)
+    {
+        if (t_bandCount == 1u)
+            return true;
+        if (y1 < y0)
+            return false;
+        const uint32_t g0 = static_cast<uint32_t>(std::max(y0, 0)) >> 3u;
+        const uint32_t g1 = static_cast<uint32_t>(std::max(y1, 0)) >> 3u;
+        if (g1 - g0 + 1u >= t_bandCount)
+            return true;
+        for (uint32_t g = g0; g <= g1; ++g)
+            if (g % t_bandCount == t_bandIndex)
+                return true;
+        return false;
+    }
 }
 
 #if defined(_MSC_VER)
@@ -676,13 +694,38 @@ void GSCpuBackend::LoadClut(const GSTex0Reg &tex0, const GSTexClutReg &texclut)
         // Runs on this thread: queued draws carry their own decoded palette. Only the VRAM it
         // reads must not be a target of a queued draw (or of a pending global command).
         const uint32_t start = std::min<uint32_t>(tex0.cbp * 256u, 4u * 1024u * 1024u);
-        const uint32_t rows = tex0.csm == 0u ? 2u : (static_cast<uint32_t>(texclut.cov) / 32u + 2u);
-        const uint32_t width = tex0.csm == 0u ? 1u : std::max<uint32_t>(texclut.cbw, 1u);
-        const uint32_t end = static_cast<uint32_t>(std::min<uint64_t>(static_cast<uint64_t>(start) + static_cast<uint64_t>(rows) * width * 8192u, 4u * 1024u * 1024u));
-        if (!CanRunDirectUnlocked(start, end))
+        // CSM1: the CLUT is at most 16x16 texels at CBP, i.e. the first four blocks (1 KiB) for
+        // every CLUT format. CSM2: a row of up to 256 PSMCT16 texels at (COU*16, COV) in a
+        // CBW-wide buffer; cover whole pages from its first row (conservative).
+        uint32_t end;
+        if (tex0.csm == 0u)
+        {
+            // 16 entries: 8x2 texels = block 0. 256 entries: 16x16 texels = blocks 0-3 (32-bit)
+            // or blocks 0-1 (16-bit).
+            const uint32_t blocks = isFourBitIndexedPsm(tex0.psm) ? 1u : ((tex0.cpsm == GS_PSM_CT32 || tex0.cpsm == GS_PSM_CT24) ? 4u : 2u);
+            end = std::min<uint32_t>(start + blocks * 256u, 4u * 1024u * 1024u);
+        }
+        else
+        {
+            const uint32_t rows = static_cast<uint32_t>(texclut.cov) / 64u + 2u;
+            const uint32_t width = std::max<uint32_t>(texclut.cbw, 1u);
+            end = static_cast<uint32_t>(std::min<uint64_t>(static_cast<uint64_t>(start) + static_cast<uint64_t>(rows) * width * 8192u, 4u * 1024u * 1024u));
+        }
+        if (!CanRunDirectUnlocked(start, end, true))
         {
             if (s_gsHazDebug)
+            {
                 std::fprintf(stderr, "SYNC clut cbp=%x [%x,%x)\n", tex0.cbp, start, end);
+                for (const DirtyRange &r : m_dirty)
+                    if (r.start < end && start < r.end)
+                        std::fprintf(stderr, "   dirty key=%llx [%x,%x)\n", (unsigned long long)r.key, r.start, r.end);
+                const uint64_t done = MinDone();
+                for (const Epoch &e : m_epochs)
+                    if (e.globalIdx >= done)
+                        for (const DirtyRange &r : e.ranges)
+                            if (r.start < end && start < r.end && r.key != 0u)
+                                std::fprintf(stderr, "   epoch %llu (w=%llu) key=%llx [%x,%x)\n", (unsigned long long)e.globalIdx, (unsigned long long)m_writeIdx.load(), (unsigned long long)r.key, r.start, r.end);
+            }
             SyncUnlocked(1);
         }
     }
@@ -862,7 +905,9 @@ namespace
         const uint64_t base = static_cast<uint64_t>(baseBlock) * 256u;
         // Pages are row-major: the touched pages lie between (firstRow, firstCol) and (lastRow, lastCol).
         const uint64_t start = base + (static_cast<uint64_t>(firstPageRow) * pagesW + firstPageCol) * 8192u;
-        const uint64_t end = base + (static_cast<uint64_t>(pagesH - 1u) * pagesW + lastPageCol + 2u) * 8192u;
+        // Page p of the buffer is blocks base+32p .. base+32p+31 (block offsets within a page are
+        // 0..31 even when the base is not page aligned), so the last touched page ends here.
+        const uint64_t end = base + (static_cast<uint64_t>(pagesH - 1u) * pagesW + lastPageCol + 1u) * 8192u;
         return {static_cast<uint32_t>(std::min<uint64_t>(start, kVram)), static_cast<uint32_t>(std::min<uint64_t>(end, kVram))};
     }
 
@@ -1100,18 +1145,20 @@ void GSCpuBackend::EnqueueGlobalUnlocked(std::function<void()> fn, uint32_t touc
     m_reads.clear();
 }
 
-bool GSCpuBackend::CanRunDirectUnlocked(uint32_t start, uint32_t end) const
+bool GSCpuBackend::CanRunDirectUnlocked(uint32_t start, uint32_t end, bool readOnly) const
 {
     // True when no queued-but-unfinished command reads or writes [start, end): then this thread
-    // may touch that memory right now without changing any result.
+    // may touch that memory right now without changing any result. Texture reads are recorded
+    // with key 0; for a read-only caller only writers matter.
     auto hit = [&](const DirtyRange &range)
-    { return range.start < end && start < range.end; };
+    { return range.start < end && start < range.end && !(readOnly && range.key == 0u); };
     for (const DirtyRange &range : m_dirty)
         if (hit(range))
             return false;
-    for (const DirtyRange &range : m_reads)
-        if (hit(range))
-            return false;
+    if (!readOnly)
+        for (const DirtyRange &range : m_reads)
+            if (hit(range))
+                return false;
     if (!m_epochs.empty())
     {
         const uint64_t done = MinDone();
@@ -2116,6 +2163,8 @@ void GSCpuBackend::DrawSprite(const GSPrimitiveBatch &batch)
     const int drawY0 = clampInt(unclippedY0, ctx.scissor.y0, ctx.scissor.y1);
     const int drawX1 = clampInt(unclippedX1, ctx.scissor.x0, ctx.scissor.x1);
     const int drawY1 = clampInt(unclippedY1, ctx.scissor.y0, ctx.scissor.y1);
+    if (!bandTouches(drawY0, drawY1))
+        return;
 
     const uint64_t alphaReg = ctx.alpha;
     const uint8_t alphaMode = static_cast<uint8_t>(alphaReg & 0xFFu);
@@ -2232,6 +2281,8 @@ void GSCpuBackend::DrawTriangle(const GSPrimitiveBatch &batch)
     maxX = clampInt(maxX, ctx.scissor.x0, ctx.scissor.x1);
     minY = clampInt(minY, ctx.scissor.y0, ctx.scissor.y1);
     maxY = clampInt(maxY, ctx.scissor.y0, ctx.scissor.y1);
+    if (!bandTouches(minY, maxY))
+        return;
 
     float denom = (fy1 - fy2) * (fx0 - fx2) + (fx2 - fx1) * (fy0 - fy2);
     if (std::fabs(denom) < 0.001f)
@@ -2494,8 +2545,11 @@ void GSCpuBackend::UploadImage(const uint8_t *data, uint32_t sizeBytes)
         const GSTransferCommand &t = m_transfer;
         if (m_transferState.direction != 0u || t.trxreg.rrw == 0u || t.trxreg.rrh == 0u || m_transferState.totalPixels == 0u)
             return;
+        const uint32_t x0 = t.trxpos.dsax, x1 = x0 + static_cast<uint32_t>(t.trxreg.rrw) - 1u;
+        const bool colsInside = x1 < std::max<uint32_t>(t.bitbltbuf.dbw, 1u) * 64u;
         const GsByteRange r = gsBufferRange(t.bitbltbuf.dbp, t.bitbltbuf.dbw, t.bitbltbuf.dpsm,
-                                            static_cast<uint32_t>(t.trxpos.dsay) + static_cast<uint32_t>(t.trxreg.rrh));
+                                            static_cast<uint32_t>(t.trxpos.dsay) + static_cast<uint32_t>(t.trxreg.rrh),
+                                            t.trxpos.dsay, colsInside ? x0 : 0u, colsInside ? x1 : UINT32_MAX);
         if (CanRunDirectUnlocked(r.start, r.end))
         {
             UploadImageUnlocked(data, sizeBytes);

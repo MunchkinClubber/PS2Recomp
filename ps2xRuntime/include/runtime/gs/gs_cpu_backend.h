@@ -98,7 +98,8 @@ private:
     std::shared_ptr<const std::array<uint32_t, 256>> m_sharedPalette;
     uint64_t m_sharedPaletteVersion = 0;
     uint64_t m_sharedPaletteKey = ~0ull;
-    bool CanRunDirectUnlocked(uint32_t start, uint32_t end) const;
+    // readOnly: the caller only reads [start, end), so queued readers of it do not conflict.
+    bool CanRunDirectUnlocked(uint32_t start, uint32_t end, bool readOnly = false) const;
     uint64_t PaletteKey(const GSDrawState &state) const;
 
     struct PaletteCache

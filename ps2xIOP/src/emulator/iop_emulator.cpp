@@ -19,6 +19,9 @@
 
 #include <algorithm>
 #include <cctype>
+#include <cstdlib>
+#include <unordered_map>
+#include <vector>
 #include <map>
 #include <optional>
 #include <span>
@@ -382,6 +385,8 @@ namespace ps2x::iop::detail
 
             if (const auto import = imports.decode(cpu.pc))
             {
+                if (profiling)
+                    ++profImports[import->library + ":" + std::to_string(import->ordinal)];
                 const ImportDisposition disposition = dispatchImport(*import, cpu);
                 ++totalInstructions;
                 ++totalCycles;
@@ -392,6 +397,8 @@ namespace ps2x::iop::detail
                 return !cpu.stopped;
             }
 
+            if (profiling)
+                profileSample(cpu);
             const bool running = cpuCore.executeInstruction(cpu);
             schedulePendingDma();
             ++totalInstructions;
@@ -584,7 +591,9 @@ namespace ps2x::iop::detail
                         if (!pendingGuestCallbacks.empty())
                             nextWake = std::min(nextWake, pendingGuestCallbacks.begin()->first);
                         nextWake = timrman.nextEventCycle(nextWake);
-                        totalCycles = std::max(totalCycles + 1u, std::min(target, nextWake));
+                        const uint64_t skipTo = std::max(totalCycles + 1u, std::min(target, nextWake));
+                        profIdleCycles += skipTo - totalCycles;
+                        totalCycles = skipTo;
                         continue;
                     }
                     const uint64_t before = totalCycles;
@@ -722,6 +731,61 @@ namespace ps2x::iop::detail
         GuestCallback secrMcCommandHandler;
         GuestCallback secrMcDevIdHandler;
         GuestCallback checkKelfPathCallback;
+
+        // PS2_IOP_PROFILE=1: sample the IOP PC every 16 instructions and count import calls; a
+        // summary goes to the log every ~64M instructions (hot guest code by module + offset).
+        const bool profiling = [] { const char *v = std::getenv("PS2_IOP_PROFILE"); return v && *v && *v != '0'; }();
+        std::unordered_map<uint32_t, uint64_t> profPcs;
+        std::unordered_map<std::string, uint64_t> profImports;
+        uint64_t profLastReport = 0;
+        uint64_t profIdleCycles = 0;
+        uint64_t profCyclesAtReport = 0;
+
+        void profileSample(const CpuState &cpu)
+        {
+            if ((totalInstructions & 15u) == 0u)
+                ++profPcs[cpu.pc];
+            if (totalInstructions - profLastReport < (1ull << 26))
+                return;
+            const uint64_t instructions = totalInstructions - profLastReport;
+            const uint64_t cycles = totalCycles - profCyclesAtReport;
+            profLastReport = totalInstructions;
+            profCyclesAtReport = totalCycles;
+            std::vector<std::pair<uint32_t, uint64_t>> top(profPcs.begin(), profPcs.end());
+            std::sort(top.begin(), top.end(), [](const auto &a, const auto &b)
+                      { return a.second > b.second; });
+            uint64_t samples = 0;
+            for (const auto &e : top)
+                samples += e.second;
+            std::ostringstream out;
+            out << "[IOP profile] " << instructions << " instructions over " << cycles << " cycles ("
+                << profIdleCycles << " idle-skipped); hottest PCs:";
+            for (size_t i = 0; i < top.size() && i < 24u; ++i)
+            {
+                const uint32_t pc = top[i].first;
+                std::string where = "?";
+                for (const auto &[id, m] : modules)
+                    if (pc - m.base < m.size || (m.size == 0u && pc >= m.base && pc - m.base < 0x40000u))
+                    {
+                        std::ostringstream w;
+                        w << (m.name.empty() ? m.path : m.name) << "+0x" << std::hex << (pc - m.base);
+                        where = w.str();
+                        break;
+                    }
+                out << "\n    " << std::hex << "0x" << pc << std::dec << " " << where << " "
+                    << (100.0 * static_cast<double>(top[i].second) / static_cast<double>(std::max<uint64_t>(samples, 1u))) << "%";
+            }
+            std::vector<std::pair<std::string, uint64_t>> imp(profImports.begin(), profImports.end());
+            std::sort(imp.begin(), imp.end(), [](const auto &a, const auto &b)
+                      { return a.second > b.second; });
+            out << "\n  imports:";
+            for (size_t i = 0; i < imp.size() && i < 16u; ++i)
+                out << " " << imp[i].first << "=" << imp[i].second;
+            log(LogLevel::Info, out.str());
+            profPcs.clear();
+            profImports.clear();
+            profIdleCycles = 0;
+        }
     };
 
     IopEmulator::IopEmulator(IopHost &host)
