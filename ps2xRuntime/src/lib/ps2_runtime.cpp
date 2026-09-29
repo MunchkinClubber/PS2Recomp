@@ -865,8 +865,11 @@ bool PS2Runtime::syncCoreSubsystems()
     return true;
 }
 
+void ps2ProfilerStartIfEnabled(); // ps2_profiler.cpp
+
 bool PS2Runtime::initialize(const char *title)
 {
+    ps2ProfilerStartIfEnabled();
     try
     {
         if (!m_memory.initialize())

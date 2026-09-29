@@ -640,6 +640,22 @@ namespace
         }
         size_t pairCount() const { return m_pairs.size(); }
 
+        // MAC/status flags are not modelled, so an image whose code reads them stays interpreted
+        // (a handoff mid-program would leave the interpreter with stale flags).
+        bool readsMacOrStatus() const
+        {
+            for (uint32_t pc : m_pairs)
+            {
+                const DP d = decode(pc);
+                if (d.iBit)
+                    continue;
+                const uint8_t opHi = (d.lower >> 25) & 0x7F;
+                if (opHi == 0x14 || opHi == 0x16 || opHi == 0x17 || opHi == 0x18 || opHi == 0x1A || opHi == 0x1B)
+                    return true;
+            }
+            return false;
+        }
+
     private:
         const Image &m_img;
         std::string m_name;
@@ -963,10 +979,15 @@ int main(int argc, char **argv)
     std::string registrations;
     for (auto &[hash, img] : images)
     {
-        (void)hash;
         const std::string name = fmt("vu1prog_%d", index);
         Translator t(img, name);
         t.discover();
+        if (t.readsMacOrStatus())
+        {
+            std::fprintf(stderr, "skipping image %016llx (%zu entries): reads MAC/status flags\n",
+                         static_cast<unsigned long long>(hash), img.entries.size());
+            continue;
+        }
         out += t.emit();
         out += fmt("\nconst uint16_t %s_spans[] = {", name.c_str());
         for (auto [a, b] : t.spans())

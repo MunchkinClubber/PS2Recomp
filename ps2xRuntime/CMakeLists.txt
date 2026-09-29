@@ -395,6 +395,7 @@ add_library(ps2_runtime STATIC
     src/lib/vu/ps2_vu1_lower.cpp
     src/lib/vu/vu1_native.cpp
     src/lib/vu/generated/vu1_programs.cpp
+    src/lib/ps2_profiler.cpp
     src/lib/games_database.cpp
 )
 
@@ -512,6 +513,10 @@ endif()
 
 if(MSVC)
     target_compile_options(ps2EntryRunner PRIVATE /FS)
+    # Release builds still get a PDB (function names for PS2_PROFILE=1 and crash dumps). /Z7 keeps
+    # the runtime's debug info in its objects; recompiled game code contributes public symbols.
+    target_compile_options(ps2_runtime PRIVATE /Z7)
+    target_link_options(ps2EntryRunner PRIVATE /DEBUG /OPT:REF /OPT:ICF)
 endif()
 
 target_include_directories(ps2_runtime PUBLIC
