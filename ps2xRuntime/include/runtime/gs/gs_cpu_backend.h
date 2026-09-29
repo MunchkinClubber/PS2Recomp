@@ -52,6 +52,7 @@ private:
     {
         bool global = false;
         GSPrimitiveBatch batch{};
+        std::shared_ptr<const std::array<uint32_t, 256>> palette; // decoded CLUT for indexed textures
         std::function<void()> fn;
     };
     struct alignas(64) WorkerSlot
@@ -69,7 +70,8 @@ private:
     void StopWorkers();
     void WorkerMain(uint32_t index);
     void EnqueueUnlocked(Command &&command);
-    void EnqueueGlobalUnlocked(std::function<void()> fn);
+    // `touchStart/End`: VRAM bytes the command itself writes (for CanRunDirectUnlocked).
+    void EnqueueGlobalUnlocked(std::function<void()> fn, uint32_t touchStart = 0u, uint32_t touchEnd = 0x400000u);
     void SyncUnlocked() const;
     void NoteDrawHazardsUnlocked(const GSPrimitiveBatch &batch);
     uint64_t MinDone() const;
@@ -85,7 +87,19 @@ private:
     std::atomic<uint32_t> m_sleepers{0};
     std::mutex m_wakeMutex;
     std::condition_variable m_wakeCv;
-    std::vector<DirtyRange> m_dirty;
+    std::vector<DirtyRange> m_dirty;  // target ranges written by draws queued since the last barrier
+    std::vector<DirtyRange> m_reads;  // texture ranges read by draws queued since the last barrier
+    struct Epoch
+    {
+        uint64_t globalIdx; // the barrier closing this epoch; done once every worker passed it
+        std::vector<DirtyRange> ranges; // writes + reads of its draws, plus the barrier's own writes
+    };
+    std::vector<Epoch> m_epochs;  // closed epochs that may still be running
+    std::shared_ptr<const std::array<uint32_t, 256>> m_sharedPalette;
+    uint64_t m_sharedPaletteVersion = 0;
+    uint64_t m_sharedPaletteKey = ~0ull;
+    bool CanRunDirectUnlocked(uint32_t start, uint32_t end) const;
+    uint64_t PaletteKey(const GSDrawState &state) const;
 
     struct PaletteCache
     {
@@ -97,6 +111,8 @@ private:
 
     void BeginTransferUnlocked(const GSTransferCommand &command);
     void UploadImageUnlocked(const uint8_t *data, uint32_t sizeBytes);
+    void UploadImageImpl(const GSTransferCommand &xfer, GSTransferSnapshot &st,
+                         const uint8_t *data, uint32_t sizeBytes, bool write);
     void ClearFramebufferUnlocked(const GSContext &context, uint32_t rgba);
     void ResetUnlocked();
     void LoadClutUnlocked(const GSTex0Reg &tex0, const GSTexClutReg &texclut);

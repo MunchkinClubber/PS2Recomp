@@ -25,6 +25,16 @@
 
 using namespace GSInternal;
 
+// Perf counters (read by the SSX3 [ssx3:perf] report): summed raster-worker busy time, and time
+// the submitting thread spent blocked on the workers (read-backs, FINISH, full queue).
+std::atomic<uint64_t> g_perfGsWorkerNs{0};
+std::atomic<uint64_t> g_perfGsWaitNs{0};
+std::atomic<uint64_t> g_perfGsSyncs{0};     // read-back / FINISH waits that actually blocked
+std::atomic<uint64_t> g_perfGsBarriers{0};  // ordered global commands (transfers, CLUT, clears...)
+std::atomic<uint64_t> g_perfGsHazards{0};   // barriers inserted for render-to-texture hazards
+std::atomic<uint64_t> g_perfGsDraws{0};
+std::atomic<uint64_t> g_perfGsUploadBarriers{0}; // uploads that had to wait behind queued draws
+
 namespace
 {
     // Raster band owned by the current thread (see GSCpuBackend::WorkerMain). The synchronous
@@ -32,6 +42,8 @@ namespace
     thread_local uint32_t t_bandIndex = 0u;
     thread_local uint32_t t_bandCount = 1u;
     thread_local uint32_t t_workerSlot = 0u;
+    const bool s_gsHazDebug = std::getenv("GS_HAZ_DEBUG") != nullptr; // log barrier causes
+    thread_local const uint32_t *t_drawPalette = nullptr; // palette captured when the draw was queued
 
     inline bool rowInBand(int y)
     {
@@ -593,10 +605,30 @@ void GSCpuBackend::Submit(const GSPrimitiveBatch &batch)
             std::fesetround(rounding);
         return;
     }
+    g_perfGsDraws.fetch_add(1u, std::memory_order_relaxed);
     NoteDrawHazardsUnlocked(batch);
     Command command;
     command.global = false;
     command.batch = batch;
+    const uint8_t tpsm = batch.state.context.tex0.psm;
+    if (batch.state.prim.tme && (isFourBitIndexedPsm(tpsm) || isEightBitIndexedPsm(tpsm)))
+    {
+        // Decode the CLUT on this thread (m_clut is only changed here) and hand the draw an
+        // immutable copy, so CLUT loads never have to wait for queued draws.
+        const uint64_t key = PaletteKey(batch.state);
+        if (!m_sharedPalette || m_sharedPaletteVersion != m_clutVersion || m_sharedPaletteKey != key)
+        {
+            auto palette = std::make_shared<std::array<uint32_t, 256>>();
+            const auto &tex = batch.state.context.tex0;
+            const uint32_t n = isFourBitIndexedPsm(tpsm) ? 16u : 256u;
+            for (uint32_t i = 0; i < n; ++i)
+                (*palette)[i] = LookupCLUT(batch.state, static_cast<uint8_t>(i), tex.cpsm, tex.csm, tex.csa, tex.psm);
+            m_sharedPalette = std::move(palette);
+            m_sharedPaletteVersion = m_clutVersion;
+            m_sharedPaletteKey = key;
+        }
+        command.palette = m_sharedPalette;
+    }
     EnqueueUnlocked(std::move(command));
 }
 
@@ -635,10 +667,17 @@ void GSCpuBackend::LoadClut(const GSTex0Reg &tex0, const GSTexClutReg &texclut)
     }
 
     if (threaded())
-        EnqueueGlobalUnlocked([this, tex0, texclut]()
-                              { LoadClutUnlocked(tex0, texclut); });
-    else
-        LoadClutUnlocked(tex0, texclut);
+    {
+        // Runs on this thread: queued draws carry their own decoded palette. Only the VRAM it
+        // reads must not be a target of a queued draw (or of a pending global command).
+        const uint32_t start = std::min<uint32_t>(tex0.cbp * 256u, 4u * 1024u * 1024u);
+        const uint32_t rows = tex0.csm == 0u ? 2u : (static_cast<uint32_t>(texclut.cov) / 32u + 2u);
+        const uint32_t width = tex0.csm == 0u ? 1u : std::max<uint32_t>(texclut.cbw, 1u);
+        const uint32_t end = static_cast<uint32_t>(std::min<uint64_t>(static_cast<uint64_t>(start) + static_cast<uint64_t>(rows) * width * 8192u, 4u * 1024u * 1024u));
+        if (!CanRunDirectUnlocked(start, end))
+            SyncUnlocked();
+    }
+    LoadClutUnlocked(tex0, texclut);
 }
 
 void GSCpuBackend::LoadClutUnlocked(const GSTex0Reg &tex0, const GSTexClutReg &texclut)
@@ -772,13 +811,52 @@ GSTransferSnapshot GSCpuBackend::GetTransferSnapshot() const
 // ---------------------------------------------------------------------------
 // Threaded rasteriser plumbing
 // ---------------------------------------------------------------------------
-// Perf counters (read by the SSX3 [ssx3:perf] report): summed raster-worker busy time, and time
-// the submitting thread spent blocked on the workers (read-backs, FINISH, full queue).
-std::atomic<uint64_t> g_perfGsWorkerNs{0};
-std::atomic<uint64_t> g_perfGsWaitNs{0};
 
 namespace
 {
+    // Conservative byte range [start, end) of a swizzled buffer: base in blocks, width in 64-pixel
+    // units, `rows` pixel rows from the top. Page geometry depends on the pixel format.
+    struct GsByteRange
+    {
+        uint32_t start;
+        uint32_t end;
+    };
+    GsByteRange gsBufferRange(uint32_t baseBlock, uint32_t width64, uint32_t psm, uint32_t rows, uint32_t firstRow = 0u,
+                              uint32_t firstCol = 0u, uint32_t lastCol = UINT32_MAX)
+    {
+        constexpr uint32_t kVram = 4u * 1024u * 1024u;
+        uint32_t pageW = 64u, pageH = 32u;
+        switch (psm)
+        {
+        case GS_PSM_CT16:
+        case GS_PSM_CT16S:
+        case GS_PSM_Z16:
+        case GS_PSM_Z16S:
+            pageH = 64u;
+            break;
+        case GS_PSM_T8:
+            pageW = 128u;
+            pageH = 64u;
+            break;
+        case GS_PSM_T4:
+            pageW = 128u;
+            pageH = 128u;
+            break;
+        default:
+            break;
+        }
+        const uint32_t pagesW = std::max<uint32_t>((std::max<uint32_t>(width64, 1u) * 64u + pageW - 1u) / pageW, 1u);
+        const uint32_t firstPageRow = std::min(firstRow, rows) / pageH;
+        const uint32_t pagesH = std::max<uint32_t>((rows + pageH - 1u) / pageH, 1u);
+        const uint32_t firstPageCol = std::min(firstCol / pageW, pagesW - 1u);
+        const uint32_t lastPageCol = std::min(lastCol / pageW, pagesW - 1u);
+        const uint64_t base = static_cast<uint64_t>(baseBlock) * 256u;
+        // Pages are row-major: the touched pages lie between (firstRow, firstCol) and (lastRow, lastCol).
+        const uint64_t start = base + (static_cast<uint64_t>(firstPageRow) * pagesW + firstPageCol) * 8192u;
+        const uint64_t end = base + (static_cast<uint64_t>(pagesH - 1u) * pagesW + lastPageCol + 2u) * 8192u;
+        return {static_cast<uint32_t>(std::min<uint64_t>(start, kVram)), static_cast<uint32_t>(std::min<uint64_t>(end, kVram))};
+    }
+
     uint64_t gsNowNs()
     {
         return static_cast<uint64_t>(std::chrono::duration_cast<std::chrono::nanoseconds>(
@@ -786,23 +864,23 @@ namespace
                                          .count());
     }
 
+    // Short waits only: never sleep (Windows sleep granularity is 1-15 ms, which turned every
+    // barrier/sync into a timer tick). Spin, then hand the core over with yield().
     template <class Pred>
     void gsWaitUntil(Pred pred)
     {
-        for (int i = 0; i < 512; ++i)
+        for (int i = 0; i < 1024; ++i)
         {
             if (pred())
                 return;
             _mm_pause();
         }
-        for (int i = 0; i < 4000; ++i)
-        {
-            if (pred())
-                return;
-            std::this_thread::yield();
-        }
         while (!pred())
-            std::this_thread::sleep_for(std::chrono::microseconds(50));
+        {
+            std::this_thread::yield();
+            for (int i = 0; i < 16 && !pred(); ++i)
+                _mm_pause();
+        }
     }
 }
 
@@ -912,7 +990,9 @@ void GSCpuBackend::WorkerMain(uint32_t index)
         Command &command = m_ring[idx % kRingSize];
         if (!command.global)
         {
+            t_drawPalette = command.palette ? command.palette->data() : nullptr;
             DrawPrimitive(command.batch);
+            t_drawPalette = nullptr;
         }
         else if (index == 0u)
         {
@@ -962,13 +1042,63 @@ void GSCpuBackend::EnqueueUnlocked(Command &&command)
     }
 }
 
-void GSCpuBackend::EnqueueGlobalUnlocked(std::function<void()> fn)
+void GSCpuBackend::EnqueueGlobalUnlocked(std::function<void()> fn, uint32_t touchStart, uint32_t touchEnd)
 {
+    g_perfGsBarriers.fetch_add(1u, std::memory_order_relaxed);
     Command command;
     command.global = true;
     command.fn = std::move(fn);
+    if (!m_epochs.empty())
+    {
+        const uint64_t done = MinDone();
+        m_epochs.erase(std::remove_if(m_epochs.begin(), m_epochs.end(),
+                                      [done](const Epoch &e)
+                                      { return e.globalIdx < done; }),
+                       m_epochs.end());
+    }
+    Epoch epoch;
+    epoch.globalIdx = m_writeIdx.load(std::memory_order_relaxed);
+    epoch.ranges = std::move(m_dirty);
+    epoch.ranges.insert(epoch.ranges.end(), m_reads.begin(), m_reads.end());
+    if (touchEnd > touchStart)
+        epoch.ranges.push_back({~0ull, touchStart, touchEnd});
     EnqueueUnlocked(std::move(command));
+    m_epochs.push_back(std::move(epoch));
+    if (m_epochs.size() > 256u)
+    {
+        // Bound the bookkeeping: wait for the oldest epochs to retire.
+        SyncUnlocked();
+        m_epochs.clear();
+    }
     m_dirty.clear();
+    m_reads.clear();
+}
+
+bool GSCpuBackend::CanRunDirectUnlocked(uint32_t start, uint32_t end) const
+{
+    // True when no queued-but-unfinished command reads or writes [start, end): then this thread
+    // may touch that memory right now without changing any result.
+    auto hit = [&](const DirtyRange &range)
+    { return range.start < end && start < range.end; };
+    for (const DirtyRange &range : m_dirty)
+        if (hit(range))
+            return false;
+    for (const DirtyRange &range : m_reads)
+        if (hit(range))
+            return false;
+    if (!m_epochs.empty())
+    {
+        const uint64_t done = MinDone();
+        for (const Epoch &epoch : m_epochs)
+        {
+            if (epoch.globalIdx < done)
+                continue; // finished
+            for (const DirtyRange &range : epoch.ranges)
+                if (hit(range))
+                    return false;
+        }
+    }
+    return true;
 }
 
 void GSCpuBackend::SyncUnlocked() const
@@ -978,6 +1108,7 @@ void GSCpuBackend::SyncUnlocked() const
     const uint64_t target = m_writeIdx.load(std::memory_order_acquire);
     if (MinDone() >= target)
         return;
+    g_perfGsSyncs.fetch_add(1u, std::memory_order_relaxed);
     const uint64_t t0 = gsNowNs();
     gsWaitUntil([&]()
                 { return MinDone() >= target; });
@@ -992,14 +1123,41 @@ void GSCpuBackend::NoteDrawHazardsUnlocked(const GSPrimitiveBatch &batch)
     constexpr uint32_t kVramBytes = 4u * 1024u * 1024u;
     const GSDrawState &state = batch.state;
     const GSContext &ctx = state.context;
-    const uint32_t rowsOfPages = (static_cast<uint32_t>(ctx.scissor.y1) >> 5u) + 1u;
     const uint32_t fbw = std::max<uint32_t>(ctx.frame.fbw, 1u);
 
-    auto makeRange = [&](uint64_t key, uint32_t basePage, uint32_t widthPages, uint32_t pageRows) -> DirtyRange
+    // Rows the primitive can touch: its vertex y extent clipped to the scissor.
+    int yMin = ctx.scissor.y1, yMax = ctx.scissor.y0;
+    int xMin = ctx.scissor.x1, xMax = ctx.scissor.x0;
     {
-        const uint32_t start = std::min<uint32_t>(basePage * 8192u, kVramBytes);
-        const uint64_t end = static_cast<uint64_t>(start) + static_cast<uint64_t>(pageRows) * widthPages * 8192u;
-        return {key, start, static_cast<uint32_t>(std::min<uint64_t>(end, kVramBytes))};
+        const int ofx = ctx.xyoffset.ofx >> 4;
+        const int ofy = ctx.xyoffset.ofy >> 4;
+        const uint32_t count = (state.prim.type == GS_PRIM_SPRITE || state.prim.type == GS_PRIM_LINE || state.prim.type == GS_PRIM_LINESTRIP) ? 2u
+                               : (state.prim.type == GS_PRIM_POINT ? 1u : 3u);
+        for (uint32_t i = 0; i < count; ++i)
+        {
+            const float fy = batch.vertices[i].y - static_cast<float>(ofy);
+            yMin = std::min(yMin, static_cast<int>(std::floor(fy)) - 1);
+            yMax = std::max(yMax, static_cast<int>(std::ceil(fy)) + 1);
+            const float fx = batch.vertices[i].x - static_cast<float>(ofx);
+            xMin = std::min(xMin, static_cast<int>(std::floor(fx)) - 1);
+            xMax = std::max(xMax, static_cast<int>(std::ceil(fx)) + 1);
+        }
+        xMin = std::max<int>(xMin, ctx.scissor.x0);
+        xMax = std::min<int>(xMax, ctx.scissor.x1);
+        if (xMax < xMin)
+            xMax = xMin;
+        yMin = std::max<int>(yMin, ctx.scissor.y0);
+        yMax = std::min<int>(yMax, ctx.scissor.y1);
+        if (yMax < yMin)
+            yMax = yMin;
+    }
+    auto makeRange = [&](uint64_t key, uint32_t basePage, uint32_t width64, uint32_t psm) -> DirtyRange
+    {
+        // Rows between yMin and yMax span whole page rows, so the column bounds only tighten the
+        // first and last page row; that is what gsBufferRange's row-major bounds assume.
+        const GsByteRange r = gsBufferRange(basePage * 32u, width64, psm, static_cast<uint32_t>(yMax) + 1u, static_cast<uint32_t>(yMin),
+                                            static_cast<uint32_t>(xMin), static_cast<uint32_t>(xMax));
+        return {key, r.start, r.end};
     };
     auto overlaps = [](const DirtyRange &a, const DirtyRange &b)
     { return a.start < b.end && b.start < a.end; };
@@ -1008,25 +1166,27 @@ void GSCpuBackend::NoteDrawHazardsUnlocked(const GSPrimitiveBatch &batch)
     uint32_t targetCount = 0u;
     targets[targetCount++] = makeRange(static_cast<uint64_t>(ctx.frame.fbp) | (static_cast<uint64_t>(fbw) << 16) |
                                            (static_cast<uint64_t>(ctx.frame.psm) << 32),
-                                       ctx.frame.fbp, fbw, rowsOfPages);
+                                       ctx.frame.fbp, fbw, ctx.frame.psm);
     const uint32_t ztestMethod = static_cast<uint32_t>((ctx.test >> 17) & 3u);
     if (ztestMethod >= 2u || !ctx.zbuf.zmask)
         targets[targetCount++] = makeRange(static_cast<uint64_t>(ctx.zbuf.zbp) | (static_cast<uint64_t>(fbw) << 16) |
                                                (static_cast<uint64_t>(ctx.zbuf.psm) << 32) | (1ull << 40),
-                                           ctx.zbuf.zbp, fbw, rowsOfPages);
+                                           ctx.zbuf.zbp, fbw, ctx.zbuf.psm);
 
     bool barrier = m_dirty.size() >= 16u;
+    DirtyRange tex{0u, 0u, 0u};
+    if (state.prim.tme)
+    {
+        const GsByteRange r = gsBufferRange(ctx.tex0.tbp0, ctx.tex0.tbw, ctx.tex0.psm, state.textureHeight);
+        tex = {0u, r.start, r.end};
+    }
     if (!barrier && state.prim.tme)
     {
-        const uint32_t texStart = std::min<uint32_t>(ctx.tex0.tbp0 * 256u, kVramBytes);
-        const uint32_t texRows = (static_cast<uint32_t>(state.textureHeight) + 31u) / 32u + 1u;
-        const uint64_t texEnd = static_cast<uint64_t>(texStart) +
-                                static_cast<uint64_t>(texRows) * std::max<uint32_t>(ctx.tex0.tbw, 1u) * 8192u;
-        const DirtyRange tex{0u, texStart, static_cast<uint32_t>(std::min<uint64_t>(texEnd, kVramBytes))};
         for (const DirtyRange &dirty : m_dirty)
             if (overlaps(dirty, tex))
             {
                 barrier = true;
+                if (s_gsHazDebug) std::fprintf(stderr, "HAZ tex tbp=%x tbw=%u psm=%x th=%u [%x,%x) vs key=%llx [%x,%x) fbp=%x\n", ctx.tex0.tbp0, ctx.tex0.tbw, ctx.tex0.psm, state.textureHeight, tex.start, tex.end, (unsigned long long)dirty.key, dirty.start, dirty.end, ctx.frame.fbp);
                 break;
             }
     }
@@ -1034,11 +1194,15 @@ void GSCpuBackend::NoteDrawHazardsUnlocked(const GSPrimitiveBatch &batch)
         for (const DirtyRange &dirty : m_dirty)
             if (dirty.key != targets[t].key && overlaps(dirty, targets[t]))
             {
+                if (s_gsHazDebug) std::fprintf(stderr, "HAZ tgt key=%llx [%x,%x) vs key=%llx [%x,%x)\n", (unsigned long long)targets[t].key, targets[t].start, targets[t].end, (unsigned long long)dirty.key, dirty.start, dirty.end);
                 barrier = true;
                 break;
             }
     if (barrier)
-        EnqueueGlobalUnlocked(nullptr);
+    {
+        g_perfGsHazards.fetch_add(1u, std::memory_order_relaxed);
+        EnqueueGlobalUnlocked(nullptr, 0u, 0u);
+    }
 
     for (uint32_t t = 0; t < targetCount; ++t)
     {
@@ -1053,6 +1217,29 @@ void GSCpuBackend::NoteDrawHazardsUnlocked(const GSPrimitiveBatch &batch)
             }
         if (!merged)
             m_dirty.push_back(targets[t]);
+    }
+
+    if (state.prim.tme && tex.end > tex.start)
+    {
+        bool merged = false;
+        for (DirtyRange &read : m_reads)
+            if (read.start <= tex.end && tex.start <= read.end)
+            {
+                read.start = std::min(read.start, tex.start);
+                read.end = std::max(read.end, tex.end);
+                merged = true;
+                break;
+            }
+        if (!merged)
+        {
+            if (m_reads.size() >= 32u)
+            {
+                m_reads.back().start = std::min(m_reads.back().start, tex.start);
+                m_reads.back().end = std::max(m_reads.back().end, tex.end);
+            }
+            else
+                m_reads.push_back(tex);
+        }
     }
 }
 
@@ -1702,6 +1889,19 @@ GS_FORCEINLINE void GSCpuBackend::WritePixelFast(const GSPixelPipe &p, int x, in
         p.writeZ(vram, p.zbp, p.fbw, x, y, z);
 }
 
+uint64_t GSCpuBackend::PaletteKey(const GSDrawState &state) const
+{
+    const auto &tex = state.context.tex0;
+    return static_cast<uint64_t>(tex.cpsm) |
+           (static_cast<uint64_t>(tex.csm & 1u) << 8) |
+           (static_cast<uint64_t>(tex.csa & 0x1Fu) << 9) |
+           (static_cast<uint64_t>(isFourBitIndexedPsm(tex.psm) ? 1u : 0u) << 14) |
+           (static_cast<uint64_t>(isEightBitIndexedPsm(tex.psm) ? 1u : 0u) << 15) |
+           (static_cast<uint64_t>(state.texa.ta0) << 16) |
+           (static_cast<uint64_t>(state.texa.ta1) << 24) |
+           (static_cast<uint64_t>(state.texa.aem ? 1u : 0u) << 32);
+}
+
 void GSCpuBackend::SetupSampler(const GSDrawState &state, GSTexSampler &s)
 {
     const auto &ctx = state.context;
@@ -1749,15 +1949,13 @@ void GSCpuBackend::SetupSampler(const GSDrawState &state, GSTexSampler &s)
     case GS_PSM_T4HH:
     {
         s.kind = GSTexSampler::Clut;
+        if (t_drawPalette)
+        {
+            s.palette = t_drawPalette;
+            break;
+        }
         const bool four = isFourBitIndexedPsm(tex.psm);
-        const uint64_t key = static_cast<uint64_t>(tex.cpsm) |
-                             (static_cast<uint64_t>(tex.csm & 1u) << 8) |
-                             (static_cast<uint64_t>(tex.csa & 0x1Fu) << 9) |
-                             (static_cast<uint64_t>(four ? 1u : 0u) << 14) |
-                             (static_cast<uint64_t>(isEightBitIndexedPsm(tex.psm) ? 1u : 0u) << 15) |
-                             (static_cast<uint64_t>(state.texa.ta0) << 16) |
-                             (static_cast<uint64_t>(state.texa.ta1) << 24) |
-                             (static_cast<uint64_t>(state.texa.aem ? 1u : 0u) << 32);
+        const uint64_t key = PaletteKey(state);
         PaletteCache &cache = m_paletteCaches[t_workerSlot];
         if (cache.version != m_clutVersion || cache.key != key)
         {
@@ -2211,11 +2409,11 @@ std::atomic<uint32_t> g_ssx3TransferLogged{0}; // reset by F10 (ps2_runtime.cpp)
 void GSCpuBackend::BeginTransfer(const GSTransferCommand &command)
 {
     std::lock_guard<std::mutex> lock(m_mutex);
-    if (threaded())
-        EnqueueGlobalUnlocked([this, command]()
-                              { BeginTransferUnlocked(command); });
-    else
-        BeginTransferUnlocked(command);
+    // Threaded mode: m_transfer/m_transferState belong to this thread. Queued upload chunks carry
+    // their own copy of the transfer and start position, so transfers never wait on each other.
+    if (threaded() && command.direction != 0u)
+        SyncUnlocked(); // local->local / local->host read VRAM: let queued work land first
+    BeginTransferUnlocked(command);
 }
 
 void GSCpuBackend::BeginTransferUnlocked(const GSTransferCommand &command)
@@ -2257,9 +2455,30 @@ void GSCpuBackend::UploadImage(const uint8_t *data, uint32_t sizeBytes)
         return;
     if (threaded())
     {
+        // Write straight into VRAM from this thread when no queued draw reads or writes the
+        // destination; otherwise queue it in order behind those draws.
+        const GSTransferCommand &t = m_transfer;
+        if (m_transferState.direction != 0u || t.trxreg.rrw == 0u || t.trxreg.rrh == 0u || m_transferState.totalPixels == 0u)
+            return;
+        const GsByteRange r = gsBufferRange(t.bitbltbuf.dbp, t.bitbltbuf.dbw, t.bitbltbuf.dpsm,
+                                            static_cast<uint32_t>(t.trxpos.dsay) + static_cast<uint32_t>(t.trxreg.rrh));
+        if (CanRunDirectUnlocked(r.start, r.end))
+        {
+            UploadImageUnlocked(data, sizeBytes);
+            return;
+        }
+        // Queue the chunk behind the draws that still use that memory, with its own copy of the
+        // transfer and start position; this thread's transfer state advances right away.
+        g_perfGsUploadBarriers.fetch_add(1u, std::memory_order_relaxed);
         auto copy = std::make_shared<std::vector<uint8_t>>(data, data + sizeBytes);
-        EnqueueGlobalUnlocked([this, copy]()
-                              { UploadImageUnlocked(copy->data(), static_cast<uint32_t>(copy->size())); });
+        const GSTransferCommand xfer = m_transfer;
+        const GSTransferSnapshot start = m_transferState;
+        UploadImageImpl(m_transfer, m_transferState, data, sizeBytes, false);
+        EnqueueGlobalUnlocked([this, copy, xfer, start]()
+                              {
+                                  GSTransferSnapshot st = start;
+                                  UploadImageImpl(xfer, st, copy->data(), static_cast<uint32_t>(copy->size()), true); },
+                              r.start, r.end);
     }
     else
         UploadImageUnlocked(data, sizeBytes);
@@ -2267,36 +2486,49 @@ void GSCpuBackend::UploadImage(const uint8_t *data, uint32_t sizeBytes)
 
 void GSCpuBackend::UploadImageUnlocked(const uint8_t *data, uint32_t sizeBytes)
 {
-    if (!data || sizeBytes == 0u || !m_vram || m_transferState.direction != 0u)
+    UploadImageImpl(m_transfer, m_transferState, data, sizeBytes, true);
+}
+
+// Writes one chunk of a host->local transfer described by `xfer`, advancing `st`. With
+// write=false only `st` advances (the producer's bookkeeping for a chunk handed to the queue).
+void GSCpuBackend::UploadImageImpl(const GSTransferCommand &xfer, GSTransferSnapshot &st,
+                                   const uint8_t *data, uint32_t sizeBytes, bool write)
+{
+    auto writePx = [&](uint32_t psm, uint32_t bp, uint32_t bw, uint32_t x, uint32_t y, uint32_t v)
+    {
+        if (write)
+            WriteVramUnlocked(psm, bp, bw, x, y, v);
+    };
+    if (!data || sizeBytes == 0u || !m_vram || st.direction != 0u)
         return;
-    if (m_transfer.trxreg.rrw == 0u || m_transfer.trxreg.rrh == 0u || m_transferState.totalPixels == 0u)
+    if (xfer.trxreg.rrw == 0u || xfer.trxreg.rrh == 0u || st.totalPixels == 0u)
         return;
 
-    const uint32_t dbp = m_transfer.bitbltbuf.dbp;
-    const uint32_t dbw = std::max<uint32_t>(m_transfer.bitbltbuf.dbw, 1u);
-    const uint8_t dpsm = m_transfer.bitbltbuf.dpsm;
-    const uint32_t rrw = m_transfer.trxreg.rrw;
-    const uint32_t dsax = m_transfer.trxpos.dsax;
+    const uint32_t dbp = xfer.bitbltbuf.dbp;
+    const uint32_t dbw = std::max<uint32_t>(xfer.bitbltbuf.dbw, 1u);
+    const uint8_t dpsm = xfer.bitbltbuf.dpsm;
+    const uint32_t rrw = xfer.trxreg.rrw;
+    const uint32_t dsax = xfer.trxpos.dsax;
     uint32_t offset = 0u;
 
     auto advancePixel = [&](uint32_t count)
     {
-        const uint32_t totalPixels = m_transferState.totalPixels;
-        m_transferState.copiedPixels =
-            std::min<uint32_t>(totalPixels, m_transferState.copiedPixels + count);
+        const uint32_t totalPixels = st.totalPixels;
+        st.copiedPixels =
+            std::min<uint32_t>(totalPixels, st.copiedPixels + count);
 
-        if (m_transferState.copiedPixels >= totalPixels)
+        if (st.copiedPixels >= totalPixels)
         {
-            m_transferState.direction = 3u;
-            m_transferState.totalPixels = 0u;
+            st.direction = 3u;
+            st.totalPixels = 0u;
             return;
         }
 
-        m_transferState.x = dsax + (m_transferState.copiedPixels % rrw);
-        m_transferState.y = m_transfer.trxpos.dsay + (m_transferState.copiedPixels / rrw);
+        st.x = dsax + (st.copiedPixels % rrw);
+        st.y = xfer.trxpos.dsay + (st.copiedPixels / rrw);
     };
 
-    while (offset < sizeBytes && m_transferState.direction == 0u)
+    while (offset < sizeBytes && st.direction == 0u)
     {
         switch (dpsm)
         {
@@ -2307,7 +2539,7 @@ void GSCpuBackend::UploadImageUnlocked(const uint8_t *data, uint32_t sizeBytes)
                 return;
             uint32_t value = 0u;
             std::memcpy(&value, data + offset, sizeof(value));
-            WriteVramUnlocked(dpsm, dbp, dbw, m_transferState.x, m_transferState.y, value);
+            writePx(dpsm, dbp, dbw, st.x, st.y, value);
             offset += 4u;
             advancePixel(1u);
             break;
@@ -2320,7 +2552,7 @@ void GSCpuBackend::UploadImageUnlocked(const uint8_t *data, uint32_t sizeBytes)
             const uint32_t value = static_cast<uint32_t>(data[offset]) |
                                    (static_cast<uint32_t>(data[offset + 1u]) << 8u) |
                                    (static_cast<uint32_t>(data[offset + 2u]) << 16u);
-            WriteVramUnlocked(dpsm, dbp, dbw, m_transferState.x, m_transferState.y, value);
+            writePx(dpsm, dbp, dbw, st.x, st.y, value);
             offset += 3u;
             advancePixel(1u);
             break;
@@ -2334,14 +2566,14 @@ void GSCpuBackend::UploadImageUnlocked(const uint8_t *data, uint32_t sizeBytes)
                 return;
             uint16_t value = 0u;
             std::memcpy(&value, data + offset, sizeof(value));
-            WriteVramUnlocked(dpsm, dbp, dbw, m_transferState.x, m_transferState.y, value);
+            writePx(dpsm, dbp, dbw, st.x, st.y, value);
             offset += 2u;
             advancePixel(1u);
             break;
         }
         case GS_PSM_T8:
         case GS_PSM_T8H:
-            WriteVramUnlocked(dpsm, dbp, dbw, m_transferState.x, m_transferState.y, data[offset++]);
+            writePx(dpsm, dbp, dbw, st.x, st.y, data[offset++]);
             advancePixel(1u);
             break;
         case GS_PSM_T4:
@@ -2349,20 +2581,20 @@ void GSCpuBackend::UploadImageUnlocked(const uint8_t *data, uint32_t sizeBytes)
         case GS_PSM_T4HH:
         {
             const uint8_t packed = data[offset++];
-            const uint32_t firstPixel = m_transferState.copiedPixels;
-            WriteVramUnlocked(dpsm, dbp, dbw,
+            const uint32_t firstPixel = st.copiedPixels;
+            writePx(dpsm, dbp, dbw,
                               dsax + (firstPixel % rrw),
-                              m_transfer.trxpos.dsay + (firstPixel / rrw),
+                              xfer.trxpos.dsay + (firstPixel / rrw),
                               packed & 0x0Fu);
-            if (firstPixel + 1u < m_transferState.totalPixels)
+            if (firstPixel + 1u < st.totalPixels)
             {
                 const uint32_t secondPixel = firstPixel + 1u;
-                WriteVramUnlocked(dpsm, dbp, dbw,
+                writePx(dpsm, dbp, dbw,
                                   dsax + (secondPixel % rrw),
-                                  m_transfer.trxpos.dsay + (secondPixel / rrw),
+                                  xfer.trxpos.dsay + (secondPixel / rrw),
                                   (packed >> 4u) & 0x0Fu);
             }
-            advancePixel(std::min<uint32_t>(2u, m_transferState.totalPixels - firstPixel));
+            advancePixel(std::min<uint32_t>(2u, st.totalPixels - firstPixel));
             break;
         }
         default:
