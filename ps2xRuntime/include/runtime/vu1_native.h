@@ -97,6 +97,7 @@ struct VU1NativeImage
     const uint16_t *spans;     // [start, end) byte pairs, terminated by {0, 0}
     const uint16_t *entries;   // entry PCs, terminated by 0xFFFF
     VU1NativeProgramFn fn;
+    bool vu0 = false;          // translated from VU0 micro memory (4 KiB code/data)
 };
 
 #if defined(_MSC_VER)
@@ -536,8 +537,8 @@ namespace vu1n
     }
 }
 
-// Called by VU1Interpreter::execute for VU1: runs a translated program if one matches the code
-// currently in VU1 micro memory. Returns false if there is none (the interpreter runs it). With
+// Called by VU1Interpreter::execute (VU1, and VU0 micro mode): runs a translated program if one
+// matches the code currently in that unit's micro memory. Returns false if there is none (the interpreter runs it). With
 // handedOff set, the interpreter must continue (run()) from the state that was loaded into it.
 bool vu1NativeLookupAndRun(VU1Interpreter &vu, uint8_t *vuCode, uint8_t *vuData, uint32_t dataSize,
                            GS &gs, PS2Memory *memory, uint32_t startPC, uint32_t maxCycles, bool &handedOff);

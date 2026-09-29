@@ -27,6 +27,8 @@ extern std::atomic<uint32_t> g_ps2WatchChain; // ps2_runtime.cpp
 extern std::atomic<uint64_t> g_perfVif1Ns, g_perfGsNs; // ps2_runtime.cpp
 extern std::atomic<uint64_t> g_perfGsWorkerNs, g_perfGsWaitNs; // gs_cpu_backend.cpp
 extern std::atomic<uint64_t> g_vu1NativeRuns, g_vu1NativeMisses, g_vu1NativeHandoffs; // vu1_native.cpp
+extern std::atomic<uint64_t> g_vu0NativeRuns, g_vu0NativeMisses; // vu1_native.cpp
+extern std::atomic<uint64_t> g_perfVu0Ns, g_perfVu0Calls; // ps2_runtime.cpp
 extern std::atomic<uint64_t> g_perfGsSyncCount[9], g_perfGsSyncNs[9], g_perfGsQueueFullNs; // gs_cpu_backend.cpp
 
 namespace
@@ -346,6 +348,20 @@ namespace
                 lastNative = native;
                 lastMiss = miss;
                 lastHandoff = handoff;
+                {
+                    static uint64_t lastV0Ns = 0u, lastV0Calls = 0u, lastV0Native = 0u, lastV0Miss = 0u;
+                    const uint64_t v0ns = g_perfVu0Ns.load(std::memory_order_relaxed);
+                    const uint64_t v0calls = g_perfVu0Calls.load(std::memory_order_relaxed);
+                    const uint64_t v0native = g_vu0NativeRuns.load(std::memory_order_relaxed);
+                    const uint64_t v0miss = g_vu0NativeMisses.load(std::memory_order_relaxed);
+                    std::fprintf(stderr, "[ssx3:perf]   VU0 micro: %.1f calls/frame, %.2f ms/frame (native %llu, interpreted %llu)\n",
+                                 static_cast<double>(v0calls - lastV0Calls) / frames, (v0ns - lastV0Ns) / 1e6 / frames,
+                                 static_cast<unsigned long long>(v0native - lastV0Native), static_cast<unsigned long long>(v0miss - lastV0Miss));
+                    lastV0Ns = v0ns;
+                    lastV0Calls = v0calls;
+                    lastV0Native = v0native;
+                    lastV0Miss = v0miss;
+                }
                 {
                     // Where the EE thread waited for the raster threads (per frame).
                     static const char *names[9] = {"reset", "clut", "sync", "readvram", "snapshot", "xferstate", "epochs", "xfer", "readback"};

@@ -395,6 +395,7 @@ add_library(ps2_runtime STATIC
     src/lib/vu/ps2_vu1_lower.cpp
     src/lib/vu/vu1_native.cpp
     src/lib/vu/generated/vu1_programs.cpp
+    src/lib/vu/generated/vu0_programs.cpp
     src/lib/ps2_profiler.cpp
     src/lib/games_database.cpp
 )
@@ -405,7 +406,7 @@ if(MSVC)
     set_source_files_properties(src/lib/vu/generated/vu1_programs.cpp PROPERTIES COMPILE_OPTIONS "/bigobj")
 endif()
 
-# Offline VU1 microprogram translator: vu1recomp out.cpp vu1_programs.bin [...]
+# Offline VU microprogram translator: vu1recomp [--vu0] out.cpp vu1_programs.bin [...]
 add_executable(vu1recomp EXCLUDE_FROM_ALL tools/vu1recomp/vu1recomp.cpp)
 target_include_directories(vu1recomp PRIVATE include include/runtime src/lib)
 target_link_libraries(vu1recomp PRIVATE ps2_runtime)

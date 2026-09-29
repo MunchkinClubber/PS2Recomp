@@ -1688,6 +1688,8 @@ void PS2Runtime::SignalException(R5900Context *ctx, PS2Exception exception)
                        exception == EXCEPTION_TLB_REFILL);
 }
 
+std::atomic<uint64_t> g_perfVu0Ns{0}, g_perfVu0Calls{0}; // [ssx3:perf] VU0 micro-mode time
+
 void PS2Runtime::executeVU0Microprogram(uint8_t *rdram, R5900Context *ctx, uint32_t address)
 {
     (void)rdram;
@@ -1725,6 +1727,7 @@ void PS2Runtime::executeVU0Microprogram(uint8_t *rdram, R5900Context *ctx, uint3
     if (ssx3RecVu0)
         ssx3RecordVu0('U');
 
+    const auto vu0Start = std::chrono::steady_clock::now();
     m_vu0.reset();
     copyVu0ContextToState(ctx, m_vu0.state());
     m_vu0.execute(vu0Code, PS2_VU0_CODE_SIZE,
@@ -1732,6 +1735,10 @@ void PS2Runtime::executeVU0Microprogram(uint8_t *rdram, R5900Context *ctx, uint3
                   m_gs, &m_memory,
                   startPC, 0u, ctx->vu0_itop, 1u << 20);
     copyVu0StateToContext(m_vu0.state(), ctx);
+    g_perfVu0Calls.fetch_add(1u, std::memory_order_relaxed);
+    g_perfVu0Ns.fetch_add(static_cast<uint64_t>(std::chrono::duration_cast<std::chrono::nanoseconds>(
+                              std::chrono::steady_clock::now() - vu0Start).count()),
+                          std::memory_order_relaxed);
     if (ssx3RecVu0)
         ssx3RecordVu0('u');
 }

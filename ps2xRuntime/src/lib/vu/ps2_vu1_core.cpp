@@ -1692,9 +1692,9 @@ void VU1Interpreter::execute(uint8_t *vuCode, uint32_t codeSize,
     m_state.vf[0][1] = 0.0f;
     m_state.vf[0][2] = 0.0f;
     m_state.vf[0][3] = 1.0f;
-    if (m_unit == Unit::VU1)
     {
-        // Statically recompiled program (vu1_native.cpp) when one matches the code in micro memory.
+        // Statically recompiled program (vu1_native.cpp) when one matches the code in micro memory
+        // (VU1, or VU0 micro mode).
         const uint64_t startCycle = m_cycle;
         bool handedOff = false;
         m_activeVuData = vuData;
@@ -1711,7 +1711,8 @@ void VU1Interpreter::execute(uint8_t *vuCode, uint32_t codeSize,
             }
             else
             {
-                g_ssx3VuRuns.fetch_add(1u, std::memory_order_relaxed);
+                if (m_unit == Unit::VU1)
+                    g_ssx3VuRuns.fetch_add(1u, std::memory_order_relaxed);
                 m_state.ebit = false;
                 m_state.haltAfterDelaySlot = false;
                 m_pendingHaltD = false;

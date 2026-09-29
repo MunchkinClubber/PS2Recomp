@@ -18,6 +18,8 @@ extern std::atomic<uint32_t> g_ssx3Xgkicks; // ps2_vu1_core.cpp
 std::atomic<uint64_t> g_vu1NativeRuns{0};
 std::atomic<uint64_t> g_vu1NativeHandoffs{0};
 std::atomic<uint64_t> g_vu1NativeMisses{0};
+std::atomic<uint64_t> g_vu0NativeRuns{0};
+std::atomic<uint64_t> g_vu0NativeMisses{0};
 
 // Friend of VU1Interpreter: the translated programs' view of the interpreter internals.
 struct VU1NativeAccess
@@ -289,13 +291,14 @@ namespace vu1n
 
 }
 
-extern int g_vu1NativeGeneratedImages; // generated translation unit (keeps it linked)
+extern int g_vu1NativeGeneratedImages; // generated translation units (keep them linked)
+extern int g_vu0NativeGeneratedImages;
 
 namespace
 {
     // Programs that ran without a translation are appended to vu1_programs.bin (input format of
     // tools/vu1recomp) so they can be translated later. PS2_VU1_DUMP=0 turns this off.
-    void dumpUntranslated(const uint8_t *code, uint32_t startPC)
+    void dumpUntranslated(const uint8_t *code, uint32_t startPC, bool vu0)
     {
         static const bool enabled = []
         {
@@ -306,25 +309,27 @@ namespace
             return;
         static std::mutex mutex;
         static std::set<std::pair<uint64_t, uint32_t>> seen;
-        static uint32_t written = 0;
+        static uint32_t written[2] = {0u, 0u};
         std::lock_guard<std::mutex> lock(mutex);
-        uint64_t h = 1469598103934665603ull;
-        for (uint32_t i = 0; i < PS2_VU1_CODE_SIZE; ++i)
+        const uint32_t size = vu0 ? PS2_VU0_CODE_SIZE : PS2_VU1_CODE_SIZE;
+        const char *file = vu0 ? "vu0_programs.bin" : "vu1_programs.bin";
+        uint64_t h = vu0 ? 0x9e3779b97f4a7c15ull : 1469598103934665603ull;
+        for (uint32_t i = 0; i < size; ++i)
         {
             h ^= code[i];
             h *= 1099511628211ull;
         }
-        if (!seen.insert({h, startPC}).second || written >= 512u)
+        if (!seen.insert({h, startPC}).second || written[vu0 ? 1 : 0] >= 512u)
             return;
-        if (FILE *f = std::fopen("vu1_programs.bin", "ab"))
+        if (FILE *f = std::fopen(file, "ab"))
         {
             const uint32_t hdr[2] = {startPC, 1u};
             std::fwrite(hdr, sizeof(hdr), 1, f);
-            std::fwrite(code, 1, PS2_VU1_CODE_SIZE, f);
+            std::fwrite(code, 1, size, f);
             std::fclose(f);
-            ++written;
-            std::fprintf(stderr, "[vu1n] no translation for VU1 program at 0x%X (code %016llx) - saved to vu1_programs.bin\n",
-                         startPC, static_cast<unsigned long long>(h));
+            ++written[vu0 ? 1 : 0];
+            std::fprintf(stderr, "[vu1n] no translation for %s program at 0x%X (code %016llx) - saved to %s\n",
+                         vu0 ? "VU0" : "VU1", startPC, static_cast<unsigned long long>(h), file);
         }
     }
 }
@@ -342,8 +347,13 @@ bool vu1NativeLookupAndRun(VU1Interpreter &vu, uint8_t *vuCode, uint8_t *vuData,
 {
     using namespace vu1n;
     handedOff = false;
-    if (!g_vu1NativeEnabled || !memory || vuCode != memory->getVU1Code() || g_vu1NativeGeneratedImages == 0)
+    if (!g_vu1NativeEnabled || !memory)
         return false;
+    const bool vu0 = vuCode == memory->getVU0Code();
+    if (!vu0 && vuCode != memory->getVU1Code())
+        return false;
+    // Untranslated programs are still dumped when no images exist yet (to seed the generator).
+    const bool haveImages = (vu0 ? g_vu0NativeGeneratedImages : g_vu1NativeGeneratedImages) != 0;
 
     // Per entry PC: the matched image plus a copy of the code it was translated from. The game
     // re-uploads microcode many times a frame (bumping the generation), usually unchanged, so a
@@ -354,14 +364,15 @@ bool vu1NativeLookupAndRun(VU1Interpreter &vu, uint8_t *vuCode, uint8_t *vuData,
         std::vector<uint8_t> bytes;
         uint64_t validated = ~0ull;
     };
-    thread_local std::unordered_map<uint32_t, Entry> cache;
-    thread_local const uint8_t *cacheCode = nullptr;
-    if (cacheCode != vuCode)
+    thread_local std::unordered_map<uint32_t, Entry> caches[2]; // VU1, VU0
+    thread_local const uint8_t *cacheCodes[2] = {nullptr, nullptr};
+    auto &cache = caches[vu0 ? 1 : 0];
+    if (cacheCodes[vu0 ? 1 : 0] != vuCode)
     {
         cache.clear();
-        cacheCode = vuCode;
+        cacheCodes[vu0 ? 1 : 0] = vuCode;
     }
-    const uint64_t generation = memory->getVU1CodeGeneration();
+    const uint64_t generation = vu0 ? memory->getVU0CodeGeneration() : memory->getVU1CodeGeneration();
     Entry &entry = cache[startPC];
     if (entry.validated != generation)
     {
@@ -384,6 +395,8 @@ bool vu1NativeLookupAndRun(VU1Interpreter &vu, uint8_t *vuCode, uint8_t *vuData,
             std::lock_guard<std::mutex> lock(registryMutex());
             for (const VU1NativeImage *candidate : registry())
             {
+                if (candidate->vu0 != vu0)
+                    continue;
                 bool hasEntry = false;
                 for (const uint16_t *e = candidate->entries; *e != 0xFFFFu; ++e)
                     if (*e == startPC)
@@ -397,14 +410,14 @@ bool vu1NativeLookupAndRun(VU1Interpreter &vu, uint8_t *vuCode, uint8_t *vuData,
                 }
             }
             if (!entry.image)
-                dumpUntranslated(vuCode, startPC); // once per code change and entry point
+                dumpUntranslated(vuCode, startPC, vu0); // once per code change and entry point
         }
         entry.validated = generation;
     }
     const VU1NativeImage *image = entry.image;
-    if (!image)
+    if (!image || !haveImages)
     {
-        g_vu1NativeMisses.fetch_add(1u, std::memory_order_relaxed);
+        (vu0 ? g_vu0NativeMisses : g_vu1NativeMisses).fetch_add(1u, std::memory_order_relaxed);
         return false;
     }
 
@@ -424,7 +437,7 @@ bool vu1NativeLookupAndRun(VU1Interpreter &vu, uint8_t *vuCode, uint8_t *vuData,
     c.gs = &gs;
     c.memory = memory;
 
-    g_vu1NativeRuns.fetch_add(1u, std::memory_order_relaxed);
+    (vu0 ? g_vu0NativeRuns : g_vu1NativeRuns).fetch_add(1u, std::memory_order_relaxed);
     // Same floating-point environment as VU1Interpreter::run.
     const int previousRounding = std::fegetround();
     const bool vuRounding = std::fesetround(FE_TOWARDZERO) == 0;
