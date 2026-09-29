@@ -495,11 +495,6 @@ private:
     GS m_gs;
     std::unique_ptr<PS2IopHostAdapter> m_iopHost;
     std::unique_ptr<ps2x::iop::IopSubsystem> m_iopSubsystem;
-    // EE cycles owed to the IOP. Every guest dispatch accounts 8 EE cycles (= 1 IOP cycle), and
-    // running the IOP scheduler for a single cycle at a time cost more than the IOP code itself,
-    // so cycles are batched and flushed before anything the EE does that the IOP can observe.
-    mutable uint64_t m_iopPendingEeCycles = 0;
-    void flushIopCycles() const noexcept;
     PS2AudioBackend m_audioBackend;
     PSPadBackend m_padBackend;
     PS2RomDevice m_romDevice;
