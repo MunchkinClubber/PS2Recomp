@@ -25,6 +25,12 @@
 #endif
 
 using namespace GSInternal;
+#ifdef GS_PIXEL_DEBUG
+int g_gsPixDbgX = -1, g_gsPixDbgY = -1;
+#define GS_PIXDBG(tag, X, Y, P, RAW, Z, A) do { if ((X) == g_gsPixDbgX && (Y) == g_gsPixDbgY) std::fprintf(stderr, "  PIX %s test=%llx date=%d raw=%08x z=%08x a=%02x\n", tag, (unsigned long long)(P).test, (int)(P).date, (unsigned)(RAW), (unsigned)(Z), (unsigned)(A)); } while (0)
+#else
+#define GS_PIXDBG(tag, X, Y, P, RAW, Z, A) do { } while (0)
+#endif
 
 // Perf counters (read by the SSX3 [ssx3:perf] report): summed raster-worker busy time, and time
 // the submitting thread spent blocked on the workers (read-backs, FINISH, full queue).
@@ -2008,6 +2014,7 @@ GS_FORCEINLINE void GSCpuBackend::WritePixelFast(const GSPixelPipe &p, int x, in
             fbrgba |= 0x80000000u;
     }
 
+    GS_PIXDBG("fast", x, y, p, rawFramebufferPixel, z, a);
     if (p.date && !passesDestinationAlphaTest(p.test, static_cast<uint8_t>(p.fpsm), rawFramebufferPixel))
         return;
 
@@ -2333,6 +2340,7 @@ namespace
                     fbrgba |= 0x80000000u;
             }
 
+            GS_PIXDBG("span", x, y, p, rawFramebufferPixel, z, a);
             if (p.date && !passesDestinationAlphaTest(p.test, static_cast<uint8_t>(p.fpsm), rawFramebufferPixel))
                 continue;
 

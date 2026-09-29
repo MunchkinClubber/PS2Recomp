@@ -13,8 +13,8 @@ namespace
         handoff(c, pc, branch, target, ebit);
         return kHandoff;
     }
-    VU1N_INLINE float vmax(float a, float b) { return (a > b) ? a : b; }
-    VU1N_INLINE float vmin(float a, float b) { return (a < b) ? a : b; }
+    VU1N_INLINE float vmax(float a, float b) { return vuRawMax(a, b); }
+    VU1N_INLINE float vmin(float a, float b) { return vuRawMin(a, b); }
     VU1N_INLINE float ldf(const uint8_t *m, uint32_t a) { float v; std::memcpy(&v, m + a, 4); return v; }
     VU1N_INLINE uint32_t ldu(const uint8_t *m, uint32_t a) { uint32_t v; std::memcpy(&v, m + a, 4); return v; }
     inline uint32_t clipBits(const float *v, float wf)
@@ -1582,7 +1582,7 @@ static uint32_t vu1prog_0_0800(VU1NativeCtx &c)
         stall(c, c.viReady[2]);
         stall(c, c.viReady[3]);
         alignas(16) float ut[4];
-        _mm_store_ps(ut, v4Max(VN(vf[0]), VN1(vf[0][3]), 12));
+        _mm_store_ps(ut, v4Max(VR(vf[0]), VR1(vf[0][3]), 12));
         const float u2 = ut[2];
         const float u3 = ut[3];
         const int32_t nvi = static_cast<int16_t>(vi[3] + vi[2]);
@@ -22500,7 +22500,7 @@ static uint32_t vu1prog_1_0398(VU1NativeCtx &c)
     // 0440: 00600353 800621B0
     {
         alignas(16) float ut[4];
-        _mm_store_ps(ut, v4Max(VN(vf[0]), VN1(vf[0][3]), 12));
+        _mm_store_ps(ut, v4Max(VR(vf[0]), VR1(vf[0][3]), 12));
         const float u2 = ut[2];
         const float u3 = ut[3];
         const int32_t nvi = static_cast<int16_t>(vi[4] + vi[6]);
@@ -23209,7 +23209,7 @@ static uint32_t vu1prog_1_0448(VU1NativeCtx &c)
     // 0590: 01E09590 8000033C
     {
         alignas(16) float ut[4];
-        _mm_store_ps(ut, v4Max(VN(vf[18]), VN1(vf[0][0]), 15));
+        _mm_store_ps(ut, v4Max(VR(vf[18]), VR1(vf[0][0]), 15));
         const float u0 = ut[0];
         const float u1 = ut[1];
         const float u2 = ut[2];
@@ -23284,7 +23284,7 @@ static uint32_t vu1prog_1_0448(VU1NativeCtx &c)
     // 05B0: 01E0B3DF 8000033C
     {
         alignas(16) float ut[4];
-        _mm_store_ps(ut, v4Min(VN(vf[22]), VN1(s.i), 15));
+        _mm_store_ps(ut, v4Min(VR(vf[22]), VR1(s.i), 15));
         const float u0 = ut[0];
         const float u1 = ut[1];
         const float u2 = ut[2];
@@ -23802,7 +23802,7 @@ static uint32_t vu1prog_1_0628(VU1NativeCtx &c)
     {
         stall(c, c.viReady[2]);
         alignas(16) float ut[4];
-        _mm_store_ps(ut, v4Max(VN(vf[18]), VN1(vf[0][0]), 15));
+        _mm_store_ps(ut, v4Max(VR(vf[18]), VR1(vf[0][0]), 15));
         const float u0 = ut[0];
         const float u1 = ut[1];
         const float u2 = ut[2];
@@ -23885,7 +23885,7 @@ static uint32_t vu1prog_1_0628(VU1NativeCtx &c)
     // 06A8: 01E0B3DF 8000033C
     {
         alignas(16) float ut[4];
-        _mm_store_ps(ut, v4Min(VN(vf[22]), VN1(s.i), 15));
+        _mm_store_ps(ut, v4Min(VR(vf[22]), VR1(s.i), 15));
         const float u0 = ut[0];
         const float u1 = ut[1];
         const float u2 = ut[2];
@@ -24295,7 +24295,7 @@ static uint32_t vu1prog_1_0720(VU1NativeCtx &c)
         stall(c, c.vfReady[18][3]);
         stall(c, c.viReady[2]);
         alignas(16) float ut[4];
-        _mm_store_ps(ut, v4Max(VN(vf[18]), VN1(vf[0][0]), 15));
+        _mm_store_ps(ut, v4Max(VR(vf[18]), VR1(vf[0][0]), 15));
         const float u0 = ut[0];
         const float u1 = ut[1];
         const float u2 = ut[2];
@@ -24317,7 +24317,7 @@ static uint32_t vu1prog_1_0720(VU1NativeCtx &c)
         stall(c, c.vfReady[15][2]);
         stall(c, c.vfReady[15][3]);
         alignas(16) float ut[4];
-        _mm_store_ps(ut, v4Min(VN(vf[15]), VN1(s.i), 15));
+        _mm_store_ps(ut, v4Min(VR(vf[15]), VR1(s.i), 15));
         const float u0 = ut[0];
         const float u1 = ut[1];
         const float u2 = ut[2];
@@ -24886,7 +24886,7 @@ static uint32_t vu1prog_1_07F8(VU1NativeCtx &c)
     // 08E8: 00600353 01D40802
     {
         alignas(16) float ut[4];
-        _mm_store_ps(ut, v4Max(VN(vf[0]), VN1(vf[0][3]), 12));
+        _mm_store_ps(ut, v4Max(VR(vf[0]), VR1(vf[0][3]), 12));
         const float u2 = ut[2];
         const float u3 = ut[3];
         const uint32_t la = ((static_cast<uint32_t>(static_cast<int32_t>(vi[1] + (2))) * 16u) & 0x3FF0u);
@@ -25467,7 +25467,7 @@ static uint32_t vu1prog_1_09B0(VU1NativeCtx &c)
     // 09F0: 01E0E710 8000033C
     {
         alignas(16) float ut[4];
-        _mm_store_ps(ut, v4Max(VN(vf[28]), VN1(vf[0][0]), 15));
+        _mm_store_ps(ut, v4Max(VR(vf[28]), VR1(vf[0][0]), 15));
         const float u0 = ut[0];
         const float u1 = ut[1];
         const float u2 = ut[2];
@@ -25530,7 +25530,7 @@ static uint32_t vu1prog_1_09B0(VU1NativeCtx &c)
     // 0A10: 01E0E71F 8000033C
     {
         alignas(16) float ut[4];
-        _mm_store_ps(ut, v4Min(VN(vf[28]), VN1(s.i), 15));
+        _mm_store_ps(ut, v4Min(VR(vf[28]), VR1(s.i), 15));
         const float u0 = ut[0];
         const float u1 = ut[1];
         const float u2 = ut[2];
@@ -25999,7 +25999,7 @@ static uint32_t vu1prog_1_0AA8(VU1NativeCtx &c)
     // 0AE0: 01E0AD50 8000033C
     {
         alignas(16) float ut[4];
-        _mm_store_ps(ut, v4Max(VN(vf[21]), VN1(vf[0][0]), 15));
+        _mm_store_ps(ut, v4Max(VR(vf[21]), VR1(vf[0][0]), 15));
         const float u0 = ut[0];
         const float u1 = ut[1];
         const float u2 = ut[2];
@@ -26056,7 +26056,7 @@ static uint32_t vu1prog_1_0AA8(VU1NativeCtx &c)
     // 0B00: 01E0AD5F 8000033C
     {
         alignas(16) float ut[4];
-        _mm_store_ps(ut, v4Min(VN(vf[21]), VN1(s.i), 15));
+        _mm_store_ps(ut, v4Min(VR(vf[21]), VR1(s.i), 15));
         const float u0 = ut[0];
         const float u1 = ut[1];
         const float u2 = ut[2];
@@ -26338,7 +26338,7 @@ static uint32_t vu1prog_1_0B58(VU1NativeCtx &c)
     // 0BD0: 01800053 01862B23
     {
         alignas(16) float ut[4];
-        _mm_store_ps(ut, v4Max(VN(vf[0]), VN1(vf[0][3]), 3));
+        _mm_store_ps(ut, v4Max(VR(vf[0]), VR1(vf[0][3]), 3));
         const float u0 = ut[0];
         const float u1 = ut[1];
         const uint32_t la = ((static_cast<uint32_t>(static_cast<int32_t>(vi[5] + (803))) * 16u) & 0x3FF0u);
@@ -27200,7 +27200,7 @@ static uint32_t vu1prog_1_0D20(VU1NativeCtx &c)
     // 0DE0: 01C739AB 01E84802
     {
         alignas(16) float ut[4];
-        _mm_store_ps(ut, v4Max(VN(vf[7]), VN(vf[7]), 7));
+        _mm_store_ps(ut, v4Max(VR(vf[7]), VR(vf[7]), 7));
         const float u0 = ut[0];
         const float u1 = ut[1];
         const float u2 = ut[2];
@@ -27391,7 +27391,7 @@ static uint32_t vu1prog_1_0DF8(VU1NativeCtx &c)
         stall(c, c.vfReady[7][1]);
         stall(c, c.vfReady[7][2]);
         alignas(16) float ut[4];
-        _mm_store_ps(ut, v4Max(VN(vf[7]), VN(vf[7]), 7));
+        _mm_store_ps(ut, v4Max(VR(vf[7]), VR(vf[7]), 7));
         const float u0 = ut[0];
         const float u1 = ut[1];
         const float u2 = ut[2];
@@ -27601,7 +27601,7 @@ static uint32_t vu1prog_1_0E40(VU1NativeCtx &c)
         stall(c, c.vfReady[7][1]);
         stall(c, c.vfReady[7][2]);
         alignas(16) float ut[4];
-        _mm_store_ps(ut, v4Max(VN(vf[7]), VN(vf[7]), 7));
+        _mm_store_ps(ut, v4Max(VR(vf[7]), VR(vf[7]), 7));
         const float u0 = ut[0];
         const float u1 = ut[1];
         const float u2 = ut[2];
@@ -27839,7 +27839,7 @@ static uint32_t vu1prog_1_0E88(VU1NativeCtx &c)
         stall(c, c.vfReady[7][1]);
         stall(c, c.vfReady[7][2]);
         alignas(16) float ut[4];
-        _mm_store_ps(ut, v4Max(VN(vf[7]), VN(vf[7]), 7));
+        _mm_store_ps(ut, v4Max(VR(vf[7]), VR(vf[7]), 7));
         const float u0 = ut[0];
         const float u1 = ut[1];
         const float u2 = ut[2];
@@ -28048,7 +28048,7 @@ static uint32_t vu1prog_1_0ED0(VU1NativeCtx &c)
         stall(c, c.vfReady[7][1]);
         stall(c, c.vfReady[7][2]);
         alignas(16) float ut[4];
-        _mm_store_ps(ut, v4Max(VN(vf[7]), VN(vf[7]), 7));
+        _mm_store_ps(ut, v4Max(VR(vf[7]), VR(vf[7]), 7));
         const float u0 = ut[0];
         const float u1 = ut[1];
         const float u2 = ut[2];
@@ -28421,7 +28421,7 @@ static uint32_t vu1prog_1_0FA8(VU1NativeCtx &c)
         stall(c, c.vfReady[7][1]);
         stall(c, c.vfReady[7][2]);
         alignas(16) float ut[4];
-        _mm_store_ps(ut, v4Max(VN(vf[7]), VN(vf[7]), 7));
+        _mm_store_ps(ut, v4Max(VR(vf[7]), VR(vf[7]), 7));
         const float u0 = ut[0];
         const float u1 = ut[1];
         const float u2 = ut[2];
@@ -28766,7 +28766,7 @@ static uint32_t vu1prog_1_1080(VU1NativeCtx &c)
         stall(c, c.vfReady[7][1]);
         stall(c, c.vfReady[7][2]);
         alignas(16) float ut[4];
-        _mm_store_ps(ut, v4Max(VN(vf[7]), VN(vf[7]), 7));
+        _mm_store_ps(ut, v4Max(VR(vf[7]), VR(vf[7]), 7));
         const float u0 = ut[0];
         const float u1 = ut[1];
         const float u2 = ut[2];
@@ -30312,7 +30312,7 @@ static uint32_t vu1prog_2_0398(VU1NativeCtx &c)
     // 0440: 00600353 800621B0
     {
         alignas(16) float ut[4];
-        _mm_store_ps(ut, v4Max(VN(vf[0]), VN1(vf[0][3]), 12));
+        _mm_store_ps(ut, v4Max(VR(vf[0]), VR1(vf[0][3]), 12));
         const float u2 = ut[2];
         const float u3 = ut[3];
         const int32_t nvi = static_cast<int16_t>(vi[4] + vi[6]);
@@ -31021,7 +31021,7 @@ static uint32_t vu1prog_2_0448(VU1NativeCtx &c)
     // 0590: 01E09590 8000033C
     {
         alignas(16) float ut[4];
-        _mm_store_ps(ut, v4Max(VN(vf[18]), VN1(vf[0][0]), 15));
+        _mm_store_ps(ut, v4Max(VR(vf[18]), VR1(vf[0][0]), 15));
         const float u0 = ut[0];
         const float u1 = ut[1];
         const float u2 = ut[2];
@@ -31096,7 +31096,7 @@ static uint32_t vu1prog_2_0448(VU1NativeCtx &c)
     // 05B0: 01E0B3DF 8000033C
     {
         alignas(16) float ut[4];
-        _mm_store_ps(ut, v4Min(VN(vf[22]), VN1(s.i), 15));
+        _mm_store_ps(ut, v4Min(VR(vf[22]), VR1(s.i), 15));
         const float u0 = ut[0];
         const float u1 = ut[1];
         const float u2 = ut[2];
@@ -31614,7 +31614,7 @@ static uint32_t vu1prog_2_0628(VU1NativeCtx &c)
     {
         stall(c, c.viReady[2]);
         alignas(16) float ut[4];
-        _mm_store_ps(ut, v4Max(VN(vf[18]), VN1(vf[0][0]), 15));
+        _mm_store_ps(ut, v4Max(VR(vf[18]), VR1(vf[0][0]), 15));
         const float u0 = ut[0];
         const float u1 = ut[1];
         const float u2 = ut[2];
@@ -31697,7 +31697,7 @@ static uint32_t vu1prog_2_0628(VU1NativeCtx &c)
     // 06A8: 01E0B3DF 8000033C
     {
         alignas(16) float ut[4];
-        _mm_store_ps(ut, v4Min(VN(vf[22]), VN1(s.i), 15));
+        _mm_store_ps(ut, v4Min(VR(vf[22]), VR1(s.i), 15));
         const float u0 = ut[0];
         const float u1 = ut[1];
         const float u2 = ut[2];
@@ -32107,7 +32107,7 @@ static uint32_t vu1prog_2_0720(VU1NativeCtx &c)
         stall(c, c.vfReady[18][3]);
         stall(c, c.viReady[2]);
         alignas(16) float ut[4];
-        _mm_store_ps(ut, v4Max(VN(vf[18]), VN1(vf[0][0]), 15));
+        _mm_store_ps(ut, v4Max(VR(vf[18]), VR1(vf[0][0]), 15));
         const float u0 = ut[0];
         const float u1 = ut[1];
         const float u2 = ut[2];
@@ -32129,7 +32129,7 @@ static uint32_t vu1prog_2_0720(VU1NativeCtx &c)
         stall(c, c.vfReady[15][2]);
         stall(c, c.vfReady[15][3]);
         alignas(16) float ut[4];
-        _mm_store_ps(ut, v4Min(VN(vf[15]), VN1(s.i), 15));
+        _mm_store_ps(ut, v4Min(VR(vf[15]), VR1(s.i), 15));
         const float u0 = ut[0];
         const float u1 = ut[1];
         const float u2 = ut[2];
@@ -32489,7 +32489,7 @@ static uint32_t vu1prog_2_0B58(VU1NativeCtx &c)
     // 0BD0: 01800053 01862B23
     {
         alignas(16) float ut[4];
-        _mm_store_ps(ut, v4Max(VN(vf[0]), VN1(vf[0][3]), 3));
+        _mm_store_ps(ut, v4Max(VR(vf[0]), VR1(vf[0][3]), 3));
         const float u0 = ut[0];
         const float u1 = ut[1];
         const uint32_t la = ((static_cast<uint32_t>(static_cast<int32_t>(vi[5] + (803))) * 16u) & 0x3FF0u);
@@ -34607,7 +34607,7 @@ static uint32_t vu1prog_3_0408(VU1NativeCtx &c)
     }
     // 0440: 00210B2B 01E10000
     {
-        const float u3 = vmax(N(vf[1][3]), N(vf[1][3]));
+        const float u3 = vmax(vf[1][3], vf[1][3]);
         const uint32_t la = ((static_cast<uint32_t>(static_cast<int32_t>(vi[0] + (0))) * 16u) & 0x3FF0u);
         const float l0 = ldf(m, la + 0);
         const float l1 = ldf(m, la + 4);
@@ -35625,7 +35625,7 @@ static uint32_t vu1prog_3_06B8(VU1NativeCtx &c)
     // 06B8: 002C61EB 8000033C
     {
         stall(c, c.vfReady[12][3]);
-        const float u3 = vmax(N(vf[12][3]), N(vf[12][3]));
+        const float u3 = vmax(vf[12][3], vf[12][3]);
         vf[7][3] = u3; c.vfReady[7][3] = c.cyc + 4;
         c.bkValid = false;
         ++c.cyc;
@@ -36015,7 +36015,7 @@ static uint32_t vu1prog_3_0790(VU1NativeCtx &c)
     // 07A0: 00406317 8000033C
     {
         stall(c, c.vfReady[12][2]);
-        const float u2 = vmin(N(vf[12][2]), N(vf[0][3]));
+        const float u2 = vmin(vf[12][2], vf[0][3]);
         vf[12][2] = u2; c.vfReady[12][2] = c.cyc + 4;
         c.bkValid = false;
         ++c.cyc;
@@ -36023,7 +36023,7 @@ static uint32_t vu1prog_3_0790(VU1NativeCtx &c)
     // 07A8: 00406312 8000033C
     {
         stall(c, c.vfReady[12][2]);
-        const float u2 = vmax(N(vf[12][2]), N(vf[0][2]));
+        const float u2 = vmax(vf[12][2], vf[0][2]);
         vf[12][2] = u2; c.vfReady[12][2] = c.cyc + 4;
         c.bkValid = false;
         ++c.cyc;
@@ -36107,7 +36107,7 @@ static uint32_t vu1prog_3_07D0(VU1NativeCtx &c)
     // 07E8: 002039D7 8000033C
     {
         stall(c, c.vfReady[7][3]);
-        const float u3 = vmin(N(vf[7][3]), N(vf[0][3]));
+        const float u3 = vmin(vf[7][3], vf[0][3]);
         vf[7][3] = u3; c.vfReady[7][3] = c.cyc + 4;
         c.bkValid = false;
         ++c.cyc;
@@ -36115,7 +36115,7 @@ static uint32_t vu1prog_3_07D0(VU1NativeCtx &c)
     // 07F0: 002039D2 8000033C
     {
         stall(c, c.vfReady[7][3]);
-        const float u3 = vmax(N(vf[7][3]), N(vf[0][2]));
+        const float u3 = vmax(vf[7][3], vf[0][2]);
         vf[7][3] = u3; c.vfReady[7][3] = c.cyc + 4;
         c.bkValid = false;
         ++c.cyc;
@@ -36374,7 +36374,7 @@ static uint32_t vu1prog_4_0000(VU1NativeCtx &c)
     }
     // 0008: 010003EB 01F00000
     {
-        const float u0 = vmax(N(vf[0][0]), N(vf[0][0]));
+        const float u0 = vmax(vf[0][0], vf[0][0]);
         const uint32_t la = ((static_cast<uint32_t>(static_cast<int32_t>(vi[0] + (0))) * 16u) & 0x3FF0u);
         const float l0 = ldf(m, la + 0);
         const float l1 = ldf(m, la + 4);
@@ -37827,7 +37827,7 @@ static uint32_t vu1prog_4_0240(VU1NativeCtx &c)
     // 0240: 0020022B 01061002
     {
         stall(c, c.viReady[2]);
-        const float u3 = vmax(N(vf[0][3]), N(vf[0][3]));
+        const float u3 = vmax(vf[0][3], vf[0][3]);
         const uint32_t la = ((static_cast<uint32_t>(static_cast<int32_t>(vi[2] + (2))) * 16u) & 0x3FF0u);
         const float l0 = ldf(m, la + 0);
         vf[6][0] = l0; c.vfReady[6][0] = c.cyc + 4;
@@ -37840,7 +37840,7 @@ static uint32_t vu1prog_4_0240(VU1NativeCtx &c)
         stall(c, c.vfReady[6][1]);
         stall(c, c.vfReady[6][2]);
         if (c.qPending) stall(c, c.qReady);
-        const float u2 = vmax(N(vf[6][2]), N(vf[6][2]));
+        const float u2 = vmax(vf[6][2], vf[6][2]);
         divq(c, N(vf[0][3]), N(vf[6][1]));
         vf[15][2] = u2; c.vfReady[15][2] = c.cyc + 4;
         c.bkValid = false;
@@ -37914,9 +37914,9 @@ static uint32_t vu1prog_4_0240(VU1NativeCtx &c)
         stall(c, c.vfReady[26][0]);
         stall(c, c.vfReady[26][1]);
         stall(c, c.vfReady[26][2]);
-        const float u0 = vmax(N(vf[26][0]), N(vf[0][0]));
-        const float u1 = vmax(N(vf[26][1]), N(vf[0][0]));
-        const float u2 = vmax(N(vf[26][2]), N(vf[0][0]));
+        const float u0 = vmax(vf[26][0], vf[0][0]);
+        const float u1 = vmax(vf[26][1], vf[0][0]);
+        const float u2 = vmax(vf[26][2], vf[0][0]);
         vf[29][0] = u0; c.vfReady[29][0] = c.cyc + 4;
         vf[29][1] = u1; c.vfReady[29][1] = c.cyc + 4;
         vf[29][2] = u2; c.vfReady[29][2] = c.cyc + 4;
@@ -37957,9 +37957,9 @@ static uint32_t vu1prog_4_0240(VU1NativeCtx &c)
     }
     // 02A0: 01C0EF5F 8000033C
     {
-        const float u0 = vmin(N(vf[29][0]), N(s.i));
-        const float u1 = vmin(N(vf[29][1]), N(s.i));
-        const float u2 = vmin(N(vf[29][2]), N(s.i));
+        const float u0 = vmin(vf[29][0], s.i);
+        const float u1 = vmin(vf[29][1], s.i);
+        const float u2 = vmin(vf[29][2], s.i);
         vf[29][0] = u0; c.vfReady[29][0] = c.cyc + 4;
         vf[29][1] = u1; c.vfReady[29][1] = c.cyc + 4;
         vf[29][2] = u2; c.vfReady[29][2] = c.cyc + 4;
@@ -38023,7 +38023,7 @@ static uint32_t vu1prog_4_02B0(VU1NativeCtx &c)
     }
     // 02B8: 00407C5F 8000033C
     {
-        const float u2 = vmin(N(vf[15][2]), N(s.i));
+        const float u2 = vmin(vf[15][2], s.i);
         vf[17][2] = u2; c.vfReady[17][2] = c.cyc + 4;
         c.bkValid = false;
         ++c.cyc;
@@ -38386,8 +38386,8 @@ static uint32_t vu1prog_4_0348(VU1NativeCtx &c)
     }
     // 03A8: 0180DEDF 8000033C
     {
-        const float u0 = vmin(N(vf[27][0]), N(s.i));
-        const float u1 = vmin(N(vf[27][1]), N(s.i));
+        const float u0 = vmin(vf[27][0], s.i);
+        const float u1 = vmin(vf[27][1], s.i);
         vf[27][0] = u0; c.vfReady[27][0] = c.cyc + 4;
         vf[27][1] = u1; c.vfReady[27][1] = c.cyc + 4;
         c.bkValid = false;
@@ -39303,7 +39303,7 @@ static uint32_t vu1prog_4_0640(VU1NativeCtx &c)
     // 0640: 010003AB 8060943E
     {
         stall(c, c.vfReady[18][3]);
-        const float u0 = vmax(N(vf[0][0]), N(vf[0][0]));
+        const float u0 = vmax(vf[0][0], vf[0][0]);
         s.r = 0x3F800000u | (fbits(vf[18][3]) & 0x007FFFFFu);
         vf[14][0] = u0; c.vfReady[14][0] = c.cyc + 4;
         c.bkValid = false;
@@ -39830,7 +39830,7 @@ static uint32_t vu1prog_4_0728(VU1NativeCtx &c)
     // 0728: 0020012B 01181002
     {
         stall(c, c.viReady[2]);
-        const float u3 = vmax(N(vf[0][3]), N(vf[0][3]));
+        const float u3 = vmax(vf[0][3], vf[0][3]);
         const uint32_t la = ((static_cast<uint32_t>(static_cast<int32_t>(vi[2] + (2))) * 16u) & 0x3FF0u);
         const float l0 = ldf(m, la + 0);
         vf[24][0] = l0; c.vfReady[24][0] = c.cyc + 4;
@@ -39843,7 +39843,7 @@ static uint32_t vu1prog_4_0728(VU1NativeCtx &c)
         stall(c, c.vfReady[13][1]);
         stall(c, c.vfReady[16][3]);
         if (c.qPending) stall(c, c.qReady);
-        const float u3 = vmax(N(vf[16][3]), N(vf[16][3]));
+        const float u3 = vmax(vf[16][3], vf[16][3]);
         divq(c, N(vf[0][3]), N(vf[13][1]));
         vf[3][3] = u3; c.vfReady[3][3] = c.cyc + 4;
         c.bkValid = false;
@@ -39888,9 +39888,9 @@ static uint32_t vu1prog_4_0728(VU1NativeCtx &c)
         stall(c, c.vfReady[22][0]);
         stall(c, c.vfReady[22][1]);
         stall(c, c.vfReady[22][2]);
-        const float u0 = vmax(N(vf[22][0]), N(vf[0][0]));
-        const float u1 = vmax(N(vf[22][1]), N(vf[0][0]));
-        const float u2 = vmax(N(vf[22][2]), N(vf[0][0]));
+        const float u0 = vmax(vf[22][0], vf[0][0]);
+        const float u1 = vmax(vf[22][1], vf[0][0]);
+        const float u2 = vmax(vf[22][2], vf[0][0]);
         vf[25][0] = u0; c.vfReady[25][0] = c.cyc + 4;
         vf[25][1] = u1; c.vfReady[25][1] = c.cyc + 4;
         vf[25][2] = u2; c.vfReady[25][2] = c.cyc + 4;
@@ -39967,9 +39967,9 @@ static uint32_t vu1prog_4_0728(VU1NativeCtx &c)
     }
     // 0788: 01C0CE5F 8000033C
     {
-        const float u0 = vmin(N(vf[25][0]), N(s.i));
-        const float u1 = vmin(N(vf[25][1]), N(s.i));
-        const float u2 = vmin(N(vf[25][2]), N(s.i));
+        const float u0 = vmin(vf[25][0], s.i);
+        const float u1 = vmin(vf[25][1], s.i);
+        const float u2 = vmin(vf[25][2], s.i);
         vf[25][0] = u0; c.vfReady[25][0] = c.cyc + 4;
         vf[25][1] = u1; c.vfReady[25][1] = c.cyc + 4;
         vf[25][2] = u2; c.vfReady[25][2] = c.cyc + 4;
@@ -40014,7 +40014,7 @@ static uint32_t vu1prog_4_0798(VU1NativeCtx &c)
     {
         stall(c, c.vfReady[3][3]);
         stall(c, c.viReady[2]);
-        const float u3 = vmin(N(vf[3][3]), N(s.i));
+        const float u3 = vmin(vf[3][3], s.i);
         const uint32_t la = ((static_cast<uint32_t>(static_cast<int32_t>(vi[2] + (6))) * 16u) & 0x3FF0u);
         const float l0 = ldf(m, la + 0);
         const float l1 = ldf(m, la + 4);
@@ -40516,8 +40516,8 @@ static uint32_t vu1prog_4_0840(VU1NativeCtx &c)
     {
         stall(c, c.vfReady[26][0]);
         stall(c, c.vfReady[26][1]);
-        const float u0 = vmin(N(vf[26][0]), N(s.i));
-        const float u1 = vmin(N(vf[26][1]), N(s.i));
+        const float u0 = vmin(vf[26][0], s.i);
+        const float u1 = vmin(vf[26][1], s.i);
         vf[26][0] = u0; c.vfReady[26][0] = c.cyc + 4;
         vf[26][1] = u1; c.vfReady[26][1] = c.cyc + 4;
         c.bkValid = false;
@@ -41509,7 +41509,7 @@ static uint32_t vu1prog_4_0B48(VU1NativeCtx &c)
     // 0B48: 010003AB 8060943E
     {
         stall(c, c.vfReady[18][3]);
-        const float u0 = vmax(N(vf[0][0]), N(vf[0][0]));
+        const float u0 = vmax(vf[0][0], vf[0][0]);
         s.r = 0x3F800000u | (fbits(vf[18][3]) & 0x007FFFFFu);
         vf[14][0] = u0; c.vfReady[14][0] = c.cyc + 4;
         c.bkValid = false;
@@ -41966,9 +41966,9 @@ static uint32_t vu1prog_4_0B58(VU1NativeCtx &c)
         stall(c, c.vfReady[26][0]);
         stall(c, c.vfReady[26][1]);
         stall(c, c.vfReady[26][2]);
-        const float u0 = vmin(N(vf[26][0]), N(s.i));
-        const float u1 = vmin(N(vf[26][1]), N(s.i));
-        const float u2 = vmin(N(vf[26][2]), N(s.i));
+        const float u0 = vmin(vf[26][0], s.i);
+        const float u1 = vmin(vf[26][1], s.i);
+        const float u2 = vmin(vf[26][2], s.i);
         vf[26][0] = u0; c.vfReady[26][0] = c.cyc + 4;
         vf[26][1] = u1; c.vfReady[26][1] = c.cyc + 4;
         vf[26][2] = u2; c.vfReady[26][2] = c.cyc + 4;
@@ -42032,10 +42032,10 @@ static uint32_t vu1prog_4_0B58(VU1NativeCtx &c)
     }
     // 0C30: 01E0D610 8000033C
     {
-        const float u0 = vmax(N(vf[26][0]), N(vf[0][0]));
-        const float u1 = vmax(N(vf[26][1]), N(vf[0][0]));
-        const float u2 = vmax(N(vf[26][2]), N(vf[0][0]));
-        const float u3 = vmax(N(vf[26][3]), N(vf[0][0]));
+        const float u0 = vmax(vf[26][0], vf[0][0]);
+        const float u1 = vmax(vf[26][1], vf[0][0]);
+        const float u2 = vmax(vf[26][2], vf[0][0]);
+        const float u3 = vmax(vf[26][3], vf[0][0]);
         vf[24][0] = u0; c.vfReady[24][0] = c.cyc + 4;
         vf[24][1] = u1; c.vfReady[24][1] = c.cyc + 4;
         vf[24][2] = u2; c.vfReady[24][2] = c.cyc + 4;
@@ -42124,9 +42124,9 @@ static uint32_t vu1prog_4_0C50(VU1NativeCtx &c)
         stall(c, c.vfReady[24][1]);
         stall(c, c.vfReady[24][2]);
         stall(c, c.viReady[2]);
-        const float u0 = vmax(N(vf[24][0]), N(vf[0][0]));
-        const float u1 = vmax(N(vf[24][1]), N(vf[0][0]));
-        const float u2 = vmax(N(vf[24][2]), N(vf[0][0]));
+        const float u0 = vmax(vf[24][0], vf[0][0]);
+        const float u1 = vmax(vf[24][1], vf[0][0]);
+        const float u2 = vmax(vf[24][2], vf[0][0]);
         const uint32_t la = ((static_cast<uint32_t>(static_cast<int32_t>(vi[2] + (2))) * 16u) & 0x3FF0u);
         const float l0 = ldf(m, la + 0);
         vf[26][0] = l0; c.vfReady[26][0] = c.cyc + 4;
@@ -42140,7 +42140,7 @@ static uint32_t vu1prog_4_0C50(VU1NativeCtx &c)
     {
         stall(c, c.vfReady[13][1]);
         if (c.qPending) stall(c, c.qReady);
-        const float u3 = vmax(N(vf[0][3]), N(vf[0][3]));
+        const float u3 = vmax(vf[0][3], vf[0][3]);
         divq(c, N(vf[0][3]), N(vf[13][1]));
         vf[4][3] = u3; c.vfReady[4][3] = c.cyc + 4;
         c.bkValid = false;
@@ -42223,7 +42223,7 @@ static uint32_t vu1prog_4_0C50(VU1NativeCtx &c)
     }
     // 0C88: 003080EB 8000033C
     {
-        const float u3 = vmax(N(vf[16][3]), N(vf[16][3]));
+        const float u3 = vmax(vf[16][3], vf[16][3]);
         vf[3][3] = u3; c.vfReady[3][3] = c.cyc + 4;
         c.bkValid = false;
         ++c.cyc;
@@ -42244,9 +42244,9 @@ static uint32_t vu1prog_4_0C50(VU1NativeCtx &c)
     }
     // 0C98: 01C0DEDF 8000033C
     {
-        const float u0 = vmin(N(vf[27][0]), N(s.i));
-        const float u1 = vmin(N(vf[27][1]), N(s.i));
-        const float u2 = vmin(N(vf[27][2]), N(s.i));
+        const float u0 = vmin(vf[27][0], s.i);
+        const float u1 = vmin(vf[27][1], s.i);
+        const float u2 = vmin(vf[27][2], s.i);
         vf[27][0] = u0; c.vfReady[27][0] = c.cyc + 4;
         vf[27][1] = u1; c.vfReady[27][1] = c.cyc + 4;
         vf[27][2] = u2; c.vfReady[27][2] = c.cyc + 4;
@@ -42291,7 +42291,7 @@ static uint32_t vu1prog_4_0CA8(VU1NativeCtx &c)
     {
         stall(c, c.vfReady[3][3]);
         stall(c, c.viReady[2]);
-        const float u3 = vmin(N(vf[3][3]), N(s.i));
+        const float u3 = vmin(vf[3][3], s.i);
         const uint32_t la = ((static_cast<uint32_t>(static_cast<int32_t>(vi[2] + (6))) * 16u) & 0x3FF0u);
         const float l0 = ldf(m, la + 0);
         const float l1 = ldf(m, la + 4);
@@ -42793,8 +42793,8 @@ static uint32_t vu1prog_4_0D50(VU1NativeCtx &c)
     {
         stall(c, c.vfReady[28][0]);
         stall(c, c.vfReady[28][1]);
-        const float u0 = vmin(N(vf[28][0]), N(s.i));
-        const float u1 = vmin(N(vf[28][1]), N(s.i));
+        const float u0 = vmin(vf[28][0], s.i);
+        const float u1 = vmin(vf[28][1], s.i);
         vf[28][0] = u0; c.vfReady[28][0] = c.cyc + 4;
         vf[28][1] = u1; c.vfReady[28][1] = c.cyc + 4;
         c.bkValid = false;
@@ -43475,8 +43475,8 @@ static uint32_t vu1prog_4_1460(VU1NativeCtx &c)
     }
     // 14B8: 818004EB 41400000
     {
-        const float u0 = vmax(N(vf[0][0]), N(vf[0][0]));
-        const float u1 = vmax(N(vf[0][1]), N(vf[0][1]));
+        const float u0 = vmax(vf[0][0], vf[0][0]);
+        const float u1 = vmax(vf[0][1], vf[0][1]);
         s.i = N(bitsf(0x41400000u));
         vf[19][0] = u0; c.vfReady[19][0] = c.cyc + 4;
         vf[19][1] = u1; c.vfReady[19][1] = c.cyc + 4;
@@ -43485,7 +43485,7 @@ static uint32_t vu1prog_4_1460(VU1NativeCtx &c)
     }
     // 14C0: 0100052B 1004013B
     {
-        const float u0 = vmax(N(vf[0][0]), N(vf[0][0]));
+        const float u0 = vmax(vf[0][0], vf[0][0]);
         const int32_t nvi = static_cast<int16_t>(vi[0] + (315));
         vf[20][0] = u0; c.vfReady[20][0] = c.cyc + 4;
         c.bkValid = true; c.bkReg = 4; c.bkVal = vi[4];
@@ -44867,7 +44867,7 @@ static uint32_t vu1prog_4_1670(VU1NativeCtx &c)
     // 1770: 00202A17 52010029
     {
         stall(c, c.vfReady[5][3]);
-        const float u3 = vmin(N(vf[5][3]), N(vf[0][3]));
+        const float u3 = vmin(vf[5][3], vf[0][3]);
         taken = static_cast<int16_t>(brVi(c, 0)) != static_cast<int16_t>(brVi(c, 1));
         vf[8][3] = u3; c.vfReady[8][3] = c.cyc + 4;
         c.bkValid = false;
@@ -45042,8 +45042,8 @@ static uint32_t vu1prog_4_1780(VU1NativeCtx &c)
     // 17D8: 018DCE51 8000033C
     {
         stall(c, c.vfReady[13][1]);
-        const float u0 = vmax(N(vf[25][0]), N(vf[13][1]));
-        const float u1 = vmax(N(vf[25][1]), N(vf[13][1]));
+        const float u0 = vmax(vf[25][0], vf[13][1]);
+        const float u1 = vmax(vf[25][1], vf[13][1]);
         vf[25][0] = u0; c.vfReady[25][0] = c.cyc + 4;
         vf[25][1] = u1; c.vfReady[25][1] = c.cyc + 4;
         c.bkValid = false;
@@ -45112,8 +45112,8 @@ static uint32_t vu1prog_4_1780(VU1NativeCtx &c)
     // 17F8: 018DCE56 8000033C
     {
         stall(c, c.vfReady[13][2]);
-        const float u0 = vmin(N(vf[25][0]), N(vf[13][2]));
-        const float u1 = vmin(N(vf[25][1]), N(vf[13][2]));
+        const float u0 = vmin(vf[25][0], vf[13][2]);
+        const float u1 = vmin(vf[25][1], vf[13][2]);
         vf[25][0] = u0; c.vfReady[25][0] = c.cyc + 4;
         vf[25][1] = u1; c.vfReady[25][1] = c.cyc + 4;
         c.bkValid = false;
@@ -47273,7 +47273,7 @@ static uint32_t vu1prog_5_0408(VU1NativeCtx &c)
     }
     // 0440: 00210B2B 01E10000
     {
-        const float u3 = vmax(N(vf[1][3]), N(vf[1][3]));
+        const float u3 = vmax(vf[1][3], vf[1][3]);
         const uint32_t la = ((static_cast<uint32_t>(static_cast<int32_t>(vi[0] + (0))) * 16u) & 0x3FF0u);
         const float l0 = ldf(m, la + 0);
         const float l1 = ldf(m, la + 4);
@@ -48291,7 +48291,7 @@ static uint32_t vu1prog_5_06B8(VU1NativeCtx &c)
     // 06B8: 002C61EB 8000033C
     {
         stall(c, c.vfReady[12][3]);
-        const float u3 = vmax(N(vf[12][3]), N(vf[12][3]));
+        const float u3 = vmax(vf[12][3], vf[12][3]);
         vf[7][3] = u3; c.vfReady[7][3] = c.cyc + 4;
         c.bkValid = false;
         ++c.cyc;
@@ -48681,7 +48681,7 @@ static uint32_t vu1prog_5_0790(VU1NativeCtx &c)
     // 07A0: 00406317 8000033C
     {
         stall(c, c.vfReady[12][2]);
-        const float u2 = vmin(N(vf[12][2]), N(vf[0][3]));
+        const float u2 = vmin(vf[12][2], vf[0][3]);
         vf[12][2] = u2; c.vfReady[12][2] = c.cyc + 4;
         c.bkValid = false;
         ++c.cyc;
@@ -48689,7 +48689,7 @@ static uint32_t vu1prog_5_0790(VU1NativeCtx &c)
     // 07A8: 00406312 8000033C
     {
         stall(c, c.vfReady[12][2]);
-        const float u2 = vmax(N(vf[12][2]), N(vf[0][2]));
+        const float u2 = vmax(vf[12][2], vf[0][2]);
         vf[12][2] = u2; c.vfReady[12][2] = c.cyc + 4;
         c.bkValid = false;
         ++c.cyc;
@@ -48773,7 +48773,7 @@ static uint32_t vu1prog_5_07D0(VU1NativeCtx &c)
     // 07E8: 002039D7 8000033C
     {
         stall(c, c.vfReady[7][3]);
-        const float u3 = vmin(N(vf[7][3]), N(vf[0][3]));
+        const float u3 = vmin(vf[7][3], vf[0][3]);
         vf[7][3] = u3; c.vfReady[7][3] = c.cyc + 4;
         c.bkValid = false;
         ++c.cyc;
@@ -48781,7 +48781,7 @@ static uint32_t vu1prog_5_07D0(VU1NativeCtx &c)
     // 07F0: 002039D2 8000033C
     {
         stall(c, c.vfReady[7][3]);
-        const float u3 = vmax(N(vf[7][3]), N(vf[0][2]));
+        const float u3 = vmax(vf[7][3], vf[0][2]);
         vf[7][3] = u3; c.vfReady[7][3] = c.cyc + 4;
         c.bkValid = false;
         ++c.cyc;
@@ -54748,7 +54748,7 @@ static uint32_t vu1prog_6_1B98(VU1NativeCtx &c)
         stall(c, c.viReady[2]);
         stall(c, c.viReady[3]);
         alignas(16) float ut[4];
-        _mm_store_ps(ut, v4Max(VN(vf[0]), VN1(vf[0][3]), 12));
+        _mm_store_ps(ut, v4Max(VR(vf[0]), VR1(vf[0][3]), 12));
         const float u2 = ut[2];
         const float u3 = ut[3];
         const int32_t nvi = static_cast<int16_t>(vi[3] + vi[2]);
@@ -61432,7 +61432,7 @@ static uint32_t vu1prog_7_0408(VU1NativeCtx &c)
     }
     // 0440: 00210B2B 01E10000
     {
-        const float u3 = vmax(N(vf[1][3]), N(vf[1][3]));
+        const float u3 = vmax(vf[1][3], vf[1][3]);
         const uint32_t la = ((static_cast<uint32_t>(static_cast<int32_t>(vi[0] + (0))) * 16u) & 0x3FF0u);
         const float l0 = ldf(m, la + 0);
         const float l1 = ldf(m, la + 4);
@@ -62450,7 +62450,7 @@ static uint32_t vu1prog_7_06B8(VU1NativeCtx &c)
     // 06B8: 002C61EB 8000033C
     {
         stall(c, c.vfReady[12][3]);
-        const float u3 = vmax(N(vf[12][3]), N(vf[12][3]));
+        const float u3 = vmax(vf[12][3], vf[12][3]);
         vf[7][3] = u3; c.vfReady[7][3] = c.cyc + 4;
         c.bkValid = false;
         ++c.cyc;
@@ -62840,7 +62840,7 @@ static uint32_t vu1prog_7_0790(VU1NativeCtx &c)
     // 07A0: 00406317 8000033C
     {
         stall(c, c.vfReady[12][2]);
-        const float u2 = vmin(N(vf[12][2]), N(vf[0][3]));
+        const float u2 = vmin(vf[12][2], vf[0][3]);
         vf[12][2] = u2; c.vfReady[12][2] = c.cyc + 4;
         c.bkValid = false;
         ++c.cyc;
@@ -62848,7 +62848,7 @@ static uint32_t vu1prog_7_0790(VU1NativeCtx &c)
     // 07A8: 00406312 8000033C
     {
         stall(c, c.vfReady[12][2]);
-        const float u2 = vmax(N(vf[12][2]), N(vf[0][2]));
+        const float u2 = vmax(vf[12][2], vf[0][2]);
         vf[12][2] = u2; c.vfReady[12][2] = c.cyc + 4;
         c.bkValid = false;
         ++c.cyc;
@@ -62932,7 +62932,7 @@ static uint32_t vu1prog_7_07D0(VU1NativeCtx &c)
     // 07E8: 002039D7 8000033C
     {
         stall(c, c.vfReady[7][3]);
-        const float u3 = vmin(N(vf[7][3]), N(vf[0][3]));
+        const float u3 = vmin(vf[7][3], vf[0][3]);
         vf[7][3] = u3; c.vfReady[7][3] = c.cyc + 4;
         c.bkValid = false;
         ++c.cyc;
@@ -62940,7 +62940,7 @@ static uint32_t vu1prog_7_07D0(VU1NativeCtx &c)
     // 07F0: 002039D2 8000033C
     {
         stall(c, c.vfReady[7][3]);
-        const float u3 = vmax(N(vf[7][3]), N(vf[0][2]));
+        const float u3 = vmax(vf[7][3], vf[0][2]);
         vf[7][3] = u3; c.vfReady[7][3] = c.cyc + 4;
         c.bkValid = false;
         ++c.cyc;
@@ -63832,7 +63832,7 @@ static uint32_t vu1prog_8_0048(VU1NativeCtx &c)
     // 0140: 01C0D710 8000033C
     {
         alignas(16) float ut[4];
-        _mm_store_ps(ut, v4Max(VN(vf[26]), VN1(vf[0][0]), 7));
+        _mm_store_ps(ut, v4Max(VR(vf[26]), VR1(vf[0][0]), 7));
         const float u0 = ut[0];
         const float u1 = ut[1];
         const float u2 = ut[2];
@@ -63945,7 +63945,7 @@ static uint32_t vu1prog_8_0048(VU1NativeCtx &c)
     {
         stall(c, c.efuResourceReady);
         alignas(16) float ut[4];
-        _mm_store_ps(ut, v4Max(VN(vf[21]), VN1(vf[0][0]), 7));
+        _mm_store_ps(ut, v4Max(VR(vf[21]), VR1(vf[0][0]), 7));
         const float u0 = ut[0];
         const float u1 = ut[1];
         const float u2 = ut[2];
@@ -64006,7 +64006,7 @@ static uint32_t vu1prog_8_0048(VU1NativeCtx &c)
     // 01A0: 01C0E710 8000033C
     {
         alignas(16) float ut[4];
-        _mm_store_ps(ut, v4Max(VN(vf[28]), VN1(vf[0][0]), 7));
+        _mm_store_ps(ut, v4Max(VR(vf[28]), VR1(vf[0][0]), 7));
         const float u0 = ut[0];
         const float u1 = ut[1];
         const float u2 = ut[2];
@@ -64349,7 +64349,7 @@ static uint32_t vu1prog_8_0048(VU1NativeCtx &c)
     // 0278: 01C0EF10 8000033C
     {
         alignas(16) float ut[4];
-        _mm_store_ps(ut, v4Max(VN(vf[29]), VN1(vf[0][0]), 7));
+        _mm_store_ps(ut, v4Max(VR(vf[29]), VR1(vf[0][0]), 7));
         const float u0 = ut[0];
         const float u1 = ut[1];
         const float u2 = ut[2];
@@ -64491,7 +64491,7 @@ static uint32_t vu1prog_8_0048(VU1NativeCtx &c)
     // 02C0: 01C0BDD0 100E7003
     {
         alignas(16) float ut[4];
-        _mm_store_ps(ut, v4Max(VN(vf[23]), VN1(vf[0][0]), 7));
+        _mm_store_ps(ut, v4Max(VR(vf[23]), VR1(vf[0][0]), 7));
         const float u0 = ut[0];
         const float u1 = ut[1];
         const float u2 = ut[2];
@@ -64564,7 +64564,7 @@ static uint32_t vu1prog_8_02D8(VU1NativeCtx &c)
         stall(c, c.vfReady[27][2]);
         stall(c, c.viReady[13]);
         alignas(16) float ut[4];
-        _mm_store_ps(ut, v4Max(VN(vf[27]), VN1(vf[0][0]), 7));
+        _mm_store_ps(ut, v4Max(VR(vf[27]), VR1(vf[0][0]), 7));
         const float u0 = ut[0];
         const float u1 = ut[1];
         const float u2 = ut[2];
@@ -64708,7 +64708,7 @@ static uint32_t vu1prog_8_02D8(VU1NativeCtx &c)
     // 0310: 01E0B590 8000033C
     {
         alignas(16) float ut[4];
-        _mm_store_ps(ut, v4Max(VN(vf[22]), VN1(vf[0][0]), 15));
+        _mm_store_ps(ut, v4Max(VR(vf[22]), VR1(vf[0][0]), 15));
         const float u0 = ut[0];
         const float u1 = ut[1];
         const float u2 = ut[2];
@@ -64769,7 +64769,7 @@ static uint32_t vu1prog_8_02D8(VU1NativeCtx &c)
     // 0330: 01E0B59F 8000033C
     {
         alignas(16) float ut[4];
-        _mm_store_ps(ut, v4Min(VN(vf[22]), VN1(s.i), 15));
+        _mm_store_ps(ut, v4Min(VR(vf[22]), VR1(s.i), 15));
         const float u0 = ut[0];
         const float u1 = ut[1];
         const float u2 = ut[2];
@@ -65032,7 +65032,7 @@ static uint32_t vu1prog_8_02D8(VU1NativeCtx &c)
     // 03B8: 01C0F750 8000033C
     {
         alignas(16) float ut[4];
-        _mm_store_ps(ut, v4Max(VN(vf[30]), VN1(vf[0][0]), 7));
+        _mm_store_ps(ut, v4Max(VR(vf[30]), VR1(vf[0][0]), 7));
         const float u0 = ut[0];
         const float u1 = ut[1];
         const float u2 = ut[2];
@@ -65129,7 +65129,7 @@ static uint32_t vu1prog_8_02D8(VU1NativeCtx &c)
     // 03F0: 01C0BDD0 8000033C
     {
         alignas(16) float ut[4];
-        _mm_store_ps(ut, v4Max(VN(vf[23]), VN1(vf[0][0]), 7));
+        _mm_store_ps(ut, v4Max(VR(vf[23]), VR1(vf[0][0]), 7));
         const float u0 = ut[0];
         const float u1 = ut[1];
         const float u2 = ut[2];
@@ -65225,7 +65225,7 @@ static uint32_t vu1prog_8_0418(VU1NativeCtx &c)
         stall(c, c.vfReady[27][2]);
         stall(c, c.viReady[13]);
         alignas(16) float ut[4];
-        _mm_store_ps(ut, v4Max(VN(vf[27]), VN1(vf[0][0]), 7));
+        _mm_store_ps(ut, v4Max(VR(vf[27]), VR1(vf[0][0]), 7));
         const float u0 = ut[0];
         const float u1 = ut[1];
         const float u2 = ut[2];
@@ -65403,7 +65403,7 @@ static uint32_t vu1prog_8_0418(VU1NativeCtx &c)
     // 0468: 01E0BD90 03EEB7F1
     {
         alignas(16) float ut[4];
-        _mm_store_ps(ut, v4Max(VN(vf[23]), VN1(vf[0][0]), 15));
+        _mm_store_ps(ut, v4Max(VR(vf[23]), VR1(vf[0][0]), 15));
         const float u0 = ut[0];
         const float u1 = ut[1];
         const float u2 = ut[2];
@@ -65694,7 +65694,7 @@ static uint32_t vu1prog_8_0418(VU1NativeCtx &c)
     // 04F8: 01C0F750 8000033C
     {
         alignas(16) float ut[4];
-        _mm_store_ps(ut, v4Max(VN(vf[30]), VN1(vf[0][0]), 7));
+        _mm_store_ps(ut, v4Max(VR(vf[30]), VR1(vf[0][0]), 7));
         const float u0 = ut[0];
         const float u1 = ut[1];
         const float u2 = ut[2];
@@ -65793,7 +65793,7 @@ static uint32_t vu1prog_8_0418(VU1NativeCtx &c)
     // 0530: 01C0BDD0 8000033C
     {
         alignas(16) float ut[4];
-        _mm_store_ps(ut, v4Max(VN(vf[23]), VN1(vf[0][0]), 7));
+        _mm_store_ps(ut, v4Max(VR(vf[23]), VR1(vf[0][0]), 7));
         const float u0 = ut[0];
         const float u1 = ut[1];
         const float u2 = ut[2];
@@ -65845,7 +65845,7 @@ static uint32_t vu1prog_8_0418(VU1NativeCtx &c)
     {
         stall(c, c.viReady[3]);
         alignas(16) float ut[4];
-        _mm_store_ps(ut, v4Min(VN(vf[22]), VN1(s.i), 15));
+        _mm_store_ps(ut, v4Min(VR(vf[22]), VR1(s.i), 15));
         const float u0 = ut[0];
         const float u1 = ut[1];
         const float u2 = ut[2];
@@ -65898,7 +65898,7 @@ static uint32_t vu1prog_8_0558(VU1NativeCtx &c)
         stall(c, c.vfReady[27][1]);
         stall(c, c.vfReady[27][2]);
         alignas(16) float ut[4];
-        _mm_store_ps(ut, v4Max(VN(vf[27]), VN1(vf[0][0]), 7));
+        _mm_store_ps(ut, v4Max(VR(vf[27]), VR1(vf[0][0]), 7));
         const float u0 = ut[0];
         const float u1 = ut[1];
         const float u2 = ut[2];
@@ -66052,7 +66052,7 @@ static uint32_t vu1prog_8_0558(VU1NativeCtx &c)
         stall(c, c.vfReady[19][1]);
         stall(c, c.vfReady[19][2]);
         alignas(16) float ut[4];
-        _mm_store_ps(ut, v4Max(VN(vf[24]), VN1(vf[0][0]), 15));
+        _mm_store_ps(ut, v4Max(VR(vf[24]), VR1(vf[0][0]), 15));
         const float u0 = ut[0];
         const float u1 = ut[1];
         const float u2 = ut[2];
@@ -66168,7 +66168,7 @@ static uint32_t vu1prog_8_0558(VU1NativeCtx &c)
     // 05E0: 01E0B59F 8000033C
     {
         alignas(16) float ut[4];
-        _mm_store_ps(ut, v4Min(VN(vf[22]), VN1(s.i), 15));
+        _mm_store_ps(ut, v4Min(VR(vf[22]), VR1(s.i), 15));
         const float u0 = ut[0];
         const float u1 = ut[1];
         const float u2 = ut[2];
@@ -66279,7 +66279,7 @@ static uint32_t vu1prog_8_0558(VU1NativeCtx &c)
     // 0618: 01C032D0 8000033C
     {
         alignas(16) float ut[4];
-        _mm_store_ps(ut, v4Max(VN(vf[6]), VN1(vf[0][0]), 7));
+        _mm_store_ps(ut, v4Max(VR(vf[6]), VR1(vf[0][0]), 7));
         const float u0 = ut[0];
         const float u1 = ut[1];
         const float u2 = ut[2];
@@ -66376,7 +66376,7 @@ static uint32_t vu1prog_8_0558(VU1NativeCtx &c)
     // 0650: 01C0A210 8000033C
     {
         alignas(16) float ut[4];
-        _mm_store_ps(ut, v4Max(VN(vf[20]), VN1(vf[0][0]), 7));
+        _mm_store_ps(ut, v4Max(VR(vf[20]), VR1(vf[0][0]), 7));
         const float u0 = ut[0];
         const float u1 = ut[1];
         const float u2 = ut[2];
@@ -66456,7 +66456,7 @@ static uint32_t vu1prog_8_0558(VU1NativeCtx &c)
     // 0678: 01C039D0 8000033C
     {
         alignas(16) float ut[4];
-        _mm_store_ps(ut, v4Max(VN(vf[7]), VN1(vf[0][0]), 7));
+        _mm_store_ps(ut, v4Max(VR(vf[7]), VR1(vf[0][0]), 7));
         const float u0 = ut[0];
         const float u1 = ut[1];
         const float u2 = ut[2];
@@ -66529,7 +66529,7 @@ static uint32_t vu1prog_8_0558(VU1NativeCtx &c)
         stall(c, c.vfReady[21][2]);
         stall(c, c.vfReady[21][3]);
         alignas(16) float ut[4];
-        _mm_store_ps(ut, v4Max(VN(vf[21]), VN1(vf[0][0]), 15));
+        _mm_store_ps(ut, v4Max(VR(vf[21]), VR1(vf[0][0]), 15));
         const float u0 = ut[0];
         const float u1 = ut[1];
         const float u2 = ut[2];
@@ -66595,7 +66595,7 @@ static uint32_t vu1prog_8_0558(VU1NativeCtx &c)
     // 06C0: 01E0AC1F 8000033C
     {
         alignas(16) float ut[4];
-        _mm_store_ps(ut, v4Min(VN(vf[21]), VN1(s.i), 15));
+        _mm_store_ps(ut, v4Min(VR(vf[21]), VR1(s.i), 15));
         const float u0 = ut[0];
         const float u1 = ut[1];
         const float u2 = ut[2];
@@ -66646,7 +66646,7 @@ static uint32_t vu1prog_8_0558(VU1NativeCtx &c)
         stall(c, c.vfReady[15][2]);
         stall(c, c.vfReady[15][3]);
         alignas(16) float ut[4];
-        _mm_store_ps(ut, v4Max(VN(vf[15]), VN1(vf[0][0]), 15));
+        _mm_store_ps(ut, v4Max(VR(vf[15]), VR1(vf[0][0]), 15));
         const float u0 = ut[0];
         const float u1 = ut[1];
         const float u2 = ut[2];
@@ -66675,7 +66675,7 @@ static uint32_t vu1prog_8_0558(VU1NativeCtx &c)
         stall(c, c.vfReady[15][2]);
         stall(c, c.vfReady[15][3]);
         alignas(16) float ut[4];
-        _mm_store_ps(ut, v4Min(VN(vf[15]), VN1(s.i), 15));
+        _mm_store_ps(ut, v4Min(VR(vf[15]), VR1(s.i), 15));
         const float u0 = ut[0];
         const float u1 = ut[1];
         const float u2 = ut[2];
@@ -66743,7 +66743,7 @@ static uint32_t vu1prog_8_0708(VU1NativeCtx &c)
         stall(c, c.vfReady[27][1]);
         stall(c, c.vfReady[27][2]);
         alignas(16) float ut[4];
-        _mm_store_ps(ut, v4Max(VN(vf[27]), VN1(vf[0][0]), 7));
+        _mm_store_ps(ut, v4Max(VR(vf[27]), VR1(vf[0][0]), 7));
         const float u0 = ut[0];
         const float u1 = ut[1];
         const float u2 = ut[2];
@@ -66866,7 +66866,7 @@ static uint32_t vu1prog_8_0708(VU1NativeCtx &c)
         stall(c, c.vfReady[23][3]);
         commitP(c);
         alignas(16) float ut[4];
-        _mm_store_ps(ut, v4Max(VN(vf[23]), VN1(vf[0][0]), 15));
+        _mm_store_ps(ut, v4Max(VR(vf[23]), VR1(vf[0][0]), 15));
         const float u0 = ut[0];
         const float u1 = ut[1];
         const float u2 = ut[2];
@@ -66920,7 +66920,7 @@ static uint32_t vu1prog_8_0708(VU1NativeCtx &c)
         stall(c, c.vfReady[23][2]);
         stall(c, c.vfReady[23][3]);
         alignas(16) float ut[4];
-        _mm_store_ps(ut, v4Min(VN(vf[23]), VN1(s.i), 15));
+        _mm_store_ps(ut, v4Min(VR(vf[23]), VR1(s.i), 15));
         const float u0 = ut[0];
         const float u1 = ut[1];
         const float u2 = ut[2];
@@ -67105,7 +67105,7 @@ static uint32_t vu1prog_8_0708(VU1NativeCtx &c)
     // 07B0: 01C032D0 8000033C
     {
         alignas(16) float ut[4];
-        _mm_store_ps(ut, v4Max(VN(vf[6]), VN1(vf[0][0]), 7));
+        _mm_store_ps(ut, v4Max(VR(vf[6]), VR1(vf[0][0]), 7));
         const float u0 = ut[0];
         const float u1 = ut[1];
         const float u2 = ut[2];
@@ -67202,7 +67202,7 @@ static uint32_t vu1prog_8_0708(VU1NativeCtx &c)
     // 07E8: 01C0A210 8000033C
     {
         alignas(16) float ut[4];
-        _mm_store_ps(ut, v4Max(VN(vf[20]), VN1(vf[0][0]), 7));
+        _mm_store_ps(ut, v4Max(VR(vf[20]), VR1(vf[0][0]), 7));
         const float u0 = ut[0];
         const float u1 = ut[1];
         const float u2 = ut[2];
@@ -67282,7 +67282,7 @@ static uint32_t vu1prog_8_0708(VU1NativeCtx &c)
     // 0810: 01C039D0 8000033C
     {
         alignas(16) float ut[4];
-        _mm_store_ps(ut, v4Max(VN(vf[7]), VN1(vf[0][0]), 7));
+        _mm_store_ps(ut, v4Max(VR(vf[7]), VR1(vf[0][0]), 7));
         const float u0 = ut[0];
         const float u1 = ut[1];
         const float u2 = ut[2];
@@ -67357,7 +67357,7 @@ static uint32_t vu1prog_8_0708(VU1NativeCtx &c)
         stall(c, c.vfReady[21][2]);
         stall(c, c.vfReady[21][3]);
         alignas(16) float ut[4];
-        _mm_store_ps(ut, v4Max(VN(vf[21]), VN1(vf[0][0]), 15));
+        _mm_store_ps(ut, v4Max(VR(vf[21]), VR1(vf[0][0]), 15));
         const float u0 = ut[0];
         const float u1 = ut[1];
         const float u2 = ut[2];
@@ -67408,7 +67408,7 @@ static uint32_t vu1prog_8_0708(VU1NativeCtx &c)
         stall(c, c.vfReady[21][2]);
         stall(c, c.vfReady[21][3]);
         alignas(16) float ut[4];
-        _mm_store_ps(ut, v4Min(VN(vf[21]), VN1(s.i), 15));
+        _mm_store_ps(ut, v4Min(VR(vf[21]), VR1(s.i), 15));
         const float u0 = ut[0];
         const float u1 = ut[1];
         const float u2 = ut[2];
@@ -67459,7 +67459,7 @@ static uint32_t vu1prog_8_0708(VU1NativeCtx &c)
         stall(c, c.vfReady[15][2]);
         stall(c, c.vfReady[15][3]);
         alignas(16) float ut[4];
-        _mm_store_ps(ut, v4Max(VN(vf[15]), VN1(vf[0][0]), 15));
+        _mm_store_ps(ut, v4Max(VR(vf[15]), VR1(vf[0][0]), 15));
         const float u0 = ut[0];
         const float u1 = ut[1];
         const float u2 = ut[2];
@@ -67488,7 +67488,7 @@ static uint32_t vu1prog_8_0708(VU1NativeCtx &c)
         stall(c, c.vfReady[15][2]);
         stall(c, c.vfReady[15][3]);
         alignas(16) float ut[4];
-        _mm_store_ps(ut, v4Min(VN(vf[15]), VN1(s.i), 15));
+        _mm_store_ps(ut, v4Min(VR(vf[15]), VR1(s.i), 15));
         const float u0 = ut[0];
         const float u1 = ut[1];
         const float u2 = ut[2];
@@ -68038,7 +68038,7 @@ static uint32_t vu1prog_8_08B8(VU1NativeCtx &c)
     // 0980: 01E07BD0 8000033C
     {
         alignas(16) float ut[4];
-        _mm_store_ps(ut, v4Max(VN(vf[15]), VN1(vf[0][0]), 15));
+        _mm_store_ps(ut, v4Max(VR(vf[15]), VR1(vf[0][0]), 15));
         const float u0 = ut[0];
         const float u1 = ut[1];
         const float u2 = ut[2];
@@ -68302,7 +68302,7 @@ static uint32_t vu1prog_8_08B8(VU1NativeCtx &c)
     // 0A10: 01E07390 8000033C
     {
         alignas(16) float ut[4];
-        _mm_store_ps(ut, v4Max(VN(vf[14]), VN1(vf[0][0]), 15));
+        _mm_store_ps(ut, v4Max(VR(vf[14]), VR1(vf[0][0]), 15));
         const float u0 = ut[0];
         const float u1 = ut[1];
         const float u2 = ut[2];
@@ -68317,7 +68317,7 @@ static uint32_t vu1prog_8_08B8(VU1NativeCtx &c)
     // 0A18: 01E07BDF 8000033C
     {
         alignas(16) float ut[4];
-        _mm_store_ps(ut, v4Min(VN(vf[15]), VN1(s.i), 15));
+        _mm_store_ps(ut, v4Min(VR(vf[15]), VR1(s.i), 15));
         const float u0 = ut[0];
         const float u1 = ut[1];
         const float u2 = ut[2];
@@ -68675,7 +68675,7 @@ static uint32_t vu1prog_8_0A58(VU1NativeCtx &c)
         stall(c, c.vfReady[14][2]);
         stall(c, c.vfReady[14][3]);
         alignas(16) float ut[4];
-        _mm_store_ps(ut, v4Min(VN(vf[14]), VN1(s.i), 15));
+        _mm_store_ps(ut, v4Min(VR(vf[14]), VR1(s.i), 15));
         const float u0 = ut[0];
         const float u1 = ut[1];
         const float u2 = ut[2];
@@ -68690,7 +68690,7 @@ static uint32_t vu1prog_8_0A58(VU1NativeCtx &c)
     // 0AB8: 01E09390 8000033C
     {
         alignas(16) float ut[4];
-        _mm_store_ps(ut, v4Max(VN(vf[18]), VN1(vf[0][0]), 15));
+        _mm_store_ps(ut, v4Max(VR(vf[18]), VR1(vf[0][0]), 15));
         const float u0 = ut[0];
         const float u1 = ut[1];
         const float u2 = ut[2];
@@ -68983,7 +68983,7 @@ static uint32_t vu1prog_8_0AF8(VU1NativeCtx &c)
         stall(c, c.vfReady[15][2]);
         stall(c, c.vfReady[15][3]);
         alignas(16) float ut[4];
-        _mm_store_ps(ut, v4Min(VN(vf[14]), VN1(s.i), 15));
+        _mm_store_ps(ut, v4Min(VR(vf[14]), VR1(s.i), 15));
         const float u0 = ut[0];
         const float u1 = ut[1];
         const float u2 = ut[2];
@@ -69010,7 +69010,7 @@ static uint32_t vu1prog_8_0AF8(VU1NativeCtx &c)
         stall(c, c.vfReady[10][2]);
         stall(c, c.vfReady[10][3]);
         alignas(16) float ut[4];
-        _mm_store_ps(ut, v4Max(VN(vf[10]), VN1(vf[0][0]), 15));
+        _mm_store_ps(ut, v4Max(VR(vf[10]), VR1(vf[0][0]), 15));
         const float u0 = ut[0];
         const float u1 = ut[1];
         const float u2 = ut[2];
@@ -69046,7 +69046,7 @@ static uint32_t vu1prog_8_0AF8(VU1NativeCtx &c)
         stall(c, c.vfReady[14][2]);
         stall(c, c.vfReady[14][3]);
         alignas(16) float ut[4];
-        _mm_store_ps(ut, v4Min(VN(vf[14]), VN1(s.i), 15));
+        _mm_store_ps(ut, v4Min(VR(vf[14]), VR1(s.i), 15));
         const float u0 = ut[0];
         const float u1 = ut[1];
         const float u2 = ut[2];
@@ -69409,7 +69409,7 @@ static uint32_t vu1prog_8_0BE8(VU1NativeCtx &c)
     // 0C38: 00600213 81896B7C
     {
         alignas(16) float ut[4];
-        _mm_store_ps(ut, v4Max(VN(vf[0]), VN1(vf[0][3]), 12));
+        _mm_store_ps(ut, v4Max(VR(vf[0]), VR1(vf[0][3]), 12));
         const float u2 = ut[2];
         const float u3 = ut[3];
         const uint32_t la = ((static_cast<uint32_t>(static_cast<uint16_t>(vi[13])) * 16u) & 0x3FF0u);
@@ -69730,7 +69730,7 @@ static uint32_t vu1prog_8_0CE8(VU1NativeCtx &c)
         stall(c, c.viReady[12]);
         stall(c, c.viReady[13]);
         alignas(16) float ut[4];
-        _mm_store_ps(ut, v4Max(VN(vf[0]), VN1(vf[0][3]), 12));
+        _mm_store_ps(ut, v4Max(VR(vf[0]), VR1(vf[0][3]), 12));
         const float u2 = ut[2];
         const float u3 = ut[3];
         const int32_t nvi = static_cast<int16_t>(vi[13] + vi[12]);
@@ -72187,7 +72187,7 @@ static uint32_t vu1prog_8_1668(VU1NativeCtx &c)
     // 1698: 00600693 52010017
     {
         alignas(16) float ut[4];
-        _mm_store_ps(ut, v4Max(VN(vf[0]), VN1(vf[0][3]), 12));
+        _mm_store_ps(ut, v4Max(VR(vf[0]), VR1(vf[0][3]), 12));
         const float u2 = ut[2];
         const float u3 = ut[3];
         taken = static_cast<int16_t>(brVi(c, 0)) != static_cast<int16_t>(brVi(c, 1));
@@ -72934,7 +72934,7 @@ static uint32_t vu1prog_8_17C8(VU1NativeCtx &c)
     // 17F0: 00600693 52010017
     {
         alignas(16) float ut[4];
-        _mm_store_ps(ut, v4Max(VN(vf[0]), VN1(vf[0][3]), 12));
+        _mm_store_ps(ut, v4Max(VR(vf[0]), VR1(vf[0][3]), 12));
         const float u2 = ut[2];
         const float u3 = ut[3];
         taken = static_cast<int16_t>(brVi(c, 0)) != static_cast<int16_t>(brVi(c, 1));
@@ -73681,7 +73681,7 @@ static uint32_t vu1prog_8_1920(VU1NativeCtx &c)
     // 1948: 00600693 52010017
     {
         alignas(16) float ut[4];
-        _mm_store_ps(ut, v4Max(VN(vf[0]), VN1(vf[0][3]), 12));
+        _mm_store_ps(ut, v4Max(VR(vf[0]), VR1(vf[0][3]), 12));
         const float u2 = ut[2];
         const float u3 = ut[3];
         taken = static_cast<int16_t>(brVi(c, 0)) != static_cast<int16_t>(brVi(c, 1));
@@ -74428,7 +74428,7 @@ static uint32_t vu1prog_8_1A78(VU1NativeCtx &c)
     // 1AA0: 00600693 52010017
     {
         alignas(16) float ut[4];
-        _mm_store_ps(ut, v4Max(VN(vf[0]), VN1(vf[0][3]), 12));
+        _mm_store_ps(ut, v4Max(VR(vf[0]), VR1(vf[0][3]), 12));
         const float u2 = ut[2];
         const float u3 = ut[3];
         taken = static_cast<int16_t>(brVi(c, 0)) != static_cast<int16_t>(brVi(c, 1));
@@ -75175,7 +75175,7 @@ static uint32_t vu1prog_8_1BD0(VU1NativeCtx &c)
     // 1BF8: 00600693 52010017
     {
         alignas(16) float ut[4];
-        _mm_store_ps(ut, v4Max(VN(vf[0]), VN1(vf[0][3]), 12));
+        _mm_store_ps(ut, v4Max(VR(vf[0]), VR1(vf[0][3]), 12));
         const float u2 = ut[2];
         const float u3 = ut[3];
         taken = static_cast<int16_t>(brVi(c, 0)) != static_cast<int16_t>(brVi(c, 1));
@@ -77098,7 +77098,7 @@ static uint32_t vu1prog_8_2170(VU1NativeCtx &c)
     // 2190: 00200114 01C31FF0
     {
         alignas(16) float ut[4];
-        _mm_store_ps(ut, v4Min(VN(vf[0]), VN1(vf[0][0]), 8));
+        _mm_store_ps(ut, v4Min(VR(vf[0]), VR1(vf[0][0]), 8));
         const float u3 = ut[3];
         const uint32_t la = ((static_cast<uint32_t>(static_cast<int32_t>(vi[3] + (-16))) * 16u) & 0x3FF0u);
         const float l0 = ldf(m, la + 0);
@@ -77114,7 +77114,7 @@ static uint32_t vu1prog_8_2170(VU1NativeCtx &c)
     // 2198: 002000D4 01C41FF1
     {
         alignas(16) float ut[4];
-        _mm_store_ps(ut, v4Min(VN(vf[0]), VN1(vf[0][0]), 8));
+        _mm_store_ps(ut, v4Min(VR(vf[0]), VR1(vf[0][0]), 8));
         const float u3 = ut[3];
         const uint32_t la = ((static_cast<uint32_t>(static_cast<int32_t>(vi[3] + (-15))) * 16u) & 0x3FF0u);
         const float l0 = ldf(m, la + 0);
@@ -77130,7 +77130,7 @@ static uint32_t vu1prog_8_2170(VU1NativeCtx &c)
     // 21A0: 00200094 01C91FEB
     {
         alignas(16) float ut[4];
-        _mm_store_ps(ut, v4Min(VN(vf[0]), VN1(vf[0][0]), 8));
+        _mm_store_ps(ut, v4Min(VR(vf[0]), VR1(vf[0][0]), 8));
         const float u3 = ut[3];
         const uint32_t la = ((static_cast<uint32_t>(static_cast<int32_t>(vi[3] + (-21))) * 16u) & 0x3FF0u);
         const float l0 = ldf(m, la + 0);
@@ -77146,7 +77146,7 @@ static uint32_t vu1prog_8_2170(VU1NativeCtx &c)
     // 21A8: 00200054 01C21FF3
     {
         alignas(16) float ut[4];
-        _mm_store_ps(ut, v4Min(VN(vf[0]), VN1(vf[0][0]), 8));
+        _mm_store_ps(ut, v4Min(VR(vf[0]), VR1(vf[0][0]), 8));
         const float u3 = ut[3];
         const uint32_t la = ((static_cast<uint32_t>(static_cast<int32_t>(vi[3] + (-13))) * 16u) & 0x3FF0u);
         const float l0 = ldf(m, la + 0);
@@ -77162,7 +77162,7 @@ static uint32_t vu1prog_8_2170(VU1NativeCtx &c)
     // 21B0: 00200154 01C11FF4
     {
         alignas(16) float ut[4];
-        _mm_store_ps(ut, v4Min(VN(vf[0]), VN1(vf[0][0]), 8));
+        _mm_store_ps(ut, v4Min(VR(vf[0]), VR1(vf[0][0]), 8));
         const float u3 = ut[3];
         const uint32_t la = ((static_cast<uint32_t>(static_cast<int32_t>(vi[3] + (-12))) * 16u) & 0x3FF0u);
         const float l0 = ldf(m, la + 0);
@@ -77178,7 +77178,7 @@ static uint32_t vu1prog_8_2170(VU1NativeCtx &c)
     // 21B8: 80200194 43000000
     {
         alignas(16) float ut[4];
-        _mm_store_ps(ut, v4Min(VN(vf[0]), VN1(vf[0][0]), 8));
+        _mm_store_ps(ut, v4Min(VR(vf[0]), VR1(vf[0][0]), 8));
         const float u3 = ut[3];
         s.i = N(bitsf(0x43000000u));
         vf[6][3] = u3; c.vfReady[6][3] = c.cyc + 4;
@@ -77188,7 +77188,7 @@ static uint32_t vu1prog_8_2170(VU1NativeCtx &c)
     // 21C0: 002001D4 01ED1FE5
     {
         alignas(16) float ut[4];
-        _mm_store_ps(ut, v4Min(VN(vf[0]), VN1(vf[0][0]), 8));
+        _mm_store_ps(ut, v4Min(VR(vf[0]), VR1(vf[0][0]), 8));
         const float u3 = ut[3];
         const uint32_t la = ((static_cast<uint32_t>(static_cast<int32_t>(vi[3] + (-27))) * 16u) & 0x3FF0u);
         const float l0 = ldf(m, la + 0);
@@ -77206,7 +77206,7 @@ static uint32_t vu1prog_8_2170(VU1NativeCtx &c)
     // 21C8: 00200214 01EC1FE6
     {
         alignas(16) float ut[4];
-        _mm_store_ps(ut, v4Min(VN(vf[0]), VN1(vf[0][0]), 8));
+        _mm_store_ps(ut, v4Min(VR(vf[0]), VR1(vf[0][0]), 8));
         const float u3 = ut[3];
         const uint32_t la = ((static_cast<uint32_t>(static_cast<int32_t>(vi[3] + (-26))) * 16u) & 0x3FF0u);
         const float l0 = ldf(m, la + 0);
@@ -77224,7 +77224,7 @@ static uint32_t vu1prog_8_2170(VU1NativeCtx &c)
     // 21D0: 00200294 01EB1FE7
     {
         alignas(16) float ut[4];
-        _mm_store_ps(ut, v4Min(VN(vf[0]), VN1(vf[0][0]), 8));
+        _mm_store_ps(ut, v4Min(VR(vf[0]), VR1(vf[0][0]), 8));
         const float u3 = ut[3];
         const uint32_t la = ((static_cast<uint32_t>(static_cast<int32_t>(vi[3] + (-25))) * 16u) & 0x3FF0u);
         const float l0 = ldf(m, la + 0);
@@ -77242,7 +77242,7 @@ static uint32_t vu1prog_8_2170(VU1NativeCtx &c)
     // 21D8: 8020025D 43000000
     {
         alignas(16) float ut[4];
-        _mm_store_ps(ut, v4Max(VN(vf[0]), VN1(s.i), 8));
+        _mm_store_ps(ut, v4Max(VR(vf[0]), VR1(s.i), 8));
         const float u3 = ut[3];
         s.i = N(bitsf(0x43000000u));
         vf[9][3] = u3; c.vfReady[9][3] = c.cyc + 4;
@@ -79759,7 +79759,7 @@ static uint32_t vu1prog_8_2908(VU1NativeCtx &c)
     // 2948: 006001D3 800107F2
     {
         alignas(16) float ut[4];
-        _mm_store_ps(ut, v4Max(VN(vf[0]), VN1(vf[0][3]), 12));
+        _mm_store_ps(ut, v4Max(VR(vf[0]), VR1(vf[0][3]), 12));
         const float u2 = ut[2];
         const float u3 = ut[3];
         const int32_t nvi = static_cast<int16_t>(vi[0] + (-1));
@@ -80917,7 +80917,7 @@ static uint32_t vu1prog_8_2B28(VU1NativeCtx &c)
     // 2B68: 006001D3 800107F2
     {
         alignas(16) float ut[4];
-        _mm_store_ps(ut, v4Max(VN(vf[0]), VN1(vf[0][3]), 12));
+        _mm_store_ps(ut, v4Max(VR(vf[0]), VR1(vf[0][3]), 12));
         const float u2 = ut[2];
         const float u3 = ut[3];
         const int32_t nvi = static_cast<int16_t>(vi[0] + (-1));
@@ -85249,7 +85249,7 @@ static uint32_t vu1prog_8_3360(VU1NativeCtx &c)
     {
         stall(c, c.viReady[8]);
         alignas(16) float ut[4];
-        _mm_store_ps(ut, v4Max(VN(vf[0]), VN1(vf[0][3]), 12));
+        _mm_store_ps(ut, v4Max(VR(vf[0]), VR1(vf[0][3]), 12));
         const float u2 = ut[2];
         const float u3 = ut[3];
         const int32_t nvi = static_cast<int16_t>(vi[8] + (3));
@@ -85356,7 +85356,7 @@ static uint32_t vu1prog_8_33A8(VU1NativeCtx &c)
         stall(c, c.vfReady[3][3]);
         stall(c, c.viReady[8]);
         alignas(16) float ut[4];
-        _mm_store_ps(ut, v4Max(VN(vf[3]), VN(vf[3]), 15));
+        _mm_store_ps(ut, v4Max(VR(vf[3]), VR(vf[3]), 15));
         const float u0 = ut[0];
         const float u1 = ut[1];
         const float u2 = ut[2];
@@ -85506,7 +85506,7 @@ static uint32_t vu1prog_8_3400(VU1NativeCtx &c)
     // 3400: 01000153 01E6000A
     {
         alignas(16) float ut[4];
-        _mm_store_ps(ut, v4Max(VN(vf[0]), VN1(vf[0][3]), 1));
+        _mm_store_ps(ut, v4Max(VR(vf[0]), VR1(vf[0][3]), 1));
         const float u0 = ut[0];
         const uint32_t la = ((static_cast<uint32_t>(static_cast<int32_t>(vi[0] + (10))) * 16u) & 0x3FF0u);
         const float l0 = ldf(m, la + 0);
@@ -85524,7 +85524,7 @@ static uint32_t vu1prog_8_3400(VU1NativeCtx &c)
     // 3408: 00600353 01E7000B
     {
         alignas(16) float ut[4];
-        _mm_store_ps(ut, v4Max(VN(vf[0]), VN1(vf[0][3]), 12));
+        _mm_store_ps(ut, v4Max(VR(vf[0]), VR1(vf[0][3]), 12));
         const float u2 = ut[2];
         const float u3 = ut[3];
         const uint32_t la = ((static_cast<uint32_t>(static_cast<int32_t>(vi[0] + (11))) * 16u) & 0x3FF0u);
@@ -88192,7 +88192,7 @@ static uint32_t vu1prog_8_3A08(VU1NativeCtx &c)
     // 3A40: 002108AB 10072000
     {
         alignas(16) float ut[4];
-        _mm_store_ps(ut, v4Max(VN(vf[1]), VN(vf[1]), 8));
+        _mm_store_ps(ut, v4Max(VR(vf[1]), VR(vf[1]), 8));
         const float u3 = ut[3];
         const int32_t nvi = static_cast<int16_t>(vi[4] + (0));
         vf[2][3] = u3; c.vfReady[2][3] = c.cyc + 4;
@@ -88348,7 +88348,7 @@ static uint32_t vu1prog_8_3A98(VU1NativeCtx &c)
     {
         stall(c, c.vfReady[2][3]);
         alignas(16) float ut[4];
-        _mm_store_ps(ut, v4Max(VN(vf[2]), VN1(vf[0][0]), 8));
+        _mm_store_ps(ut, v4Max(VR(vf[2]), VR1(vf[0][0]), 8));
         const float u3 = ut[3];
         const int32_t nvi = static_cast<int16_t>(vi[1] + (2));
         vf[3][3] = u3; c.vfReady[3][3] = c.cyc + 4;
@@ -88407,7 +88407,7 @@ static uint32_t vu1prog_8_3A98(VU1NativeCtx &c)
     // 3AD0: 002018D7 01E73002
     {
         alignas(16) float ut[4];
-        _mm_store_ps(ut, v4Min(VN(vf[3]), VN1(vf[0][3]), 8));
+        _mm_store_ps(ut, v4Min(VR(vf[3]), VR1(vf[0][3]), 8));
         const float u3 = ut[3];
         const uint32_t la = ((static_cast<uint32_t>(static_cast<int32_t>(vi[6] + (2))) * 16u) & 0x3FF0u);
         const float l0 = ldf(m, la + 0);
@@ -88441,7 +88441,7 @@ static uint32_t vu1prog_8_3A98(VU1NativeCtx &c)
     // 3AE0: 00210A6B 01E53804
     {
         alignas(16) float ut[4];
-        _mm_store_ps(ut, v4Max(VN(vf[1]), VN(vf[1]), 8));
+        _mm_store_ps(ut, v4Max(VR(vf[1]), VR(vf[1]), 8));
         const float u3 = ut[3];
         const uint32_t la = ((static_cast<uint32_t>(static_cast<int32_t>(vi[7] + (4))) * 16u) & 0x3FF0u);
         const float l0 = ldf(m, la + 0);
@@ -88484,7 +88484,7 @@ static uint32_t vu1prog_8_3A98(VU1NativeCtx &c)
     // 3B00: 002049D0 03E83003
     {
         alignas(16) float ut[4];
-        _mm_store_ps(ut, v4Max(VN(vf[9]), VN1(vf[0][0]), 8));
+        _mm_store_ps(ut, v4Max(VR(vf[9]), VR1(vf[0][0]), 8));
         const float u3 = ut[3];
         { const uint32_t w[4] = {fbits(vf[6][0]), fbits(vf[6][1]), fbits(vf[6][2]), fbits(vf[6][3])}; storeQ(c, ((static_cast<uint32_t>(static_cast<int32_t>(vi[8] + (3))) * 16u) & 0x3FF0u), w, 15); }
         vf[7][3] = u3; c.vfReady[7][3] = c.cyc + 4;
@@ -88521,7 +88521,7 @@ static uint32_t vu1prog_8_3A98(VU1NativeCtx &c)
     // 3B20: 002038D7 5C002812
     {
         alignas(16) float ut[4];
-        _mm_store_ps(ut, v4Min(VN(vf[7]), VN1(vf[0][3]), 8));
+        _mm_store_ps(ut, v4Min(VR(vf[7]), VR1(vf[0][3]), 8));
         const float u3 = ut[3];
         taken = static_cast<int16_t>(brVi(c, 5)) <= 0;
         vf[3][3] = u3; c.vfReady[3][3] = c.cyc + 4;
@@ -88580,7 +88580,7 @@ static uint32_t vu1prog_8_3B30(VU1NativeCtx &c)
         stall(c, c.vfReady[4][2]);
         stall(c, c.vfReady[4][3]);
         alignas(16) float ut[4];
-        _mm_store_ps(ut, v4Max(VN(vf[4]), VN(vf[4]), 15));
+        _mm_store_ps(ut, v4Max(VR(vf[4]), VR(vf[4]), 15));
         const float u0 = ut[0];
         const float u1 = ut[1];
         const float u2 = ut[2];
@@ -88637,7 +88637,7 @@ static uint32_t vu1prog_8_3B30(VU1NativeCtx &c)
         stall(c, c.vfReady[2][2]);
         stall(c, c.vfReady[2][3]);
         alignas(16) float ut[4];
-        _mm_store_ps(ut, v4Max(VN(vf[2]), VN(vf[2]), 15));
+        _mm_store_ps(ut, v4Max(VR(vf[2]), VR(vf[2]), 15));
         const float u0 = ut[0];
         const float u1 = ut[1];
         const float u2 = ut[2];
@@ -88661,7 +88661,7 @@ static uint32_t vu1prog_8_3B30(VU1NativeCtx &c)
     // 3B58: 00210AEB 01E53804
     {
         alignas(16) float ut[4];
-        _mm_store_ps(ut, v4Max(VN(vf[1]), VN(vf[1]), 8));
+        _mm_store_ps(ut, v4Max(VR(vf[1]), VR(vf[1]), 8));
         const float u3 = ut[3];
         const uint32_t la = ((static_cast<uint32_t>(static_cast<int32_t>(vi[7] + (4))) * 16u) & 0x3FF0u);
         const float l0 = ldf(m, la + 0);
@@ -88704,7 +88704,7 @@ static uint32_t vu1prog_8_3B30(VU1NativeCtx &c)
     // 3B78: 00205A10 03E84002
     {
         alignas(16) float ut[4];
-        _mm_store_ps(ut, v4Max(VN(vf[11]), VN1(vf[0][0]), 8));
+        _mm_store_ps(ut, v4Max(VR(vf[11]), VR1(vf[0][0]), 8));
         const float u3 = ut[3];
         { const uint32_t w[4] = {fbits(vf[8][0]), fbits(vf[8][1]), fbits(vf[8][2]), fbits(vf[8][3])}; storeQ(c, ((static_cast<uint32_t>(static_cast<int32_t>(vi[8] + (2))) * 16u) & 0x3FF0u), w, 15); }
         vf[8][3] = u3; c.vfReady[8][3] = c.cyc + 4;
@@ -88741,7 +88741,7 @@ static uint32_t vu1prog_8_3B30(VU1NativeCtx &c)
     // 3B98: 002040D7 10063003
     {
         alignas(16) float ut[4];
-        _mm_store_ps(ut, v4Min(VN(vf[8]), VN1(vf[0][3]), 8));
+        _mm_store_ps(ut, v4Min(VR(vf[8]), VR1(vf[0][3]), 8));
         const float u3 = ut[3];
         const int32_t nvi = static_cast<int16_t>(vi[6] + (3));
         vf[3][3] = u3; c.vfReady[3][3] = c.cyc + 4;
@@ -88912,7 +88912,7 @@ static uint32_t vu1prog_8_3BF0(VU1NativeCtx &c)
     // 3C18: 00C00213 01EA0002
     {
         alignas(16) float ut[4];
-        _mm_store_ps(ut, v4Max(VN(vf[0]), VN1(vf[0][3]), 6));
+        _mm_store_ps(ut, v4Max(VR(vf[0]), VR1(vf[0][3]), 6));
         const float u1 = ut[1];
         const float u2 = ut[2];
         const uint32_t la = ((static_cast<uint32_t>(static_cast<int32_t>(vi[0] + (2))) * 16u) & 0x3FF0u);
@@ -88950,7 +88950,7 @@ static uint32_t vu1prog_8_3BF0(VU1NativeCtx &c)
     // 3C28: 0100022F 01EB0003
     {
         alignas(16) float ut[4];
-        _mm_store_ps(ut, v4Min(VN(vf[0]), VN(vf[0]), 1));
+        _mm_store_ps(ut, v4Min(VR(vf[0]), VR(vf[0]), 1));
         const float u0 = ut[0];
         const uint32_t la = ((static_cast<uint32_t>(static_cast<int32_t>(vi[0] + (3))) * 16u) & 0x3FF0u);
         const float l0 = ldf(m, la + 0);

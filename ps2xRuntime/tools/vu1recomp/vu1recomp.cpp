@@ -124,6 +124,9 @@ namespace
     };
 
     std::string vs(uint8_t r, int c) { return fmt("N(vf[%u][%d])", r, c); }
+    // MAX/MINI compare the raw register bits (sign-magnitude order), so denormal / integer
+    // payloads (colours moved with MAX.xyzw vfA,vfB,vfB) survive unchanged.
+    std::string vr(uint8_t r, int c) { return fmt("vf[%u][%d]", r, c); }
 
     // flags: produce MAC/status for FMAC ops (images that read them).
     Upper translateUpper(uint32_t up, bool flags)
@@ -190,21 +193,22 @@ namespace
                 return false;
             static const char *fn[7] = {"v4Add", "v4Sub", "v4Madd", "v4Msub", "v4Max", "v4Min", "v4Mul"};
             std::string b;
+            const bool raw = kind == 4 || kind == 5;
             if (operand < 4)
-                b = fmt("VN1(vf[%u][%d])", ft, operand);
+                b = fmt(raw ? "VR1(vf[%u][%d])" : "VN1(vf[%u][%d])", ft, operand);
             else if (operand == 4)
-                b = fmt("VN(vf[%u])", ft);
+                b = fmt(raw ? "VR(vf[%u])" : "VN(vf[%u])", ft);
             else if (operand == 5)
                 b = "VN1(s.q)";
             else
-                b = "VN1(s.i)";
+                b = raw ? "VR1(s.i)" : "VN1(s.i)";
             const bool useAcc = kind == 2 || kind == 3;
             int laneMask = 0;
             for (int c = 0; c < 4; ++c)
                 if (dest & laneBit(c))
                     laneMask |= 1 << c;
-            u.code += fmt("        alignas(16) float ut[4];\n        _mm_store_ps(ut, %s(%sVN(vf[%u]), %s, %d));\n", fn[kind],
-                          useAcc ? "VN(s.acc), " : "", fs, b.c_str(), laneMask);
+            u.code += fmt("        alignas(16) float ut[4];\n        _mm_store_ps(ut, %s(%s%s(vf[%u]), %s, %d));\n", fn[kind],
+                          useAcc ? "VN(s.acc), " : "", raw ? "VR" : "VN", fs, b.c_str(), laneMask);
             for (int c = 0; c < 4; ++c)
                 if (dest & laneBit(c))
                     u.code += fmt("        const float u%d = ut[%d];\n", c, c);
@@ -274,15 +278,15 @@ namespace
             case 0x0C: case 0x0D: case 0x0E: case 0x0F:
                 lanes([&](int c) { return fmt("fMsub(%s, %s, %s)", acc(c).c_str(), vs(fs, c).c_str(), bc(op & 3).c_str()); }); break;
             case 0x10: case 0x11: case 0x12: case 0x13:
-                lanes([&](int c) { return fmt("vmax(%s, %s)", vs(fs, c).c_str(), bc(op & 3).c_str()); }); break;
+                lanes([&](int c) { return fmt("vmax(%s, %s)", vr(fs, c).c_str(), vr(ft, op & 3).c_str()); }); break;
             case 0x14: case 0x15: case 0x16: case 0x17:
-                lanes([&](int c) { return fmt("vmin(%s, %s)", vs(fs, c).c_str(), bc(op & 3).c_str()); }); break;
+                lanes([&](int c) { return fmt("vmin(%s, %s)", vr(fs, c).c_str(), vr(ft, op & 3).c_str()); }); break;
             case 0x18: case 0x19: case 0x1A: case 0x1B:
                 lanes([&](int c) { return fmt("fMul(%s, %s)", vs(fs, c).c_str(), bc(op & 3).c_str()); }); break;
             case 0x1C: u.readsQ = true; lanes([&](int c) { return fmt("fMul(%s, %s)", vs(fs, c).c_str(), Q.c_str()); }); break;
-            case 0x1D: u.readsI = true; lanes([&](int c) { return fmt("vmax(%s, %s)", vs(fs, c).c_str(), I.c_str()); }); break;
+            case 0x1D: u.readsI = true; lanes([&](int c) { return fmt("vmax(%s, s.i)", vr(fs, c).c_str()); }); break;
             case 0x1E: u.readsI = true; lanes([&](int c) { return fmt("fMul(%s, %s)", vs(fs, c).c_str(), I.c_str()); }); break;
-            case 0x1F: u.readsI = true; lanes([&](int c) { return fmt("vmin(%s, %s)", vs(fs, c).c_str(), I.c_str()); }); break;
+            case 0x1F: u.readsI = true; lanes([&](int c) { return fmt("vmin(%s, s.i)", vr(fs, c).c_str()); }); break;
             case 0x20: u.readsQ = true; lanes([&](int c) { return fmt("fAdd(%s, %s)", vs(fs, c).c_str(), Q.c_str()); }); break;
             case 0x21: u.readsQ = true; lanes([&](int c) { return fmt("fMadd(%s, %s, %s)", acc(c).c_str(), vs(fs, c).c_str(), Q.c_str()); }); break;
             case 0x22: u.readsI = true; lanes([&](int c) { return fmt("fAdd(%s, %s)", vs(fs, c).c_str(), I.c_str()); }); break;
@@ -294,7 +298,7 @@ namespace
             case 0x28: lanes([&](int c) { return fmt("fAdd(%s, %s)", vs(fs, c).c_str(), vs(ft, c).c_str()); }); break;
             case 0x29: lanes([&](int c) { return fmt("fMadd(%s, %s, %s)", acc(c).c_str(), vs(fs, c).c_str(), vs(ft, c).c_str()); }); break;
             case 0x2A: lanes([&](int c) { return fmt("fMul(%s, %s)", vs(fs, c).c_str(), vs(ft, c).c_str()); }); break;
-            case 0x2B: lanes([&](int c) { return fmt("vmax(%s, %s)", vs(fs, c).c_str(), vs(ft, c).c_str()); }); break;
+            case 0x2B: lanes([&](int c) { return fmt("vmax(%s, %s)", vr(fs, c).c_str(), vr(ft, c).c_str()); }); break;
             case 0x2C: lanes([&](int c) { return fmt("fSub(%s, %s)", vs(fs, c).c_str(), vs(ft, c).c_str()); }); break;
             case 0x2D: lanes([&](int c) { return fmt("fMsub(%s, %s, %s)", acc(c).c_str(), vs(fs, c).c_str(), vs(ft, c).c_str()); }); break;
             case 0x2E:
@@ -306,7 +310,7 @@ namespace
                     return fmt("fMsub(%s, %s, %s)", acc(c).c_str(), vs(fs, L[c]).c_str(), vs(ft, R[c]).c_str()); });
                 break;
             }
-            case 0x2F: lanes([&](int c) { return fmt("vmin(%s, %s)", vs(fs, c).c_str(), vs(ft, c).c_str()); }); break;
+            case 0x2F: lanes([&](int c) { return fmt("vmin(%s, %s)", vr(fs, c).c_str(), vr(ft, c).c_str()); }); break;
             }
             if (fd == 0)
                 u.vfReg = 0; // vf0 writes are discarded (interpreter restores vf0 after each pair)
@@ -1119,8 +1123,8 @@ int main(int argc, char **argv)
     out += "    constexpr uint32_t kEnded = 0x10000u, kHandoff = 0x20000u;\n";
     out += "    inline uint32_t handoffRet(VU1NativeCtx &c, uint32_t pc, bool branch = false, uint32_t target = 0u, bool ebit = false)\n"
            "    {\n        handoff(c, pc, branch, target, ebit);\n        return kHandoff;\n    }\n";
-    out += "    VU1N_INLINE float vmax(float a, float b) { return (a > b) ? a : b; }\n";
-    out += "    VU1N_INLINE float vmin(float a, float b) { return (a < b) ? a : b; }\n";
+    out += "    VU1N_INLINE float vmax(float a, float b) { return vuRawMax(a, b); }\n";
+    out += "    VU1N_INLINE float vmin(float a, float b) { return vuRawMin(a, b); }\n";
     out += "    VU1N_INLINE float ldf(const uint8_t *m, uint32_t a) { float v; std::memcpy(&v, m + a, 4); return v; }\n";
     out += "    VU1N_INLINE uint32_t ldu(const uint8_t *m, uint32_t a) { uint32_t v; std::memcpy(&v, m + a, 4); return v; }\n";
     out += "    inline uint32_t clipBits(const float *v, float wf)\n    {\n"

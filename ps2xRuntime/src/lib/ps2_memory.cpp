@@ -149,7 +149,7 @@ namespace
                     if (startNs > readyNs)
                         s_gpuLatencyNs.fetch_add(startNs - readyNs, std::memory_order_relaxed);
                 }
-                const bool hadVif = !job.vif1.empty();
+                const bool hadVif = job.countKick && !job.vif1.empty(); // matches gpuEnqueue's backpressure count
                 memory->runGpuJob(job);
                 job = PS2Memory::GpuJob{};
                 s_gpuBusyNs.fetch_add(static_cast<uint64_t>(std::chrono::duration_cast<std::chrono::nanoseconds>(std::chrono::steady_clock::now() - t0).count()),
@@ -213,7 +213,9 @@ namespace
             g_gpuWorker->thread.detach();
         }
         GpuWorker &w = *g_gpuWorker;
-        const bool hasVif = !job.vif1.empty();
+        // Backpressure counts VIF1 DMA kicks only (display lists), not small FIFO writes, so a
+        // qword written to the VIF1 FIFO right after a big kick does not wait for that kick.
+        const bool hasVif = job.countKick && !job.vif1.empty();
         if (hasVif)
         {
             // Keep the EE at most a couple of display lists ahead of the worker.

@@ -99,9 +99,9 @@ void VU1Interpreter::execUpper(uint32_t instr)
     case 0x12:
     case 0x13: // MAXbc
     {
-        float bc = broadcast(vt, op & 3);
+        const float bc = m_state.vf[ft][op & 3];
         for (int c = 0; c < 4; c++)
-            result[c] = (vs[c] > bc) ? vs[c] : bc;
+            result[c] = vuRawMax(m_state.vf[fs][c], bc);
         applyDest(vd, result, dest);
         return;
     }
@@ -110,9 +110,9 @@ void VU1Interpreter::execUpper(uint32_t instr)
     case 0x16:
     case 0x17: // MINIbc
     {
-        float bc = broadcast(vt, op & 3);
+        const float bc = m_state.vf[ft][op & 3];
         for (int c = 0; c < 4; c++)
-            result[c] = (vs[c] < bc) ? vs[c] : bc;
+            result[c] = vuRawMin(m_state.vf[fs][c], bc);
         applyDest(vd, result, dest);
         return;
     }
@@ -134,7 +134,7 @@ void VU1Interpreter::execUpper(uint32_t instr)
         return;
     case 0x1D: // MAXi
         for (int c = 0; c < 4; c++)
-            result[c] = (vs[c] > i) ? vs[c] : i;
+            result[c] = vuRawMax(m_state.vf[fs][c], m_state.i);
         applyDest(vd, result, dest);
         return;
     case 0x1E: // MULi
@@ -144,7 +144,7 @@ void VU1Interpreter::execUpper(uint32_t instr)
         return;
     case 0x1F: // MINIi
         for (int c = 0; c < 4; c++)
-            result[c] = (vs[c] < i) ? vs[c] : i;
+            result[c] = vuRawMin(m_state.vf[fs][c], m_state.i);
         applyDest(vd, result, dest);
         return;
     case 0x20: // ADDq
@@ -204,7 +204,7 @@ void VU1Interpreter::execUpper(uint32_t instr)
         return;
     case 0x2B: // MAX
         for (int c = 0; c < 4; c++)
-            result[c] = (vs[c] > vt[c]) ? vs[c] : vt[c];
+            result[c] = vuRawMax(m_state.vf[fs][c], m_state.vf[ft][c]);
         applyDest(vd, result, dest);
         return;
     case 0x2C: // SUB
@@ -227,7 +227,7 @@ void VU1Interpreter::execUpper(uint32_t instr)
         return;
     case 0x2F: // MINI
         for (int c = 0; c < 4; c++)
-            result[c] = (vs[c] < vt[c]) ? vs[c] : vt[c];
+            result[c] = vuRawMin(m_state.vf[fs][c], m_state.vf[ft][c]);
         applyDest(vd, result, dest);
         return;
 

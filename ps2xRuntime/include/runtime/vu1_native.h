@@ -333,9 +333,25 @@ namespace vu1n
             o[i] = fMsub(c[i], x[i], y[i]);
         return _mm_load_ps(o);
     }
-    // vmax(a, b) = a > b ? a : b and vmin(a, b) = a < b ? a : b (operands are normalised: no NaN)
-    VU1N_INLINE __m128 v4Max(__m128 a, __m128 b, int) { return _mm_max_ps(a, b); }
-    VU1N_INLINE __m128 v4Min(__m128 a, __m128 b, int) { return _mm_min_ps(a, b); }
+    // MAX/MINI: a > b ? a : b / a < b ? a : b on the raw register bits in sign-magnitude order
+    // (no denormal flushing - games move integer data with MAX.xyzw vfA,vfB,vfB).
+    VU1N_INLINE __m128 VR(const float *v) { return _mm_loadu_ps(v); }
+    VU1N_INLINE __m128 VR1(float v) { return _mm_set1_ps(v); }
+    VU1N_INLINE __m128i vuOrderKey4(__m128 v)
+    {
+        const __m128i b = _mm_castps_si128(v);
+        return _mm_xor_si128(b, _mm_srli_epi32(_mm_srai_epi32(b, 31), 1));
+    }
+    VU1N_INLINE __m128 v4Max(__m128 a, __m128 b, int)
+    {
+        const __m128 gt = _mm_castsi128_ps(_mm_cmpgt_epi32(vuOrderKey4(a), vuOrderKey4(b)));
+        return _mm_or_ps(_mm_and_ps(gt, a), _mm_andnot_ps(gt, b));
+    }
+    VU1N_INLINE __m128 v4Min(__m128 a, __m128 b, int)
+    {
+        const __m128 lt = _mm_castsi128_ps(_mm_cmplt_epi32(vuOrderKey4(a), vuOrderKey4(b)));
+        return _mm_or_ps(_mm_and_ps(lt, a), _mm_andnot_ps(lt, b));
+    }
 
     inline int32_t floatToInt(float value, float scale)
     {

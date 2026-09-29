@@ -13,8 +13,8 @@ namespace
         handoff(c, pc, branch, target, ebit);
         return kHandoff;
     }
-    VU1N_INLINE float vmax(float a, float b) { return (a > b) ? a : b; }
-    VU1N_INLINE float vmin(float a, float b) { return (a < b) ? a : b; }
+    VU1N_INLINE float vmax(float a, float b) { return vuRawMax(a, b); }
+    VU1N_INLINE float vmin(float a, float b) { return vuRawMin(a, b); }
     VU1N_INLINE float ldf(const uint8_t *m, uint32_t a) { float v; std::memcpy(&v, m + a, 4); return v; }
     VU1N_INLINE uint32_t ldu(const uint8_t *m, uint32_t a) { uint32_t v; std::memcpy(&v, m + a, 4); return v; }
     inline uint32_t clipBits(const float *v, float wf)

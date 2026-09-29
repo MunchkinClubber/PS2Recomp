@@ -3,6 +3,18 @@
 
 #include <array>
 #include <cstdint>
+#include <cstring>
+
+// VU MAX/MINI compare raw register bits in sign-magnitude order: no denormal flushing, so
+// integer payloads moved with MAX/MINI survive (SSX 3 copies vertex colours with MAX.xyzw).
+inline int32_t vuOrderKey(float v)
+{
+    int32_t b;
+    std::memcpy(&b, &v, sizeof(b));
+    return b ^ static_cast<int32_t>(static_cast<uint32_t>(b >> 31) >> 1);
+}
+inline float vuRawMax(float a, float b) { return vuOrderKey(a) > vuOrderKey(b) ? a : b; }
+inline float vuRawMin(float a, float b) { return vuOrderKey(a) < vuOrderKey(b) ? a : b; }
 
 class GS;
 class PS2Memory;
