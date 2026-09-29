@@ -65,7 +65,6042 @@ namespace
         s.r = (((s.r << 1) ^ x ^ y) & 0x007FFFFFu) | 0x3F800000u;
     }
 
+static uint32_t vu0prog_0_0000(VU1NativeCtx &c)
+{
+    using namespace vu1n;
+    VU1State &s = *c.st;
+    float (*vf)[4] = s.vf;
+    int32_t *vi = s.vi;
+    uint8_t *m = c.mem;
+    (void)m;
+    (void)vf;
+    (void)vi;
+    // 0000: 000002FF 1003000A
+    {
+        const int32_t nvi = static_cast<int16_t>(vi[0] + (10));
+        c.bkValid = true; c.bkReg = 3; c.bkVal = vi[3];
+        vi[3] = nvi; c.viReady[3] = c.cyc + 1;
+        ++c.cyc;
+    }
+    // 0008: 000002FF 10050010
+    {
+        const int32_t nvi = static_cast<int16_t>(vi[0] + (16));
+        c.bkValid = true; c.bkReg = 5; c.bkVal = vi[5];
+        vi[5] = nvi; c.viReady[5] = c.cyc + 1;
+        ++c.cyc;
+    }
+    // 0010: 000002FF 10070020
+    {
+        const int32_t nvi = static_cast<int16_t>(vi[0] + (32));
+        c.bkValid = true; c.bkReg = 7; c.bkVal = vi[7];
+        vi[7] = nvi; c.viReady[7] = c.cyc + 1;
+        ++c.cyc;
+    }
+    // 0018: 000002FF 01F22800
+    {
+        const uint32_t la = ((static_cast<uint32_t>(static_cast<int32_t>(vi[5] + (0))) * 16u) & 0xFF0u);
+        const float l0 = ldf(m, la + 0);
+        const float l1 = ldf(m, la + 4);
+        const float l2 = ldf(m, la + 8);
+        const float l3 = ldf(m, la + 12);
+        vf[18][0] = l0; c.vfReady[18][0] = c.cyc + 4;
+        vf[18][1] = l1; c.vfReady[18][1] = c.cyc + 4;
+        vf[18][2] = l2; c.vfReady[18][2] = c.cyc + 4;
+        vf[18][3] = l3; c.vfReady[18][3] = c.cyc + 4;
+        c.bkValid = false;
+        ++c.cyc;
+    }
+    // 0020: 000002FF 01FB2800
+    {
+        const uint32_t la = ((static_cast<uint32_t>(static_cast<int32_t>(vi[5] + (0))) * 16u) & 0xFF0u);
+        const float l0 = ldf(m, la + 0);
+        const float l1 = ldf(m, la + 4);
+        const float l2 = ldf(m, la + 8);
+        const float l3 = ldf(m, la + 12);
+        vf[27][0] = l0; c.vfReady[27][0] = c.cyc + 4;
+        vf[27][1] = l1; c.vfReady[27][1] = c.cyc + 4;
+        vf[27][2] = l2; c.vfReady[27][2] = c.cyc + 4;
+        vf[27][3] = l3; c.vfReady[27][3] = c.cyc + 4;
+        c.bkValid = false;
+        ++c.cyc;
+    }
+    return 0x28;
+}
+
+static uint32_t vu0prog_0_0028(VU1NativeCtx &c)
+{
+    using namespace vu1n;
+    VU1State &s = *c.st;
+    float (*vf)[4] = s.vf;
+    int32_t *vi = s.vi;
+    uint8_t *m = c.mem;
+    (void)m;
+    (void)vf;
+    (void)vi;
+    // 0028: 01E004EC 10040010
+    {
+        uint32_t stk = 0u;
+        uint32_t f0 = 0u;
+        const float u0 = fSubF(N(vf[0][0]), N(vf[0][0]), f0);
+        uint32_t f1 = 0u;
+        const float u1 = fSubF(N(vf[0][1]), N(vf[0][1]), f1);
+        uint32_t f2 = 0u;
+        const float u2 = fSubF(N(vf[0][2]), N(vf[0][2]), f2);
+        uint32_t f3 = 0u;
+        const float u3 = fSubF(N(vf[0][3]), N(vf[0][3]), f3);
+        pushMacStatus(c, 0u | macBits(f0, 8u) | macBits(f1, 4u) | macBits(f2, 2u) | macBits(f3, 1u), 0u | f0 | f1 | f2 | f3, stk);
+        const int32_t nvi = static_cast<int16_t>(vi[0] + (16));
+        vf[19][0] = u0; c.vfReady[19][0] = c.cyc + 4;
+        vf[19][1] = u1; c.vfReady[19][1] = c.cyc + 4;
+        vf[19][2] = u2; c.vfReady[19][2] = c.cyc + 4;
+        vf[19][3] = u3; c.vfReady[19][3] = c.cyc + 4;
+        c.bkValid = true; c.bkReg = 4; c.bkVal = vi[4];
+        vi[4] = nvi; c.viReady[4] = c.cyc + 1;
+        ++c.cyc;
+    }
+    // 0030: 01E0056C 81FC2B7C
+    {
+        stall(c, c.viReady[5]);
+        uint32_t stk = 0u;
+        uint32_t f0 = 0u;
+        const float u0 = fSubF(N(vf[0][0]), N(vf[0][0]), f0);
+        uint32_t f1 = 0u;
+        const float u1 = fSubF(N(vf[0][1]), N(vf[0][1]), f1);
+        uint32_t f2 = 0u;
+        const float u2 = fSubF(N(vf[0][2]), N(vf[0][2]), f2);
+        uint32_t f3 = 0u;
+        const float u3 = fSubF(N(vf[0][3]), N(vf[0][3]), f3);
+        pushMacStatus(c, 0u | macBits(f0, 8u) | macBits(f1, 4u) | macBits(f2, 2u) | macBits(f3, 1u), 0u | f0 | f1 | f2 | f3, stk);
+        const uint32_t la = ((static_cast<uint32_t>(static_cast<uint16_t>(vi[5])) * 16u) & 0xFF0u);
+        const float l0 = ldf(m, la + 0);
+        const float l1 = ldf(m, la + 4);
+        const float l2 = ldf(m, la + 8);
+        const float l3 = ldf(m, la + 12);
+        const int32_t nvi = static_cast<int16_t>(vi[5] + 1);
+        vf[28][0] = l0; c.vfReady[28][0] = c.cyc + 4;
+        vf[28][1] = l1; c.vfReady[28][1] = c.cyc + 4;
+        vf[28][2] = l2; c.vfReady[28][2] = c.cyc + 4;
+        vf[28][3] = l3; c.vfReady[28][3] = c.cyc + 4;
+        vf[21][0] = u0; c.vfReady[21][0] = c.cyc + 4;
+        vf[21][1] = u1; c.vfReady[21][1] = c.cyc + 4;
+        vf[21][2] = u2; c.vfReady[21][2] = c.cyc + 4;
+        vf[21][3] = u3; c.vfReady[21][3] = c.cyc + 4;
+        c.bkValid = true; c.bkReg = 5; c.bkVal = vi[5];
+        vi[5] = nvi; c.viReady[5] = c.cyc + 1;
+        ++c.cyc;
+    }
+    // 0038: 01E005AC 81F1237C
+    {
+        uint32_t stk = 0u;
+        uint32_t f0 = 0u;
+        const float u0 = fSubF(N(vf[0][0]), N(vf[0][0]), f0);
+        uint32_t f1 = 0u;
+        const float u1 = fSubF(N(vf[0][1]), N(vf[0][1]), f1);
+        uint32_t f2 = 0u;
+        const float u2 = fSubF(N(vf[0][2]), N(vf[0][2]), f2);
+        uint32_t f3 = 0u;
+        const float u3 = fSubF(N(vf[0][3]), N(vf[0][3]), f3);
+        pushMacStatus(c, 0u | macBits(f0, 8u) | macBits(f1, 4u) | macBits(f2, 2u) | macBits(f3, 1u), 0u | f0 | f1 | f2 | f3, stk);
+        const uint32_t la = ((static_cast<uint32_t>(static_cast<uint16_t>(vi[4])) * 16u) & 0xFF0u);
+        const float l0 = ldf(m, la + 0);
+        const float l1 = ldf(m, la + 4);
+        const float l2 = ldf(m, la + 8);
+        const float l3 = ldf(m, la + 12);
+        const int32_t nvi = static_cast<int16_t>(vi[4] + 1);
+        vf[17][0] = l0; c.vfReady[17][0] = c.cyc + 4;
+        vf[17][1] = l1; c.vfReady[17][1] = c.cyc + 4;
+        vf[17][2] = l2; c.vfReady[17][2] = c.cyc + 4;
+        vf[17][3] = l3; c.vfReady[17][3] = c.cyc + 4;
+        vf[22][0] = u0; c.vfReady[22][0] = c.cyc + 4;
+        vf[22][1] = u1; c.vfReady[22][1] = c.cyc + 4;
+        vf[22][2] = u2; c.vfReady[22][2] = c.cyc + 4;
+        vf[22][3] = u3; c.vfReady[22][3] = c.cyc + 4;
+        c.bkValid = true; c.bkReg = 4; c.bkVal = vi[4];
+        vi[4] = nvi; c.viReady[4] = c.cyc + 1;
+        ++c.cyc;
+    }
+    // 0040: 000002FF 81D30B3C
+    {
+        stall(c, c.vfReady[1][0]);
+        stall(c, c.vfReady[1][1]);
+        stall(c, c.vfReady[1][2]);
+        const float l0 = vf[1][0];
+        const float l1 = vf[1][1];
+        const float l2 = vf[1][2];
+        vf[19][0] = l0; c.vfReady[19][0] = c.cyc + 4;
+        vf[19][1] = l1; c.vfReady[19][1] = c.cyc + 4;
+        vf[19][2] = l2; c.vfReady[19][2] = c.cyc + 4;
+        c.bkValid = false;
+        ++c.cyc;
+    }
+    // 0048: 000002FF 81D4133C
+    {
+        stall(c, c.vfReady[2][0]);
+        stall(c, c.vfReady[2][1]);
+        stall(c, c.vfReady[2][2]);
+        const float l0 = vf[2][0];
+        const float l1 = vf[2][1];
+        const float l2 = vf[2][2];
+        vf[20][0] = l0; c.vfReady[20][0] = c.cyc + 4;
+        vf[20][1] = l1; c.vfReady[20][1] = c.cyc + 4;
+        vf[20][2] = l2; c.vfReady[20][2] = c.cyc + 4;
+        c.bkValid = false;
+        ++c.cyc;
+    }
+    // 0050: 000002FF 81D51B3C
+    {
+        stall(c, c.vfReady[3][0]);
+        stall(c, c.vfReady[3][1]);
+        stall(c, c.vfReady[3][2]);
+        const float l0 = vf[3][0];
+        const float l1 = vf[3][1];
+        const float l2 = vf[3][2];
+        vf[21][0] = l0; c.vfReady[21][0] = c.cyc + 4;
+        vf[21][1] = l1; c.vfReady[21][1] = c.cyc + 4;
+        vf[21][2] = l2; c.vfReady[21][2] = c.cyc + 4;
+        c.bkValid = false;
+        ++c.cyc;
+    }
+    // 0058: 000002FF 81D6233C
+    {
+        stall(c, c.vfReady[4][0]);
+        stall(c, c.vfReady[4][1]);
+        stall(c, c.vfReady[4][2]);
+        const float l0 = vf[4][0];
+        const float l1 = vf[4][1];
+        const float l2 = vf[4][2];
+        vf[22][0] = l0; c.vfReady[22][0] = c.cyc + 4;
+        vf[22][1] = l1; c.vfReady[22][1] = c.cyc + 4;
+        vf[22][2] = l2; c.vfReady[22][2] = c.cyc + 4;
+        c.bkValid = false;
+        ++c.cyc;
+    }
+    // 0060: 01FC99BC 8000033C
+    {
+        uint32_t stk = 0u;
+        uint32_t f0 = 0u;
+        const float u0 = fMulF(N(vf[19][0]), N(vf[28][0]), f0);
+        uint32_t f1 = 0u;
+        const float u1 = fMulF(N(vf[19][1]), N(vf[28][0]), f1);
+        uint32_t f2 = 0u;
+        const float u2 = fMulF(N(vf[19][2]), N(vf[28][0]), f2);
+        uint32_t f3 = 0u;
+        const float u3 = fMulF(N(vf[19][3]), N(vf[28][0]), f3);
+        pushMacStatus(c, 0u | macBits(f0, 8u) | macBits(f1, 4u) | macBits(f2, 2u) | macBits(f3, 1u), 0u | f0 | f1 | f2 | f3, stk);
+        s.acc[0] = u0; c.accReady[0] = c.cyc + 1u;
+        s.acc[1] = u1; c.accReady[1] = c.cyc + 1u;
+        s.acc[2] = u2; c.accReady[2] = c.cyc + 1u;
+        s.acc[3] = u3; c.accReady[3] = c.cyc + 1u;
+        c.bkValid = false;
+        ++c.cyc;
+    }
+    // 0068: 01FCA0BD 81D32B3C
+    {
+        stall(c, c.vfReady[20][3]);
+        stall(c, c.vfReady[5][0]);
+        stall(c, c.vfReady[5][1]);
+        stall(c, c.vfReady[5][2]);
+        uint32_t stk = 0u;
+        uint32_t f0 = 0u;
+        const float u0 = fMaddF(N(s.acc[0]), N(vf[20][0]), N(vf[28][1]), f0, stk);
+        uint32_t f1 = 0u;
+        const float u1 = fMaddF(N(s.acc[1]), N(vf[20][1]), N(vf[28][1]), f1, stk);
+        uint32_t f2 = 0u;
+        const float u2 = fMaddF(N(s.acc[2]), N(vf[20][2]), N(vf[28][1]), f2, stk);
+        uint32_t f3 = 0u;
+        const float u3 = fMaddF(N(s.acc[3]), N(vf[20][3]), N(vf[28][1]), f3, stk);
+        pushMacStatus(c, 0u | macBits(f0, 8u) | macBits(f1, 4u) | macBits(f2, 2u) | macBits(f3, 1u), 0u | f0 | f1 | f2 | f3, stk);
+        const float l0 = vf[5][0];
+        const float l1 = vf[5][1];
+        const float l2 = vf[5][2];
+        vf[19][0] = l0; c.vfReady[19][0] = c.cyc + 4;
+        vf[19][1] = l1; c.vfReady[19][1] = c.cyc + 4;
+        vf[19][2] = l2; c.vfReady[19][2] = c.cyc + 4;
+        s.acc[0] = u0; c.accReady[0] = c.cyc + 1u;
+        s.acc[1] = u1; c.accReady[1] = c.cyc + 1u;
+        s.acc[2] = u2; c.accReady[2] = c.cyc + 1u;
+        s.acc[3] = u3; c.accReady[3] = c.cyc + 1u;
+        c.bkValid = false;
+        ++c.cyc;
+    }
+    // 0070: 01FCA8BE 81D4333C
+    {
+        stall(c, c.vfReady[6][0]);
+        stall(c, c.vfReady[6][1]);
+        stall(c, c.vfReady[6][2]);
+        uint32_t stk = 0u;
+        uint32_t f0 = 0u;
+        const float u0 = fMaddF(N(s.acc[0]), N(vf[21][0]), N(vf[28][2]), f0, stk);
+        uint32_t f1 = 0u;
+        const float u1 = fMaddF(N(s.acc[1]), N(vf[21][1]), N(vf[28][2]), f1, stk);
+        uint32_t f2 = 0u;
+        const float u2 = fMaddF(N(s.acc[2]), N(vf[21][2]), N(vf[28][2]), f2, stk);
+        uint32_t f3 = 0u;
+        const float u3 = fMaddF(N(s.acc[3]), N(vf[21][3]), N(vf[28][2]), f3, stk);
+        pushMacStatus(c, 0u | macBits(f0, 8u) | macBits(f1, 4u) | macBits(f2, 2u) | macBits(f3, 1u), 0u | f0 | f1 | f2 | f3, stk);
+        const float l0 = vf[6][0];
+        const float l1 = vf[6][1];
+        const float l2 = vf[6][2];
+        vf[20][0] = l0; c.vfReady[20][0] = c.cyc + 4;
+        vf[20][1] = l1; c.vfReady[20][1] = c.cyc + 4;
+        vf[20][2] = l2; c.vfReady[20][2] = c.cyc + 4;
+        s.acc[0] = u0; c.accReady[0] = c.cyc + 1u;
+        s.acc[1] = u1; c.accReady[1] = c.cyc + 1u;
+        s.acc[2] = u2; c.accReady[2] = c.cyc + 1u;
+        s.acc[3] = u3; c.accReady[3] = c.cyc + 1u;
+        c.bkValid = false;
+        ++c.cyc;
+    }
+    // 0078: 01FCB5CB 81D53B3C
+    {
+        stall(c, c.vfReady[7][0]);
+        stall(c, c.vfReady[7][1]);
+        stall(c, c.vfReady[7][2]);
+        uint32_t stk = 0u;
+        uint32_t f0 = 0u;
+        const float u0 = fMaddF(N(s.acc[0]), N(vf[22][0]), N(vf[28][3]), f0, stk);
+        uint32_t f1 = 0u;
+        const float u1 = fMaddF(N(s.acc[1]), N(vf[22][1]), N(vf[28][3]), f1, stk);
+        uint32_t f2 = 0u;
+        const float u2 = fMaddF(N(s.acc[2]), N(vf[22][2]), N(vf[28][3]), f2, stk);
+        uint32_t f3 = 0u;
+        const float u3 = fMaddF(N(s.acc[3]), N(vf[22][3]), N(vf[28][3]), f3, stk);
+        pushMacStatus(c, 0u | macBits(f0, 8u) | macBits(f1, 4u) | macBits(f2, 2u) | macBits(f3, 1u), 0u | f0 | f1 | f2 | f3, stk);
+        const float l0 = vf[7][0];
+        const float l1 = vf[7][1];
+        const float l2 = vf[7][2];
+        vf[21][0] = l0; c.vfReady[21][0] = c.cyc + 4;
+        vf[21][1] = l1; c.vfReady[21][1] = c.cyc + 4;
+        vf[21][2] = l2; c.vfReady[21][2] = c.cyc + 4;
+        vf[23][0] = u0; c.vfReady[23][0] = c.cyc + 4;
+        vf[23][1] = u1; c.vfReady[23][1] = c.cyc + 4;
+        vf[23][2] = u2; c.vfReady[23][2] = c.cyc + 4;
+        vf[23][3] = u3; c.vfReady[23][3] = c.cyc + 4;
+        c.bkValid = false;
+        ++c.cyc;
+    }
+    // 0080: 000002FF 81D6433C
+    {
+        stall(c, c.vfReady[8][0]);
+        stall(c, c.vfReady[8][1]);
+        stall(c, c.vfReady[8][2]);
+        const float l0 = vf[8][0];
+        const float l1 = vf[8][1];
+        const float l2 = vf[8][2];
+        vf[22][0] = l0; c.vfReady[22][0] = c.cyc + 4;
+        vf[22][1] = l1; c.vfReady[22][1] = c.cyc + 4;
+        vf[22][2] = l2; c.vfReady[22][2] = c.cyc + 4;
+        c.bkValid = false;
+        ++c.cyc;
+    }
+    // 0088: 01FC99BC 8000033C
+    {
+        uint32_t stk = 0u;
+        uint32_t f0 = 0u;
+        const float u0 = fMulF(N(vf[19][0]), N(vf[28][0]), f0);
+        uint32_t f1 = 0u;
+        const float u1 = fMulF(N(vf[19][1]), N(vf[28][0]), f1);
+        uint32_t f2 = 0u;
+        const float u2 = fMulF(N(vf[19][2]), N(vf[28][0]), f2);
+        uint32_t f3 = 0u;
+        const float u3 = fMulF(N(vf[19][3]), N(vf[28][0]), f3);
+        pushMacStatus(c, 0u | macBits(f0, 8u) | macBits(f1, 4u) | macBits(f2, 2u) | macBits(f3, 1u), 0u | f0 | f1 | f2 | f3, stk);
+        s.acc[0] = u0; c.accReady[0] = c.cyc + 1u;
+        s.acc[1] = u1; c.accReady[1] = c.cyc + 1u;
+        s.acc[2] = u2; c.accReady[2] = c.cyc + 1u;
+        s.acc[3] = u3; c.accReady[3] = c.cyc + 1u;
+        c.bkValid = false;
+        ++c.cyc;
+    }
+    // 0090: 01FCA0BD 81D34B3C
+    {
+        stall(c, c.vfReady[9][0]);
+        stall(c, c.vfReady[9][1]);
+        stall(c, c.vfReady[9][2]);
+        uint32_t stk = 0u;
+        uint32_t f0 = 0u;
+        const float u0 = fMaddF(N(s.acc[0]), N(vf[20][0]), N(vf[28][1]), f0, stk);
+        uint32_t f1 = 0u;
+        const float u1 = fMaddF(N(s.acc[1]), N(vf[20][1]), N(vf[28][1]), f1, stk);
+        uint32_t f2 = 0u;
+        const float u2 = fMaddF(N(s.acc[2]), N(vf[20][2]), N(vf[28][1]), f2, stk);
+        uint32_t f3 = 0u;
+        const float u3 = fMaddF(N(s.acc[3]), N(vf[20][3]), N(vf[28][1]), f3, stk);
+        pushMacStatus(c, 0u | macBits(f0, 8u) | macBits(f1, 4u) | macBits(f2, 2u) | macBits(f3, 1u), 0u | f0 | f1 | f2 | f3, stk);
+        const float l0 = vf[9][0];
+        const float l1 = vf[9][1];
+        const float l2 = vf[9][2];
+        vf[19][0] = l0; c.vfReady[19][0] = c.cyc + 4;
+        vf[19][1] = l1; c.vfReady[19][1] = c.cyc + 4;
+        vf[19][2] = l2; c.vfReady[19][2] = c.cyc + 4;
+        s.acc[0] = u0; c.accReady[0] = c.cyc + 1u;
+        s.acc[1] = u1; c.accReady[1] = c.cyc + 1u;
+        s.acc[2] = u2; c.accReady[2] = c.cyc + 1u;
+        s.acc[3] = u3; c.accReady[3] = c.cyc + 1u;
+        c.bkValid = false;
+        ++c.cyc;
+    }
+    // 0098: 01FCA8BE 81D4533C
+    {
+        stall(c, c.vfReady[10][0]);
+        stall(c, c.vfReady[10][1]);
+        stall(c, c.vfReady[10][2]);
+        uint32_t stk = 0u;
+        uint32_t f0 = 0u;
+        const float u0 = fMaddF(N(s.acc[0]), N(vf[21][0]), N(vf[28][2]), f0, stk);
+        uint32_t f1 = 0u;
+        const float u1 = fMaddF(N(s.acc[1]), N(vf[21][1]), N(vf[28][2]), f1, stk);
+        uint32_t f2 = 0u;
+        const float u2 = fMaddF(N(s.acc[2]), N(vf[21][2]), N(vf[28][2]), f2, stk);
+        uint32_t f3 = 0u;
+        const float u3 = fMaddF(N(s.acc[3]), N(vf[21][3]), N(vf[28][2]), f3, stk);
+        pushMacStatus(c, 0u | macBits(f0, 8u) | macBits(f1, 4u) | macBits(f2, 2u) | macBits(f3, 1u), 0u | f0 | f1 | f2 | f3, stk);
+        const float l0 = vf[10][0];
+        const float l1 = vf[10][1];
+        const float l2 = vf[10][2];
+        vf[20][0] = l0; c.vfReady[20][0] = c.cyc + 4;
+        vf[20][1] = l1; c.vfReady[20][1] = c.cyc + 4;
+        vf[20][2] = l2; c.vfReady[20][2] = c.cyc + 4;
+        s.acc[0] = u0; c.accReady[0] = c.cyc + 1u;
+        s.acc[1] = u1; c.accReady[1] = c.cyc + 1u;
+        s.acc[2] = u2; c.accReady[2] = c.cyc + 1u;
+        s.acc[3] = u3; c.accReady[3] = c.cyc + 1u;
+        c.bkValid = false;
+        ++c.cyc;
+    }
+    // 00A0: 01FCB60B 81D55B3C
+    {
+        stall(c, c.vfReady[11][0]);
+        stall(c, c.vfReady[11][1]);
+        stall(c, c.vfReady[11][2]);
+        uint32_t stk = 0u;
+        uint32_t f0 = 0u;
+        const float u0 = fMaddF(N(s.acc[0]), N(vf[22][0]), N(vf[28][3]), f0, stk);
+        uint32_t f1 = 0u;
+        const float u1 = fMaddF(N(s.acc[1]), N(vf[22][1]), N(vf[28][3]), f1, stk);
+        uint32_t f2 = 0u;
+        const float u2 = fMaddF(N(s.acc[2]), N(vf[22][2]), N(vf[28][3]), f2, stk);
+        uint32_t f3 = 0u;
+        const float u3 = fMaddF(N(s.acc[3]), N(vf[22][3]), N(vf[28][3]), f3, stk);
+        pushMacStatus(c, 0u | macBits(f0, 8u) | macBits(f1, 4u) | macBits(f2, 2u) | macBits(f3, 1u), 0u | f0 | f1 | f2 | f3, stk);
+        const float l0 = vf[11][0];
+        const float l1 = vf[11][1];
+        const float l2 = vf[11][2];
+        vf[21][0] = l0; c.vfReady[21][0] = c.cyc + 4;
+        vf[21][1] = l1; c.vfReady[21][1] = c.cyc + 4;
+        vf[21][2] = l2; c.vfReady[21][2] = c.cyc + 4;
+        vf[24][0] = u0; c.vfReady[24][0] = c.cyc + 4;
+        vf[24][1] = u1; c.vfReady[24][1] = c.cyc + 4;
+        vf[24][2] = u2; c.vfReady[24][2] = c.cyc + 4;
+        vf[24][3] = u3; c.vfReady[24][3] = c.cyc + 4;
+        c.bkValid = false;
+        ++c.cyc;
+    }
+    // 00A8: 000002FF 81D6633C
+    {
+        stall(c, c.vfReady[12][0]);
+        stall(c, c.vfReady[12][1]);
+        stall(c, c.vfReady[12][2]);
+        const float l0 = vf[12][0];
+        const float l1 = vf[12][1];
+        const float l2 = vf[12][2];
+        vf[22][0] = l0; c.vfReady[22][0] = c.cyc + 4;
+        vf[22][1] = l1; c.vfReady[22][1] = c.cyc + 4;
+        vf[22][2] = l2; c.vfReady[22][2] = c.cyc + 4;
+        c.bkValid = false;
+        ++c.cyc;
+    }
+    // 00B0: 01FC99BC 8000033C
+    {
+        uint32_t stk = 0u;
+        uint32_t f0 = 0u;
+        const float u0 = fMulF(N(vf[19][0]), N(vf[28][0]), f0);
+        uint32_t f1 = 0u;
+        const float u1 = fMulF(N(vf[19][1]), N(vf[28][0]), f1);
+        uint32_t f2 = 0u;
+        const float u2 = fMulF(N(vf[19][2]), N(vf[28][0]), f2);
+        uint32_t f3 = 0u;
+        const float u3 = fMulF(N(vf[19][3]), N(vf[28][0]), f3);
+        pushMacStatus(c, 0u | macBits(f0, 8u) | macBits(f1, 4u) | macBits(f2, 2u) | macBits(f3, 1u), 0u | f0 | f1 | f2 | f3, stk);
+        s.acc[0] = u0; c.accReady[0] = c.cyc + 1u;
+        s.acc[1] = u1; c.accReady[1] = c.cyc + 1u;
+        s.acc[2] = u2; c.accReady[2] = c.cyc + 1u;
+        s.acc[3] = u3; c.accReady[3] = c.cyc + 1u;
+        c.bkValid = false;
+        ++c.cyc;
+    }
+    // 00B8: 01FCA0BD 81D36B3C
+    {
+        stall(c, c.vfReady[13][0]);
+        stall(c, c.vfReady[13][1]);
+        stall(c, c.vfReady[13][2]);
+        uint32_t stk = 0u;
+        uint32_t f0 = 0u;
+        const float u0 = fMaddF(N(s.acc[0]), N(vf[20][0]), N(vf[28][1]), f0, stk);
+        uint32_t f1 = 0u;
+        const float u1 = fMaddF(N(s.acc[1]), N(vf[20][1]), N(vf[28][1]), f1, stk);
+        uint32_t f2 = 0u;
+        const float u2 = fMaddF(N(s.acc[2]), N(vf[20][2]), N(vf[28][1]), f2, stk);
+        uint32_t f3 = 0u;
+        const float u3 = fMaddF(N(s.acc[3]), N(vf[20][3]), N(vf[28][1]), f3, stk);
+        pushMacStatus(c, 0u | macBits(f0, 8u) | macBits(f1, 4u) | macBits(f2, 2u) | macBits(f3, 1u), 0u | f0 | f1 | f2 | f3, stk);
+        const float l0 = vf[13][0];
+        const float l1 = vf[13][1];
+        const float l2 = vf[13][2];
+        vf[19][0] = l0; c.vfReady[19][0] = c.cyc + 4;
+        vf[19][1] = l1; c.vfReady[19][1] = c.cyc + 4;
+        vf[19][2] = l2; c.vfReady[19][2] = c.cyc + 4;
+        s.acc[0] = u0; c.accReady[0] = c.cyc + 1u;
+        s.acc[1] = u1; c.accReady[1] = c.cyc + 1u;
+        s.acc[2] = u2; c.accReady[2] = c.cyc + 1u;
+        s.acc[3] = u3; c.accReady[3] = c.cyc + 1u;
+        c.bkValid = false;
+        ++c.cyc;
+    }
+    // 00C0: 01FCA8BE 81D4733C
+    {
+        stall(c, c.vfReady[14][0]);
+        stall(c, c.vfReady[14][1]);
+        stall(c, c.vfReady[14][2]);
+        uint32_t stk = 0u;
+        uint32_t f0 = 0u;
+        const float u0 = fMaddF(N(s.acc[0]), N(vf[21][0]), N(vf[28][2]), f0, stk);
+        uint32_t f1 = 0u;
+        const float u1 = fMaddF(N(s.acc[1]), N(vf[21][1]), N(vf[28][2]), f1, stk);
+        uint32_t f2 = 0u;
+        const float u2 = fMaddF(N(s.acc[2]), N(vf[21][2]), N(vf[28][2]), f2, stk);
+        uint32_t f3 = 0u;
+        const float u3 = fMaddF(N(s.acc[3]), N(vf[21][3]), N(vf[28][2]), f3, stk);
+        pushMacStatus(c, 0u | macBits(f0, 8u) | macBits(f1, 4u) | macBits(f2, 2u) | macBits(f3, 1u), 0u | f0 | f1 | f2 | f3, stk);
+        const float l0 = vf[14][0];
+        const float l1 = vf[14][1];
+        const float l2 = vf[14][2];
+        vf[20][0] = l0; c.vfReady[20][0] = c.cyc + 4;
+        vf[20][1] = l1; c.vfReady[20][1] = c.cyc + 4;
+        vf[20][2] = l2; c.vfReady[20][2] = c.cyc + 4;
+        s.acc[0] = u0; c.accReady[0] = c.cyc + 1u;
+        s.acc[1] = u1; c.accReady[1] = c.cyc + 1u;
+        s.acc[2] = u2; c.accReady[2] = c.cyc + 1u;
+        s.acc[3] = u3; c.accReady[3] = c.cyc + 1u;
+        c.bkValid = false;
+        ++c.cyc;
+    }
+    // 00C8: 01FCB64B 81D57B3C
+    {
+        stall(c, c.vfReady[15][0]);
+        stall(c, c.vfReady[15][1]);
+        stall(c, c.vfReady[15][2]);
+        uint32_t stk = 0u;
+        uint32_t f0 = 0u;
+        const float u0 = fMaddF(N(s.acc[0]), N(vf[22][0]), N(vf[28][3]), f0, stk);
+        uint32_t f1 = 0u;
+        const float u1 = fMaddF(N(s.acc[1]), N(vf[22][1]), N(vf[28][3]), f1, stk);
+        uint32_t f2 = 0u;
+        const float u2 = fMaddF(N(s.acc[2]), N(vf[22][2]), N(vf[28][3]), f2, stk);
+        uint32_t f3 = 0u;
+        const float u3 = fMaddF(N(s.acc[3]), N(vf[22][3]), N(vf[28][3]), f3, stk);
+        pushMacStatus(c, 0u | macBits(f0, 8u) | macBits(f1, 4u) | macBits(f2, 2u) | macBits(f3, 1u), 0u | f0 | f1 | f2 | f3, stk);
+        const float l0 = vf[15][0];
+        const float l1 = vf[15][1];
+        const float l2 = vf[15][2];
+        vf[21][0] = l0; c.vfReady[21][0] = c.cyc + 4;
+        vf[21][1] = l1; c.vfReady[21][1] = c.cyc + 4;
+        vf[21][2] = l2; c.vfReady[21][2] = c.cyc + 4;
+        vf[25][0] = u0; c.vfReady[25][0] = c.cyc + 4;
+        vf[25][1] = u1; c.vfReady[25][1] = c.cyc + 4;
+        vf[25][2] = u2; c.vfReady[25][2] = c.cyc + 4;
+        vf[25][3] = u3; c.vfReady[25][3] = c.cyc + 4;
+        c.bkValid = false;
+        ++c.cyc;
+    }
+    // 00D0: 000002FF 81D6833C
+    {
+        stall(c, c.vfReady[16][0]);
+        stall(c, c.vfReady[16][1]);
+        stall(c, c.vfReady[16][2]);
+        const float l0 = vf[16][0];
+        const float l1 = vf[16][1];
+        const float l2 = vf[16][2];
+        vf[22][0] = l0; c.vfReady[22][0] = c.cyc + 4;
+        vf[22][1] = l1; c.vfReady[22][1] = c.cyc + 4;
+        vf[22][2] = l2; c.vfReady[22][2] = c.cyc + 4;
+        c.bkValid = false;
+        ++c.cyc;
+    }
+    // 00D8: 01FC99BC 8000033C
+    {
+        uint32_t stk = 0u;
+        uint32_t f0 = 0u;
+        const float u0 = fMulF(N(vf[19][0]), N(vf[28][0]), f0);
+        uint32_t f1 = 0u;
+        const float u1 = fMulF(N(vf[19][1]), N(vf[28][0]), f1);
+        uint32_t f2 = 0u;
+        const float u2 = fMulF(N(vf[19][2]), N(vf[28][0]), f2);
+        uint32_t f3 = 0u;
+        const float u3 = fMulF(N(vf[19][3]), N(vf[28][0]), f3);
+        pushMacStatus(c, 0u | macBits(f0, 8u) | macBits(f1, 4u) | macBits(f2, 2u) | macBits(f3, 1u), 0u | f0 | f1 | f2 | f3, stk);
+        s.acc[0] = u0; c.accReady[0] = c.cyc + 1u;
+        s.acc[1] = u1; c.accReady[1] = c.cyc + 1u;
+        s.acc[2] = u2; c.accReady[2] = c.cyc + 1u;
+        s.acc[3] = u3; c.accReady[3] = c.cyc + 1u;
+        c.bkValid = false;
+        ++c.cyc;
+    }
+    // 00E0: 01FCA0BD 8000033C
+    {
+        uint32_t stk = 0u;
+        uint32_t f0 = 0u;
+        const float u0 = fMaddF(N(s.acc[0]), N(vf[20][0]), N(vf[28][1]), f0, stk);
+        uint32_t f1 = 0u;
+        const float u1 = fMaddF(N(s.acc[1]), N(vf[20][1]), N(vf[28][1]), f1, stk);
+        uint32_t f2 = 0u;
+        const float u2 = fMaddF(N(s.acc[2]), N(vf[20][2]), N(vf[28][1]), f2, stk);
+        uint32_t f3 = 0u;
+        const float u3 = fMaddF(N(s.acc[3]), N(vf[20][3]), N(vf[28][1]), f3, stk);
+        pushMacStatus(c, 0u | macBits(f0, 8u) | macBits(f1, 4u) | macBits(f2, 2u) | macBits(f3, 1u), 0u | f0 | f1 | f2 | f3, stk);
+        s.acc[0] = u0; c.accReady[0] = c.cyc + 1u;
+        s.acc[1] = u1; c.accReady[1] = c.cyc + 1u;
+        s.acc[2] = u2; c.accReady[2] = c.cyc + 1u;
+        s.acc[3] = u3; c.accReady[3] = c.cyc + 1u;
+        c.bkValid = false;
+        ++c.cyc;
+    }
+    // 00E8: 01FCA8BE 8000033C
+    {
+        uint32_t stk = 0u;
+        uint32_t f0 = 0u;
+        const float u0 = fMaddF(N(s.acc[0]), N(vf[21][0]), N(vf[28][2]), f0, stk);
+        uint32_t f1 = 0u;
+        const float u1 = fMaddF(N(s.acc[1]), N(vf[21][1]), N(vf[28][2]), f1, stk);
+        uint32_t f2 = 0u;
+        const float u2 = fMaddF(N(s.acc[2]), N(vf[21][2]), N(vf[28][2]), f2, stk);
+        uint32_t f3 = 0u;
+        const float u3 = fMaddF(N(s.acc[3]), N(vf[21][3]), N(vf[28][2]), f3, stk);
+        pushMacStatus(c, 0u | macBits(f0, 8u) | macBits(f1, 4u) | macBits(f2, 2u) | macBits(f3, 1u), 0u | f0 | f1 | f2 | f3, stk);
+        s.acc[0] = u0; c.accReady[0] = c.cyc + 1u;
+        s.acc[1] = u1; c.accReady[1] = c.cyc + 1u;
+        s.acc[2] = u2; c.accReady[2] = c.cyc + 1u;
+        s.acc[3] = u3; c.accReady[3] = c.cyc + 1u;
+        c.bkValid = false;
+        ++c.cyc;
+    }
+    // 00F0: 01FCB68B 8000033C
+    {
+        uint32_t stk = 0u;
+        uint32_t f0 = 0u;
+        const float u0 = fMaddF(N(s.acc[0]), N(vf[22][0]), N(vf[28][3]), f0, stk);
+        uint32_t f1 = 0u;
+        const float u1 = fMaddF(N(s.acc[1]), N(vf[22][1]), N(vf[28][3]), f1, stk);
+        uint32_t f2 = 0u;
+        const float u2 = fMaddF(N(s.acc[2]), N(vf[22][2]), N(vf[28][3]), f2, stk);
+        uint32_t f3 = 0u;
+        const float u3 = fMaddF(N(s.acc[3]), N(vf[22][3]), N(vf[28][3]), f3, stk);
+        pushMacStatus(c, 0u | macBits(f0, 8u) | macBits(f1, 4u) | macBits(f2, 2u) | macBits(f3, 1u), 0u | f0 | f1 | f2 | f3, stk);
+        vf[26][0] = u0; c.vfReady[26][0] = c.cyc + 4;
+        vf[26][1] = u1; c.vfReady[26][1] = c.cyc + 4;
+        vf[26][2] = u2; c.vfReady[26][2] = c.cyc + 4;
+        vf[26][3] = u3; c.vfReady[26][3] = c.cyc + 4;
+        c.bkValid = false;
+        ++c.cyc;
+    }
+    // 00F8: 01F1B9BC 81FC237C
+    {
+        uint32_t stk = 0u;
+        uint32_t f0 = 0u;
+        const float u0 = fMulF(N(vf[23][0]), N(vf[17][0]), f0);
+        uint32_t f1 = 0u;
+        const float u1 = fMulF(N(vf[23][1]), N(vf[17][0]), f1);
+        uint32_t f2 = 0u;
+        const float u2 = fMulF(N(vf[23][2]), N(vf[17][0]), f2);
+        uint32_t f3 = 0u;
+        const float u3 = fMulF(N(vf[23][3]), N(vf[17][0]), f3);
+        pushMacStatus(c, 0u | macBits(f0, 8u) | macBits(f1, 4u) | macBits(f2, 2u) | macBits(f3, 1u), 0u | f0 | f1 | f2 | f3, stk);
+        const uint32_t la = ((static_cast<uint32_t>(static_cast<uint16_t>(vi[4])) * 16u) & 0xFF0u);
+        const float l0 = ldf(m, la + 0);
+        const float l1 = ldf(m, la + 4);
+        const float l2 = ldf(m, la + 8);
+        const float l3 = ldf(m, la + 12);
+        const int32_t nvi = static_cast<int16_t>(vi[4] + 1);
+        vf[28][0] = l0; c.vfReady[28][0] = c.cyc + 4;
+        vf[28][1] = l1; c.vfReady[28][1] = c.cyc + 4;
+        vf[28][2] = l2; c.vfReady[28][2] = c.cyc + 4;
+        vf[28][3] = l3; c.vfReady[28][3] = c.cyc + 4;
+        s.acc[0] = u0; c.accReady[0] = c.cyc + 1u;
+        s.acc[1] = u1; c.accReady[1] = c.cyc + 1u;
+        s.acc[2] = u2; c.accReady[2] = c.cyc + 1u;
+        s.acc[3] = u3; c.accReady[3] = c.cyc + 1u;
+        c.bkValid = true; c.bkReg = 4; c.bkVal = vi[4];
+        vi[4] = nvi; c.viReady[4] = c.cyc + 1;
+        ++c.cyc;
+    }
+    // 0100: 01F1C0BD 8000033C
+    {
+        uint32_t stk = 0u;
+        uint32_t f0 = 0u;
+        const float u0 = fMaddF(N(s.acc[0]), N(vf[24][0]), N(vf[17][1]), f0, stk);
+        uint32_t f1 = 0u;
+        const float u1 = fMaddF(N(s.acc[1]), N(vf[24][1]), N(vf[17][1]), f1, stk);
+        uint32_t f2 = 0u;
+        const float u2 = fMaddF(N(s.acc[2]), N(vf[24][2]), N(vf[17][1]), f2, stk);
+        uint32_t f3 = 0u;
+        const float u3 = fMaddF(N(s.acc[3]), N(vf[24][3]), N(vf[17][1]), f3, stk);
+        pushMacStatus(c, 0u | macBits(f0, 8u) | macBits(f1, 4u) | macBits(f2, 2u) | macBits(f3, 1u), 0u | f0 | f1 | f2 | f3, stk);
+        s.acc[0] = u0; c.accReady[0] = c.cyc + 1u;
+        s.acc[1] = u1; c.accReady[1] = c.cyc + 1u;
+        s.acc[2] = u2; c.accReady[2] = c.cyc + 1u;
+        s.acc[3] = u3; c.accReady[3] = c.cyc + 1u;
+        c.bkValid = false;
+        ++c.cyc;
+    }
+    // 0108: 01F1C8BE 8000033C
+    {
+        uint32_t stk = 0u;
+        uint32_t f0 = 0u;
+        const float u0 = fMaddF(N(s.acc[0]), N(vf[25][0]), N(vf[17][2]), f0, stk);
+        uint32_t f1 = 0u;
+        const float u1 = fMaddF(N(s.acc[1]), N(vf[25][1]), N(vf[17][2]), f1, stk);
+        uint32_t f2 = 0u;
+        const float u2 = fMaddF(N(s.acc[2]), N(vf[25][2]), N(vf[17][2]), f2, stk);
+        uint32_t f3 = 0u;
+        const float u3 = fMaddF(N(s.acc[3]), N(vf[25][3]), N(vf[17][2]), f3, stk);
+        pushMacStatus(c, 0u | macBits(f0, 8u) | macBits(f1, 4u) | macBits(f2, 2u) | macBits(f3, 1u), 0u | f0 | f1 | f2 | f3, stk);
+        s.acc[0] = u0; c.accReady[0] = c.cyc + 1u;
+        s.acc[1] = u1; c.accReady[1] = c.cyc + 1u;
+        s.acc[2] = u2; c.accReady[2] = c.cyc + 1u;
+        s.acc[3] = u3; c.accReady[3] = c.cyc + 1u;
+        c.bkValid = false;
+        ++c.cyc;
+    }
+    // 0110: 01D1D48B 8000033C
+    {
+        uint32_t stk = 0u;
+        uint32_t f0 = 0u;
+        const float u0 = fMaddF(N(s.acc[0]), N(vf[26][0]), N(vf[17][3]), f0, stk);
+        uint32_t f1 = 0u;
+        const float u1 = fMaddF(N(s.acc[1]), N(vf[26][1]), N(vf[17][3]), f1, stk);
+        uint32_t f2 = 0u;
+        const float u2 = fMaddF(N(s.acc[2]), N(vf[26][2]), N(vf[17][3]), f2, stk);
+        pushMacStatus(c, 0u | macBits(f0, 8u) | macBits(f1, 4u) | macBits(f2, 2u), 0u | f0 | f1 | f2, stk);
+        vf[18][0] = u0; c.vfReady[18][0] = c.cyc + 4;
+        vf[18][1] = u1; c.vfReady[18][1] = c.cyc + 4;
+        vf[18][2] = u2; c.vfReady[18][2] = c.cyc + 4;
+        c.bkValid = false;
+        ++c.cyc;
+    }
+    // 0118: 01FCB9BC 81F1237C
+    {
+        uint32_t stk = 0u;
+        uint32_t f0 = 0u;
+        const float u0 = fMulF(N(vf[23][0]), N(vf[28][0]), f0);
+        uint32_t f1 = 0u;
+        const float u1 = fMulF(N(vf[23][1]), N(vf[28][0]), f1);
+        uint32_t f2 = 0u;
+        const float u2 = fMulF(N(vf[23][2]), N(vf[28][0]), f2);
+        uint32_t f3 = 0u;
+        const float u3 = fMulF(N(vf[23][3]), N(vf[28][0]), f3);
+        pushMacStatus(c, 0u | macBits(f0, 8u) | macBits(f1, 4u) | macBits(f2, 2u) | macBits(f3, 1u), 0u | f0 | f1 | f2 | f3, stk);
+        const uint32_t la = ((static_cast<uint32_t>(static_cast<uint16_t>(vi[4])) * 16u) & 0xFF0u);
+        const float l0 = ldf(m, la + 0);
+        const float l1 = ldf(m, la + 4);
+        const float l2 = ldf(m, la + 8);
+        const float l3 = ldf(m, la + 12);
+        const int32_t nvi = static_cast<int16_t>(vi[4] + 1);
+        vf[17][0] = l0; c.vfReady[17][0] = c.cyc + 4;
+        vf[17][1] = l1; c.vfReady[17][1] = c.cyc + 4;
+        vf[17][2] = l2; c.vfReady[17][2] = c.cyc + 4;
+        vf[17][3] = l3; c.vfReady[17][3] = c.cyc + 4;
+        s.acc[0] = u0; c.accReady[0] = c.cyc + 1u;
+        s.acc[1] = u1; c.accReady[1] = c.cyc + 1u;
+        s.acc[2] = u2; c.accReady[2] = c.cyc + 1u;
+        s.acc[3] = u3; c.accReady[3] = c.cyc + 1u;
+        c.bkValid = true; c.bkReg = 4; c.bkVal = vi[4];
+        vi[4] = nvi; c.viReady[4] = c.cyc + 1;
+        ++c.cyc;
+    }
+    // 0120: 01FCC0BD 8000033C
+    {
+        uint32_t stk = 0u;
+        uint32_t f0 = 0u;
+        const float u0 = fMaddF(N(s.acc[0]), N(vf[24][0]), N(vf[28][1]), f0, stk);
+        uint32_t f1 = 0u;
+        const float u1 = fMaddF(N(s.acc[1]), N(vf[24][1]), N(vf[28][1]), f1, stk);
+        uint32_t f2 = 0u;
+        const float u2 = fMaddF(N(s.acc[2]), N(vf[24][2]), N(vf[28][1]), f2, stk);
+        uint32_t f3 = 0u;
+        const float u3 = fMaddF(N(s.acc[3]), N(vf[24][3]), N(vf[28][1]), f3, stk);
+        pushMacStatus(c, 0u | macBits(f0, 8u) | macBits(f1, 4u) | macBits(f2, 2u) | macBits(f3, 1u), 0u | f0 | f1 | f2 | f3, stk);
+        s.acc[0] = u0; c.accReady[0] = c.cyc + 1u;
+        s.acc[1] = u1; c.accReady[1] = c.cyc + 1u;
+        s.acc[2] = u2; c.accReady[2] = c.cyc + 1u;
+        s.acc[3] = u3; c.accReady[3] = c.cyc + 1u;
+        c.bkValid = false;
+        ++c.cyc;
+    }
+    // 0128: 01FCC8BE 8000033C
+    {
+        uint32_t stk = 0u;
+        uint32_t f0 = 0u;
+        const float u0 = fMaddF(N(s.acc[0]), N(vf[25][0]), N(vf[28][2]), f0, stk);
+        uint32_t f1 = 0u;
+        const float u1 = fMaddF(N(s.acc[1]), N(vf[25][1]), N(vf[28][2]), f1, stk);
+        uint32_t f2 = 0u;
+        const float u2 = fMaddF(N(s.acc[2]), N(vf[25][2]), N(vf[28][2]), f2, stk);
+        uint32_t f3 = 0u;
+        const float u3 = fMaddF(N(s.acc[3]), N(vf[25][3]), N(vf[28][2]), f3, stk);
+        pushMacStatus(c, 0u | macBits(f0, 8u) | macBits(f1, 4u) | macBits(f2, 2u) | macBits(f3, 1u), 0u | f0 | f1 | f2 | f3, stk);
+        s.acc[0] = u0; c.accReady[0] = c.cyc + 1u;
+        s.acc[1] = u1; c.accReady[1] = c.cyc + 1u;
+        s.acc[2] = u2; c.accReady[2] = c.cyc + 1u;
+        s.acc[3] = u3; c.accReady[3] = c.cyc + 1u;
+        c.bkValid = false;
+        ++c.cyc;
+    }
+    // 0130: 01DCD6CB 81E7937D
+    {
+        stall(c, c.vfReady[18][3]);
+        stall(c, c.viReady[7]);
+        uint32_t stk = 0u;
+        uint32_t f0 = 0u;
+        const float u0 = fMaddF(N(s.acc[0]), N(vf[26][0]), N(vf[28][3]), f0, stk);
+        uint32_t f1 = 0u;
+        const float u1 = fMaddF(N(s.acc[1]), N(vf[26][1]), N(vf[28][3]), f1, stk);
+        uint32_t f2 = 0u;
+        const float u2 = fMaddF(N(s.acc[2]), N(vf[26][2]), N(vf[28][3]), f2, stk);
+        pushMacStatus(c, 0u | macBits(f0, 8u) | macBits(f1, 4u) | macBits(f2, 2u), 0u | f0 | f1 | f2, stk);
+        { const uint32_t w[4] = {fbits(vf[18][0]), fbits(vf[18][1]), fbits(vf[18][2]), fbits(vf[18][3])}; storeQ(c, ((static_cast<uint32_t>(static_cast<uint16_t>(vi[7])) * 16u) & 0xFF0u), w, 15); }
+        const int32_t nvi = static_cast<int16_t>(vi[7] + 1);
+        vf[27][0] = u0; c.vfReady[27][0] = c.cyc + 4;
+        vf[27][1] = u1; c.vfReady[27][1] = c.cyc + 4;
+        vf[27][2] = u2; c.vfReady[27][2] = c.cyc + 4;
+        c.bkValid = true; c.bkReg = 7; c.bkVal = vi[7];
+        vi[7] = nvi; c.viReady[7] = c.cyc + 1;
+        ++c.cyc;
+    }
+    // 0138: 01F1B9BC 81FC237C
+    {
+        uint32_t stk = 0u;
+        uint32_t f0 = 0u;
+        const float u0 = fMulF(N(vf[23][0]), N(vf[17][0]), f0);
+        uint32_t f1 = 0u;
+        const float u1 = fMulF(N(vf[23][1]), N(vf[17][0]), f1);
+        uint32_t f2 = 0u;
+        const float u2 = fMulF(N(vf[23][2]), N(vf[17][0]), f2);
+        uint32_t f3 = 0u;
+        const float u3 = fMulF(N(vf[23][3]), N(vf[17][0]), f3);
+        pushMacStatus(c, 0u | macBits(f0, 8u) | macBits(f1, 4u) | macBits(f2, 2u) | macBits(f3, 1u), 0u | f0 | f1 | f2 | f3, stk);
+        const uint32_t la = ((static_cast<uint32_t>(static_cast<uint16_t>(vi[4])) * 16u) & 0xFF0u);
+        const float l0 = ldf(m, la + 0);
+        const float l1 = ldf(m, la + 4);
+        const float l2 = ldf(m, la + 8);
+        const float l3 = ldf(m, la + 12);
+        const int32_t nvi = static_cast<int16_t>(vi[4] + 1);
+        vf[28][0] = l0; c.vfReady[28][0] = c.cyc + 4;
+        vf[28][1] = l1; c.vfReady[28][1] = c.cyc + 4;
+        vf[28][2] = l2; c.vfReady[28][2] = c.cyc + 4;
+        vf[28][3] = l3; c.vfReady[28][3] = c.cyc + 4;
+        s.acc[0] = u0; c.accReady[0] = c.cyc + 1u;
+        s.acc[1] = u1; c.accReady[1] = c.cyc + 1u;
+        s.acc[2] = u2; c.accReady[2] = c.cyc + 1u;
+        s.acc[3] = u3; c.accReady[3] = c.cyc + 1u;
+        c.bkValid = true; c.bkReg = 4; c.bkVal = vi[4];
+        vi[4] = nvi; c.viReady[4] = c.cyc + 1;
+        ++c.cyc;
+    }
+    // 0140: 01F1C0BD 8000033C
+    {
+        uint32_t stk = 0u;
+        uint32_t f0 = 0u;
+        const float u0 = fMaddF(N(s.acc[0]), N(vf[24][0]), N(vf[17][1]), f0, stk);
+        uint32_t f1 = 0u;
+        const float u1 = fMaddF(N(s.acc[1]), N(vf[24][1]), N(vf[17][1]), f1, stk);
+        uint32_t f2 = 0u;
+        const float u2 = fMaddF(N(s.acc[2]), N(vf[24][2]), N(vf[17][1]), f2, stk);
+        uint32_t f3 = 0u;
+        const float u3 = fMaddF(N(s.acc[3]), N(vf[24][3]), N(vf[17][1]), f3, stk);
+        pushMacStatus(c, 0u | macBits(f0, 8u) | macBits(f1, 4u) | macBits(f2, 2u) | macBits(f3, 1u), 0u | f0 | f1 | f2 | f3, stk);
+        s.acc[0] = u0; c.accReady[0] = c.cyc + 1u;
+        s.acc[1] = u1; c.accReady[1] = c.cyc + 1u;
+        s.acc[2] = u2; c.accReady[2] = c.cyc + 1u;
+        s.acc[3] = u3; c.accReady[3] = c.cyc + 1u;
+        c.bkValid = false;
+        ++c.cyc;
+    }
+    // 0148: 01F1C8BE 8000033C
+    {
+        uint32_t stk = 0u;
+        uint32_t f0 = 0u;
+        const float u0 = fMaddF(N(s.acc[0]), N(vf[25][0]), N(vf[17][2]), f0, stk);
+        uint32_t f1 = 0u;
+        const float u1 = fMaddF(N(s.acc[1]), N(vf[25][1]), N(vf[17][2]), f1, stk);
+        uint32_t f2 = 0u;
+        const float u2 = fMaddF(N(s.acc[2]), N(vf[25][2]), N(vf[17][2]), f2, stk);
+        uint32_t f3 = 0u;
+        const float u3 = fMaddF(N(s.acc[3]), N(vf[25][3]), N(vf[17][2]), f3, stk);
+        pushMacStatus(c, 0u | macBits(f0, 8u) | macBits(f1, 4u) | macBits(f2, 2u) | macBits(f3, 1u), 0u | f0 | f1 | f2 | f3, stk);
+        s.acc[0] = u0; c.accReady[0] = c.cyc + 1u;
+        s.acc[1] = u1; c.accReady[1] = c.cyc + 1u;
+        s.acc[2] = u2; c.accReady[2] = c.cyc + 1u;
+        s.acc[3] = u3; c.accReady[3] = c.cyc + 1u;
+        c.bkValid = false;
+        ++c.cyc;
+    }
+    // 0150: 01D1D48B 81E7DB7D
+    {
+        stall(c, c.vfReady[27][3]);
+        uint32_t stk = 0u;
+        uint32_t f0 = 0u;
+        const float u0 = fMaddF(N(s.acc[0]), N(vf[26][0]), N(vf[17][3]), f0, stk);
+        uint32_t f1 = 0u;
+        const float u1 = fMaddF(N(s.acc[1]), N(vf[26][1]), N(vf[17][3]), f1, stk);
+        uint32_t f2 = 0u;
+        const float u2 = fMaddF(N(s.acc[2]), N(vf[26][2]), N(vf[17][3]), f2, stk);
+        pushMacStatus(c, 0u | macBits(f0, 8u) | macBits(f1, 4u) | macBits(f2, 2u), 0u | f0 | f1 | f2, stk);
+        { const uint32_t w[4] = {fbits(vf[27][0]), fbits(vf[27][1]), fbits(vf[27][2]), fbits(vf[27][3])}; storeQ(c, ((static_cast<uint32_t>(static_cast<uint16_t>(vi[7])) * 16u) & 0xFF0u), w, 15); }
+        const int32_t nvi = static_cast<int16_t>(vi[7] + 1);
+        vf[18][0] = u0; c.vfReady[18][0] = c.cyc + 4;
+        vf[18][1] = u1; c.vfReady[18][1] = c.cyc + 4;
+        vf[18][2] = u2; c.vfReady[18][2] = c.cyc + 4;
+        c.bkValid = true; c.bkReg = 7; c.bkVal = vi[7];
+        vi[7] = nvi; c.viReady[7] = c.cyc + 1;
+        ++c.cyc;
+    }
+    // 0158: 01FCB9BC 81F1237C
+    {
+        uint32_t stk = 0u;
+        uint32_t f0 = 0u;
+        const float u0 = fMulF(N(vf[23][0]), N(vf[28][0]), f0);
+        uint32_t f1 = 0u;
+        const float u1 = fMulF(N(vf[23][1]), N(vf[28][0]), f1);
+        uint32_t f2 = 0u;
+        const float u2 = fMulF(N(vf[23][2]), N(vf[28][0]), f2);
+        uint32_t f3 = 0u;
+        const float u3 = fMulF(N(vf[23][3]), N(vf[28][0]), f3);
+        pushMacStatus(c, 0u | macBits(f0, 8u) | macBits(f1, 4u) | macBits(f2, 2u) | macBits(f3, 1u), 0u | f0 | f1 | f2 | f3, stk);
+        const uint32_t la = ((static_cast<uint32_t>(static_cast<uint16_t>(vi[4])) * 16u) & 0xFF0u);
+        const float l0 = ldf(m, la + 0);
+        const float l1 = ldf(m, la + 4);
+        const float l2 = ldf(m, la + 8);
+        const float l3 = ldf(m, la + 12);
+        const int32_t nvi = static_cast<int16_t>(vi[4] + 1);
+        vf[17][0] = l0; c.vfReady[17][0] = c.cyc + 4;
+        vf[17][1] = l1; c.vfReady[17][1] = c.cyc + 4;
+        vf[17][2] = l2; c.vfReady[17][2] = c.cyc + 4;
+        vf[17][3] = l3; c.vfReady[17][3] = c.cyc + 4;
+        s.acc[0] = u0; c.accReady[0] = c.cyc + 1u;
+        s.acc[1] = u1; c.accReady[1] = c.cyc + 1u;
+        s.acc[2] = u2; c.accReady[2] = c.cyc + 1u;
+        s.acc[3] = u3; c.accReady[3] = c.cyc + 1u;
+        c.bkValid = true; c.bkReg = 4; c.bkVal = vi[4];
+        vi[4] = nvi; c.viReady[4] = c.cyc + 1;
+        ++c.cyc;
+    }
+    // 0160: 01FCC0BD 8000033C
+    {
+        uint32_t stk = 0u;
+        uint32_t f0 = 0u;
+        const float u0 = fMaddF(N(s.acc[0]), N(vf[24][0]), N(vf[28][1]), f0, stk);
+        uint32_t f1 = 0u;
+        const float u1 = fMaddF(N(s.acc[1]), N(vf[24][1]), N(vf[28][1]), f1, stk);
+        uint32_t f2 = 0u;
+        const float u2 = fMaddF(N(s.acc[2]), N(vf[24][2]), N(vf[28][1]), f2, stk);
+        uint32_t f3 = 0u;
+        const float u3 = fMaddF(N(s.acc[3]), N(vf[24][3]), N(vf[28][1]), f3, stk);
+        pushMacStatus(c, 0u | macBits(f0, 8u) | macBits(f1, 4u) | macBits(f2, 2u) | macBits(f3, 1u), 0u | f0 | f1 | f2 | f3, stk);
+        s.acc[0] = u0; c.accReady[0] = c.cyc + 1u;
+        s.acc[1] = u1; c.accReady[1] = c.cyc + 1u;
+        s.acc[2] = u2; c.accReady[2] = c.cyc + 1u;
+        s.acc[3] = u3; c.accReady[3] = c.cyc + 1u;
+        c.bkValid = false;
+        ++c.cyc;
+    }
+    // 0168: 01FCC8BE 8000033C
+    {
+        uint32_t stk = 0u;
+        uint32_t f0 = 0u;
+        const float u0 = fMaddF(N(s.acc[0]), N(vf[25][0]), N(vf[28][2]), f0, stk);
+        uint32_t f1 = 0u;
+        const float u1 = fMaddF(N(s.acc[1]), N(vf[25][1]), N(vf[28][2]), f1, stk);
+        uint32_t f2 = 0u;
+        const float u2 = fMaddF(N(s.acc[2]), N(vf[25][2]), N(vf[28][2]), f2, stk);
+        uint32_t f3 = 0u;
+        const float u3 = fMaddF(N(s.acc[3]), N(vf[25][3]), N(vf[28][2]), f3, stk);
+        pushMacStatus(c, 0u | macBits(f0, 8u) | macBits(f1, 4u) | macBits(f2, 2u) | macBits(f3, 1u), 0u | f0 | f1 | f2 | f3, stk);
+        s.acc[0] = u0; c.accReady[0] = c.cyc + 1u;
+        s.acc[1] = u1; c.accReady[1] = c.cyc + 1u;
+        s.acc[2] = u2; c.accReady[2] = c.cyc + 1u;
+        s.acc[3] = u3; c.accReady[3] = c.cyc + 1u;
+        c.bkValid = false;
+        ++c.cyc;
+    }
+    // 0170: 01DCD6CB 81E7937D
+    {
+        uint32_t stk = 0u;
+        uint32_t f0 = 0u;
+        const float u0 = fMaddF(N(s.acc[0]), N(vf[26][0]), N(vf[28][3]), f0, stk);
+        uint32_t f1 = 0u;
+        const float u1 = fMaddF(N(s.acc[1]), N(vf[26][1]), N(vf[28][3]), f1, stk);
+        uint32_t f2 = 0u;
+        const float u2 = fMaddF(N(s.acc[2]), N(vf[26][2]), N(vf[28][3]), f2, stk);
+        pushMacStatus(c, 0u | macBits(f0, 8u) | macBits(f1, 4u) | macBits(f2, 2u), 0u | f0 | f1 | f2, stk);
+        { const uint32_t w[4] = {fbits(vf[18][0]), fbits(vf[18][1]), fbits(vf[18][2]), fbits(vf[18][3])}; storeQ(c, ((static_cast<uint32_t>(static_cast<uint16_t>(vi[7])) * 16u) & 0xFF0u), w, 15); }
+        const int32_t nvi = static_cast<int16_t>(vi[7] + 1);
+        vf[27][0] = u0; c.vfReady[27][0] = c.cyc + 4;
+        vf[27][1] = u1; c.vfReady[27][1] = c.cyc + 4;
+        vf[27][2] = u2; c.vfReady[27][2] = c.cyc + 4;
+        c.bkValid = true; c.bkReg = 7; c.bkVal = vi[7];
+        vi[7] = nvi; c.viReady[7] = c.cyc + 1;
+        ++c.cyc;
+    }
+    // 0178: 01F1B9BC 81FC237C
+    {
+        uint32_t stk = 0u;
+        uint32_t f0 = 0u;
+        const float u0 = fMulF(N(vf[23][0]), N(vf[17][0]), f0);
+        uint32_t f1 = 0u;
+        const float u1 = fMulF(N(vf[23][1]), N(vf[17][0]), f1);
+        uint32_t f2 = 0u;
+        const float u2 = fMulF(N(vf[23][2]), N(vf[17][0]), f2);
+        uint32_t f3 = 0u;
+        const float u3 = fMulF(N(vf[23][3]), N(vf[17][0]), f3);
+        pushMacStatus(c, 0u | macBits(f0, 8u) | macBits(f1, 4u) | macBits(f2, 2u) | macBits(f3, 1u), 0u | f0 | f1 | f2 | f3, stk);
+        const uint32_t la = ((static_cast<uint32_t>(static_cast<uint16_t>(vi[4])) * 16u) & 0xFF0u);
+        const float l0 = ldf(m, la + 0);
+        const float l1 = ldf(m, la + 4);
+        const float l2 = ldf(m, la + 8);
+        const float l3 = ldf(m, la + 12);
+        const int32_t nvi = static_cast<int16_t>(vi[4] + 1);
+        vf[28][0] = l0; c.vfReady[28][0] = c.cyc + 4;
+        vf[28][1] = l1; c.vfReady[28][1] = c.cyc + 4;
+        vf[28][2] = l2; c.vfReady[28][2] = c.cyc + 4;
+        vf[28][3] = l3; c.vfReady[28][3] = c.cyc + 4;
+        s.acc[0] = u0; c.accReady[0] = c.cyc + 1u;
+        s.acc[1] = u1; c.accReady[1] = c.cyc + 1u;
+        s.acc[2] = u2; c.accReady[2] = c.cyc + 1u;
+        s.acc[3] = u3; c.accReady[3] = c.cyc + 1u;
+        c.bkValid = true; c.bkReg = 4; c.bkVal = vi[4];
+        vi[4] = nvi; c.viReady[4] = c.cyc + 1;
+        ++c.cyc;
+    }
+    // 0180: 01F1C0BD 8000033C
+    {
+        uint32_t stk = 0u;
+        uint32_t f0 = 0u;
+        const float u0 = fMaddF(N(s.acc[0]), N(vf[24][0]), N(vf[17][1]), f0, stk);
+        uint32_t f1 = 0u;
+        const float u1 = fMaddF(N(s.acc[1]), N(vf[24][1]), N(vf[17][1]), f1, stk);
+        uint32_t f2 = 0u;
+        const float u2 = fMaddF(N(s.acc[2]), N(vf[24][2]), N(vf[17][1]), f2, stk);
+        uint32_t f3 = 0u;
+        const float u3 = fMaddF(N(s.acc[3]), N(vf[24][3]), N(vf[17][1]), f3, stk);
+        pushMacStatus(c, 0u | macBits(f0, 8u) | macBits(f1, 4u) | macBits(f2, 2u) | macBits(f3, 1u), 0u | f0 | f1 | f2 | f3, stk);
+        s.acc[0] = u0; c.accReady[0] = c.cyc + 1u;
+        s.acc[1] = u1; c.accReady[1] = c.cyc + 1u;
+        s.acc[2] = u2; c.accReady[2] = c.cyc + 1u;
+        s.acc[3] = u3; c.accReady[3] = c.cyc + 1u;
+        c.bkValid = false;
+        ++c.cyc;
+    }
+    // 0188: 01F1C8BE 8000033C
+    {
+        uint32_t stk = 0u;
+        uint32_t f0 = 0u;
+        const float u0 = fMaddF(N(s.acc[0]), N(vf[25][0]), N(vf[17][2]), f0, stk);
+        uint32_t f1 = 0u;
+        const float u1 = fMaddF(N(s.acc[1]), N(vf[25][1]), N(vf[17][2]), f1, stk);
+        uint32_t f2 = 0u;
+        const float u2 = fMaddF(N(s.acc[2]), N(vf[25][2]), N(vf[17][2]), f2, stk);
+        uint32_t f3 = 0u;
+        const float u3 = fMaddF(N(s.acc[3]), N(vf[25][3]), N(vf[17][2]), f3, stk);
+        pushMacStatus(c, 0u | macBits(f0, 8u) | macBits(f1, 4u) | macBits(f2, 2u) | macBits(f3, 1u), 0u | f0 | f1 | f2 | f3, stk);
+        s.acc[0] = u0; c.accReady[0] = c.cyc + 1u;
+        s.acc[1] = u1; c.accReady[1] = c.cyc + 1u;
+        s.acc[2] = u2; c.accReady[2] = c.cyc + 1u;
+        s.acc[3] = u3; c.accReady[3] = c.cyc + 1u;
+        c.bkValid = false;
+        ++c.cyc;
+    }
+    // 0190: 01D1D48B 81E7DB7D
+    {
+        uint32_t stk = 0u;
+        uint32_t f0 = 0u;
+        const float u0 = fMaddF(N(s.acc[0]), N(vf[26][0]), N(vf[17][3]), f0, stk);
+        uint32_t f1 = 0u;
+        const float u1 = fMaddF(N(s.acc[1]), N(vf[26][1]), N(vf[17][3]), f1, stk);
+        uint32_t f2 = 0u;
+        const float u2 = fMaddF(N(s.acc[2]), N(vf[26][2]), N(vf[17][3]), f2, stk);
+        pushMacStatus(c, 0u | macBits(f0, 8u) | macBits(f1, 4u) | macBits(f2, 2u), 0u | f0 | f1 | f2, stk);
+        { const uint32_t w[4] = {fbits(vf[27][0]), fbits(vf[27][1]), fbits(vf[27][2]), fbits(vf[27][3])}; storeQ(c, ((static_cast<uint32_t>(static_cast<uint16_t>(vi[7])) * 16u) & 0xFF0u), w, 15); }
+        const int32_t nvi = static_cast<int16_t>(vi[7] + 1);
+        vf[18][0] = u0; c.vfReady[18][0] = c.cyc + 4;
+        vf[18][1] = u1; c.vfReady[18][1] = c.cyc + 4;
+        vf[18][2] = u2; c.vfReady[18][2] = c.cyc + 4;
+        c.bkValid = true; c.bkReg = 7; c.bkVal = vi[7];
+        vi[7] = nvi; c.viReady[7] = c.cyc + 1;
+        ++c.cyc;
+    }
+    // 0198: 01FCB9BC 81F1237C
+    {
+        uint32_t stk = 0u;
+        uint32_t f0 = 0u;
+        const float u0 = fMulF(N(vf[23][0]), N(vf[28][0]), f0);
+        uint32_t f1 = 0u;
+        const float u1 = fMulF(N(vf[23][1]), N(vf[28][0]), f1);
+        uint32_t f2 = 0u;
+        const float u2 = fMulF(N(vf[23][2]), N(vf[28][0]), f2);
+        uint32_t f3 = 0u;
+        const float u3 = fMulF(N(vf[23][3]), N(vf[28][0]), f3);
+        pushMacStatus(c, 0u | macBits(f0, 8u) | macBits(f1, 4u) | macBits(f2, 2u) | macBits(f3, 1u), 0u | f0 | f1 | f2 | f3, stk);
+        const uint32_t la = ((static_cast<uint32_t>(static_cast<uint16_t>(vi[4])) * 16u) & 0xFF0u);
+        const float l0 = ldf(m, la + 0);
+        const float l1 = ldf(m, la + 4);
+        const float l2 = ldf(m, la + 8);
+        const float l3 = ldf(m, la + 12);
+        const int32_t nvi = static_cast<int16_t>(vi[4] + 1);
+        vf[17][0] = l0; c.vfReady[17][0] = c.cyc + 4;
+        vf[17][1] = l1; c.vfReady[17][1] = c.cyc + 4;
+        vf[17][2] = l2; c.vfReady[17][2] = c.cyc + 4;
+        vf[17][3] = l3; c.vfReady[17][3] = c.cyc + 4;
+        s.acc[0] = u0; c.accReady[0] = c.cyc + 1u;
+        s.acc[1] = u1; c.accReady[1] = c.cyc + 1u;
+        s.acc[2] = u2; c.accReady[2] = c.cyc + 1u;
+        s.acc[3] = u3; c.accReady[3] = c.cyc + 1u;
+        c.bkValid = true; c.bkReg = 4; c.bkVal = vi[4];
+        vi[4] = nvi; c.viReady[4] = c.cyc + 1;
+        ++c.cyc;
+    }
+    // 01A0: 01FCC0BD 8000033C
+    {
+        uint32_t stk = 0u;
+        uint32_t f0 = 0u;
+        const float u0 = fMaddF(N(s.acc[0]), N(vf[24][0]), N(vf[28][1]), f0, stk);
+        uint32_t f1 = 0u;
+        const float u1 = fMaddF(N(s.acc[1]), N(vf[24][1]), N(vf[28][1]), f1, stk);
+        uint32_t f2 = 0u;
+        const float u2 = fMaddF(N(s.acc[2]), N(vf[24][2]), N(vf[28][1]), f2, stk);
+        uint32_t f3 = 0u;
+        const float u3 = fMaddF(N(s.acc[3]), N(vf[24][3]), N(vf[28][1]), f3, stk);
+        pushMacStatus(c, 0u | macBits(f0, 8u) | macBits(f1, 4u) | macBits(f2, 2u) | macBits(f3, 1u), 0u | f0 | f1 | f2 | f3, stk);
+        s.acc[0] = u0; c.accReady[0] = c.cyc + 1u;
+        s.acc[1] = u1; c.accReady[1] = c.cyc + 1u;
+        s.acc[2] = u2; c.accReady[2] = c.cyc + 1u;
+        s.acc[3] = u3; c.accReady[3] = c.cyc + 1u;
+        c.bkValid = false;
+        ++c.cyc;
+    }
+    // 01A8: 01FCC8BE 8000033C
+    {
+        uint32_t stk = 0u;
+        uint32_t f0 = 0u;
+        const float u0 = fMaddF(N(s.acc[0]), N(vf[25][0]), N(vf[28][2]), f0, stk);
+        uint32_t f1 = 0u;
+        const float u1 = fMaddF(N(s.acc[1]), N(vf[25][1]), N(vf[28][2]), f1, stk);
+        uint32_t f2 = 0u;
+        const float u2 = fMaddF(N(s.acc[2]), N(vf[25][2]), N(vf[28][2]), f2, stk);
+        uint32_t f3 = 0u;
+        const float u3 = fMaddF(N(s.acc[3]), N(vf[25][3]), N(vf[28][2]), f3, stk);
+        pushMacStatus(c, 0u | macBits(f0, 8u) | macBits(f1, 4u) | macBits(f2, 2u) | macBits(f3, 1u), 0u | f0 | f1 | f2 | f3, stk);
+        s.acc[0] = u0; c.accReady[0] = c.cyc + 1u;
+        s.acc[1] = u1; c.accReady[1] = c.cyc + 1u;
+        s.acc[2] = u2; c.accReady[2] = c.cyc + 1u;
+        s.acc[3] = u3; c.accReady[3] = c.cyc + 1u;
+        c.bkValid = false;
+        ++c.cyc;
+    }
+    // 01B0: 01DCD6CB 81E7937D
+    {
+        uint32_t stk = 0u;
+        uint32_t f0 = 0u;
+        const float u0 = fMaddF(N(s.acc[0]), N(vf[26][0]), N(vf[28][3]), f0, stk);
+        uint32_t f1 = 0u;
+        const float u1 = fMaddF(N(s.acc[1]), N(vf[26][1]), N(vf[28][3]), f1, stk);
+        uint32_t f2 = 0u;
+        const float u2 = fMaddF(N(s.acc[2]), N(vf[26][2]), N(vf[28][3]), f2, stk);
+        pushMacStatus(c, 0u | macBits(f0, 8u) | macBits(f1, 4u) | macBits(f2, 2u), 0u | f0 | f1 | f2, stk);
+        { const uint32_t w[4] = {fbits(vf[18][0]), fbits(vf[18][1]), fbits(vf[18][2]), fbits(vf[18][3])}; storeQ(c, ((static_cast<uint32_t>(static_cast<uint16_t>(vi[7])) * 16u) & 0xFF0u), w, 15); }
+        const int32_t nvi = static_cast<int16_t>(vi[7] + 1);
+        vf[27][0] = u0; c.vfReady[27][0] = c.cyc + 4;
+        vf[27][1] = u1; c.vfReady[27][1] = c.cyc + 4;
+        vf[27][2] = u2; c.vfReady[27][2] = c.cyc + 4;
+        c.bkValid = true; c.bkReg = 7; c.bkVal = vi[7];
+        vi[7] = nvi; c.viReady[7] = c.cyc + 1;
+        ++c.cyc;
+    }
+    // 01B8: 01F1B9BC 81FC237C
+    {
+        uint32_t stk = 0u;
+        uint32_t f0 = 0u;
+        const float u0 = fMulF(N(vf[23][0]), N(vf[17][0]), f0);
+        uint32_t f1 = 0u;
+        const float u1 = fMulF(N(vf[23][1]), N(vf[17][0]), f1);
+        uint32_t f2 = 0u;
+        const float u2 = fMulF(N(vf[23][2]), N(vf[17][0]), f2);
+        uint32_t f3 = 0u;
+        const float u3 = fMulF(N(vf[23][3]), N(vf[17][0]), f3);
+        pushMacStatus(c, 0u | macBits(f0, 8u) | macBits(f1, 4u) | macBits(f2, 2u) | macBits(f3, 1u), 0u | f0 | f1 | f2 | f3, stk);
+        const uint32_t la = ((static_cast<uint32_t>(static_cast<uint16_t>(vi[4])) * 16u) & 0xFF0u);
+        const float l0 = ldf(m, la + 0);
+        const float l1 = ldf(m, la + 4);
+        const float l2 = ldf(m, la + 8);
+        const float l3 = ldf(m, la + 12);
+        const int32_t nvi = static_cast<int16_t>(vi[4] + 1);
+        vf[28][0] = l0; c.vfReady[28][0] = c.cyc + 4;
+        vf[28][1] = l1; c.vfReady[28][1] = c.cyc + 4;
+        vf[28][2] = l2; c.vfReady[28][2] = c.cyc + 4;
+        vf[28][3] = l3; c.vfReady[28][3] = c.cyc + 4;
+        s.acc[0] = u0; c.accReady[0] = c.cyc + 1u;
+        s.acc[1] = u1; c.accReady[1] = c.cyc + 1u;
+        s.acc[2] = u2; c.accReady[2] = c.cyc + 1u;
+        s.acc[3] = u3; c.accReady[3] = c.cyc + 1u;
+        c.bkValid = true; c.bkReg = 4; c.bkVal = vi[4];
+        vi[4] = nvi; c.viReady[4] = c.cyc + 1;
+        ++c.cyc;
+    }
+    // 01C0: 01F1C0BD 8000033C
+    {
+        uint32_t stk = 0u;
+        uint32_t f0 = 0u;
+        const float u0 = fMaddF(N(s.acc[0]), N(vf[24][0]), N(vf[17][1]), f0, stk);
+        uint32_t f1 = 0u;
+        const float u1 = fMaddF(N(s.acc[1]), N(vf[24][1]), N(vf[17][1]), f1, stk);
+        uint32_t f2 = 0u;
+        const float u2 = fMaddF(N(s.acc[2]), N(vf[24][2]), N(vf[17][1]), f2, stk);
+        uint32_t f3 = 0u;
+        const float u3 = fMaddF(N(s.acc[3]), N(vf[24][3]), N(vf[17][1]), f3, stk);
+        pushMacStatus(c, 0u | macBits(f0, 8u) | macBits(f1, 4u) | macBits(f2, 2u) | macBits(f3, 1u), 0u | f0 | f1 | f2 | f3, stk);
+        s.acc[0] = u0; c.accReady[0] = c.cyc + 1u;
+        s.acc[1] = u1; c.accReady[1] = c.cyc + 1u;
+        s.acc[2] = u2; c.accReady[2] = c.cyc + 1u;
+        s.acc[3] = u3; c.accReady[3] = c.cyc + 1u;
+        c.bkValid = false;
+        ++c.cyc;
+    }
+    // 01C8: 01F1C8BE 8000033C
+    {
+        uint32_t stk = 0u;
+        uint32_t f0 = 0u;
+        const float u0 = fMaddF(N(s.acc[0]), N(vf[25][0]), N(vf[17][2]), f0, stk);
+        uint32_t f1 = 0u;
+        const float u1 = fMaddF(N(s.acc[1]), N(vf[25][1]), N(vf[17][2]), f1, stk);
+        uint32_t f2 = 0u;
+        const float u2 = fMaddF(N(s.acc[2]), N(vf[25][2]), N(vf[17][2]), f2, stk);
+        uint32_t f3 = 0u;
+        const float u3 = fMaddF(N(s.acc[3]), N(vf[25][3]), N(vf[17][2]), f3, stk);
+        pushMacStatus(c, 0u | macBits(f0, 8u) | macBits(f1, 4u) | macBits(f2, 2u) | macBits(f3, 1u), 0u | f0 | f1 | f2 | f3, stk);
+        s.acc[0] = u0; c.accReady[0] = c.cyc + 1u;
+        s.acc[1] = u1; c.accReady[1] = c.cyc + 1u;
+        s.acc[2] = u2; c.accReady[2] = c.cyc + 1u;
+        s.acc[3] = u3; c.accReady[3] = c.cyc + 1u;
+        c.bkValid = false;
+        ++c.cyc;
+    }
+    // 01D0: 01D1D48B 81E7DB7D
+    {
+        uint32_t stk = 0u;
+        uint32_t f0 = 0u;
+        const float u0 = fMaddF(N(s.acc[0]), N(vf[26][0]), N(vf[17][3]), f0, stk);
+        uint32_t f1 = 0u;
+        const float u1 = fMaddF(N(s.acc[1]), N(vf[26][1]), N(vf[17][3]), f1, stk);
+        uint32_t f2 = 0u;
+        const float u2 = fMaddF(N(s.acc[2]), N(vf[26][2]), N(vf[17][3]), f2, stk);
+        pushMacStatus(c, 0u | macBits(f0, 8u) | macBits(f1, 4u) | macBits(f2, 2u), 0u | f0 | f1 | f2, stk);
+        { const uint32_t w[4] = {fbits(vf[27][0]), fbits(vf[27][1]), fbits(vf[27][2]), fbits(vf[27][3])}; storeQ(c, ((static_cast<uint32_t>(static_cast<uint16_t>(vi[7])) * 16u) & 0xFF0u), w, 15); }
+        const int32_t nvi = static_cast<int16_t>(vi[7] + 1);
+        vf[18][0] = u0; c.vfReady[18][0] = c.cyc + 4;
+        vf[18][1] = u1; c.vfReady[18][1] = c.cyc + 4;
+        vf[18][2] = u2; c.vfReady[18][2] = c.cyc + 4;
+        c.bkValid = true; c.bkReg = 7; c.bkVal = vi[7];
+        vi[7] = nvi; c.viReady[7] = c.cyc + 1;
+        ++c.cyc;
+    }
+    // 01D8: 01FCB9BC 81F1237C
+    {
+        uint32_t stk = 0u;
+        uint32_t f0 = 0u;
+        const float u0 = fMulF(N(vf[23][0]), N(vf[28][0]), f0);
+        uint32_t f1 = 0u;
+        const float u1 = fMulF(N(vf[23][1]), N(vf[28][0]), f1);
+        uint32_t f2 = 0u;
+        const float u2 = fMulF(N(vf[23][2]), N(vf[28][0]), f2);
+        uint32_t f3 = 0u;
+        const float u3 = fMulF(N(vf[23][3]), N(vf[28][0]), f3);
+        pushMacStatus(c, 0u | macBits(f0, 8u) | macBits(f1, 4u) | macBits(f2, 2u) | macBits(f3, 1u), 0u | f0 | f1 | f2 | f3, stk);
+        const uint32_t la = ((static_cast<uint32_t>(static_cast<uint16_t>(vi[4])) * 16u) & 0xFF0u);
+        const float l0 = ldf(m, la + 0);
+        const float l1 = ldf(m, la + 4);
+        const float l2 = ldf(m, la + 8);
+        const float l3 = ldf(m, la + 12);
+        const int32_t nvi = static_cast<int16_t>(vi[4] + 1);
+        vf[17][0] = l0; c.vfReady[17][0] = c.cyc + 4;
+        vf[17][1] = l1; c.vfReady[17][1] = c.cyc + 4;
+        vf[17][2] = l2; c.vfReady[17][2] = c.cyc + 4;
+        vf[17][3] = l3; c.vfReady[17][3] = c.cyc + 4;
+        s.acc[0] = u0; c.accReady[0] = c.cyc + 1u;
+        s.acc[1] = u1; c.accReady[1] = c.cyc + 1u;
+        s.acc[2] = u2; c.accReady[2] = c.cyc + 1u;
+        s.acc[3] = u3; c.accReady[3] = c.cyc + 1u;
+        c.bkValid = true; c.bkReg = 4; c.bkVal = vi[4];
+        vi[4] = nvi; c.viReady[4] = c.cyc + 1;
+        ++c.cyc;
+    }
+    // 01E0: 01FCC0BD 8000033C
+    {
+        uint32_t stk = 0u;
+        uint32_t f0 = 0u;
+        const float u0 = fMaddF(N(s.acc[0]), N(vf[24][0]), N(vf[28][1]), f0, stk);
+        uint32_t f1 = 0u;
+        const float u1 = fMaddF(N(s.acc[1]), N(vf[24][1]), N(vf[28][1]), f1, stk);
+        uint32_t f2 = 0u;
+        const float u2 = fMaddF(N(s.acc[2]), N(vf[24][2]), N(vf[28][1]), f2, stk);
+        uint32_t f3 = 0u;
+        const float u3 = fMaddF(N(s.acc[3]), N(vf[24][3]), N(vf[28][1]), f3, stk);
+        pushMacStatus(c, 0u | macBits(f0, 8u) | macBits(f1, 4u) | macBits(f2, 2u) | macBits(f3, 1u), 0u | f0 | f1 | f2 | f3, stk);
+        s.acc[0] = u0; c.accReady[0] = c.cyc + 1u;
+        s.acc[1] = u1; c.accReady[1] = c.cyc + 1u;
+        s.acc[2] = u2; c.accReady[2] = c.cyc + 1u;
+        s.acc[3] = u3; c.accReady[3] = c.cyc + 1u;
+        c.bkValid = false;
+        ++c.cyc;
+    }
+    // 01E8: 01FCC8BE 8000033C
+    {
+        uint32_t stk = 0u;
+        uint32_t f0 = 0u;
+        const float u0 = fMaddF(N(s.acc[0]), N(vf[25][0]), N(vf[28][2]), f0, stk);
+        uint32_t f1 = 0u;
+        const float u1 = fMaddF(N(s.acc[1]), N(vf[25][1]), N(vf[28][2]), f1, stk);
+        uint32_t f2 = 0u;
+        const float u2 = fMaddF(N(s.acc[2]), N(vf[25][2]), N(vf[28][2]), f2, stk);
+        uint32_t f3 = 0u;
+        const float u3 = fMaddF(N(s.acc[3]), N(vf[25][3]), N(vf[28][2]), f3, stk);
+        pushMacStatus(c, 0u | macBits(f0, 8u) | macBits(f1, 4u) | macBits(f2, 2u) | macBits(f3, 1u), 0u | f0 | f1 | f2 | f3, stk);
+        s.acc[0] = u0; c.accReady[0] = c.cyc + 1u;
+        s.acc[1] = u1; c.accReady[1] = c.cyc + 1u;
+        s.acc[2] = u2; c.accReady[2] = c.cyc + 1u;
+        s.acc[3] = u3; c.accReady[3] = c.cyc + 1u;
+        c.bkValid = false;
+        ++c.cyc;
+    }
+    // 01F0: 01DCD6CB 81E7937D
+    {
+        uint32_t stk = 0u;
+        uint32_t f0 = 0u;
+        const float u0 = fMaddF(N(s.acc[0]), N(vf[26][0]), N(vf[28][3]), f0, stk);
+        uint32_t f1 = 0u;
+        const float u1 = fMaddF(N(s.acc[1]), N(vf[26][1]), N(vf[28][3]), f1, stk);
+        uint32_t f2 = 0u;
+        const float u2 = fMaddF(N(s.acc[2]), N(vf[26][2]), N(vf[28][3]), f2, stk);
+        pushMacStatus(c, 0u | macBits(f0, 8u) | macBits(f1, 4u) | macBits(f2, 2u), 0u | f0 | f1 | f2, stk);
+        { const uint32_t w[4] = {fbits(vf[18][0]), fbits(vf[18][1]), fbits(vf[18][2]), fbits(vf[18][3])}; storeQ(c, ((static_cast<uint32_t>(static_cast<uint16_t>(vi[7])) * 16u) & 0xFF0u), w, 15); }
+        const int32_t nvi = static_cast<int16_t>(vi[7] + 1);
+        vf[27][0] = u0; c.vfReady[27][0] = c.cyc + 4;
+        vf[27][1] = u1; c.vfReady[27][1] = c.cyc + 4;
+        vf[27][2] = u2; c.vfReady[27][2] = c.cyc + 4;
+        c.bkValid = true; c.bkReg = 7; c.bkVal = vi[7];
+        vi[7] = nvi; c.viReady[7] = c.cyc + 1;
+        ++c.cyc;
+    }
+    // 01F8: 01F1B9BC 81FC237C
+    {
+        uint32_t stk = 0u;
+        uint32_t f0 = 0u;
+        const float u0 = fMulF(N(vf[23][0]), N(vf[17][0]), f0);
+        uint32_t f1 = 0u;
+        const float u1 = fMulF(N(vf[23][1]), N(vf[17][0]), f1);
+        uint32_t f2 = 0u;
+        const float u2 = fMulF(N(vf[23][2]), N(vf[17][0]), f2);
+        uint32_t f3 = 0u;
+        const float u3 = fMulF(N(vf[23][3]), N(vf[17][0]), f3);
+        pushMacStatus(c, 0u | macBits(f0, 8u) | macBits(f1, 4u) | macBits(f2, 2u) | macBits(f3, 1u), 0u | f0 | f1 | f2 | f3, stk);
+        const uint32_t la = ((static_cast<uint32_t>(static_cast<uint16_t>(vi[4])) * 16u) & 0xFF0u);
+        const float l0 = ldf(m, la + 0);
+        const float l1 = ldf(m, la + 4);
+        const float l2 = ldf(m, la + 8);
+        const float l3 = ldf(m, la + 12);
+        const int32_t nvi = static_cast<int16_t>(vi[4] + 1);
+        vf[28][0] = l0; c.vfReady[28][0] = c.cyc + 4;
+        vf[28][1] = l1; c.vfReady[28][1] = c.cyc + 4;
+        vf[28][2] = l2; c.vfReady[28][2] = c.cyc + 4;
+        vf[28][3] = l3; c.vfReady[28][3] = c.cyc + 4;
+        s.acc[0] = u0; c.accReady[0] = c.cyc + 1u;
+        s.acc[1] = u1; c.accReady[1] = c.cyc + 1u;
+        s.acc[2] = u2; c.accReady[2] = c.cyc + 1u;
+        s.acc[3] = u3; c.accReady[3] = c.cyc + 1u;
+        c.bkValid = true; c.bkReg = 4; c.bkVal = vi[4];
+        vi[4] = nvi; c.viReady[4] = c.cyc + 1;
+        ++c.cyc;
+    }
+    // 0200: 01F1C0BD 8000033C
+    {
+        uint32_t stk = 0u;
+        uint32_t f0 = 0u;
+        const float u0 = fMaddF(N(s.acc[0]), N(vf[24][0]), N(vf[17][1]), f0, stk);
+        uint32_t f1 = 0u;
+        const float u1 = fMaddF(N(s.acc[1]), N(vf[24][1]), N(vf[17][1]), f1, stk);
+        uint32_t f2 = 0u;
+        const float u2 = fMaddF(N(s.acc[2]), N(vf[24][2]), N(vf[17][1]), f2, stk);
+        uint32_t f3 = 0u;
+        const float u3 = fMaddF(N(s.acc[3]), N(vf[24][3]), N(vf[17][1]), f3, stk);
+        pushMacStatus(c, 0u | macBits(f0, 8u) | macBits(f1, 4u) | macBits(f2, 2u) | macBits(f3, 1u), 0u | f0 | f1 | f2 | f3, stk);
+        s.acc[0] = u0; c.accReady[0] = c.cyc + 1u;
+        s.acc[1] = u1; c.accReady[1] = c.cyc + 1u;
+        s.acc[2] = u2; c.accReady[2] = c.cyc + 1u;
+        s.acc[3] = u3; c.accReady[3] = c.cyc + 1u;
+        c.bkValid = false;
+        ++c.cyc;
+    }
+    // 0208: 01F1C8BE 8000033C
+    {
+        uint32_t stk = 0u;
+        uint32_t f0 = 0u;
+        const float u0 = fMaddF(N(s.acc[0]), N(vf[25][0]), N(vf[17][2]), f0, stk);
+        uint32_t f1 = 0u;
+        const float u1 = fMaddF(N(s.acc[1]), N(vf[25][1]), N(vf[17][2]), f1, stk);
+        uint32_t f2 = 0u;
+        const float u2 = fMaddF(N(s.acc[2]), N(vf[25][2]), N(vf[17][2]), f2, stk);
+        uint32_t f3 = 0u;
+        const float u3 = fMaddF(N(s.acc[3]), N(vf[25][3]), N(vf[17][2]), f3, stk);
+        pushMacStatus(c, 0u | macBits(f0, 8u) | macBits(f1, 4u) | macBits(f2, 2u) | macBits(f3, 1u), 0u | f0 | f1 | f2 | f3, stk);
+        s.acc[0] = u0; c.accReady[0] = c.cyc + 1u;
+        s.acc[1] = u1; c.accReady[1] = c.cyc + 1u;
+        s.acc[2] = u2; c.accReady[2] = c.cyc + 1u;
+        s.acc[3] = u3; c.accReady[3] = c.cyc + 1u;
+        c.bkValid = false;
+        ++c.cyc;
+    }
+    // 0210: 01D1D48B 81E7DB7D
+    {
+        uint32_t stk = 0u;
+        uint32_t f0 = 0u;
+        const float u0 = fMaddF(N(s.acc[0]), N(vf[26][0]), N(vf[17][3]), f0, stk);
+        uint32_t f1 = 0u;
+        const float u1 = fMaddF(N(s.acc[1]), N(vf[26][1]), N(vf[17][3]), f1, stk);
+        uint32_t f2 = 0u;
+        const float u2 = fMaddF(N(s.acc[2]), N(vf[26][2]), N(vf[17][3]), f2, stk);
+        pushMacStatus(c, 0u | macBits(f0, 8u) | macBits(f1, 4u) | macBits(f2, 2u), 0u | f0 | f1 | f2, stk);
+        { const uint32_t w[4] = {fbits(vf[27][0]), fbits(vf[27][1]), fbits(vf[27][2]), fbits(vf[27][3])}; storeQ(c, ((static_cast<uint32_t>(static_cast<uint16_t>(vi[7])) * 16u) & 0xFF0u), w, 15); }
+        const int32_t nvi = static_cast<int16_t>(vi[7] + 1);
+        vf[18][0] = u0; c.vfReady[18][0] = c.cyc + 4;
+        vf[18][1] = u1; c.vfReady[18][1] = c.cyc + 4;
+        vf[18][2] = u2; c.vfReady[18][2] = c.cyc + 4;
+        c.bkValid = true; c.bkReg = 7; c.bkVal = vi[7];
+        vi[7] = nvi; c.viReady[7] = c.cyc + 1;
+        ++c.cyc;
+    }
+    // 0218: 01FCB9BC 8000033C
+    {
+        uint32_t stk = 0u;
+        uint32_t f0 = 0u;
+        const float u0 = fMulF(N(vf[23][0]), N(vf[28][0]), f0);
+        uint32_t f1 = 0u;
+        const float u1 = fMulF(N(vf[23][1]), N(vf[28][0]), f1);
+        uint32_t f2 = 0u;
+        const float u2 = fMulF(N(vf[23][2]), N(vf[28][0]), f2);
+        uint32_t f3 = 0u;
+        const float u3 = fMulF(N(vf[23][3]), N(vf[28][0]), f3);
+        pushMacStatus(c, 0u | macBits(f0, 8u) | macBits(f1, 4u) | macBits(f2, 2u) | macBits(f3, 1u), 0u | f0 | f1 | f2 | f3, stk);
+        s.acc[0] = u0; c.accReady[0] = c.cyc + 1u;
+        s.acc[1] = u1; c.accReady[1] = c.cyc + 1u;
+        s.acc[2] = u2; c.accReady[2] = c.cyc + 1u;
+        s.acc[3] = u3; c.accReady[3] = c.cyc + 1u;
+        c.bkValid = false;
+        ++c.cyc;
+    }
+    // 0220: 01FCC0BD 8000033C
+    {
+        uint32_t stk = 0u;
+        uint32_t f0 = 0u;
+        const float u0 = fMaddF(N(s.acc[0]), N(vf[24][0]), N(vf[28][1]), f0, stk);
+        uint32_t f1 = 0u;
+        const float u1 = fMaddF(N(s.acc[1]), N(vf[24][1]), N(vf[28][1]), f1, stk);
+        uint32_t f2 = 0u;
+        const float u2 = fMaddF(N(s.acc[2]), N(vf[24][2]), N(vf[28][1]), f2, stk);
+        uint32_t f3 = 0u;
+        const float u3 = fMaddF(N(s.acc[3]), N(vf[24][3]), N(vf[28][1]), f3, stk);
+        pushMacStatus(c, 0u | macBits(f0, 8u) | macBits(f1, 4u) | macBits(f2, 2u) | macBits(f3, 1u), 0u | f0 | f1 | f2 | f3, stk);
+        s.acc[0] = u0; c.accReady[0] = c.cyc + 1u;
+        s.acc[1] = u1; c.accReady[1] = c.cyc + 1u;
+        s.acc[2] = u2; c.accReady[2] = c.cyc + 1u;
+        s.acc[3] = u3; c.accReady[3] = c.cyc + 1u;
+        c.bkValid = false;
+        ++c.cyc;
+    }
+    // 0228: 01FCC8BE 8000033C
+    {
+        uint32_t stk = 0u;
+        uint32_t f0 = 0u;
+        const float u0 = fMaddF(N(s.acc[0]), N(vf[25][0]), N(vf[28][2]), f0, stk);
+        uint32_t f1 = 0u;
+        const float u1 = fMaddF(N(s.acc[1]), N(vf[25][1]), N(vf[28][2]), f1, stk);
+        uint32_t f2 = 0u;
+        const float u2 = fMaddF(N(s.acc[2]), N(vf[25][2]), N(vf[28][2]), f2, stk);
+        uint32_t f3 = 0u;
+        const float u3 = fMaddF(N(s.acc[3]), N(vf[25][3]), N(vf[28][2]), f3, stk);
+        pushMacStatus(c, 0u | macBits(f0, 8u) | macBits(f1, 4u) | macBits(f2, 2u) | macBits(f3, 1u), 0u | f0 | f1 | f2 | f3, stk);
+        s.acc[0] = u0; c.accReady[0] = c.cyc + 1u;
+        s.acc[1] = u1; c.accReady[1] = c.cyc + 1u;
+        s.acc[2] = u2; c.accReady[2] = c.cyc + 1u;
+        s.acc[3] = u3; c.accReady[3] = c.cyc + 1u;
+        c.bkValid = false;
+        ++c.cyc;
+    }
+    // 0230: 01DCD6CB 81E7937D
+    {
+        uint32_t stk = 0u;
+        uint32_t f0 = 0u;
+        const float u0 = fMaddF(N(s.acc[0]), N(vf[26][0]), N(vf[28][3]), f0, stk);
+        uint32_t f1 = 0u;
+        const float u1 = fMaddF(N(s.acc[1]), N(vf[26][1]), N(vf[28][3]), f1, stk);
+        uint32_t f2 = 0u;
+        const float u2 = fMaddF(N(s.acc[2]), N(vf[26][2]), N(vf[28][3]), f2, stk);
+        pushMacStatus(c, 0u | macBits(f0, 8u) | macBits(f1, 4u) | macBits(f2, 2u), 0u | f0 | f1 | f2, stk);
+        { const uint32_t w[4] = {fbits(vf[18][0]), fbits(vf[18][1]), fbits(vf[18][2]), fbits(vf[18][3])}; storeQ(c, ((static_cast<uint32_t>(static_cast<uint16_t>(vi[7])) * 16u) & 0xFF0u), w, 15); }
+        const int32_t nvi = static_cast<int16_t>(vi[7] + 1);
+        vf[27][0] = u0; c.vfReady[27][0] = c.cyc + 4;
+        vf[27][1] = u1; c.vfReady[27][1] = c.cyc + 4;
+        vf[27][2] = u2; c.vfReady[27][2] = c.cyc + 4;
+        c.bkValid = true; c.bkReg = 7; c.bkVal = vi[7];
+        vi[7] = nvi; c.viReady[7] = c.cyc + 1;
+        ++c.cyc;
+    }
+    // 0238: 000002FF 8000033C
+    {
+        c.bkValid = false;
+        ++c.cyc;
+    }
+    // 0240: 000002FF 12031801
+    {
+        stall(c, c.viReady[3]);
+        const int32_t nvi = static_cast<int16_t>(vi[3] - (1));
+        c.bkValid = true; c.bkReg = 3; c.bkVal = vi[3];
+        vi[3] = nvi; c.viReady[3] = c.cyc + 1;
+        ++c.cyc;
+    }
+    // 0248: 000002FF 8000033C
+    {
+        c.bkValid = false;
+        ++c.cyc;
+    }
+    bool taken = false;
+    // 0250: 000002FF 5A001FBA
+    {
+        taken = static_cast<int16_t>(brVi(c, 3)) > 0;
+        c.bkValid = false;
+        ++c.cyc;
+    }
+    // 0258: 000002FF 81E7DB7D
+    {
+        { const uint32_t w[4] = {fbits(vf[27][0]), fbits(vf[27][1]), fbits(vf[27][2]), fbits(vf[27][3])}; storeQ(c, ((static_cast<uint32_t>(static_cast<uint16_t>(vi[7])) * 16u) & 0xFF0u), w, 15); }
+        const int32_t nvi = static_cast<int16_t>(vi[7] + 1);
+        c.bkValid = true; c.bkReg = 7; c.bkVal = vi[7];
+        vi[7] = nvi; c.viReady[7] = c.cyc + 1;
+        ++c.cyc;
+    }
+    if (c.cyc >= c.budgetEnd)
+        return handoffRet(c, (taken ? 0x28u : 0x260u));
+    return (taken ? 0x28u : 0x260u);
+}
+
+static uint32_t vu0prog_0_0260(VU1NativeCtx &c)
+{
+    using namespace vu1n;
+    VU1State &s = *c.st;
+    float (*vf)[4] = s.vf;
+    int32_t *vi = s.vi;
+    uint8_t *m = c.mem;
+    (void)m;
+    (void)vf;
+    (void)vi;
+    // 0260: 000002FF 8000033C
+    {
+        c.bkValid = false;
+        ++c.cyc;
+    }
+    // 0268: 400002FF 8000033C
+    {
+        c.bkValid = false;
+        ++c.cyc;
+    }
+    // 0270: 000002FF 8000033C
+    {
+        c.bkValid = false;
+        ++c.cyc;
+    }
+    s.pc = 0x278;
+    finish(c);
+    return kEnded;
+}
+
+static uint32_t vu0prog_0_0570(VU1NativeCtx &c)
+{
+    using namespace vu1n;
+    VU1State &s = *c.st;
+    float (*vf)[4] = s.vf;
+    int32_t *vi = s.vi;
+    uint8_t *m = c.mem;
+    (void)m;
+    (void)vf;
+    (void)vi;
+    // 0570: 000002FF 8000033C
+    {
+        c.bkValid = false;
+        ++c.cyc;
+    }
+    // 0578: 000002FF 8000033C
+    {
+        c.bkValid = false;
+        ++c.cyc;
+    }
+    // 0580: 000002FF 8000033C
+    {
+        c.bkValid = false;
+        ++c.cyc;
+    }
+    // 0588: 000002FF 8000033C
+    {
+        c.bkValid = false;
+        ++c.cyc;
+    }
+    // 0590: 01E069BF 8000033C
+    {
+        stall(c, c.vfReady[13][0]);
+        stall(c, c.vfReady[13][1]);
+        stall(c, c.vfReady[13][2]);
+        stall(c, c.vfReady[13][3]);
+        uint32_t stk = 0u;
+        uint32_t f0 = 0u;
+        const float u0 = fMulF(N(vf[13][0]), N(vf[0][3]), f0);
+        uint32_t f1 = 0u;
+        const float u1 = fMulF(N(vf[13][1]), N(vf[0][3]), f1);
+        uint32_t f2 = 0u;
+        const float u2 = fMulF(N(vf[13][2]), N(vf[0][3]), f2);
+        uint32_t f3 = 0u;
+        const float u3 = fMulF(N(vf[13][3]), N(vf[0][3]), f3);
+        pushMacStatus(c, 0u | macBits(f0, 8u) | macBits(f1, 4u) | macBits(f2, 2u) | macBits(f3, 1u), 0u | f0 | f1 | f2 | f3, stk);
+        s.acc[0] = u0; c.accReady[0] = c.cyc + 1u;
+        s.acc[1] = u1; c.accReady[1] = c.cyc + 1u;
+        s.acc[2] = u2; c.accReady[2] = c.cyc + 1u;
+        s.acc[3] = u3; c.accReady[3] = c.cyc + 1u;
+        c.bkValid = false;
+        ++c.cyc;
+    }
+    // 0598: 01EF60BE 8000033C
+    {
+        stall(c, c.vfReady[12][0]);
+        stall(c, c.vfReady[12][1]);
+        stall(c, c.vfReady[12][2]);
+        stall(c, c.vfReady[12][3]);
+        stall(c, c.vfReady[15][2]);
+        uint32_t stk = 0u;
+        uint32_t f0 = 0u;
+        const float u0 = fMaddF(N(s.acc[0]), N(vf[12][0]), N(vf[15][2]), f0, stk);
+        uint32_t f1 = 0u;
+        const float u1 = fMaddF(N(s.acc[1]), N(vf[12][1]), N(vf[15][2]), f1, stk);
+        uint32_t f2 = 0u;
+        const float u2 = fMaddF(N(s.acc[2]), N(vf[12][2]), N(vf[15][2]), f2, stk);
+        uint32_t f3 = 0u;
+        const float u3 = fMaddF(N(s.acc[3]), N(vf[12][3]), N(vf[15][2]), f3, stk);
+        pushMacStatus(c, 0u | macBits(f0, 8u) | macBits(f1, 4u) | macBits(f2, 2u) | macBits(f3, 1u), 0u | f0 | f1 | f2 | f3, stk);
+        s.acc[0] = u0; c.accReady[0] = c.cyc + 1u;
+        s.acc[1] = u1; c.accReady[1] = c.cyc + 1u;
+        s.acc[2] = u2; c.accReady[2] = c.cyc + 1u;
+        s.acc[3] = u3; c.accReady[3] = c.cyc + 1u;
+        c.bkValid = false;
+        ++c.cyc;
+    }
+    // 05A0: 01EF58BD 8000033C
+    {
+        stall(c, c.vfReady[11][0]);
+        stall(c, c.vfReady[11][1]);
+        stall(c, c.vfReady[11][2]);
+        stall(c, c.vfReady[11][3]);
+        stall(c, c.vfReady[15][1]);
+        uint32_t stk = 0u;
+        uint32_t f0 = 0u;
+        const float u0 = fMaddF(N(s.acc[0]), N(vf[11][0]), N(vf[15][1]), f0, stk);
+        uint32_t f1 = 0u;
+        const float u1 = fMaddF(N(s.acc[1]), N(vf[11][1]), N(vf[15][1]), f1, stk);
+        uint32_t f2 = 0u;
+        const float u2 = fMaddF(N(s.acc[2]), N(vf[11][2]), N(vf[15][1]), f2, stk);
+        uint32_t f3 = 0u;
+        const float u3 = fMaddF(N(s.acc[3]), N(vf[11][3]), N(vf[15][1]), f3, stk);
+        pushMacStatus(c, 0u | macBits(f0, 8u) | macBits(f1, 4u) | macBits(f2, 2u) | macBits(f3, 1u), 0u | f0 | f1 | f2 | f3, stk);
+        s.acc[0] = u0; c.accReady[0] = c.cyc + 1u;
+        s.acc[1] = u1; c.accReady[1] = c.cyc + 1u;
+        s.acc[2] = u2; c.accReady[2] = c.cyc + 1u;
+        s.acc[3] = u3; c.accReady[3] = c.cyc + 1u;
+        c.bkValid = false;
+        ++c.cyc;
+    }
+    // 05A8: 01EF5048 8000033C
+    {
+        stall(c, c.vfReady[10][0]);
+        stall(c, c.vfReady[10][1]);
+        stall(c, c.vfReady[10][2]);
+        stall(c, c.vfReady[10][3]);
+        stall(c, c.vfReady[15][0]);
+        uint32_t stk = 0u;
+        uint32_t f0 = 0u;
+        const float u0 = fMaddF(N(s.acc[0]), N(vf[10][0]), N(vf[15][0]), f0, stk);
+        uint32_t f1 = 0u;
+        const float u1 = fMaddF(N(s.acc[1]), N(vf[10][1]), N(vf[15][0]), f1, stk);
+        uint32_t f2 = 0u;
+        const float u2 = fMaddF(N(s.acc[2]), N(vf[10][2]), N(vf[15][0]), f2, stk);
+        uint32_t f3 = 0u;
+        const float u3 = fMaddF(N(s.acc[3]), N(vf[10][3]), N(vf[15][0]), f3, stk);
+        pushMacStatus(c, 0u | macBits(f0, 8u) | macBits(f1, 4u) | macBits(f2, 2u) | macBits(f3, 1u), 0u | f0 | f1 | f2 | f3, stk);
+        vf[1][0] = u0; c.vfReady[1][0] = c.cyc + 4;
+        vf[1][1] = u1; c.vfReady[1][1] = c.cyc + 4;
+        vf[1][2] = u2; c.vfReady[1][2] = c.cyc + 4;
+        vf[1][3] = u3; c.vfReady[1][3] = c.cyc + 4;
+        c.bkValid = false;
+        ++c.cyc;
+    }
+    // 05B0: 01F05088 8000033C
+    {
+        stall(c, c.vfReady[16][0]);
+        uint32_t stk = 0u;
+        uint32_t f0 = 0u;
+        const float u0 = fMaddF(N(s.acc[0]), N(vf[10][0]), N(vf[16][0]), f0, stk);
+        uint32_t f1 = 0u;
+        const float u1 = fMaddF(N(s.acc[1]), N(vf[10][1]), N(vf[16][0]), f1, stk);
+        uint32_t f2 = 0u;
+        const float u2 = fMaddF(N(s.acc[2]), N(vf[10][2]), N(vf[16][0]), f2, stk);
+        uint32_t f3 = 0u;
+        const float u3 = fMaddF(N(s.acc[3]), N(vf[10][3]), N(vf[16][0]), f3, stk);
+        pushMacStatus(c, 0u | macBits(f0, 8u) | macBits(f1, 4u) | macBits(f2, 2u) | macBits(f3, 1u), 0u | f0 | f1 | f2 | f3, stk);
+        vf[2][0] = u0; c.vfReady[2][0] = c.cyc + 4;
+        vf[2][1] = u1; c.vfReady[2][1] = c.cyc + 4;
+        vf[2][2] = u2; c.vfReady[2][2] = c.cyc + 4;
+        vf[2][3] = u3; c.vfReady[2][3] = c.cyc + 4;
+        c.bkValid = false;
+        ++c.cyc;
+    }
+    // 05B8: 01E069BF 10010000
+    {
+        uint32_t stk = 0u;
+        uint32_t f0 = 0u;
+        const float u0 = fMulF(N(vf[13][0]), N(vf[0][3]), f0);
+        uint32_t f1 = 0u;
+        const float u1 = fMulF(N(vf[13][1]), N(vf[0][3]), f1);
+        uint32_t f2 = 0u;
+        const float u2 = fMulF(N(vf[13][2]), N(vf[0][3]), f2);
+        uint32_t f3 = 0u;
+        const float u3 = fMulF(N(vf[13][3]), N(vf[0][3]), f3);
+        pushMacStatus(c, 0u | macBits(f0, 8u) | macBits(f1, 4u) | macBits(f2, 2u) | macBits(f3, 1u), 0u | f0 | f1 | f2 | f3, stk);
+        const int32_t nvi = static_cast<int16_t>(vi[0] + (0));
+        s.acc[0] = u0; c.accReady[0] = c.cyc + 1u;
+        s.acc[1] = u1; c.accReady[1] = c.cyc + 1u;
+        s.acc[2] = u2; c.accReady[2] = c.cyc + 1u;
+        s.acc[3] = u3; c.accReady[3] = c.cyc + 1u;
+        c.bkValid = true; c.bkReg = 1; c.bkVal = vi[1];
+        vi[1] = nvi; c.viReady[1] = c.cyc + 1;
+        ++c.cyc;
+    }
+    // 05C0: 01EF60BE 1002003F
+    {
+        uint32_t stk = 0u;
+        uint32_t f0 = 0u;
+        const float u0 = fMaddF(N(s.acc[0]), N(vf[12][0]), N(vf[15][2]), f0, stk);
+        uint32_t f1 = 0u;
+        const float u1 = fMaddF(N(s.acc[1]), N(vf[12][1]), N(vf[15][2]), f1, stk);
+        uint32_t f2 = 0u;
+        const float u2 = fMaddF(N(s.acc[2]), N(vf[12][2]), N(vf[15][2]), f2, stk);
+        uint32_t f3 = 0u;
+        const float u3 = fMaddF(N(s.acc[3]), N(vf[12][3]), N(vf[15][2]), f3, stk);
+        pushMacStatus(c, 0u | macBits(f0, 8u) | macBits(f1, 4u) | macBits(f2, 2u) | macBits(f3, 1u), 0u | f0 | f1 | f2 | f3, stk);
+        const int32_t nvi = static_cast<int16_t>(vi[0] + (63));
+        s.acc[0] = u0; c.accReady[0] = c.cyc + 1u;
+        s.acc[1] = u1; c.accReady[1] = c.cyc + 1u;
+        s.acc[2] = u2; c.accReady[2] = c.cyc + 1u;
+        s.acc[3] = u3; c.accReady[3] = c.cyc + 1u;
+        c.bkValid = true; c.bkReg = 2; c.bkVal = vi[2];
+        vi[2] = nvi; c.viReady[2] = c.cyc + 1;
+        ++c.cyc;
+    }
+    // 05C8: 01F058BD 8000033C
+    {
+        stall(c, c.vfReady[16][1]);
+        uint32_t stk = 0u;
+        uint32_t f0 = 0u;
+        const float u0 = fMaddF(N(s.acc[0]), N(vf[11][0]), N(vf[16][1]), f0, stk);
+        uint32_t f1 = 0u;
+        const float u1 = fMaddF(N(s.acc[1]), N(vf[11][1]), N(vf[16][1]), f1, stk);
+        uint32_t f2 = 0u;
+        const float u2 = fMaddF(N(s.acc[2]), N(vf[11][2]), N(vf[16][1]), f2, stk);
+        uint32_t f3 = 0u;
+        const float u3 = fMaddF(N(s.acc[3]), N(vf[11][3]), N(vf[16][1]), f3, stk);
+        pushMacStatus(c, 0u | macBits(f0, 8u) | macBits(f1, 4u) | macBits(f2, 2u) | macBits(f3, 1u), 0u | f0 | f1 | f2 | f3, stk);
+        s.acc[0] = u0; c.accReady[0] = c.cyc + 1u;
+        s.acc[1] = u1; c.accReady[1] = c.cyc + 1u;
+        s.acc[2] = u2; c.accReady[2] = c.cyc + 1u;
+        s.acc[3] = u3; c.accReady[3] = c.cyc + 1u;
+        c.bkValid = false;
+        ++c.cyc;
+    }
+    // 05D0: 01C109FF 8000033C
+    {
+        queueClip(c, clipBits(vf[1], vf[1][3]));
+        c.bkValid = false;
+        ++c.cyc;
+    }
+    // 05D8: 01C211FF 8000033C
+    {
+        queueClip(c, clipBits(vf[2], vf[2][3]));
+        c.bkValid = false;
+        ++c.cyc;
+    }
+    // 05E0: 01EF50C8 8000033C
+    {
+        uint32_t stk = 0u;
+        uint32_t f0 = 0u;
+        const float u0 = fMaddF(N(s.acc[0]), N(vf[10][0]), N(vf[15][0]), f0, stk);
+        uint32_t f1 = 0u;
+        const float u1 = fMaddF(N(s.acc[1]), N(vf[10][1]), N(vf[15][0]), f1, stk);
+        uint32_t f2 = 0u;
+        const float u2 = fMaddF(N(s.acc[2]), N(vf[10][2]), N(vf[15][0]), f2, stk);
+        uint32_t f3 = 0u;
+        const float u3 = fMaddF(N(s.acc[3]), N(vf[10][3]), N(vf[15][0]), f3, stk);
+        pushMacStatus(c, 0u | macBits(f0, 8u) | macBits(f1, 4u) | macBits(f2, 2u) | macBits(f3, 1u), 0u | f0 | f1 | f2 | f3, stk);
+        vf[3][0] = u0; c.vfReady[3][0] = c.cyc + 4;
+        vf[3][1] = u1; c.vfReady[3][1] = c.cyc + 4;
+        vf[3][2] = u2; c.vfReady[3][2] = c.cyc + 4;
+        vf[3][3] = u3; c.vfReady[3][3] = c.cyc + 4;
+        c.bkValid = false;
+        ++c.cyc;
+    }
+    // 05E8: 01F05108 8000033C
+    {
+        uint32_t stk = 0u;
+        uint32_t f0 = 0u;
+        const float u0 = fMaddF(N(s.acc[0]), N(vf[10][0]), N(vf[16][0]), f0, stk);
+        uint32_t f1 = 0u;
+        const float u1 = fMaddF(N(s.acc[1]), N(vf[10][1]), N(vf[16][0]), f1, stk);
+        uint32_t f2 = 0u;
+        const float u2 = fMaddF(N(s.acc[2]), N(vf[10][2]), N(vf[16][0]), f2, stk);
+        uint32_t f3 = 0u;
+        const float u3 = fMaddF(N(s.acc[3]), N(vf[10][3]), N(vf[16][0]), f3, stk);
+        pushMacStatus(c, 0u | macBits(f0, 8u) | macBits(f1, 4u) | macBits(f2, 2u) | macBits(f3, 1u), 0u | f0 | f1 | f2 | f3, stk);
+        vf[4][0] = u0; c.vfReady[4][0] = c.cyc + 4;
+        vf[4][1] = u1; c.vfReady[4][1] = c.cyc + 4;
+        vf[4][2] = u2; c.vfReady[4][2] = c.cyc + 4;
+        vf[4][3] = u3; c.vfReady[4][3] = c.cyc + 4;
+        c.bkValid = false;
+        ++c.cyc;
+    }
+    // 05F0: 01E069BF 38030000
+    {
+        commitClip(c);
+        uint32_t stk = 0u;
+        uint32_t f0 = 0u;
+        const float u0 = fMulF(N(vf[13][0]), N(vf[0][3]), f0);
+        uint32_t f1 = 0u;
+        const float u1 = fMulF(N(vf[13][1]), N(vf[0][3]), f1);
+        uint32_t f2 = 0u;
+        const float u2 = fMulF(N(vf[13][2]), N(vf[0][3]), f2);
+        uint32_t f3 = 0u;
+        const float u3 = fMulF(N(vf[13][3]), N(vf[0][3]), f3);
+        pushMacStatus(c, 0u | macBits(f0, 8u) | macBits(f1, 4u) | macBits(f2, 2u) | macBits(f3, 1u), 0u | f0 | f1 | f2 | f3, stk);
+        const int32_t nvi = static_cast<int32_t>(s.clip & 0x0FFFu);
+        s.acc[0] = u0; c.accReady[0] = c.cyc + 1u;
+        s.acc[1] = u1; c.accReady[1] = c.cyc + 1u;
+        s.acc[2] = u2; c.accReady[2] = c.cyc + 1u;
+        s.acc[3] = u3; c.accReady[3] = c.cyc + 1u;
+        c.bkValid = false;
+        vi[3] = nvi; c.viReady[3] = c.cyc + 1;
+        ++c.cyc;
+    }
+    // 05F8: 01F060BE 38040000
+    {
+        stall(c, c.vfReady[16][2]);
+        commitClip(c);
+        uint32_t stk = 0u;
+        uint32_t f0 = 0u;
+        const float u0 = fMaddF(N(s.acc[0]), N(vf[12][0]), N(vf[16][2]), f0, stk);
+        uint32_t f1 = 0u;
+        const float u1 = fMaddF(N(s.acc[1]), N(vf[12][1]), N(vf[16][2]), f1, stk);
+        uint32_t f2 = 0u;
+        const float u2 = fMaddF(N(s.acc[2]), N(vf[12][2]), N(vf[16][2]), f2, stk);
+        uint32_t f3 = 0u;
+        const float u3 = fMaddF(N(s.acc[3]), N(vf[12][3]), N(vf[16][2]), f3, stk);
+        pushMacStatus(c, 0u | macBits(f0, 8u) | macBits(f1, 4u) | macBits(f2, 2u) | macBits(f3, 1u), 0u | f0 | f1 | f2 | f3, stk);
+        const int32_t nvi = static_cast<int32_t>(s.clip & 0x0FFFu);
+        s.acc[0] = u0; c.accReady[0] = c.cyc + 1u;
+        s.acc[1] = u1; c.accReady[1] = c.cyc + 1u;
+        s.acc[2] = u2; c.accReady[2] = c.cyc + 1u;
+        s.acc[3] = u3; c.accReady[3] = c.cyc + 1u;
+        c.bkValid = false;
+        vi[4] = nvi; c.viReady[4] = c.cyc + 1;
+        ++c.cyc;
+    }
+    // 0600: 01EF58BD 80030875
+    {
+        uint32_t stk = 0u;
+        uint32_t f0 = 0u;
+        const float u0 = fMaddF(N(s.acc[0]), N(vf[11][0]), N(vf[15][1]), f0, stk);
+        uint32_t f1 = 0u;
+        const float u1 = fMaddF(N(s.acc[1]), N(vf[11][1]), N(vf[15][1]), f1, stk);
+        uint32_t f2 = 0u;
+        const float u2 = fMaddF(N(s.acc[2]), N(vf[11][2]), N(vf[15][1]), f2, stk);
+        uint32_t f3 = 0u;
+        const float u3 = fMaddF(N(s.acc[3]), N(vf[11][3]), N(vf[15][1]), f3, stk);
+        pushMacStatus(c, 0u | macBits(f0, 8u) | macBits(f1, 4u) | macBits(f2, 2u) | macBits(f3, 1u), 0u | f0 | f1 | f2 | f3, stk);
+        const int32_t nvi = (vi[1] | vi[3]);
+        s.acc[0] = u0; c.accReady[0] = c.cyc + 1u;
+        s.acc[1] = u1; c.accReady[1] = c.cyc + 1u;
+        s.acc[2] = u2; c.accReady[2] = c.cyc + 1u;
+        s.acc[3] = u3; c.accReady[3] = c.cyc + 1u;
+        c.bkValid = true; c.bkReg = 1; c.bkVal = vi[1];
+        vi[1] = nvi; c.viReady[1] = c.cyc + 1;
+        ++c.cyc;
+    }
+    // 0608: 01C319FF 800310B4
+    {
+        queueClip(c, clipBits(vf[3], vf[3][3]));
+        const int32_t nvi = (vi[2] & vi[3]);
+        c.bkValid = true; c.bkReg = 2; c.bkVal = vi[2];
+        vi[2] = nvi; c.viReady[2] = c.cyc + 1;
+        ++c.cyc;
+    }
+    // 0610: 01C421FF 80040875
+    {
+        queueClip(c, clipBits(vf[4], vf[4][3]));
+        const int32_t nvi = (vi[1] | vi[4]);
+        c.bkValid = true; c.bkReg = 1; c.bkVal = vi[1];
+        vi[1] = nvi; c.viReady[1] = c.cyc + 1;
+        ++c.cyc;
+    }
+    // 0618: 01EF5148 800410B4
+    {
+        uint32_t stk = 0u;
+        uint32_t f0 = 0u;
+        const float u0 = fMaddF(N(s.acc[0]), N(vf[10][0]), N(vf[15][0]), f0, stk);
+        uint32_t f1 = 0u;
+        const float u1 = fMaddF(N(s.acc[1]), N(vf[10][1]), N(vf[15][0]), f1, stk);
+        uint32_t f2 = 0u;
+        const float u2 = fMaddF(N(s.acc[2]), N(vf[10][2]), N(vf[15][0]), f2, stk);
+        uint32_t f3 = 0u;
+        const float u3 = fMaddF(N(s.acc[3]), N(vf[10][3]), N(vf[15][0]), f3, stk);
+        pushMacStatus(c, 0u | macBits(f0, 8u) | macBits(f1, 4u) | macBits(f2, 2u) | macBits(f3, 1u), 0u | f0 | f1 | f2 | f3, stk);
+        const int32_t nvi = (vi[2] & vi[4]);
+        vf[5][0] = u0; c.vfReady[5][0] = c.cyc + 4;
+        vf[5][1] = u1; c.vfReady[5][1] = c.cyc + 4;
+        vf[5][2] = u2; c.vfReady[5][2] = c.cyc + 4;
+        vf[5][3] = u3; c.vfReady[5][3] = c.cyc + 4;
+        c.bkValid = true; c.bkReg = 2; c.bkVal = vi[2];
+        vi[2] = nvi; c.viReady[2] = c.cyc + 1;
+        ++c.cyc;
+    }
+    // 0620: 01F05188 8000033C
+    {
+        uint32_t stk = 0u;
+        uint32_t f0 = 0u;
+        const float u0 = fMaddF(N(s.acc[0]), N(vf[10][0]), N(vf[16][0]), f0, stk);
+        uint32_t f1 = 0u;
+        const float u1 = fMaddF(N(s.acc[1]), N(vf[10][1]), N(vf[16][0]), f1, stk);
+        uint32_t f2 = 0u;
+        const float u2 = fMaddF(N(s.acc[2]), N(vf[10][2]), N(vf[16][0]), f2, stk);
+        uint32_t f3 = 0u;
+        const float u3 = fMaddF(N(s.acc[3]), N(vf[10][3]), N(vf[16][0]), f3, stk);
+        pushMacStatus(c, 0u | macBits(f0, 8u) | macBits(f1, 4u) | macBits(f2, 2u) | macBits(f3, 1u), 0u | f0 | f1 | f2 | f3, stk);
+        vf[6][0] = u0; c.vfReady[6][0] = c.cyc + 4;
+        vf[6][1] = u1; c.vfReady[6][1] = c.cyc + 4;
+        vf[6][2] = u2; c.vfReady[6][2] = c.cyc + 4;
+        vf[6][3] = u3; c.vfReady[6][3] = c.cyc + 4;
+        c.bkValid = false;
+        ++c.cyc;
+    }
+    // 0628: 01E069BF 38030000
+    {
+        commitClip(c);
+        uint32_t stk = 0u;
+        uint32_t f0 = 0u;
+        const float u0 = fMulF(N(vf[13][0]), N(vf[0][3]), f0);
+        uint32_t f1 = 0u;
+        const float u1 = fMulF(N(vf[13][1]), N(vf[0][3]), f1);
+        uint32_t f2 = 0u;
+        const float u2 = fMulF(N(vf[13][2]), N(vf[0][3]), f2);
+        uint32_t f3 = 0u;
+        const float u3 = fMulF(N(vf[13][3]), N(vf[0][3]), f3);
+        pushMacStatus(c, 0u | macBits(f0, 8u) | macBits(f1, 4u) | macBits(f2, 2u) | macBits(f3, 1u), 0u | f0 | f1 | f2 | f3, stk);
+        const int32_t nvi = static_cast<int32_t>(s.clip & 0x0FFFu);
+        s.acc[0] = u0; c.accReady[0] = c.cyc + 1u;
+        s.acc[1] = u1; c.accReady[1] = c.cyc + 1u;
+        s.acc[2] = u2; c.accReady[2] = c.cyc + 1u;
+        s.acc[3] = u3; c.accReady[3] = c.cyc + 1u;
+        c.bkValid = false;
+        vi[3] = nvi; c.viReady[3] = c.cyc + 1;
+        ++c.cyc;
+    }
+    // 0630: 01F060BE 38040000
+    {
+        commitClip(c);
+        uint32_t stk = 0u;
+        uint32_t f0 = 0u;
+        const float u0 = fMaddF(N(s.acc[0]), N(vf[12][0]), N(vf[16][2]), f0, stk);
+        uint32_t f1 = 0u;
+        const float u1 = fMaddF(N(s.acc[1]), N(vf[12][1]), N(vf[16][2]), f1, stk);
+        uint32_t f2 = 0u;
+        const float u2 = fMaddF(N(s.acc[2]), N(vf[12][2]), N(vf[16][2]), f2, stk);
+        uint32_t f3 = 0u;
+        const float u3 = fMaddF(N(s.acc[3]), N(vf[12][3]), N(vf[16][2]), f3, stk);
+        pushMacStatus(c, 0u | macBits(f0, 8u) | macBits(f1, 4u) | macBits(f2, 2u) | macBits(f3, 1u), 0u | f0 | f1 | f2 | f3, stk);
+        const int32_t nvi = static_cast<int32_t>(s.clip & 0x0FFFu);
+        s.acc[0] = u0; c.accReady[0] = c.cyc + 1u;
+        s.acc[1] = u1; c.accReady[1] = c.cyc + 1u;
+        s.acc[2] = u2; c.accReady[2] = c.cyc + 1u;
+        s.acc[3] = u3; c.accReady[3] = c.cyc + 1u;
+        c.bkValid = false;
+        vi[4] = nvi; c.viReady[4] = c.cyc + 1;
+        ++c.cyc;
+    }
+    // 0638: 01F058BD 80030875
+    {
+        uint32_t stk = 0u;
+        uint32_t f0 = 0u;
+        const float u0 = fMaddF(N(s.acc[0]), N(vf[11][0]), N(vf[16][1]), f0, stk);
+        uint32_t f1 = 0u;
+        const float u1 = fMaddF(N(s.acc[1]), N(vf[11][1]), N(vf[16][1]), f1, stk);
+        uint32_t f2 = 0u;
+        const float u2 = fMaddF(N(s.acc[2]), N(vf[11][2]), N(vf[16][1]), f2, stk);
+        uint32_t f3 = 0u;
+        const float u3 = fMaddF(N(s.acc[3]), N(vf[11][3]), N(vf[16][1]), f3, stk);
+        pushMacStatus(c, 0u | macBits(f0, 8u) | macBits(f1, 4u) | macBits(f2, 2u) | macBits(f3, 1u), 0u | f0 | f1 | f2 | f3, stk);
+        const int32_t nvi = (vi[1] | vi[3]);
+        s.acc[0] = u0; c.accReady[0] = c.cyc + 1u;
+        s.acc[1] = u1; c.accReady[1] = c.cyc + 1u;
+        s.acc[2] = u2; c.accReady[2] = c.cyc + 1u;
+        s.acc[3] = u3; c.accReady[3] = c.cyc + 1u;
+        c.bkValid = true; c.bkReg = 1; c.bkVal = vi[1];
+        vi[1] = nvi; c.viReady[1] = c.cyc + 1;
+        ++c.cyc;
+    }
+    // 0640: 01C529FF 800310B4
+    {
+        queueClip(c, clipBits(vf[5], vf[5][3]));
+        const int32_t nvi = (vi[2] & vi[3]);
+        c.bkValid = true; c.bkReg = 2; c.bkVal = vi[2];
+        vi[2] = nvi; c.viReady[2] = c.cyc + 1;
+        ++c.cyc;
+    }
+    // 0648: 01C631FF 80040875
+    {
+        queueClip(c, clipBits(vf[6], vf[6][3]));
+        const int32_t nvi = (vi[1] | vi[4]);
+        c.bkValid = true; c.bkReg = 1; c.bkVal = vi[1];
+        vi[1] = nvi; c.viReady[1] = c.cyc + 1;
+        ++c.cyc;
+    }
+    // 0650: 01EF51C8 800410B4
+    {
+        uint32_t stk = 0u;
+        uint32_t f0 = 0u;
+        const float u0 = fMaddF(N(s.acc[0]), N(vf[10][0]), N(vf[15][0]), f0, stk);
+        uint32_t f1 = 0u;
+        const float u1 = fMaddF(N(s.acc[1]), N(vf[10][1]), N(vf[15][0]), f1, stk);
+        uint32_t f2 = 0u;
+        const float u2 = fMaddF(N(s.acc[2]), N(vf[10][2]), N(vf[15][0]), f2, stk);
+        uint32_t f3 = 0u;
+        const float u3 = fMaddF(N(s.acc[3]), N(vf[10][3]), N(vf[15][0]), f3, stk);
+        pushMacStatus(c, 0u | macBits(f0, 8u) | macBits(f1, 4u) | macBits(f2, 2u) | macBits(f3, 1u), 0u | f0 | f1 | f2 | f3, stk);
+        const int32_t nvi = (vi[2] & vi[4]);
+        vf[7][0] = u0; c.vfReady[7][0] = c.cyc + 4;
+        vf[7][1] = u1; c.vfReady[7][1] = c.cyc + 4;
+        vf[7][2] = u2; c.vfReady[7][2] = c.cyc + 4;
+        vf[7][3] = u3; c.vfReady[7][3] = c.cyc + 4;
+        c.bkValid = true; c.bkReg = 2; c.bkVal = vi[2];
+        vi[2] = nvi; c.viReady[2] = c.cyc + 1;
+        ++c.cyc;
+    }
+    // 0658: 01F05208 8000033C
+    {
+        uint32_t stk = 0u;
+        uint32_t f0 = 0u;
+        const float u0 = fMaddF(N(s.acc[0]), N(vf[10][0]), N(vf[16][0]), f0, stk);
+        uint32_t f1 = 0u;
+        const float u1 = fMaddF(N(s.acc[1]), N(vf[10][1]), N(vf[16][0]), f1, stk);
+        uint32_t f2 = 0u;
+        const float u2 = fMaddF(N(s.acc[2]), N(vf[10][2]), N(vf[16][0]), f2, stk);
+        uint32_t f3 = 0u;
+        const float u3 = fMaddF(N(s.acc[3]), N(vf[10][3]), N(vf[16][0]), f3, stk);
+        pushMacStatus(c, 0u | macBits(f0, 8u) | macBits(f1, 4u) | macBits(f2, 2u) | macBits(f3, 1u), 0u | f0 | f1 | f2 | f3, stk);
+        vf[8][0] = u0; c.vfReady[8][0] = c.cyc + 4;
+        vf[8][1] = u1; c.vfReady[8][1] = c.cyc + 4;
+        vf[8][2] = u2; c.vfReady[8][2] = c.cyc + 4;
+        vf[8][3] = u3; c.vfReady[8][3] = c.cyc + 4;
+        c.bkValid = false;
+        ++c.cyc;
+    }
+    // 0660: 000002FF 38030000
+    {
+        commitClip(c);
+        const int32_t nvi = static_cast<int32_t>(s.clip & 0x0FFFu);
+        c.bkValid = false;
+        vi[3] = nvi; c.viReady[3] = c.cyc + 1;
+        ++c.cyc;
+    }
+    // 0668: 000002FF 38040000
+    {
+        commitClip(c);
+        const int32_t nvi = static_cast<int32_t>(s.clip & 0x0FFFu);
+        c.bkValid = false;
+        vi[4] = nvi; c.viReady[4] = c.cyc + 1;
+        ++c.cyc;
+    }
+    // 0670: 000002FF 80030875
+    {
+        const int32_t nvi = (vi[1] | vi[3]);
+        c.bkValid = true; c.bkReg = 1; c.bkVal = vi[1];
+        vi[1] = nvi; c.viReady[1] = c.cyc + 1;
+        ++c.cyc;
+    }
+    // 0678: 01C739FF 800310B4
+    {
+        queueClip(c, clipBits(vf[7], vf[7][3]));
+        const int32_t nvi = (vi[2] & vi[3]);
+        c.bkValid = true; c.bkReg = 2; c.bkVal = vi[2];
+        vi[2] = nvi; c.viReady[2] = c.cyc + 1;
+        ++c.cyc;
+    }
+    // 0680: 01C841FF 80040875
+    {
+        queueClip(c, clipBits(vf[8], vf[8][3]));
+        const int32_t nvi = (vi[1] | vi[4]);
+        c.bkValid = true; c.bkReg = 1; c.bkVal = vi[1];
+        vi[1] = nvi; c.viReady[1] = c.cyc + 1;
+        ++c.cyc;
+    }
+    // 0688: 000002FF 800410B4
+    {
+        const int32_t nvi = (vi[2] & vi[4]);
+        c.bkValid = true; c.bkReg = 2; c.bkVal = vi[2];
+        vi[2] = nvi; c.viReady[2] = c.cyc + 1;
+        ++c.cyc;
+    }
+    // 0690: 000002FF 1005003F
+    {
+        const int32_t nvi = static_cast<int16_t>(vi[0] + (63));
+        c.bkValid = true; c.bkReg = 5; c.bkVal = vi[5];
+        vi[5] = nvi; c.viReady[5] = c.cyc + 1;
+        ++c.cyc;
+    }
+    // 0698: 000002FF 38030000
+    {
+        commitClip(c);
+        const int32_t nvi = static_cast<int32_t>(s.clip & 0x0FFFu);
+        c.bkValid = false;
+        vi[3] = nvi; c.viReady[3] = c.cyc + 1;
+        ++c.cyc;
+    }
+    // 06A0: 000002FF 38040000
+    {
+        commitClip(c);
+        const int32_t nvi = static_cast<int32_t>(s.clip & 0x0FFFu);
+        c.bkValid = false;
+        vi[4] = nvi; c.viReady[4] = c.cyc + 1;
+        ++c.cyc;
+    }
+    // 06A8: 000002FF 80030875
+    {
+        const int32_t nvi = (vi[1] | vi[3]);
+        c.bkValid = true; c.bkReg = 1; c.bkVal = vi[1];
+        vi[1] = nvi; c.viReady[1] = c.cyc + 1;
+        ++c.cyc;
+    }
+    // 06B0: 000002FF 800310B4
+    {
+        const int32_t nvi = (vi[2] & vi[3]);
+        c.bkValid = true; c.bkReg = 2; c.bkVal = vi[2];
+        vi[2] = nvi; c.viReady[2] = c.cyc + 1;
+        ++c.cyc;
+    }
+    // 06B8: 000002FF 80040875
+    {
+        const int32_t nvi = (vi[1] | vi[4]);
+        c.bkValid = true; c.bkReg = 1; c.bkVal = vi[1];
+        vi[1] = nvi; c.viReady[1] = c.cyc + 1;
+        ++c.cyc;
+    }
+    // 06C0: 000002FF 800410B4
+    {
+        const int32_t nvi = (vi[2] & vi[4]);
+        c.bkValid = true; c.bkReg = 2; c.bkVal = vi[2];
+        vi[2] = nvi; c.viReady[2] = c.cyc + 1;
+        ++c.cyc;
+    }
+    // 06C8: 000002FF 80050874
+    {
+        const int32_t nvi = (vi[1] & vi[5]);
+        c.bkValid = true; c.bkReg = 1; c.bkVal = vi[1];
+        vi[1] = nvi; c.viReady[1] = c.cyc + 1;
+        ++c.cyc;
+    }
+    // 06D0: 400002FF 8000033C
+    {
+        c.bkValid = false;
+        ++c.cyc;
+    }
+    // 06D8: 000002FF 8000033C
+    {
+        c.bkValid = false;
+        ++c.cyc;
+    }
+    s.pc = 0x6E0;
+    finish(c);
+    return kEnded;
+}
+
+static uint32_t vu0prog_0_06E0(VU1NativeCtx &c)
+{
+    using namespace vu1n;
+    VU1State &s = *c.st;
+    float (*vf)[4] = s.vf;
+    int32_t *vi = s.vi;
+    uint8_t *m = c.mem;
+    (void)m;
+    (void)vf;
+    (void)vi;
+    // 06E0: 01CA586C 800210B1
+    {
+        stall(c, c.vfReady[10][0]);
+        stall(c, c.vfReady[10][1]);
+        stall(c, c.vfReady[10][2]);
+        stall(c, c.vfReady[11][0]);
+        stall(c, c.vfReady[11][1]);
+        stall(c, c.vfReady[11][2]);
+        stall(c, c.viReady[2]);
+        uint32_t stk = 0u;
+        uint32_t f0 = 0u;
+        const float u0 = fSubF(N(vf[11][0]), N(vf[10][0]), f0);
+        uint32_t f1 = 0u;
+        const float u1 = fSubF(N(vf[11][1]), N(vf[10][1]), f1);
+        uint32_t f2 = 0u;
+        const float u2 = fSubF(N(vf[11][2]), N(vf[10][2]), f2);
+        pushMacStatus(c, 0u | macBits(f0, 8u) | macBits(f1, 4u) | macBits(f2, 2u), 0u | f0 | f1 | f2, stk);
+        const int32_t nvi = static_cast<int16_t>(vi[2] - vi[2]);
+        vf[1][0] = u0; c.vfReady[1][0] = c.cyc + 4;
+        vf[1][1] = u1; c.vfReady[1][1] = c.cyc + 4;
+        vf[1][2] = u2; c.vfReady[1][2] = c.cyc + 4;
+        c.bkValid = true; c.bkReg = 2; c.bkVal = vi[2];
+        vi[2] = nvi; c.viReady[2] = c.cyc + 1;
+        ++c.cyc;
+    }
+    // 06E8: 01CA60AC 8000033C
+    {
+        stall(c, c.vfReady[12][0]);
+        stall(c, c.vfReady[12][1]);
+        stall(c, c.vfReady[12][2]);
+        uint32_t stk = 0u;
+        uint32_t f0 = 0u;
+        const float u0 = fSubF(N(vf[12][0]), N(vf[10][0]), f0);
+        uint32_t f1 = 0u;
+        const float u1 = fSubF(N(vf[12][1]), N(vf[10][1]), f1);
+        uint32_t f2 = 0u;
+        const float u2 = fSubF(N(vf[12][2]), N(vf[10][2]), f2);
+        pushMacStatus(c, 0u | macBits(f0, 8u) | macBits(f1, 4u) | macBits(f2, 2u), 0u | f0 | f1 | f2, stk);
+        vf[2][0] = u0; c.vfReady[2][0] = c.cyc + 4;
+        vf[2][1] = u1; c.vfReady[2][1] = c.cyc + 4;
+        vf[2][2] = u2; c.vfReady[2][2] = c.cyc + 4;
+        c.bkValid = false;
+        ++c.cyc;
+    }
+    // 06F0: 01CA69EC 8000033C
+    {
+        stall(c, c.vfReady[13][0]);
+        stall(c, c.vfReady[13][1]);
+        stall(c, c.vfReady[13][2]);
+        uint32_t stk = 0u;
+        uint32_t f0 = 0u;
+        const float u0 = fSubF(N(vf[13][0]), N(vf[10][0]), f0);
+        uint32_t f1 = 0u;
+        const float u1 = fSubF(N(vf[13][1]), N(vf[10][1]), f1);
+        uint32_t f2 = 0u;
+        const float u2 = fSubF(N(vf[13][2]), N(vf[10][2]), f2);
+        pushMacStatus(c, 0u | macBits(f0, 8u) | macBits(f1, 4u) | macBits(f2, 2u), 0u | f0 | f1 | f2, stk);
+        vf[7][0] = u0; c.vfReady[7][0] = c.cyc + 4;
+        vf[7][1] = u1; c.vfReady[7][1] = c.cyc + 4;
+        vf[7][2] = u2; c.vfReady[7][2] = c.cyc + 4;
+        c.bkValid = false;
+        ++c.cyc;
+    }
+    // 06F8: 01C20AFE 8000033C
+    {
+        stall(c, c.vfReady[1][0]);
+        stall(c, c.vfReady[1][1]);
+        stall(c, c.vfReady[1][2]);
+        stall(c, c.vfReady[2][0]);
+        stall(c, c.vfReady[2][1]);
+        stall(c, c.vfReady[2][2]);
+        uint32_t stk = 0u;
+        uint32_t f0 = 0u;
+        const float u0 = fMulF(N(vf[1][1]), N(vf[2][2]), f0);
+        uint32_t f1 = 0u;
+        const float u1 = fMulF(N(vf[1][2]), N(vf[2][0]), f1);
+        uint32_t f2 = 0u;
+        const float u2 = fMulF(N(vf[1][0]), N(vf[2][1]), f2);
+        pushMacStatus(c, 0u | macBits(f0, 8u) | macBits(f1, 4u) | macBits(f2, 2u), 0u | f0 | f1 | f2, stk);
+        s.acc[0] = u0; c.accReady[0] = c.cyc + 1u;
+        s.acc[1] = u1; c.accReady[1] = c.cyc + 1u;
+        s.acc[2] = u2; c.accReady[2] = c.cyc + 1u;
+        c.bkValid = false;
+        ++c.cyc;
+    }
+    // 0700: 01C110EE 8000033C
+    {
+        uint32_t stk = 0u;
+        uint32_t f0 = 0u;
+        const float u0 = fMsubF(N(s.acc[0]), N(vf[2][1]), N(vf[1][2]), f0, stk);
+        uint32_t f1 = 0u;
+        const float u1 = fMsubF(N(s.acc[1]), N(vf[2][2]), N(vf[1][0]), f1, stk);
+        uint32_t f2 = 0u;
+        const float u2 = fMsubF(N(s.acc[2]), N(vf[2][0]), N(vf[1][1]), f2, stk);
+        pushMacStatus(c, 0u | macBits(f0, 8u) | macBits(f1, 4u) | macBits(f2, 2u), 0u | f0 | f1 | f2, stk);
+        vf[3][0] = u0; c.vfReady[3][0] = c.cyc + 4;
+        vf[3][1] = u1; c.vfReady[3][1] = c.cyc + 4;
+        vf[3][2] = u2; c.vfReady[3][2] = c.cyc + 4;
+        c.bkValid = false;
+        ++c.cyc;
+    }
+    // 0708: 01C13AFE 8000033C
+    {
+        stall(c, c.vfReady[7][0]);
+        stall(c, c.vfReady[7][1]);
+        stall(c, c.vfReady[7][2]);
+        uint32_t stk = 0u;
+        uint32_t f0 = 0u;
+        const float u0 = fMulF(N(vf[7][1]), N(vf[1][2]), f0);
+        uint32_t f1 = 0u;
+        const float u1 = fMulF(N(vf[7][2]), N(vf[1][0]), f1);
+        uint32_t f2 = 0u;
+        const float u2 = fMulF(N(vf[7][0]), N(vf[1][1]), f2);
+        pushMacStatus(c, 0u | macBits(f0, 8u) | macBits(f1, 4u) | macBits(f2, 2u), 0u | f0 | f1 | f2, stk);
+        s.acc[0] = u0; c.accReady[0] = c.cyc + 1u;
+        s.acc[1] = u1; c.accReady[1] = c.cyc + 1u;
+        s.acc[2] = u2; c.accReady[2] = c.cyc + 1u;
+        c.bkValid = false;
+        ++c.cyc;
+    }
+    // 0710: 01C70BEE 8000033C
+    {
+        uint32_t stk = 0u;
+        uint32_t f0 = 0u;
+        const float u0 = fMsubF(N(s.acc[0]), N(vf[1][1]), N(vf[7][2]), f0, stk);
+        uint32_t f1 = 0u;
+        const float u1 = fMsubF(N(s.acc[1]), N(vf[1][2]), N(vf[7][0]), f1, stk);
+        uint32_t f2 = 0u;
+        const float u2 = fMsubF(N(s.acc[2]), N(vf[1][0]), N(vf[7][1]), f2, stk);
+        pushMacStatus(c, 0u | macBits(f0, 8u) | macBits(f1, 4u) | macBits(f2, 2u), 0u | f0 | f1 | f2, stk);
+        vf[15][0] = u0; c.vfReady[15][0] = c.cyc + 4;
+        vf[15][1] = u1; c.vfReady[15][1] = c.cyc + 4;
+        vf[15][2] = u2; c.vfReady[15][2] = c.cyc + 4;
+        c.bkValid = false;
+        ++c.cyc;
+    }
+    // 0718: 01C21AFE 8000033C
+    {
+        stall(c, c.vfReady[3][0]);
+        stall(c, c.vfReady[3][1]);
+        stall(c, c.vfReady[3][2]);
+        uint32_t stk = 0u;
+        uint32_t f0 = 0u;
+        const float u0 = fMulF(N(vf[3][1]), N(vf[2][2]), f0);
+        uint32_t f1 = 0u;
+        const float u1 = fMulF(N(vf[3][2]), N(vf[2][0]), f1);
+        uint32_t f2 = 0u;
+        const float u2 = fMulF(N(vf[3][0]), N(vf[2][1]), f2);
+        pushMacStatus(c, 0u | macBits(f0, 8u) | macBits(f1, 4u) | macBits(f2, 2u), 0u | f0 | f1 | f2, stk);
+        s.acc[0] = u0; c.accReady[0] = c.cyc + 1u;
+        s.acc[1] = u1; c.accReady[1] = c.cyc + 1u;
+        s.acc[2] = u2; c.accReady[2] = c.cyc + 1u;
+        c.bkValid = false;
+        ++c.cyc;
+    }
+    // 0720: 01C3122E 8000033C
+    {
+        uint32_t stk = 0u;
+        uint32_t f0 = 0u;
+        const float u0 = fMsubF(N(s.acc[0]), N(vf[2][1]), N(vf[3][2]), f0, stk);
+        uint32_t f1 = 0u;
+        const float u1 = fMsubF(N(s.acc[1]), N(vf[2][2]), N(vf[3][0]), f1, stk);
+        uint32_t f2 = 0u;
+        const float u2 = fMsubF(N(s.acc[2]), N(vf[2][0]), N(vf[3][1]), f2, stk);
+        pushMacStatus(c, 0u | macBits(f0, 8u) | macBits(f1, 4u) | macBits(f2, 2u), 0u | f0 | f1 | f2, stk);
+        vf[8][0] = u0; c.vfReady[8][0] = c.cyc + 4;
+        vf[8][1] = u1; c.vfReady[8][1] = c.cyc + 4;
+        vf[8][2] = u2; c.vfReady[8][2] = c.cyc + 4;
+        c.bkValid = false;
+        ++c.cyc;
+    }
+    // 0728: 01CF1C2A 8000033C
+    {
+        stall(c, c.vfReady[15][0]);
+        stall(c, c.vfReady[15][1]);
+        stall(c, c.vfReady[15][2]);
+        uint32_t stk = 0u;
+        uint32_t f0 = 0u;
+        const float u0 = fMulF(N(vf[3][0]), N(vf[15][0]), f0);
+        uint32_t f1 = 0u;
+        const float u1 = fMulF(N(vf[3][1]), N(vf[15][1]), f1);
+        uint32_t f2 = 0u;
+        const float u2 = fMulF(N(vf[3][2]), N(vf[15][2]), f2);
+        pushMacStatus(c, 0u | macBits(f0, 8u) | macBits(f1, 4u) | macBits(f2, 2u), 0u | f0 | f1 | f2, stk);
+        vf[16][0] = u0; c.vfReady[16][0] = c.cyc + 4;
+        vf[16][1] = u1; c.vfReady[16][1] = c.cyc + 4;
+        vf[16][2] = u2; c.vfReady[16][2] = c.cyc + 4;
+        c.bkValid = false;
+        ++c.cyc;
+    }
+    // 0730: 01C8092A 8000033C
+    {
+        stall(c, c.vfReady[8][0]);
+        stall(c, c.vfReady[8][1]);
+        stall(c, c.vfReady[8][2]);
+        uint32_t stk = 0u;
+        uint32_t f0 = 0u;
+        const float u0 = fMulF(N(vf[1][0]), N(vf[8][0]), f0);
+        uint32_t f1 = 0u;
+        const float u1 = fMulF(N(vf[1][1]), N(vf[8][1]), f1);
+        uint32_t f2 = 0u;
+        const float u2 = fMulF(N(vf[1][2]), N(vf[8][2]), f2);
+        pushMacStatus(c, 0u | macBits(f0, 8u) | macBits(f1, 4u) | macBits(f2, 2u), 0u | f0 | f1 | f2, stk);
+        vf[4][0] = u0; c.vfReady[4][0] = c.cyc + 4;
+        vf[4][1] = u1; c.vfReady[4][1] = c.cyc + 4;
+        vf[4][2] = u2; c.vfReady[4][2] = c.cyc + 4;
+        c.bkValid = false;
+        ++c.cyc;
+    }
+    // 0738: 01000143 8000033C
+    {
+        uint32_t stk = 0u;
+        uint32_t f0 = 0u;
+        const float u0 = fAddF(N(vf[0][0]), N(vf[0][3]), f0);
+        pushMacStatus(c, 0u | macBits(f0, 8u), 0u | f0, stk);
+        vf[5][0] = u0; c.vfReady[5][0] = c.cyc + 4;
+        c.bkValid = false;
+        ++c.cyc;
+    }
+    // 0740: 81C83A6A 2EDBE6FF
+    {
+        uint32_t stk = 0u;
+        uint32_t f0 = 0u;
+        const float u0 = fMulF(N(vf[7][0]), N(vf[8][0]), f0);
+        uint32_t f1 = 0u;
+        const float u1 = fMulF(N(vf[7][1]), N(vf[8][1]), f1);
+        uint32_t f2 = 0u;
+        const float u2 = fMulF(N(vf[7][2]), N(vf[8][2]), f2);
+        pushMacStatus(c, 0u | macBits(f0, 8u) | macBits(f1, 4u) | macBits(f2, 2u), 0u | f0 | f1 | f2, stk);
+        s.i = N(bitsf(0x2EDBE6FFu));
+        vf[9][0] = u0; c.vfReady[9][0] = c.cyc + 4;
+        vf[9][1] = u1; c.vfReady[9][1] = c.cyc + 4;
+        vf[9][2] = u2; c.vfReady[9][2] = c.cyc + 4;
+        c.bkValid = false;
+        ++c.cyc;
+    }
+    // 0748: 0020019E 8000033C
+    {
+        uint32_t stk = 0u;
+        uint32_t f3 = 0u;
+        const float u3 = fMulF(N(vf[0][3]), N(s.i), f3);
+        pushMacStatus(c, 0u | macBits(f3, 1u), 0u | f3, stk);
+        vf[6][3] = u3; c.vfReady[6][3] = c.cyc + 4;
+        c.bkValid = false;
+        ++c.cyc;
+    }
+    // 0750: 0104203D 8000033C
+    {
+        uint32_t stk = 0u;
+        uint32_t f0 = 0u;
+        const float u0 = fAddF(N(vf[4][0]), N(vf[4][1]), f0);
+        pushMacStatus(c, 0u | macBits(f0, 8u), 0u | f0, stk);
+        s.acc[0] = u0; c.accReady[0] = c.cyc + 1u;
+        c.bkValid = false;
+        ++c.cyc;
+    }
+    // 0758: 0104290A 8000033C
+    {
+        uint32_t stk = 0u;
+        uint32_t f0 = 0u;
+        const float u0 = fMaddF(N(s.acc[0]), N(vf[5][0]), N(vf[4][2]), f0, stk);
+        pushMacStatus(c, 0u | macBits(f0, 8u), 0u | f0, stk);
+        vf[4][0] = u0; c.vfReady[4][0] = c.cyc + 4;
+        c.bkValid = false;
+        ++c.cyc;
+    }
+    // 0760: 0109483D 8000033C
+    {
+        uint32_t stk = 0u;
+        uint32_t f0 = 0u;
+        const float u0 = fAddF(N(vf[9][0]), N(vf[9][1]), f0);
+        pushMacStatus(c, 0u | macBits(f0, 8u), 0u | f0, stk);
+        s.acc[0] = u0; c.accReady[0] = c.cyc + 1u;
+        c.bkValid = false;
+        ++c.cyc;
+    }
+    // 0768: 01092A4A 8000033C
+    {
+        uint32_t stk = 0u;
+        uint32_t f0 = 0u;
+        const float u0 = fMaddF(N(s.acc[0]), N(vf[5][0]), N(vf[9][2]), f0, stk);
+        pushMacStatus(c, 0u | macBits(f0, 8u), 0u | f0, stk);
+        vf[9][0] = u0; c.vfReady[9][0] = c.cyc + 4;
+        c.bkValid = false;
+        ++c.cyc;
+    }
+    // 0770: 01C621FF 806403BC
+    {
+        stall(c, c.vfReady[4][0]);
+        if (c.qPending) stall(c, c.qReady);
+        queueClip(c, clipBits(vf[4], vf[6][3]));
+        divq(c, N(vf[0][3]), N(vf[4][0]));
+        c.bkValid = false;
+        ++c.cyc;
+    }
+    // 0778: 0110803D 8000033C
+    {
+        uint32_t stk = 0u;
+        uint32_t f0 = 0u;
+        const float u0 = fAddF(N(vf[16][0]), N(vf[16][1]), f0);
+        pushMacStatus(c, 0u | macBits(f0, 8u), 0u | f0, stk);
+        s.acc[0] = u0; c.accReady[0] = c.cyc + 1u;
+        c.bkValid = false;
+        ++c.cyc;
+    }
+    // 0780: 01102C0A 8000033C
+    {
+        uint32_t stk = 0u;
+        uint32_t f0 = 0u;
+        const float u0 = fMaddF(N(s.acc[0]), N(vf[5][0]), N(vf[16][2]), f0, stk);
+        pushMacStatus(c, 0u | macBits(f0, 8u), 0u | f0, stk);
+        vf[16][0] = u0; c.vfReady[16][0] = c.cyc + 4;
+        c.bkValid = false;
+        ++c.cyc;
+    }
+    // 0788: 000002FF 8000033C
+    {
+        c.bkValid = false;
+        ++c.cyc;
+    }
+    // 0790: 000002FF 24000003
+    {
+        commitClip(c);
+        const int32_t nvi = ((s.clip & 0x3u) != 0u) ? 1 : 0;
+        c.bkValid = false;
+        vi[1] = nvi; c.viReady[1] = c.cyc + 1;
+        ++c.cyc;
+    }
+    bool taken = false;
+    // 0798: 000002FF 5000080F
+    {
+        taken = static_cast<int16_t>(brVi(c, 1)) == static_cast<int16_t>(brVi(c, 0));
+        c.bkValid = false;
+        ++c.cyc;
+    }
+    // 07A0: 000002FF 8000033C
+    {
+        c.bkValid = false;
+        ++c.cyc;
+    }
+    if (c.cyc >= c.budgetEnd)
+        return handoffRet(c, (taken ? 0x818u : 0x7A8u));
+    return (taken ? 0x818u : 0x7A8u);
+}
+
+static uint32_t vu0prog_0_07A8(VU1NativeCtx &c)
+{
+    using namespace vu1n;
+    VU1State &s = *c.st;
+    float (*vf)[4] = s.vf;
+    int32_t *vi = s.vi;
+    uint8_t *m = c.mem;
+    (void)m;
+    (void)vf;
+    (void)vi;
+    // 07A8: 01004A5C 8000033C
+    {
+        stall(c, c.vfReady[9][0]);
+        commitQ(c);
+        uint32_t stk = 0u;
+        uint32_t f0 = 0u;
+        const float u0 = fMulF(N(vf[9][0]), N(s.q), f0);
+        pushMacStatus(c, 0u | macBits(f0, 8u), 0u | f0, stk);
+        vf[9][0] = u0; c.vfReady[9][0] = c.cyc + 4;
+        c.bkValid = false;
+        ++c.cyc;
+    }
+    // 07B0: 000002FF 8000033C
+    {
+        c.bkValid = false;
+        ++c.cyc;
+    }
+    // 07B8: 0100841C 8000033C
+    {
+        stall(c, c.vfReady[16][0]);
+        commitQ(c);
+        uint32_t stk = 0u;
+        uint32_t f0 = 0u;
+        const float u0 = fMulF(N(vf[16][0]), N(s.q), f0);
+        pushMacStatus(c, 0u | macBits(f0, 8u), 0u | f0, stk);
+        vf[16][0] = u0; c.vfReady[16][0] = c.cyc + 4;
+        c.bkValid = false;
+        ++c.cyc;
+    }
+    // 07C0: 000002FF 8000033C
+    {
+        c.bkValid = false;
+        ++c.cyc;
+    }
+    // 07C8: 01004B87 2C010002
+    {
+        commitClip(c);
+        uint32_t stk = 0u;
+        uint32_t f0 = 0u;
+        const float u0 = fSubF(N(vf[9][0]), N(vf[0][3]), f0);
+        pushMacStatus(c, 0u | macBits(f0, 8u), 0u | f0, stk);
+        const int32_t nvi = static_cast<int32_t>((s.status & 0xFFFu) & 0x2u);
+        vf[14][0] = u0; c.vfReady[14][0] = c.cyc + 4;
+        c.bkValid = false;
+        vi[1] = nvi; c.viReady[1] = c.cyc + 1;
+        ++c.cyc;
+    }
+    bool taken = false;
+    // 07D0: 01054AFC 52000808
+    {
+        stall(c, c.vfReady[5][0]);
+        uint32_t stk = 0u;
+        uint32_t f0 = 0u;
+        const float u0 = fSubF(N(vf[9][0]), N(vf[5][0]), f0);
+        pushMacStatus(c, 0u | macBits(f0, 8u), 0u | f0, stk);
+        taken = static_cast<int16_t>(brVi(c, 1)) != static_cast<int16_t>(brVi(c, 0));
+        s.acc[0] = u0; c.accReady[0] = c.cyc + 1u;
+        c.bkValid = false;
+        ++c.cyc;
+    }
+    // 07D8: 0100844B 2C030002
+    {
+        commitClip(c);
+        uint32_t stk = 0u;
+        uint32_t f0 = 0u;
+        const float u0 = fMaddF(N(s.acc[0]), N(vf[16][0]), N(vf[0][3]), f0, stk);
+        pushMacStatus(c, 0u | macBits(f0, 8u), 0u | f0, stk);
+        const int32_t nvi = static_cast<int32_t>((s.status & 0xFFFu) & 0x2u);
+        vf[17][0] = u0; c.vfReady[17][0] = c.cyc + 4;
+        c.bkValid = false;
+        vi[3] = nvi; c.viReady[3] = c.cyc + 1;
+        ++c.cyc;
+    }
+    if (c.cyc >= c.budgetEnd)
+        return handoffRet(c, (taken ? 0x818u : 0x7E0u));
+    return (taken ? 0x818u : 0x7E0u);
+}
+
+static uint32_t vu0prog_0_07E0(VU1NativeCtx &c)
+{
+    using namespace vu1n;
+    VU1State &s = *c.st;
+    float (*vf)[4] = s.vf;
+    int32_t *vi = s.vi;
+    uint8_t *m = c.mem;
+    (void)m;
+    (void)vf;
+    (void)vi;
+    bool taken = false;
+    // 07E0: 000002FF 52001806
+    {
+        stall(c, c.viReady[3]);
+        taken = static_cast<int16_t>(brVi(c, 3)) != static_cast<int16_t>(brVi(c, 0));
+        c.bkValid = false;
+        ++c.cyc;
+    }
+    // 07E8: 000002FF 2C010002
+    {
+        commitClip(c);
+        const int32_t nvi = static_cast<int32_t>((s.status & 0xFFFu) & 0x2u);
+        c.bkValid = false;
+        vi[1] = nvi; c.viReady[1] = c.cyc + 1;
+        ++c.cyc;
+    }
+    if (c.cyc >= c.budgetEnd)
+        return handoffRet(c, (taken ? 0x818u : 0x7F0u));
+    return (taken ? 0x818u : 0x7F0u);
+}
+
+static uint32_t vu0prog_0_07F0(VU1NativeCtx &c)
+{
+    using namespace vu1n;
+    VU1State &s = *c.st;
+    float (*vf)[4] = s.vf;
+    int32_t *vi = s.vi;
+    uint8_t *m = c.mem;
+    (void)m;
+    (void)vf;
+    (void)vi;
+    bool taken = false;
+    // 07F0: 000002FF 50000804
+    {
+        stall(c, c.viReady[1]);
+        taken = static_cast<int16_t>(brVi(c, 1)) == static_cast<int16_t>(brVi(c, 0));
+        c.bkValid = false;
+        ++c.cyc;
+    }
+    // 07F8: 000002FF 2C030002
+    {
+        commitClip(c);
+        const int32_t nvi = static_cast<int32_t>((s.status & 0xFFFu) & 0x2u);
+        c.bkValid = false;
+        vi[3] = nvi; c.viReady[3] = c.cyc + 1;
+        ++c.cyc;
+    }
+    if (c.cyc >= c.budgetEnd)
+        return handoffRet(c, (taken ? 0x818u : 0x800u));
+    return (taken ? 0x818u : 0x800u);
+}
+
+static uint32_t vu0prog_0_0800(VU1NativeCtx &c)
+{
+    using namespace vu1n;
+    VU1State &s = *c.st;
+    float (*vf)[4] = s.vf;
+    int32_t *vi = s.vi;
+    uint8_t *m = c.mem;
+    (void)m;
+    (void)vf;
+    (void)vi;
+    bool taken = false;
+    // 0800: 000002FF 50001802
+    {
+        stall(c, c.viReady[3]);
+        taken = static_cast<int16_t>(brVi(c, 3)) == static_cast<int16_t>(brVi(c, 0));
+        c.bkValid = false;
+        ++c.cyc;
+    }
+    // 0808: 000002FF 8000033C
+    {
+        c.bkValid = false;
+        ++c.cyc;
+    }
+    if (c.cyc >= c.budgetEnd)
+        return handoffRet(c, (taken ? 0x818u : 0x810u));
+    return (taken ? 0x818u : 0x810u);
+}
+
+static uint32_t vu0prog_0_0810(VU1NativeCtx &c)
+{
+    using namespace vu1n;
+    VU1State &s = *c.st;
+    float (*vf)[4] = s.vf;
+    int32_t *vi = s.vi;
+    uint8_t *m = c.mem;
+    (void)m;
+    (void)vf;
+    (void)vi;
+    // 0810: 000002FF 80020072
+    {
+        const int32_t nvi = static_cast<int16_t>(vi[0] + (1));
+        c.bkValid = true; c.bkReg = 2; c.bkVal = vi[2];
+        vi[2] = nvi; c.viReady[2] = c.cyc + 1;
+        ++c.cyc;
+    }
+    return 0x818;
+}
+
+static uint32_t vu0prog_0_0818(VU1NativeCtx &c)
+{
+    using namespace vu1n;
+    VU1State &s = *c.st;
+    float (*vf)[4] = s.vf;
+    int32_t *vi = s.vi;
+    uint8_t *m = c.mem;
+    (void)m;
+    (void)vf;
+    (void)vi;
+    // 0818: 400002FF 8000033C
+    {
+        c.bkValid = false;
+        ++c.cyc;
+    }
+    // 0820: 000002FF 8000033C
+    {
+        c.bkValid = false;
+        ++c.cyc;
+    }
+    s.pc = 0x828;
+    finish(c);
+    return kEnded;
+}
+
+static uint32_t vu0prog_0_0828(VU1NativeCtx &c)
+{
+    using namespace vu1n;
+    VU1State &s = *c.st;
+    float (*vf)[4] = s.vf;
+    int32_t *vi = s.vi;
+    uint8_t *m = c.mem;
+    (void)m;
+    (void)vf;
+    (void)vi;
+    // 0828: 010001C3 10010080
+    {
+        uint32_t stk = 0u;
+        uint32_t f0 = 0u;
+        const float u0 = fAddF(N(vf[0][0]), N(vf[0][3]), f0);
+        pushMacStatus(c, 0u | macBits(f0, 8u), 0u | f0, stk);
+        const int32_t nvi = static_cast<int16_t>(vi[0] + (128));
+        vf[7][0] = u0; c.vfReady[7][0] = c.cyc + 4;
+        c.bkValid = true; c.bkReg = 1; c.bkVal = vi[1];
+        vi[1] = nvi; c.viReady[1] = c.cyc + 1;
+        ++c.cyc;
+    }
+    // 0830: 01C6086A 8000033C
+    {
+        stall(c, c.vfReady[1][0]);
+        stall(c, c.vfReady[1][1]);
+        stall(c, c.vfReady[1][2]);
+        stall(c, c.vfReady[6][0]);
+        stall(c, c.vfReady[6][1]);
+        stall(c, c.vfReady[6][2]);
+        uint32_t stk = 0u;
+        uint32_t f0 = 0u;
+        const float u0 = fMulF(N(vf[1][0]), N(vf[6][0]), f0);
+        uint32_t f1 = 0u;
+        const float u1 = fMulF(N(vf[1][1]), N(vf[6][1]), f1);
+        uint32_t f2 = 0u;
+        const float u2 = fMulF(N(vf[1][2]), N(vf[6][2]), f2);
+        pushMacStatus(c, 0u | macBits(f0, 8u) | macBits(f1, 4u) | macBits(f2, 2u), 0u | f0 | f1 | f2, stk);
+        vf[1][0] = u0; c.vfReady[1][0] = c.cyc + 4;
+        vf[1][1] = u1; c.vfReady[1][1] = c.cyc + 4;
+        vf[1][2] = u2; c.vfReady[1][2] = c.cyc + 4;
+        c.bkValid = false;
+        ++c.cyc;
+    }
+    // 0838: 01C610AA 8000033C
+    {
+        stall(c, c.vfReady[2][0]);
+        stall(c, c.vfReady[2][1]);
+        stall(c, c.vfReady[2][2]);
+        uint32_t stk = 0u;
+        uint32_t f0 = 0u;
+        const float u0 = fMulF(N(vf[2][0]), N(vf[6][0]), f0);
+        uint32_t f1 = 0u;
+        const float u1 = fMulF(N(vf[2][1]), N(vf[6][1]), f1);
+        uint32_t f2 = 0u;
+        const float u2 = fMulF(N(vf[2][2]), N(vf[6][2]), f2);
+        pushMacStatus(c, 0u | macBits(f0, 8u) | macBits(f1, 4u) | macBits(f2, 2u), 0u | f0 | f1 | f2, stk);
+        vf[2][0] = u0; c.vfReady[2][0] = c.cyc + 4;
+        vf[2][1] = u1; c.vfReady[2][1] = c.cyc + 4;
+        vf[2][2] = u2; c.vfReady[2][2] = c.cyc + 4;
+        c.bkValid = false;
+        ++c.cyc;
+    }
+    // 0840: 01C618EA 8000033C
+    {
+        stall(c, c.vfReady[3][0]);
+        stall(c, c.vfReady[3][1]);
+        stall(c, c.vfReady[3][2]);
+        uint32_t stk = 0u;
+        uint32_t f0 = 0u;
+        const float u0 = fMulF(N(vf[3][0]), N(vf[6][0]), f0);
+        uint32_t f1 = 0u;
+        const float u1 = fMulF(N(vf[3][1]), N(vf[6][1]), f1);
+        uint32_t f2 = 0u;
+        const float u2 = fMulF(N(vf[3][2]), N(vf[6][2]), f2);
+        pushMacStatus(c, 0u | macBits(f0, 8u) | macBits(f1, 4u) | macBits(f2, 2u), 0u | f0 | f1 | f2, stk);
+        vf[3][0] = u0; c.vfReady[3][0] = c.cyc + 4;
+        vf[3][1] = u1; c.vfReady[3][1] = c.cyc + 4;
+        vf[3][2] = u2; c.vfReady[3][2] = c.cyc + 4;
+        c.bkValid = false;
+        ++c.cyc;
+    }
+    // 0848: 01C6212A 8000033C
+    {
+        stall(c, c.vfReady[4][0]);
+        stall(c, c.vfReady[4][1]);
+        stall(c, c.vfReady[4][2]);
+        uint32_t stk = 0u;
+        uint32_t f0 = 0u;
+        const float u0 = fMulF(N(vf[4][0]), N(vf[6][0]), f0);
+        uint32_t f1 = 0u;
+        const float u1 = fMulF(N(vf[4][1]), N(vf[6][1]), f1);
+        uint32_t f2 = 0u;
+        const float u2 = fMulF(N(vf[4][2]), N(vf[6][2]), f2);
+        pushMacStatus(c, 0u | macBits(f0, 8u) | macBits(f1, 4u) | macBits(f2, 2u), 0u | f0 | f1 | f2, stk);
+        vf[4][0] = u0; c.vfReady[4][0] = c.cyc + 4;
+        vf[4][1] = u1; c.vfReady[4][1] = c.cyc + 4;
+        vf[4][2] = u2; c.vfReady[4][2] = c.cyc + 4;
+        c.bkValid = false;
+        ++c.cyc;
+    }
+    // 0850: 01C6296A 8000033C
+    {
+        stall(c, c.vfReady[5][0]);
+        stall(c, c.vfReady[5][1]);
+        stall(c, c.vfReady[5][2]);
+        uint32_t stk = 0u;
+        uint32_t f0 = 0u;
+        const float u0 = fMulF(N(vf[5][0]), N(vf[6][0]), f0);
+        uint32_t f1 = 0u;
+        const float u1 = fMulF(N(vf[5][1]), N(vf[6][1]), f1);
+        uint32_t f2 = 0u;
+        const float u2 = fMulF(N(vf[5][2]), N(vf[6][2]), f2);
+        pushMacStatus(c, 0u | macBits(f0, 8u) | macBits(f1, 4u) | macBits(f2, 2u), 0u | f0 | f1 | f2, stk);
+        vf[5][0] = u0; c.vfReady[5][0] = c.cyc + 4;
+        vf[5][1] = u1; c.vfReady[5][1] = c.cyc + 4;
+        vf[5][2] = u2; c.vfReady[5][2] = c.cyc + 4;
+        c.bkValid = false;
+        ++c.cyc;
+    }
+    // 0858: 0101083D 8000033C
+    {
+        uint32_t stk = 0u;
+        uint32_t f0 = 0u;
+        const float u0 = fAddF(N(vf[1][0]), N(vf[1][1]), f0);
+        pushMacStatus(c, 0u | macBits(f0, 8u), 0u | f0, stk);
+        s.acc[0] = u0; c.accReady[0] = c.cyc + 1u;
+        c.bkValid = false;
+        ++c.cyc;
+    }
+    // 0860: 010138BE 8000033C
+    {
+        uint32_t stk = 0u;
+        uint32_t f0 = 0u;
+        const float u0 = fMaddF(N(s.acc[0]), N(vf[7][0]), N(vf[1][2]), f0, stk);
+        pushMacStatus(c, 0u | macBits(f0, 8u), 0u | f0, stk);
+        s.acc[0] = u0; c.accReady[0] = c.cyc + 1u;
+        c.bkValid = false;
+        ++c.cyc;
+    }
+    // 0868: 010138BF 8000033C
+    {
+        stall(c, c.vfReady[1][3]);
+        uint32_t stk = 0u;
+        uint32_t f0 = 0u;
+        const float u0 = fMaddF(N(s.acc[0]), N(vf[7][0]), N(vf[1][3]), f0, stk);
+        pushMacStatus(c, 0u | macBits(f0, 8u), 0u | f0, stk);
+        s.acc[0] = u0; c.accReady[0] = c.cyc + 1u;
+        c.bkValid = false;
+        ++c.cyc;
+    }
+    // 0870: 0106380F 8000033C
+    {
+        stall(c, c.vfReady[6][3]);
+        uint32_t stk = 0u;
+        uint32_t f0 = 0u;
+        const float u0 = fMsubF(N(s.acc[0]), N(vf[7][0]), N(vf[6][3]), f0, stk);
+        pushMacStatus(c, 0u | macBits(f0, 8u), 0u | f0, stk);
+        c.bkValid = false;
+        ++c.cyc;
+    }
+    // 0878: 0102103D 8000033C
+    {
+        uint32_t stk = 0u;
+        uint32_t f0 = 0u;
+        const float u0 = fAddF(N(vf[2][0]), N(vf[2][1]), f0);
+        pushMacStatus(c, 0u | macBits(f0, 8u), 0u | f0, stk);
+        s.acc[0] = u0; c.accReady[0] = c.cyc + 1u;
+        c.bkValid = false;
+        ++c.cyc;
+    }
+    // 0880: 010238BE 8000033C
+    {
+        uint32_t stk = 0u;
+        uint32_t f0 = 0u;
+        const float u0 = fMaddF(N(s.acc[0]), N(vf[7][0]), N(vf[2][2]), f0, stk);
+        pushMacStatus(c, 0u | macBits(f0, 8u), 0u | f0, stk);
+        s.acc[0] = u0; c.accReady[0] = c.cyc + 1u;
+        c.bkValid = false;
+        ++c.cyc;
+    }
+    // 0888: 010238BF 8000033C
+    {
+        stall(c, c.vfReady[2][3]);
+        uint32_t stk = 0u;
+        uint32_t f0 = 0u;
+        const float u0 = fMaddF(N(s.acc[0]), N(vf[7][0]), N(vf[2][3]), f0, stk);
+        pushMacStatus(c, 0u | macBits(f0, 8u), 0u | f0, stk);
+        s.acc[0] = u0; c.accReady[0] = c.cyc + 1u;
+        c.bkValid = false;
+        ++c.cyc;
+    }
+    // 0890: 0106380F 34020800
+    {
+        commitClip(c);
+        uint32_t stk = 0u;
+        uint32_t f0 = 0u;
+        const float u0 = fMsubF(N(s.acc[0]), N(vf[7][0]), N(vf[6][3]), f0, stk);
+        pushMacStatus(c, 0u | macBits(f0, 8u), 0u | f0, stk);
+        const int32_t nvi = static_cast<int32_t>(s.mac & static_cast<uint32_t>(static_cast<uint16_t>(vi[1])));
+        c.bkValid = false;
+        vi[2] = nvi; c.viReady[2] = c.cyc + 1;
+        ++c.cyc;
+    }
+    bool taken = false;
+    // 0898: 0103183D 50020813
+    {
+        uint32_t stk = 0u;
+        uint32_t f0 = 0u;
+        const float u0 = fAddF(N(vf[3][0]), N(vf[3][1]), f0);
+        pushMacStatus(c, 0u | macBits(f0, 8u), 0u | f0, stk);
+        taken = static_cast<int16_t>(brVi(c, 1)) == static_cast<int16_t>(brVi(c, 2));
+        s.acc[0] = u0; c.accReady[0] = c.cyc + 1u;
+        c.bkValid = false;
+        ++c.cyc;
+    }
+    // 08A0: 010338BE 8000033C
+    {
+        uint32_t stk = 0u;
+        uint32_t f0 = 0u;
+        const float u0 = fMaddF(N(s.acc[0]), N(vf[7][0]), N(vf[3][2]), f0, stk);
+        pushMacStatus(c, 0u | macBits(f0, 8u), 0u | f0, stk);
+        s.acc[0] = u0; c.accReady[0] = c.cyc + 1u;
+        c.bkValid = false;
+        ++c.cyc;
+    }
+    if (c.cyc >= c.budgetEnd)
+        return handoffRet(c, (taken ? 0x938u : 0x8A8u));
+    return (taken ? 0x938u : 0x8A8u);
+}
+
+static uint32_t vu0prog_0_08A8(VU1NativeCtx &c)
+{
+    using namespace vu1n;
+    VU1State &s = *c.st;
+    float (*vf)[4] = s.vf;
+    int32_t *vi = s.vi;
+    uint8_t *m = c.mem;
+    (void)m;
+    (void)vf;
+    (void)vi;
+    // 08A8: 010338BF 8000033C
+    {
+        stall(c, c.accReady[0]);
+        stall(c, c.vfReady[3][3]);
+        stall(c, c.vfReady[7][0]);
+        uint32_t stk = 0u;
+        uint32_t f0 = 0u;
+        const float u0 = fMaddF(N(s.acc[0]), N(vf[7][0]), N(vf[3][3]), f0, stk);
+        pushMacStatus(c, 0u | macBits(f0, 8u), 0u | f0, stk);
+        s.acc[0] = u0; c.accReady[0] = c.cyc + 1u;
+        c.bkValid = false;
+        ++c.cyc;
+    }
+    // 08B0: 0106380F 34020800
+    {
+        stall(c, c.vfReady[6][3]);
+        stall(c, c.viReady[1]);
+        commitClip(c);
+        uint32_t stk = 0u;
+        uint32_t f0 = 0u;
+        const float u0 = fMsubF(N(s.acc[0]), N(vf[7][0]), N(vf[6][3]), f0, stk);
+        pushMacStatus(c, 0u | macBits(f0, 8u), 0u | f0, stk);
+        const int32_t nvi = static_cast<int32_t>(s.mac & static_cast<uint32_t>(static_cast<uint16_t>(vi[1])));
+        c.bkValid = false;
+        vi[2] = nvi; c.viReady[2] = c.cyc + 1;
+        ++c.cyc;
+    }
+    bool taken = false;
+    // 08B8: 0104203D 5002080F
+    {
+        stall(c, c.vfReady[4][0]);
+        stall(c, c.vfReady[4][1]);
+        uint32_t stk = 0u;
+        uint32_t f0 = 0u;
+        const float u0 = fAddF(N(vf[4][0]), N(vf[4][1]), f0);
+        pushMacStatus(c, 0u | macBits(f0, 8u), 0u | f0, stk);
+        taken = static_cast<int16_t>(brVi(c, 1)) == static_cast<int16_t>(brVi(c, 2));
+        s.acc[0] = u0; c.accReady[0] = c.cyc + 1u;
+        c.bkValid = false;
+        ++c.cyc;
+    }
+    // 08C0: 010438BE 8000033C
+    {
+        stall(c, c.vfReady[4][2]);
+        uint32_t stk = 0u;
+        uint32_t f0 = 0u;
+        const float u0 = fMaddF(N(s.acc[0]), N(vf[7][0]), N(vf[4][2]), f0, stk);
+        pushMacStatus(c, 0u | macBits(f0, 8u), 0u | f0, stk);
+        s.acc[0] = u0; c.accReady[0] = c.cyc + 1u;
+        c.bkValid = false;
+        ++c.cyc;
+    }
+    if (c.cyc >= c.budgetEnd)
+        return handoffRet(c, (taken ? 0x938u : 0x8C8u));
+    return (taken ? 0x938u : 0x8C8u);
+}
+
+static uint32_t vu0prog_0_08C8(VU1NativeCtx &c)
+{
+    using namespace vu1n;
+    VU1State &s = *c.st;
+    float (*vf)[4] = s.vf;
+    int32_t *vi = s.vi;
+    uint8_t *m = c.mem;
+    (void)m;
+    (void)vf;
+    (void)vi;
+    // 08C8: 010438BF 8000033C
+    {
+        stall(c, c.accReady[0]);
+        stall(c, c.vfReady[4][3]);
+        stall(c, c.vfReady[7][0]);
+        uint32_t stk = 0u;
+        uint32_t f0 = 0u;
+        const float u0 = fMaddF(N(s.acc[0]), N(vf[7][0]), N(vf[4][3]), f0, stk);
+        pushMacStatus(c, 0u | macBits(f0, 8u), 0u | f0, stk);
+        s.acc[0] = u0; c.accReady[0] = c.cyc + 1u;
+        c.bkValid = false;
+        ++c.cyc;
+    }
+    // 08D0: 0106380F 34020800
+    {
+        stall(c, c.vfReady[6][3]);
+        stall(c, c.viReady[1]);
+        commitClip(c);
+        uint32_t stk = 0u;
+        uint32_t f0 = 0u;
+        const float u0 = fMsubF(N(s.acc[0]), N(vf[7][0]), N(vf[6][3]), f0, stk);
+        pushMacStatus(c, 0u | macBits(f0, 8u), 0u | f0, stk);
+        const int32_t nvi = static_cast<int32_t>(s.mac & static_cast<uint32_t>(static_cast<uint16_t>(vi[1])));
+        c.bkValid = false;
+        vi[2] = nvi; c.viReady[2] = c.cyc + 1;
+        ++c.cyc;
+    }
+    bool taken = false;
+    // 08D8: 0105283D 5002080B
+    {
+        stall(c, c.vfReady[5][0]);
+        stall(c, c.vfReady[5][1]);
+        uint32_t stk = 0u;
+        uint32_t f0 = 0u;
+        const float u0 = fAddF(N(vf[5][0]), N(vf[5][1]), f0);
+        pushMacStatus(c, 0u | macBits(f0, 8u), 0u | f0, stk);
+        taken = static_cast<int16_t>(brVi(c, 1)) == static_cast<int16_t>(brVi(c, 2));
+        s.acc[0] = u0; c.accReady[0] = c.cyc + 1u;
+        c.bkValid = false;
+        ++c.cyc;
+    }
+    // 08E0: 010538BE 8000033C
+    {
+        stall(c, c.vfReady[5][2]);
+        uint32_t stk = 0u;
+        uint32_t f0 = 0u;
+        const float u0 = fMaddF(N(s.acc[0]), N(vf[7][0]), N(vf[5][2]), f0, stk);
+        pushMacStatus(c, 0u | macBits(f0, 8u), 0u | f0, stk);
+        s.acc[0] = u0; c.accReady[0] = c.cyc + 1u;
+        c.bkValid = false;
+        ++c.cyc;
+    }
+    if (c.cyc >= c.budgetEnd)
+        return handoffRet(c, (taken ? 0x938u : 0x8E8u));
+    return (taken ? 0x938u : 0x8E8u);
+}
+
+static uint32_t vu0prog_0_08E8(VU1NativeCtx &c)
+{
+    using namespace vu1n;
+    VU1State &s = *c.st;
+    float (*vf)[4] = s.vf;
+    int32_t *vi = s.vi;
+    uint8_t *m = c.mem;
+    (void)m;
+    (void)vf;
+    (void)vi;
+    // 08E8: 010538BF 8000033C
+    {
+        stall(c, c.accReady[0]);
+        stall(c, c.vfReady[5][3]);
+        stall(c, c.vfReady[7][0]);
+        uint32_t stk = 0u;
+        uint32_t f0 = 0u;
+        const float u0 = fMaddF(N(s.acc[0]), N(vf[7][0]), N(vf[5][3]), f0, stk);
+        pushMacStatus(c, 0u | macBits(f0, 8u), 0u | f0, stk);
+        s.acc[0] = u0; c.accReady[0] = c.cyc + 1u;
+        c.bkValid = false;
+        ++c.cyc;
+    }
+    // 08F0: 0106380F 34020800
+    {
+        stall(c, c.vfReady[6][3]);
+        stall(c, c.viReady[1]);
+        commitClip(c);
+        uint32_t stk = 0u;
+        uint32_t f0 = 0u;
+        const float u0 = fMsubF(N(s.acc[0]), N(vf[7][0]), N(vf[6][3]), f0, stk);
+        pushMacStatus(c, 0u | macBits(f0, 8u), 0u | f0, stk);
+        const int32_t nvi = static_cast<int32_t>(s.mac & static_cast<uint32_t>(static_cast<uint16_t>(vi[1])));
+        c.bkValid = false;
+        vi[2] = nvi; c.viReady[2] = c.cyc + 1;
+        ++c.cyc;
+    }
+    bool taken = false;
+    // 08F8: 000002FF 50020807
+    {
+        taken = static_cast<int16_t>(brVi(c, 1)) == static_cast<int16_t>(brVi(c, 2));
+        c.bkValid = false;
+        ++c.cyc;
+    }
+    // 0900: 000002FF 8000033C
+    {
+        c.bkValid = false;
+        ++c.cyc;
+    }
+    if (c.cyc >= c.budgetEnd)
+        return handoffRet(c, (taken ? 0x938u : 0x908u));
+    return (taken ? 0x938u : 0x908u);
+}
+
+static uint32_t vu0prog_0_0908(VU1NativeCtx &c)
+{
+    using namespace vu1n;
+    VU1State &s = *c.st;
+    float (*vf)[4] = s.vf;
+    int32_t *vi = s.vi;
+    uint8_t *m = c.mem;
+    (void)m;
+    (void)vf;
+    (void)vi;
+    // 0908: 000002FF 8000033C
+    {
+        c.bkValid = false;
+        ++c.cyc;
+    }
+    // 0910: 000002FF 34020800
+    {
+        stall(c, c.viReady[1]);
+        commitClip(c);
+        const int32_t nvi = static_cast<int32_t>(s.mac & static_cast<uint32_t>(static_cast<uint16_t>(vi[1])));
+        c.bkValid = false;
+        vi[2] = nvi; c.viReady[2] = c.cyc + 1;
+        ++c.cyc;
+    }
+    bool taken = false;
+    // 0918: 000002FF 50020803
+    {
+        taken = static_cast<int16_t>(brVi(c, 1)) == static_cast<int16_t>(brVi(c, 2));
+        c.bkValid = false;
+        ++c.cyc;
+    }
+    // 0920: 000002FF 8000033C
+    {
+        c.bkValid = false;
+        ++c.cyc;
+    }
+    if (c.cyc >= c.budgetEnd)
+        return handoffRet(c, (taken ? 0x938u : 0x928u));
+    return (taken ? 0x938u : 0x928u);
+}
+
+static uint32_t vu0prog_0_0928(VU1NativeCtx &c)
+{
+    using namespace vu1n;
+    VU1State &s = *c.st;
+    float (*vf)[4] = s.vf;
+    int32_t *vi = s.vi;
+    uint8_t *m = c.mem;
+    (void)m;
+    (void)vf;
+    (void)vi;
+    // 0928: 400002FF 8000033C
+    {
+        c.bkValid = false;
+        ++c.cyc;
+    }
+    // 0930: 000002FF 10010001
+    {
+        const int32_t nvi = static_cast<int16_t>(vi[0] + (1));
+        c.bkValid = true; c.bkReg = 1; c.bkVal = vi[1];
+        vi[1] = nvi; c.viReady[1] = c.cyc + 1;
+        ++c.cyc;
+    }
+    s.pc = 0x938;
+    finish(c);
+    return kEnded;
+}
+
+static uint32_t vu0prog_0_0938(VU1NativeCtx &c)
+{
+    using namespace vu1n;
+    VU1State &s = *c.st;
+    float (*vf)[4] = s.vf;
+    int32_t *vi = s.vi;
+    uint8_t *m = c.mem;
+    (void)m;
+    (void)vf;
+    (void)vi;
+    // 0938: 400002FF 10010000
+    {
+        const int32_t nvi = static_cast<int16_t>(vi[0] + (0));
+        c.bkValid = true; c.bkReg = 1; c.bkVal = vi[1];
+        vi[1] = nvi; c.viReady[1] = c.cyc + 1;
+        ++c.cyc;
+    }
+    // 0940: 000002FF 8000033C
+    {
+        c.bkValid = false;
+        ++c.cyc;
+    }
+    s.pc = 0x948;
+    finish(c);
+    return kEnded;
+}
+
+static uint32_t vu0prog_0_0948(VU1NativeCtx &c)
+{
+    using namespace vu1n;
+    VU1State &s = *c.st;
+    float (*vf)[4] = s.vf;
+    int32_t *vi = s.vi;
+    uint8_t *m = c.mem;
+    (void)m;
+    (void)vf;
+    (void)vi;
+    // 0948: 01C6086A 10010080
+    {
+        stall(c, c.vfReady[1][0]);
+        stall(c, c.vfReady[1][1]);
+        stall(c, c.vfReady[1][2]);
+        stall(c, c.vfReady[6][0]);
+        stall(c, c.vfReady[6][1]);
+        stall(c, c.vfReady[6][2]);
+        uint32_t stk = 0u;
+        uint32_t f0 = 0u;
+        const float u0 = fMulF(N(vf[1][0]), N(vf[6][0]), f0);
+        uint32_t f1 = 0u;
+        const float u1 = fMulF(N(vf[1][1]), N(vf[6][1]), f1);
+        uint32_t f2 = 0u;
+        const float u2 = fMulF(N(vf[1][2]), N(vf[6][2]), f2);
+        pushMacStatus(c, 0u | macBits(f0, 8u) | macBits(f1, 4u) | macBits(f2, 2u), 0u | f0 | f1 | f2, stk);
+        const int32_t nvi = static_cast<int16_t>(vi[0] + (128));
+        vf[1][0] = u0; c.vfReady[1][0] = c.cyc + 4;
+        vf[1][1] = u1; c.vfReady[1][1] = c.cyc + 4;
+        vf[1][2] = u2; c.vfReady[1][2] = c.cyc + 4;
+        c.bkValid = true; c.bkReg = 1; c.bkVal = vi[1];
+        vi[1] = nvi; c.viReady[1] = c.cyc + 1;
+        ++c.cyc;
+    }
+    // 0950: 010001C3 10020000
+    {
+        uint32_t stk = 0u;
+        uint32_t f0 = 0u;
+        const float u0 = fAddF(N(vf[0][0]), N(vf[0][3]), f0);
+        pushMacStatus(c, 0u | macBits(f0, 8u), 0u | f0, stk);
+        const int32_t nvi = static_cast<int16_t>(vi[0] + (0));
+        vf[7][0] = u0; c.vfReady[7][0] = c.cyc + 4;
+        c.bkValid = true; c.bkReg = 2; c.bkVal = vi[2];
+        vi[2] = nvi; c.viReady[2] = c.cyc + 1;
+        ++c.cyc;
+    }
+    // 0958: 01C610AA 8000033C
+    {
+        stall(c, c.vfReady[2][0]);
+        stall(c, c.vfReady[2][1]);
+        stall(c, c.vfReady[2][2]);
+        uint32_t stk = 0u;
+        uint32_t f0 = 0u;
+        const float u0 = fMulF(N(vf[2][0]), N(vf[6][0]), f0);
+        uint32_t f1 = 0u;
+        const float u1 = fMulF(N(vf[2][1]), N(vf[6][1]), f1);
+        uint32_t f2 = 0u;
+        const float u2 = fMulF(N(vf[2][2]), N(vf[6][2]), f2);
+        pushMacStatus(c, 0u | macBits(f0, 8u) | macBits(f1, 4u) | macBits(f2, 2u), 0u | f0 | f1 | f2, stk);
+        vf[2][0] = u0; c.vfReady[2][0] = c.cyc + 4;
+        vf[2][1] = u1; c.vfReady[2][1] = c.cyc + 4;
+        vf[2][2] = u2; c.vfReady[2][2] = c.cyc + 4;
+        c.bkValid = false;
+        ++c.cyc;
+    }
+    // 0960: 01C6296A 8000033C
+    {
+        stall(c, c.vfReady[5][0]);
+        stall(c, c.vfReady[5][1]);
+        stall(c, c.vfReady[5][2]);
+        uint32_t stk = 0u;
+        uint32_t f0 = 0u;
+        const float u0 = fMulF(N(vf[5][0]), N(vf[6][0]), f0);
+        uint32_t f1 = 0u;
+        const float u1 = fMulF(N(vf[5][1]), N(vf[6][1]), f1);
+        uint32_t f2 = 0u;
+        const float u2 = fMulF(N(vf[5][2]), N(vf[6][2]), f2);
+        pushMacStatus(c, 0u | macBits(f0, 8u) | macBits(f1, 4u) | macBits(f2, 2u), 0u | f0 | f1 | f2, stk);
+        vf[5][0] = u0; c.vfReady[5][0] = c.cyc + 4;
+        vf[5][1] = u1; c.vfReady[5][1] = c.cyc + 4;
+        vf[5][2] = u2; c.vfReady[5][2] = c.cyc + 4;
+        c.bkValid = false;
+        ++c.cyc;
+    }
+    // 0968: 0101083D 8000033C
+    {
+        uint32_t stk = 0u;
+        uint32_t f0 = 0u;
+        const float u0 = fAddF(N(vf[1][0]), N(vf[1][1]), f0);
+        pushMacStatus(c, 0u | macBits(f0, 8u), 0u | f0, stk);
+        s.acc[0] = u0; c.accReady[0] = c.cyc + 1u;
+        c.bkValid = false;
+        ++c.cyc;
+    }
+    // 0970: 010138BE 8000033C
+    {
+        uint32_t stk = 0u;
+        uint32_t f0 = 0u;
+        const float u0 = fMaddF(N(s.acc[0]), N(vf[7][0]), N(vf[1][2]), f0, stk);
+        pushMacStatus(c, 0u | macBits(f0, 8u), 0u | f0, stk);
+        s.acc[0] = u0; c.accReady[0] = c.cyc + 1u;
+        c.bkValid = false;
+        ++c.cyc;
+    }
+    // 0978: 010138BF 8000033C
+    {
+        stall(c, c.vfReady[1][3]);
+        uint32_t stk = 0u;
+        uint32_t f0 = 0u;
+        const float u0 = fMaddF(N(s.acc[0]), N(vf[7][0]), N(vf[1][3]), f0, stk);
+        pushMacStatus(c, 0u | macBits(f0, 8u), 0u | f0, stk);
+        s.acc[0] = u0; c.accReady[0] = c.cyc + 1u;
+        c.bkValid = false;
+        ++c.cyc;
+    }
+    // 0980: 0106380B 8000033C
+    {
+        stall(c, c.vfReady[6][3]);
+        uint32_t stk = 0u;
+        uint32_t f0 = 0u;
+        const float u0 = fMaddF(N(s.acc[0]), N(vf[7][0]), N(vf[6][3]), f0, stk);
+        pushMacStatus(c, 0u | macBits(f0, 8u), 0u | f0, stk);
+        c.bkValid = false;
+        ++c.cyc;
+    }
+    // 0988: 01C618EA 8000033C
+    {
+        stall(c, c.vfReady[3][0]);
+        stall(c, c.vfReady[3][1]);
+        stall(c, c.vfReady[3][2]);
+        uint32_t stk = 0u;
+        uint32_t f0 = 0u;
+        const float u0 = fMulF(N(vf[3][0]), N(vf[6][0]), f0);
+        uint32_t f1 = 0u;
+        const float u1 = fMulF(N(vf[3][1]), N(vf[6][1]), f1);
+        uint32_t f2 = 0u;
+        const float u2 = fMulF(N(vf[3][2]), N(vf[6][2]), f2);
+        pushMacStatus(c, 0u | macBits(f0, 8u) | macBits(f1, 4u) | macBits(f2, 2u), 0u | f0 | f1 | f2, stk);
+        vf[3][0] = u0; c.vfReady[3][0] = c.cyc + 4;
+        vf[3][1] = u1; c.vfReady[3][1] = c.cyc + 4;
+        vf[3][2] = u2; c.vfReady[3][2] = c.cyc + 4;
+        c.bkValid = false;
+        ++c.cyc;
+    }
+    // 0990: 0106380F 8000033C
+    {
+        uint32_t stk = 0u;
+        uint32_t f0 = 0u;
+        const float u0 = fMsubF(N(s.acc[0]), N(vf[7][0]), N(vf[6][3]), f0, stk);
+        pushMacStatus(c, 0u | macBits(f0, 8u), 0u | f0, stk);
+        c.bkValid = false;
+        ++c.cyc;
+    }
+    // 0998: 0102103D 8000033C
+    {
+        uint32_t stk = 0u;
+        uint32_t f0 = 0u;
+        const float u0 = fAddF(N(vf[2][0]), N(vf[2][1]), f0);
+        pushMacStatus(c, 0u | macBits(f0, 8u), 0u | f0, stk);
+        s.acc[0] = u0; c.accReady[0] = c.cyc + 1u;
+        c.bkValid = false;
+        ++c.cyc;
+    }
+    // 09A0: 010238BE 34030800
+    {
+        commitClip(c);
+        uint32_t stk = 0u;
+        uint32_t f0 = 0u;
+        const float u0 = fMaddF(N(s.acc[0]), N(vf[7][0]), N(vf[2][2]), f0, stk);
+        pushMacStatus(c, 0u | macBits(f0, 8u), 0u | f0, stk);
+        const int32_t nvi = static_cast<int32_t>(s.mac & static_cast<uint32_t>(static_cast<uint16_t>(vi[1])));
+        s.acc[0] = u0; c.accReady[0] = c.cyc + 1u;
+        c.bkValid = false;
+        vi[3] = nvi; c.viReady[3] = c.cyc + 1;
+        ++c.cyc;
+    }
+    bool taken = false;
+    // 09A8: 010238BF 50030821
+    {
+        stall(c, c.vfReady[2][3]);
+        uint32_t stk = 0u;
+        uint32_t f0 = 0u;
+        const float u0 = fMaddF(N(s.acc[0]), N(vf[7][0]), N(vf[2][3]), f0, stk);
+        pushMacStatus(c, 0u | macBits(f0, 8u), 0u | f0, stk);
+        taken = static_cast<int16_t>(brVi(c, 1)) == static_cast<int16_t>(brVi(c, 3));
+        s.acc[0] = u0; c.accReady[0] = c.cyc + 1u;
+        c.bkValid = false;
+        ++c.cyc;
+    }
+    // 09B0: 0106380B 34030800
+    {
+        commitClip(c);
+        uint32_t stk = 0u;
+        uint32_t f0 = 0u;
+        const float u0 = fMaddF(N(s.acc[0]), N(vf[7][0]), N(vf[6][3]), f0, stk);
+        pushMacStatus(c, 0u | macBits(f0, 8u), 0u | f0, stk);
+        const int32_t nvi = static_cast<int32_t>(s.mac & static_cast<uint32_t>(static_cast<uint16_t>(vi[1])));
+        c.bkValid = false;
+        vi[3] = nvi; c.viReady[3] = c.cyc + 1;
+        ++c.cyc;
+    }
+    if (c.cyc >= c.budgetEnd)
+        return handoffRet(c, (taken ? 0xAB8u : 0x9B8u));
+    return (taken ? 0xAB8u : 0x9B8u);
+}
+
+static uint32_t vu0prog_0_09B8(VU1NativeCtx &c)
+{
+    using namespace vu1n;
+    VU1State &s = *c.st;
+    float (*vf)[4] = s.vf;
+    int32_t *vi = s.vi;
+    uint8_t *m = c.mem;
+    (void)m;
+    (void)vf;
+    (void)vi;
+    // 09B8: 01C6212A 8000033C
+    {
+        stall(c, c.vfReady[4][0]);
+        stall(c, c.vfReady[4][1]);
+        stall(c, c.vfReady[4][2]);
+        stall(c, c.vfReady[6][0]);
+        stall(c, c.vfReady[6][1]);
+        stall(c, c.vfReady[6][2]);
+        uint32_t stk = 0u;
+        uint32_t f0 = 0u;
+        const float u0 = fMulF(N(vf[4][0]), N(vf[6][0]), f0);
+        uint32_t f1 = 0u;
+        const float u1 = fMulF(N(vf[4][1]), N(vf[6][1]), f1);
+        uint32_t f2 = 0u;
+        const float u2 = fMulF(N(vf[4][2]), N(vf[6][2]), f2);
+        pushMacStatus(c, 0u | macBits(f0, 8u) | macBits(f1, 4u) | macBits(f2, 2u), 0u | f0 | f1 | f2, stk);
+        vf[4][0] = u0; c.vfReady[4][0] = c.cyc + 4;
+        vf[4][1] = u1; c.vfReady[4][1] = c.cyc + 4;
+        vf[4][2] = u2; c.vfReady[4][2] = c.cyc + 4;
+        c.bkValid = false;
+        ++c.cyc;
+    }
+    // 09C0: 0106380F 800310F5
+    {
+        stall(c, c.accReady[0]);
+        stall(c, c.vfReady[6][3]);
+        stall(c, c.vfReady[7][0]);
+        stall(c, c.viReady[2]);
+        stall(c, c.viReady[3]);
+        uint32_t stk = 0u;
+        uint32_t f0 = 0u;
+        const float u0 = fMsubF(N(s.acc[0]), N(vf[7][0]), N(vf[6][3]), f0, stk);
+        pushMacStatus(c, 0u | macBits(f0, 8u), 0u | f0, stk);
+        const int32_t nvi = (vi[2] | vi[3]);
+        c.bkValid = true; c.bkReg = 3; c.bkVal = vi[3];
+        vi[3] = nvi; c.viReady[3] = c.cyc + 1;
+        ++c.cyc;
+    }
+    // 09C8: 0103183D 8000033C
+    {
+        stall(c, c.vfReady[3][0]);
+        stall(c, c.vfReady[3][1]);
+        uint32_t stk = 0u;
+        uint32_t f0 = 0u;
+        const float u0 = fAddF(N(vf[3][0]), N(vf[3][1]), f0);
+        pushMacStatus(c, 0u | macBits(f0, 8u), 0u | f0, stk);
+        s.acc[0] = u0; c.accReady[0] = c.cyc + 1u;
+        c.bkValid = false;
+        ++c.cyc;
+    }
+    // 09D0: 010338BE 34020800
+    {
+        stall(c, c.vfReady[3][2]);
+        stall(c, c.viReady[1]);
+        commitClip(c);
+        uint32_t stk = 0u;
+        uint32_t f0 = 0u;
+        const float u0 = fMaddF(N(s.acc[0]), N(vf[7][0]), N(vf[3][2]), f0, stk);
+        pushMacStatus(c, 0u | macBits(f0, 8u), 0u | f0, stk);
+        const int32_t nvi = static_cast<int32_t>(s.mac & static_cast<uint32_t>(static_cast<uint16_t>(vi[1])));
+        s.acc[0] = u0; c.accReady[0] = c.cyc + 1u;
+        c.bkValid = false;
+        vi[2] = nvi; c.viReady[2] = c.cyc + 1;
+        ++c.cyc;
+    }
+    bool taken = false;
+    // 09D8: 010338BF 5002081B
+    {
+        stall(c, c.vfReady[3][3]);
+        uint32_t stk = 0u;
+        uint32_t f0 = 0u;
+        const float u0 = fMaddF(N(s.acc[0]), N(vf[7][0]), N(vf[3][3]), f0, stk);
+        pushMacStatus(c, 0u | macBits(f0, 8u), 0u | f0, stk);
+        taken = static_cast<int16_t>(brVi(c, 1)) == static_cast<int16_t>(brVi(c, 2));
+        s.acc[0] = u0; c.accReady[0] = c.cyc + 1u;
+        c.bkValid = false;
+        ++c.cyc;
+    }
+    // 09E0: 0106380B 34020800
+    {
+        commitClip(c);
+        uint32_t stk = 0u;
+        uint32_t f0 = 0u;
+        const float u0 = fMaddF(N(s.acc[0]), N(vf[7][0]), N(vf[6][3]), f0, stk);
+        pushMacStatus(c, 0u | macBits(f0, 8u), 0u | f0, stk);
+        const int32_t nvi = static_cast<int32_t>(s.mac & static_cast<uint32_t>(static_cast<uint16_t>(vi[1])));
+        c.bkValid = false;
+        vi[2] = nvi; c.viReady[2] = c.cyc + 1;
+        ++c.cyc;
+    }
+    if (c.cyc >= c.budgetEnd)
+        return handoffRet(c, (taken ? 0xAB8u : 0x9E8u));
+    return (taken ? 0xAB8u : 0x9E8u);
+}
+
+static uint32_t vu0prog_0_09E8(VU1NativeCtx &c)
+{
+    using namespace vu1n;
+    VU1State &s = *c.st;
+    float (*vf)[4] = s.vf;
+    int32_t *vi = s.vi;
+    uint8_t *m = c.mem;
+    (void)m;
+    (void)vf;
+    (void)vi;
+    // 09E8: 000002FF 800218B5
+    {
+        stall(c, c.viReady[2]);
+        stall(c, c.viReady[3]);
+        const int32_t nvi = (vi[3] | vi[2]);
+        c.bkValid = true; c.bkReg = 2; c.bkVal = vi[2];
+        vi[2] = nvi; c.viReady[2] = c.cyc + 1;
+        ++c.cyc;
+    }
+    // 09F0: 0106380F 8000033C
+    {
+        stall(c, c.accReady[0]);
+        stall(c, c.vfReady[6][3]);
+        stall(c, c.vfReady[7][0]);
+        uint32_t stk = 0u;
+        uint32_t f0 = 0u;
+        const float u0 = fMsubF(N(s.acc[0]), N(vf[7][0]), N(vf[6][3]), f0, stk);
+        pushMacStatus(c, 0u | macBits(f0, 8u), 0u | f0, stk);
+        c.bkValid = false;
+        ++c.cyc;
+    }
+    // 09F8: 0104203D 8000033C
+    {
+        stall(c, c.vfReady[4][0]);
+        stall(c, c.vfReady[4][1]);
+        uint32_t stk = 0u;
+        uint32_t f0 = 0u;
+        const float u0 = fAddF(N(vf[4][0]), N(vf[4][1]), f0);
+        pushMacStatus(c, 0u | macBits(f0, 8u), 0u | f0, stk);
+        s.acc[0] = u0; c.accReady[0] = c.cyc + 1u;
+        c.bkValid = false;
+        ++c.cyc;
+    }
+    // 0A00: 010438BE 34030800
+    {
+        stall(c, c.vfReady[4][2]);
+        stall(c, c.viReady[1]);
+        commitClip(c);
+        uint32_t stk = 0u;
+        uint32_t f0 = 0u;
+        const float u0 = fMaddF(N(s.acc[0]), N(vf[7][0]), N(vf[4][2]), f0, stk);
+        pushMacStatus(c, 0u | macBits(f0, 8u), 0u | f0, stk);
+        const int32_t nvi = static_cast<int32_t>(s.mac & static_cast<uint32_t>(static_cast<uint16_t>(vi[1])));
+        s.acc[0] = u0; c.accReady[0] = c.cyc + 1u;
+        c.bkValid = false;
+        vi[3] = nvi; c.viReady[3] = c.cyc + 1;
+        ++c.cyc;
+    }
+    bool taken = false;
+    // 0A08: 010438BF 50030815
+    {
+        stall(c, c.vfReady[4][3]);
+        uint32_t stk = 0u;
+        uint32_t f0 = 0u;
+        const float u0 = fMaddF(N(s.acc[0]), N(vf[7][0]), N(vf[4][3]), f0, stk);
+        pushMacStatus(c, 0u | macBits(f0, 8u), 0u | f0, stk);
+        taken = static_cast<int16_t>(brVi(c, 1)) == static_cast<int16_t>(brVi(c, 3));
+        s.acc[0] = u0; c.accReady[0] = c.cyc + 1u;
+        c.bkValid = false;
+        ++c.cyc;
+    }
+    // 0A10: 0106380B 34030800
+    {
+        commitClip(c);
+        uint32_t stk = 0u;
+        uint32_t f0 = 0u;
+        const float u0 = fMaddF(N(s.acc[0]), N(vf[7][0]), N(vf[6][3]), f0, stk);
+        pushMacStatus(c, 0u | macBits(f0, 8u), 0u | f0, stk);
+        const int32_t nvi = static_cast<int32_t>(s.mac & static_cast<uint32_t>(static_cast<uint16_t>(vi[1])));
+        c.bkValid = false;
+        vi[3] = nvi; c.viReady[3] = c.cyc + 1;
+        ++c.cyc;
+    }
+    if (c.cyc >= c.budgetEnd)
+        return handoffRet(c, (taken ? 0xAB8u : 0xA18u));
+    return (taken ? 0xAB8u : 0xA18u);
+}
+
+static uint32_t vu0prog_0_0A18(VU1NativeCtx &c)
+{
+    using namespace vu1n;
+    VU1State &s = *c.st;
+    float (*vf)[4] = s.vf;
+    int32_t *vi = s.vi;
+    uint8_t *m = c.mem;
+    (void)m;
+    (void)vf;
+    (void)vi;
+    // 0A18: 000002FF 800310F5
+    {
+        stall(c, c.viReady[2]);
+        stall(c, c.viReady[3]);
+        const int32_t nvi = (vi[2] | vi[3]);
+        c.bkValid = true; c.bkReg = 3; c.bkVal = vi[3];
+        vi[3] = nvi; c.viReady[3] = c.cyc + 1;
+        ++c.cyc;
+    }
+    // 0A20: 0106380F 8000033C
+    {
+        stall(c, c.accReady[0]);
+        stall(c, c.vfReady[6][3]);
+        stall(c, c.vfReady[7][0]);
+        uint32_t stk = 0u;
+        uint32_t f0 = 0u;
+        const float u0 = fMsubF(N(s.acc[0]), N(vf[7][0]), N(vf[6][3]), f0, stk);
+        pushMacStatus(c, 0u | macBits(f0, 8u), 0u | f0, stk);
+        c.bkValid = false;
+        ++c.cyc;
+    }
+    // 0A28: 0105283D 8000033C
+    {
+        stall(c, c.vfReady[5][0]);
+        stall(c, c.vfReady[5][1]);
+        uint32_t stk = 0u;
+        uint32_t f0 = 0u;
+        const float u0 = fAddF(N(vf[5][0]), N(vf[5][1]), f0);
+        pushMacStatus(c, 0u | macBits(f0, 8u), 0u | f0, stk);
+        s.acc[0] = u0; c.accReady[0] = c.cyc + 1u;
+        c.bkValid = false;
+        ++c.cyc;
+    }
+    // 0A30: 010538BE 34020800
+    {
+        stall(c, c.vfReady[5][2]);
+        stall(c, c.viReady[1]);
+        commitClip(c);
+        uint32_t stk = 0u;
+        uint32_t f0 = 0u;
+        const float u0 = fMaddF(N(s.acc[0]), N(vf[7][0]), N(vf[5][2]), f0, stk);
+        pushMacStatus(c, 0u | macBits(f0, 8u), 0u | f0, stk);
+        const int32_t nvi = static_cast<int32_t>(s.mac & static_cast<uint32_t>(static_cast<uint16_t>(vi[1])));
+        s.acc[0] = u0; c.accReady[0] = c.cyc + 1u;
+        c.bkValid = false;
+        vi[2] = nvi; c.viReady[2] = c.cyc + 1;
+        ++c.cyc;
+    }
+    bool taken = false;
+    // 0A38: 010538BF 5002080F
+    {
+        stall(c, c.vfReady[5][3]);
+        uint32_t stk = 0u;
+        uint32_t f0 = 0u;
+        const float u0 = fMaddF(N(s.acc[0]), N(vf[7][0]), N(vf[5][3]), f0, stk);
+        pushMacStatus(c, 0u | macBits(f0, 8u), 0u | f0, stk);
+        taken = static_cast<int16_t>(brVi(c, 1)) == static_cast<int16_t>(brVi(c, 2));
+        s.acc[0] = u0; c.accReady[0] = c.cyc + 1u;
+        c.bkValid = false;
+        ++c.cyc;
+    }
+    // 0A40: 0106380B 34020800
+    {
+        commitClip(c);
+        uint32_t stk = 0u;
+        uint32_t f0 = 0u;
+        const float u0 = fMaddF(N(s.acc[0]), N(vf[7][0]), N(vf[6][3]), f0, stk);
+        pushMacStatus(c, 0u | macBits(f0, 8u), 0u | f0, stk);
+        const int32_t nvi = static_cast<int32_t>(s.mac & static_cast<uint32_t>(static_cast<uint16_t>(vi[1])));
+        c.bkValid = false;
+        vi[2] = nvi; c.viReady[2] = c.cyc + 1;
+        ++c.cyc;
+    }
+    if (c.cyc >= c.budgetEnd)
+        return handoffRet(c, (taken ? 0xAB8u : 0xA48u));
+    return (taken ? 0xAB8u : 0xA48u);
+}
+
+static uint32_t vu0prog_0_0A48(VU1NativeCtx &c)
+{
+    using namespace vu1n;
+    VU1State &s = *c.st;
+    float (*vf)[4] = s.vf;
+    int32_t *vi = s.vi;
+    uint8_t *m = c.mem;
+    (void)m;
+    (void)vf;
+    (void)vi;
+    // 0A48: 000002FF 800218B5
+    {
+        stall(c, c.viReady[2]);
+        stall(c, c.viReady[3]);
+        const int32_t nvi = (vi[3] | vi[2]);
+        c.bkValid = true; c.bkReg = 2; c.bkVal = vi[2];
+        vi[2] = nvi; c.viReady[2] = c.cyc + 1;
+        ++c.cyc;
+    }
+    // 0A50: 0106380F 8000033C
+    {
+        stall(c, c.accReady[0]);
+        stall(c, c.vfReady[6][3]);
+        stall(c, c.vfReady[7][0]);
+        uint32_t stk = 0u;
+        uint32_t f0 = 0u;
+        const float u0 = fMsubF(N(s.acc[0]), N(vf[7][0]), N(vf[6][3]), f0, stk);
+        pushMacStatus(c, 0u | macBits(f0, 8u), 0u | f0, stk);
+        c.bkValid = false;
+        ++c.cyc;
+    }
+    // 0A58: 000002FF 8000033C
+    {
+        c.bkValid = false;
+        ++c.cyc;
+    }
+    // 0A60: 000002FF 34030800
+    {
+        stall(c, c.viReady[1]);
+        commitClip(c);
+        const int32_t nvi = static_cast<int32_t>(s.mac & static_cast<uint32_t>(static_cast<uint16_t>(vi[1])));
+        c.bkValid = false;
+        vi[3] = nvi; c.viReady[3] = c.cyc + 1;
+        ++c.cyc;
+    }
+    bool taken = false;
+    // 0A68: 000002FF 50030809
+    {
+        taken = static_cast<int16_t>(brVi(c, 1)) == static_cast<int16_t>(brVi(c, 3));
+        c.bkValid = false;
+        ++c.cyc;
+    }
+    // 0A70: 000002FF 34010800
+    {
+        commitClip(c);
+        const int32_t nvi = static_cast<int32_t>(s.mac & static_cast<uint32_t>(static_cast<uint16_t>(vi[1])));
+        c.bkValid = false;
+        vi[1] = nvi; c.viReady[1] = c.cyc + 1;
+        ++c.cyc;
+    }
+    if (c.cyc >= c.budgetEnd)
+        return handoffRet(c, (taken ? 0xAB8u : 0xA78u));
+    return (taken ? 0xAB8u : 0xA78u);
+}
+
+static uint32_t vu0prog_0_0A78(VU1NativeCtx &c)
+{
+    using namespace vu1n;
+    VU1State &s = *c.st;
+    float (*vf)[4] = s.vf;
+    int32_t *vi = s.vi;
+    uint8_t *m = c.mem;
+    (void)m;
+    (void)vf;
+    (void)vi;
+    // 0A78: 000002FF 800110B5
+    {
+        stall(c, c.viReady[1]);
+        stall(c, c.viReady[2]);
+        const int32_t nvi = (vi[2] | vi[1]);
+        c.bkValid = true; c.bkReg = 2; c.bkVal = vi[2];
+        vi[2] = nvi; c.viReady[2] = c.cyc + 1;
+        ++c.cyc;
+    }
+    // 0A80: 000002FF 8000033C
+    {
+        c.bkValid = false;
+        ++c.cyc;
+    }
+    bool taken = false;
+    // 0A88: 000002FF 50020003
+    {
+        taken = static_cast<int16_t>(brVi(c, 0)) == static_cast<int16_t>(brVi(c, 2));
+        c.bkValid = false;
+        ++c.cyc;
+    }
+    // 0A90: 000002FF 8000033C
+    {
+        c.bkValid = false;
+        ++c.cyc;
+    }
+    if (c.cyc >= c.budgetEnd)
+        return handoffRet(c, (taken ? 0xAA8u : 0xA98u));
+    return (taken ? 0xAA8u : 0xA98u);
+}
+
+static uint32_t vu0prog_0_0A98(VU1NativeCtx &c)
+{
+    using namespace vu1n;
+    VU1State &s = *c.st;
+    float (*vf)[4] = s.vf;
+    int32_t *vi = s.vi;
+    uint8_t *m = c.mem;
+    (void)m;
+    (void)vf;
+    (void)vi;
+    // 0A98: 400002FF 8000033C
+    {
+        c.bkValid = false;
+        ++c.cyc;
+    }
+    // 0AA0: 000002FF 10010002
+    {
+        const int32_t nvi = static_cast<int16_t>(vi[0] + (2));
+        c.bkValid = true; c.bkReg = 1; c.bkVal = vi[1];
+        vi[1] = nvi; c.viReady[1] = c.cyc + 1;
+        ++c.cyc;
+    }
+    s.pc = 0xAA8;
+    finish(c);
+    return kEnded;
+}
+
+static uint32_t vu0prog_0_0AA8(VU1NativeCtx &c)
+{
+    using namespace vu1n;
+    VU1State &s = *c.st;
+    float (*vf)[4] = s.vf;
+    int32_t *vi = s.vi;
+    uint8_t *m = c.mem;
+    (void)m;
+    (void)vf;
+    (void)vi;
+    // 0AA8: 400002FF 8000033C
+    {
+        c.bkValid = false;
+        ++c.cyc;
+    }
+    // 0AB0: 000002FF 10010000
+    {
+        const int32_t nvi = static_cast<int16_t>(vi[0] + (0));
+        c.bkValid = true; c.bkReg = 1; c.bkVal = vi[1];
+        vi[1] = nvi; c.viReady[1] = c.cyc + 1;
+        ++c.cyc;
+    }
+    s.pc = 0xAB8;
+    finish(c);
+    return kEnded;
+}
+
+static uint32_t vu0prog_0_0AB8(VU1NativeCtx &c)
+{
+    using namespace vu1n;
+    VU1State &s = *c.st;
+    float (*vf)[4] = s.vf;
+    int32_t *vi = s.vi;
+    uint8_t *m = c.mem;
+    (void)m;
+    (void)vf;
+    (void)vi;
+    // 0AB8: 400002FF 10010001
+    {
+        const int32_t nvi = static_cast<int16_t>(vi[0] + (1));
+        c.bkValid = true; c.bkReg = 1; c.bkVal = vi[1];
+        vi[1] = nvi; c.viReady[1] = c.cyc + 1;
+        ++c.cyc;
+    }
+    // 0AC0: 000002FF 8000033C
+    {
+        c.bkValid = false;
+        ++c.cyc;
+    }
+    s.pc = 0xAC8;
+    finish(c);
+    return kEnded;
+}
+
+static uint32_t vu0prog_0_0AC8(VU1NativeCtx &c)
+{
+    using namespace vu1n;
+    VU1State &s = *c.st;
+    float (*vf)[4] = s.vf;
+    int32_t *vi = s.vi;
+    uint8_t *m = c.mem;
+    (void)m;
+    (void)vf;
+    (void)vi;
+    // 0AC8: 01E069BF 8000033C
+    {
+        stall(c, c.vfReady[13][0]);
+        stall(c, c.vfReady[13][1]);
+        stall(c, c.vfReady[13][2]);
+        stall(c, c.vfReady[13][3]);
+        uint32_t stk = 0u;
+        uint32_t f0 = 0u;
+        const float u0 = fMulF(N(vf[13][0]), N(vf[0][3]), f0);
+        uint32_t f1 = 0u;
+        const float u1 = fMulF(N(vf[13][1]), N(vf[0][3]), f1);
+        uint32_t f2 = 0u;
+        const float u2 = fMulF(N(vf[13][2]), N(vf[0][3]), f2);
+        uint32_t f3 = 0u;
+        const float u3 = fMulF(N(vf[13][3]), N(vf[0][3]), f3);
+        pushMacStatus(c, 0u | macBits(f0, 8u) | macBits(f1, 4u) | macBits(f2, 2u) | macBits(f3, 1u), 0u | f0 | f1 | f2 | f3, stk);
+        s.acc[0] = u0; c.accReady[0] = c.cyc + 1u;
+        s.acc[1] = u1; c.accReady[1] = c.cyc + 1u;
+        s.acc[2] = u2; c.accReady[2] = c.cyc + 1u;
+        s.acc[3] = u3; c.accReady[3] = c.cyc + 1u;
+        c.bkValid = false;
+        ++c.cyc;
+    }
+    // 0AD0: 01EF60BE 8000033C
+    {
+        stall(c, c.vfReady[12][0]);
+        stall(c, c.vfReady[12][1]);
+        stall(c, c.vfReady[12][2]);
+        stall(c, c.vfReady[12][3]);
+        stall(c, c.vfReady[15][2]);
+        uint32_t stk = 0u;
+        uint32_t f0 = 0u;
+        const float u0 = fMaddF(N(s.acc[0]), N(vf[12][0]), N(vf[15][2]), f0, stk);
+        uint32_t f1 = 0u;
+        const float u1 = fMaddF(N(s.acc[1]), N(vf[12][1]), N(vf[15][2]), f1, stk);
+        uint32_t f2 = 0u;
+        const float u2 = fMaddF(N(s.acc[2]), N(vf[12][2]), N(vf[15][2]), f2, stk);
+        uint32_t f3 = 0u;
+        const float u3 = fMaddF(N(s.acc[3]), N(vf[12][3]), N(vf[15][2]), f3, stk);
+        pushMacStatus(c, 0u | macBits(f0, 8u) | macBits(f1, 4u) | macBits(f2, 2u) | macBits(f3, 1u), 0u | f0 | f1 | f2 | f3, stk);
+        s.acc[0] = u0; c.accReady[0] = c.cyc + 1u;
+        s.acc[1] = u1; c.accReady[1] = c.cyc + 1u;
+        s.acc[2] = u2; c.accReady[2] = c.cyc + 1u;
+        s.acc[3] = u3; c.accReady[3] = c.cyc + 1u;
+        c.bkValid = false;
+        ++c.cyc;
+    }
+    // 0AD8: 01EF58BD 8000033C
+    {
+        stall(c, c.vfReady[11][0]);
+        stall(c, c.vfReady[11][1]);
+        stall(c, c.vfReady[11][2]);
+        stall(c, c.vfReady[11][3]);
+        stall(c, c.vfReady[15][1]);
+        uint32_t stk = 0u;
+        uint32_t f0 = 0u;
+        const float u0 = fMaddF(N(s.acc[0]), N(vf[11][0]), N(vf[15][1]), f0, stk);
+        uint32_t f1 = 0u;
+        const float u1 = fMaddF(N(s.acc[1]), N(vf[11][1]), N(vf[15][1]), f1, stk);
+        uint32_t f2 = 0u;
+        const float u2 = fMaddF(N(s.acc[2]), N(vf[11][2]), N(vf[15][1]), f2, stk);
+        uint32_t f3 = 0u;
+        const float u3 = fMaddF(N(s.acc[3]), N(vf[11][3]), N(vf[15][1]), f3, stk);
+        pushMacStatus(c, 0u | macBits(f0, 8u) | macBits(f1, 4u) | macBits(f2, 2u) | macBits(f3, 1u), 0u | f0 | f1 | f2 | f3, stk);
+        s.acc[0] = u0; c.accReady[0] = c.cyc + 1u;
+        s.acc[1] = u1; c.accReady[1] = c.cyc + 1u;
+        s.acc[2] = u2; c.accReady[2] = c.cyc + 1u;
+        s.acc[3] = u3; c.accReady[3] = c.cyc + 1u;
+        c.bkValid = false;
+        ++c.cyc;
+    }
+    // 0AE0: 01EF5048 8000033C
+    {
+        stall(c, c.vfReady[10][0]);
+        stall(c, c.vfReady[10][1]);
+        stall(c, c.vfReady[10][2]);
+        stall(c, c.vfReady[10][3]);
+        stall(c, c.vfReady[15][0]);
+        uint32_t stk = 0u;
+        uint32_t f0 = 0u;
+        const float u0 = fMaddF(N(s.acc[0]), N(vf[10][0]), N(vf[15][0]), f0, stk);
+        uint32_t f1 = 0u;
+        const float u1 = fMaddF(N(s.acc[1]), N(vf[10][1]), N(vf[15][0]), f1, stk);
+        uint32_t f2 = 0u;
+        const float u2 = fMaddF(N(s.acc[2]), N(vf[10][2]), N(vf[15][0]), f2, stk);
+        uint32_t f3 = 0u;
+        const float u3 = fMaddF(N(s.acc[3]), N(vf[10][3]), N(vf[15][0]), f3, stk);
+        pushMacStatus(c, 0u | macBits(f0, 8u) | macBits(f1, 4u) | macBits(f2, 2u) | macBits(f3, 1u), 0u | f0 | f1 | f2 | f3, stk);
+        vf[1][0] = u0; c.vfReady[1][0] = c.cyc + 4;
+        vf[1][1] = u1; c.vfReady[1][1] = c.cyc + 4;
+        vf[1][2] = u2; c.vfReady[1][2] = c.cyc + 4;
+        vf[1][3] = u3; c.vfReady[1][3] = c.cyc + 4;
+        c.bkValid = false;
+        ++c.cyc;
+    }
+    // 0AE8: 01F05088 8000033C
+    {
+        stall(c, c.vfReady[16][0]);
+        uint32_t stk = 0u;
+        uint32_t f0 = 0u;
+        const float u0 = fMaddF(N(s.acc[0]), N(vf[10][0]), N(vf[16][0]), f0, stk);
+        uint32_t f1 = 0u;
+        const float u1 = fMaddF(N(s.acc[1]), N(vf[10][1]), N(vf[16][0]), f1, stk);
+        uint32_t f2 = 0u;
+        const float u2 = fMaddF(N(s.acc[2]), N(vf[10][2]), N(vf[16][0]), f2, stk);
+        uint32_t f3 = 0u;
+        const float u3 = fMaddF(N(s.acc[3]), N(vf[10][3]), N(vf[16][0]), f3, stk);
+        pushMacStatus(c, 0u | macBits(f0, 8u) | macBits(f1, 4u) | macBits(f2, 2u) | macBits(f3, 1u), 0u | f0 | f1 | f2 | f3, stk);
+        vf[2][0] = u0; c.vfReady[2][0] = c.cyc + 4;
+        vf[2][1] = u1; c.vfReady[2][1] = c.cyc + 4;
+        vf[2][2] = u2; c.vfReady[2][2] = c.cyc + 4;
+        vf[2][3] = u3; c.vfReady[2][3] = c.cyc + 4;
+        c.bkValid = false;
+        ++c.cyc;
+    }
+    // 0AF0: 01E069BF 10010000
+    {
+        uint32_t stk = 0u;
+        uint32_t f0 = 0u;
+        const float u0 = fMulF(N(vf[13][0]), N(vf[0][3]), f0);
+        uint32_t f1 = 0u;
+        const float u1 = fMulF(N(vf[13][1]), N(vf[0][3]), f1);
+        uint32_t f2 = 0u;
+        const float u2 = fMulF(N(vf[13][2]), N(vf[0][3]), f2);
+        uint32_t f3 = 0u;
+        const float u3 = fMulF(N(vf[13][3]), N(vf[0][3]), f3);
+        pushMacStatus(c, 0u | macBits(f0, 8u) | macBits(f1, 4u) | macBits(f2, 2u) | macBits(f3, 1u), 0u | f0 | f1 | f2 | f3, stk);
+        const int32_t nvi = static_cast<int16_t>(vi[0] + (0));
+        s.acc[0] = u0; c.accReady[0] = c.cyc + 1u;
+        s.acc[1] = u1; c.accReady[1] = c.cyc + 1u;
+        s.acc[2] = u2; c.accReady[2] = c.cyc + 1u;
+        s.acc[3] = u3; c.accReady[3] = c.cyc + 1u;
+        c.bkValid = true; c.bkReg = 1; c.bkVal = vi[1];
+        vi[1] = nvi; c.viReady[1] = c.cyc + 1;
+        ++c.cyc;
+    }
+    // 0AF8: 01EF60BE 1002003F
+    {
+        uint32_t stk = 0u;
+        uint32_t f0 = 0u;
+        const float u0 = fMaddF(N(s.acc[0]), N(vf[12][0]), N(vf[15][2]), f0, stk);
+        uint32_t f1 = 0u;
+        const float u1 = fMaddF(N(s.acc[1]), N(vf[12][1]), N(vf[15][2]), f1, stk);
+        uint32_t f2 = 0u;
+        const float u2 = fMaddF(N(s.acc[2]), N(vf[12][2]), N(vf[15][2]), f2, stk);
+        uint32_t f3 = 0u;
+        const float u3 = fMaddF(N(s.acc[3]), N(vf[12][3]), N(vf[15][2]), f3, stk);
+        pushMacStatus(c, 0u | macBits(f0, 8u) | macBits(f1, 4u) | macBits(f2, 2u) | macBits(f3, 1u), 0u | f0 | f1 | f2 | f3, stk);
+        const int32_t nvi = static_cast<int16_t>(vi[0] + (63));
+        s.acc[0] = u0; c.accReady[0] = c.cyc + 1u;
+        s.acc[1] = u1; c.accReady[1] = c.cyc + 1u;
+        s.acc[2] = u2; c.accReady[2] = c.cyc + 1u;
+        s.acc[3] = u3; c.accReady[3] = c.cyc + 1u;
+        c.bkValid = true; c.bkReg = 2; c.bkVal = vi[2];
+        vi[2] = nvi; c.viReady[2] = c.cyc + 1;
+        ++c.cyc;
+    }
+    // 0B00: 01F058BD 8000033C
+    {
+        stall(c, c.vfReady[16][1]);
+        uint32_t stk = 0u;
+        uint32_t f0 = 0u;
+        const float u0 = fMaddF(N(s.acc[0]), N(vf[11][0]), N(vf[16][1]), f0, stk);
+        uint32_t f1 = 0u;
+        const float u1 = fMaddF(N(s.acc[1]), N(vf[11][1]), N(vf[16][1]), f1, stk);
+        uint32_t f2 = 0u;
+        const float u2 = fMaddF(N(s.acc[2]), N(vf[11][2]), N(vf[16][1]), f2, stk);
+        uint32_t f3 = 0u;
+        const float u3 = fMaddF(N(s.acc[3]), N(vf[11][3]), N(vf[16][1]), f3, stk);
+        pushMacStatus(c, 0u | macBits(f0, 8u) | macBits(f1, 4u) | macBits(f2, 2u) | macBits(f3, 1u), 0u | f0 | f1 | f2 | f3, stk);
+        s.acc[0] = u0; c.accReady[0] = c.cyc + 1u;
+        s.acc[1] = u1; c.accReady[1] = c.cyc + 1u;
+        s.acc[2] = u2; c.accReady[2] = c.cyc + 1u;
+        s.acc[3] = u3; c.accReady[3] = c.cyc + 1u;
+        c.bkValid = false;
+        ++c.cyc;
+    }
+    // 0B08: 01C109FF 8000033C
+    {
+        queueClip(c, clipBits(vf[1], vf[1][3]));
+        c.bkValid = false;
+        ++c.cyc;
+    }
+    // 0B10: 01C211FF 8000033C
+    {
+        queueClip(c, clipBits(vf[2], vf[2][3]));
+        c.bkValid = false;
+        ++c.cyc;
+    }
+    // 0B18: 01EF50C8 8000033C
+    {
+        uint32_t stk = 0u;
+        uint32_t f0 = 0u;
+        const float u0 = fMaddF(N(s.acc[0]), N(vf[10][0]), N(vf[15][0]), f0, stk);
+        uint32_t f1 = 0u;
+        const float u1 = fMaddF(N(s.acc[1]), N(vf[10][1]), N(vf[15][0]), f1, stk);
+        uint32_t f2 = 0u;
+        const float u2 = fMaddF(N(s.acc[2]), N(vf[10][2]), N(vf[15][0]), f2, stk);
+        uint32_t f3 = 0u;
+        const float u3 = fMaddF(N(s.acc[3]), N(vf[10][3]), N(vf[15][0]), f3, stk);
+        pushMacStatus(c, 0u | macBits(f0, 8u) | macBits(f1, 4u) | macBits(f2, 2u) | macBits(f3, 1u), 0u | f0 | f1 | f2 | f3, stk);
+        vf[3][0] = u0; c.vfReady[3][0] = c.cyc + 4;
+        vf[3][1] = u1; c.vfReady[3][1] = c.cyc + 4;
+        vf[3][2] = u2; c.vfReady[3][2] = c.cyc + 4;
+        vf[3][3] = u3; c.vfReady[3][3] = c.cyc + 4;
+        c.bkValid = false;
+        ++c.cyc;
+    }
+    // 0B20: 01F05108 8000033C
+    {
+        uint32_t stk = 0u;
+        uint32_t f0 = 0u;
+        const float u0 = fMaddF(N(s.acc[0]), N(vf[10][0]), N(vf[16][0]), f0, stk);
+        uint32_t f1 = 0u;
+        const float u1 = fMaddF(N(s.acc[1]), N(vf[10][1]), N(vf[16][0]), f1, stk);
+        uint32_t f2 = 0u;
+        const float u2 = fMaddF(N(s.acc[2]), N(vf[10][2]), N(vf[16][0]), f2, stk);
+        uint32_t f3 = 0u;
+        const float u3 = fMaddF(N(s.acc[3]), N(vf[10][3]), N(vf[16][0]), f3, stk);
+        pushMacStatus(c, 0u | macBits(f0, 8u) | macBits(f1, 4u) | macBits(f2, 2u) | macBits(f3, 1u), 0u | f0 | f1 | f2 | f3, stk);
+        vf[4][0] = u0; c.vfReady[4][0] = c.cyc + 4;
+        vf[4][1] = u1; c.vfReady[4][1] = c.cyc + 4;
+        vf[4][2] = u2; c.vfReady[4][2] = c.cyc + 4;
+        vf[4][3] = u3; c.vfReady[4][3] = c.cyc + 4;
+        c.bkValid = false;
+        ++c.cyc;
+    }
+    // 0B28: 01E069BF 38030000
+    {
+        commitClip(c);
+        uint32_t stk = 0u;
+        uint32_t f0 = 0u;
+        const float u0 = fMulF(N(vf[13][0]), N(vf[0][3]), f0);
+        uint32_t f1 = 0u;
+        const float u1 = fMulF(N(vf[13][1]), N(vf[0][3]), f1);
+        uint32_t f2 = 0u;
+        const float u2 = fMulF(N(vf[13][2]), N(vf[0][3]), f2);
+        uint32_t f3 = 0u;
+        const float u3 = fMulF(N(vf[13][3]), N(vf[0][3]), f3);
+        pushMacStatus(c, 0u | macBits(f0, 8u) | macBits(f1, 4u) | macBits(f2, 2u) | macBits(f3, 1u), 0u | f0 | f1 | f2 | f3, stk);
+        const int32_t nvi = static_cast<int32_t>(s.clip & 0x0FFFu);
+        s.acc[0] = u0; c.accReady[0] = c.cyc + 1u;
+        s.acc[1] = u1; c.accReady[1] = c.cyc + 1u;
+        s.acc[2] = u2; c.accReady[2] = c.cyc + 1u;
+        s.acc[3] = u3; c.accReady[3] = c.cyc + 1u;
+        c.bkValid = false;
+        vi[3] = nvi; c.viReady[3] = c.cyc + 1;
+        ++c.cyc;
+    }
+    // 0B30: 01F060BE 38040000
+    {
+        stall(c, c.vfReady[16][2]);
+        commitClip(c);
+        uint32_t stk = 0u;
+        uint32_t f0 = 0u;
+        const float u0 = fMaddF(N(s.acc[0]), N(vf[12][0]), N(vf[16][2]), f0, stk);
+        uint32_t f1 = 0u;
+        const float u1 = fMaddF(N(s.acc[1]), N(vf[12][1]), N(vf[16][2]), f1, stk);
+        uint32_t f2 = 0u;
+        const float u2 = fMaddF(N(s.acc[2]), N(vf[12][2]), N(vf[16][2]), f2, stk);
+        uint32_t f3 = 0u;
+        const float u3 = fMaddF(N(s.acc[3]), N(vf[12][3]), N(vf[16][2]), f3, stk);
+        pushMacStatus(c, 0u | macBits(f0, 8u) | macBits(f1, 4u) | macBits(f2, 2u) | macBits(f3, 1u), 0u | f0 | f1 | f2 | f3, stk);
+        const int32_t nvi = static_cast<int32_t>(s.clip & 0x0FFFu);
+        s.acc[0] = u0; c.accReady[0] = c.cyc + 1u;
+        s.acc[1] = u1; c.accReady[1] = c.cyc + 1u;
+        s.acc[2] = u2; c.accReady[2] = c.cyc + 1u;
+        s.acc[3] = u3; c.accReady[3] = c.cyc + 1u;
+        c.bkValid = false;
+        vi[4] = nvi; c.viReady[4] = c.cyc + 1;
+        ++c.cyc;
+    }
+    // 0B38: 01EF58BD 80030875
+    {
+        uint32_t stk = 0u;
+        uint32_t f0 = 0u;
+        const float u0 = fMaddF(N(s.acc[0]), N(vf[11][0]), N(vf[15][1]), f0, stk);
+        uint32_t f1 = 0u;
+        const float u1 = fMaddF(N(s.acc[1]), N(vf[11][1]), N(vf[15][1]), f1, stk);
+        uint32_t f2 = 0u;
+        const float u2 = fMaddF(N(s.acc[2]), N(vf[11][2]), N(vf[15][1]), f2, stk);
+        uint32_t f3 = 0u;
+        const float u3 = fMaddF(N(s.acc[3]), N(vf[11][3]), N(vf[15][1]), f3, stk);
+        pushMacStatus(c, 0u | macBits(f0, 8u) | macBits(f1, 4u) | macBits(f2, 2u) | macBits(f3, 1u), 0u | f0 | f1 | f2 | f3, stk);
+        const int32_t nvi = (vi[1] | vi[3]);
+        s.acc[0] = u0; c.accReady[0] = c.cyc + 1u;
+        s.acc[1] = u1; c.accReady[1] = c.cyc + 1u;
+        s.acc[2] = u2; c.accReady[2] = c.cyc + 1u;
+        s.acc[3] = u3; c.accReady[3] = c.cyc + 1u;
+        c.bkValid = true; c.bkReg = 1; c.bkVal = vi[1];
+        vi[1] = nvi; c.viReady[1] = c.cyc + 1;
+        ++c.cyc;
+    }
+    // 0B40: 01C319FF 800310B4
+    {
+        queueClip(c, clipBits(vf[3], vf[3][3]));
+        const int32_t nvi = (vi[2] & vi[3]);
+        c.bkValid = true; c.bkReg = 2; c.bkVal = vi[2];
+        vi[2] = nvi; c.viReady[2] = c.cyc + 1;
+        ++c.cyc;
+    }
+    // 0B48: 01C421FF 80040875
+    {
+        queueClip(c, clipBits(vf[4], vf[4][3]));
+        const int32_t nvi = (vi[1] | vi[4]);
+        c.bkValid = true; c.bkReg = 1; c.bkVal = vi[1];
+        vi[1] = nvi; c.viReady[1] = c.cyc + 1;
+        ++c.cyc;
+    }
+    // 0B50: 01EF5148 800410B4
+    {
+        uint32_t stk = 0u;
+        uint32_t f0 = 0u;
+        const float u0 = fMaddF(N(s.acc[0]), N(vf[10][0]), N(vf[15][0]), f0, stk);
+        uint32_t f1 = 0u;
+        const float u1 = fMaddF(N(s.acc[1]), N(vf[10][1]), N(vf[15][0]), f1, stk);
+        uint32_t f2 = 0u;
+        const float u2 = fMaddF(N(s.acc[2]), N(vf[10][2]), N(vf[15][0]), f2, stk);
+        uint32_t f3 = 0u;
+        const float u3 = fMaddF(N(s.acc[3]), N(vf[10][3]), N(vf[15][0]), f3, stk);
+        pushMacStatus(c, 0u | macBits(f0, 8u) | macBits(f1, 4u) | macBits(f2, 2u) | macBits(f3, 1u), 0u | f0 | f1 | f2 | f3, stk);
+        const int32_t nvi = (vi[2] & vi[4]);
+        vf[5][0] = u0; c.vfReady[5][0] = c.cyc + 4;
+        vf[5][1] = u1; c.vfReady[5][1] = c.cyc + 4;
+        vf[5][2] = u2; c.vfReady[5][2] = c.cyc + 4;
+        vf[5][3] = u3; c.vfReady[5][3] = c.cyc + 4;
+        c.bkValid = true; c.bkReg = 2; c.bkVal = vi[2];
+        vi[2] = nvi; c.viReady[2] = c.cyc + 1;
+        ++c.cyc;
+    }
+    // 0B58: 01F05188 8000033C
+    {
+        uint32_t stk = 0u;
+        uint32_t f0 = 0u;
+        const float u0 = fMaddF(N(s.acc[0]), N(vf[10][0]), N(vf[16][0]), f0, stk);
+        uint32_t f1 = 0u;
+        const float u1 = fMaddF(N(s.acc[1]), N(vf[10][1]), N(vf[16][0]), f1, stk);
+        uint32_t f2 = 0u;
+        const float u2 = fMaddF(N(s.acc[2]), N(vf[10][2]), N(vf[16][0]), f2, stk);
+        uint32_t f3 = 0u;
+        const float u3 = fMaddF(N(s.acc[3]), N(vf[10][3]), N(vf[16][0]), f3, stk);
+        pushMacStatus(c, 0u | macBits(f0, 8u) | macBits(f1, 4u) | macBits(f2, 2u) | macBits(f3, 1u), 0u | f0 | f1 | f2 | f3, stk);
+        vf[6][0] = u0; c.vfReady[6][0] = c.cyc + 4;
+        vf[6][1] = u1; c.vfReady[6][1] = c.cyc + 4;
+        vf[6][2] = u2; c.vfReady[6][2] = c.cyc + 4;
+        vf[6][3] = u3; c.vfReady[6][3] = c.cyc + 4;
+        c.bkValid = false;
+        ++c.cyc;
+    }
+    // 0B60: 01E069BF 38030000
+    {
+        commitClip(c);
+        uint32_t stk = 0u;
+        uint32_t f0 = 0u;
+        const float u0 = fMulF(N(vf[13][0]), N(vf[0][3]), f0);
+        uint32_t f1 = 0u;
+        const float u1 = fMulF(N(vf[13][1]), N(vf[0][3]), f1);
+        uint32_t f2 = 0u;
+        const float u2 = fMulF(N(vf[13][2]), N(vf[0][3]), f2);
+        uint32_t f3 = 0u;
+        const float u3 = fMulF(N(vf[13][3]), N(vf[0][3]), f3);
+        pushMacStatus(c, 0u | macBits(f0, 8u) | macBits(f1, 4u) | macBits(f2, 2u) | macBits(f3, 1u), 0u | f0 | f1 | f2 | f3, stk);
+        const int32_t nvi = static_cast<int32_t>(s.clip & 0x0FFFu);
+        s.acc[0] = u0; c.accReady[0] = c.cyc + 1u;
+        s.acc[1] = u1; c.accReady[1] = c.cyc + 1u;
+        s.acc[2] = u2; c.accReady[2] = c.cyc + 1u;
+        s.acc[3] = u3; c.accReady[3] = c.cyc + 1u;
+        c.bkValid = false;
+        vi[3] = nvi; c.viReady[3] = c.cyc + 1;
+        ++c.cyc;
+    }
+    // 0B68: 01F060BE 38040000
+    {
+        commitClip(c);
+        uint32_t stk = 0u;
+        uint32_t f0 = 0u;
+        const float u0 = fMaddF(N(s.acc[0]), N(vf[12][0]), N(vf[16][2]), f0, stk);
+        uint32_t f1 = 0u;
+        const float u1 = fMaddF(N(s.acc[1]), N(vf[12][1]), N(vf[16][2]), f1, stk);
+        uint32_t f2 = 0u;
+        const float u2 = fMaddF(N(s.acc[2]), N(vf[12][2]), N(vf[16][2]), f2, stk);
+        uint32_t f3 = 0u;
+        const float u3 = fMaddF(N(s.acc[3]), N(vf[12][3]), N(vf[16][2]), f3, stk);
+        pushMacStatus(c, 0u | macBits(f0, 8u) | macBits(f1, 4u) | macBits(f2, 2u) | macBits(f3, 1u), 0u | f0 | f1 | f2 | f3, stk);
+        const int32_t nvi = static_cast<int32_t>(s.clip & 0x0FFFu);
+        s.acc[0] = u0; c.accReady[0] = c.cyc + 1u;
+        s.acc[1] = u1; c.accReady[1] = c.cyc + 1u;
+        s.acc[2] = u2; c.accReady[2] = c.cyc + 1u;
+        s.acc[3] = u3; c.accReady[3] = c.cyc + 1u;
+        c.bkValid = false;
+        vi[4] = nvi; c.viReady[4] = c.cyc + 1;
+        ++c.cyc;
+    }
+    // 0B70: 01F058BD 80030875
+    {
+        uint32_t stk = 0u;
+        uint32_t f0 = 0u;
+        const float u0 = fMaddF(N(s.acc[0]), N(vf[11][0]), N(vf[16][1]), f0, stk);
+        uint32_t f1 = 0u;
+        const float u1 = fMaddF(N(s.acc[1]), N(vf[11][1]), N(vf[16][1]), f1, stk);
+        uint32_t f2 = 0u;
+        const float u2 = fMaddF(N(s.acc[2]), N(vf[11][2]), N(vf[16][1]), f2, stk);
+        uint32_t f3 = 0u;
+        const float u3 = fMaddF(N(s.acc[3]), N(vf[11][3]), N(vf[16][1]), f3, stk);
+        pushMacStatus(c, 0u | macBits(f0, 8u) | macBits(f1, 4u) | macBits(f2, 2u) | macBits(f3, 1u), 0u | f0 | f1 | f2 | f3, stk);
+        const int32_t nvi = (vi[1] | vi[3]);
+        s.acc[0] = u0; c.accReady[0] = c.cyc + 1u;
+        s.acc[1] = u1; c.accReady[1] = c.cyc + 1u;
+        s.acc[2] = u2; c.accReady[2] = c.cyc + 1u;
+        s.acc[3] = u3; c.accReady[3] = c.cyc + 1u;
+        c.bkValid = true; c.bkReg = 1; c.bkVal = vi[1];
+        vi[1] = nvi; c.viReady[1] = c.cyc + 1;
+        ++c.cyc;
+    }
+    // 0B78: 01C529FF 800310B4
+    {
+        queueClip(c, clipBits(vf[5], vf[5][3]));
+        const int32_t nvi = (vi[2] & vi[3]);
+        c.bkValid = true; c.bkReg = 2; c.bkVal = vi[2];
+        vi[2] = nvi; c.viReady[2] = c.cyc + 1;
+        ++c.cyc;
+    }
+    // 0B80: 01C631FF 80040875
+    {
+        queueClip(c, clipBits(vf[6], vf[6][3]));
+        const int32_t nvi = (vi[1] | vi[4]);
+        c.bkValid = true; c.bkReg = 1; c.bkVal = vi[1];
+        vi[1] = nvi; c.viReady[1] = c.cyc + 1;
+        ++c.cyc;
+    }
+    // 0B88: 01EF51C8 800410B4
+    {
+        uint32_t stk = 0u;
+        uint32_t f0 = 0u;
+        const float u0 = fMaddF(N(s.acc[0]), N(vf[10][0]), N(vf[15][0]), f0, stk);
+        uint32_t f1 = 0u;
+        const float u1 = fMaddF(N(s.acc[1]), N(vf[10][1]), N(vf[15][0]), f1, stk);
+        uint32_t f2 = 0u;
+        const float u2 = fMaddF(N(s.acc[2]), N(vf[10][2]), N(vf[15][0]), f2, stk);
+        uint32_t f3 = 0u;
+        const float u3 = fMaddF(N(s.acc[3]), N(vf[10][3]), N(vf[15][0]), f3, stk);
+        pushMacStatus(c, 0u | macBits(f0, 8u) | macBits(f1, 4u) | macBits(f2, 2u) | macBits(f3, 1u), 0u | f0 | f1 | f2 | f3, stk);
+        const int32_t nvi = (vi[2] & vi[4]);
+        vf[7][0] = u0; c.vfReady[7][0] = c.cyc + 4;
+        vf[7][1] = u1; c.vfReady[7][1] = c.cyc + 4;
+        vf[7][2] = u2; c.vfReady[7][2] = c.cyc + 4;
+        vf[7][3] = u3; c.vfReady[7][3] = c.cyc + 4;
+        c.bkValid = true; c.bkReg = 2; c.bkVal = vi[2];
+        vi[2] = nvi; c.viReady[2] = c.cyc + 1;
+        ++c.cyc;
+    }
+    // 0B90: 01F05208 8000033C
+    {
+        uint32_t stk = 0u;
+        uint32_t f0 = 0u;
+        const float u0 = fMaddF(N(s.acc[0]), N(vf[10][0]), N(vf[16][0]), f0, stk);
+        uint32_t f1 = 0u;
+        const float u1 = fMaddF(N(s.acc[1]), N(vf[10][1]), N(vf[16][0]), f1, stk);
+        uint32_t f2 = 0u;
+        const float u2 = fMaddF(N(s.acc[2]), N(vf[10][2]), N(vf[16][0]), f2, stk);
+        uint32_t f3 = 0u;
+        const float u3 = fMaddF(N(s.acc[3]), N(vf[10][3]), N(vf[16][0]), f3, stk);
+        pushMacStatus(c, 0u | macBits(f0, 8u) | macBits(f1, 4u) | macBits(f2, 2u) | macBits(f3, 1u), 0u | f0 | f1 | f2 | f3, stk);
+        vf[8][0] = u0; c.vfReady[8][0] = c.cyc + 4;
+        vf[8][1] = u1; c.vfReady[8][1] = c.cyc + 4;
+        vf[8][2] = u2; c.vfReady[8][2] = c.cyc + 4;
+        vf[8][3] = u3; c.vfReady[8][3] = c.cyc + 4;
+        c.bkValid = false;
+        ++c.cyc;
+    }
+    // 0B98: 000002FF 38030000
+    {
+        commitClip(c);
+        const int32_t nvi = static_cast<int32_t>(s.clip & 0x0FFFu);
+        c.bkValid = false;
+        vi[3] = nvi; c.viReady[3] = c.cyc + 1;
+        ++c.cyc;
+    }
+    // 0BA0: 000002FF 38040000
+    {
+        commitClip(c);
+        const int32_t nvi = static_cast<int32_t>(s.clip & 0x0FFFu);
+        c.bkValid = false;
+        vi[4] = nvi; c.viReady[4] = c.cyc + 1;
+        ++c.cyc;
+    }
+    // 0BA8: 000002FF 80030875
+    {
+        const int32_t nvi = (vi[1] | vi[3]);
+        c.bkValid = true; c.bkReg = 1; c.bkVal = vi[1];
+        vi[1] = nvi; c.viReady[1] = c.cyc + 1;
+        ++c.cyc;
+    }
+    // 0BB0: 01C739FF 800310B4
+    {
+        queueClip(c, clipBits(vf[7], vf[7][3]));
+        const int32_t nvi = (vi[2] & vi[3]);
+        c.bkValid = true; c.bkReg = 2; c.bkVal = vi[2];
+        vi[2] = nvi; c.viReady[2] = c.cyc + 1;
+        ++c.cyc;
+    }
+    // 0BB8: 01C841FF 80040875
+    {
+        queueClip(c, clipBits(vf[8], vf[8][3]));
+        const int32_t nvi = (vi[1] | vi[4]);
+        c.bkValid = true; c.bkReg = 1; c.bkVal = vi[1];
+        vi[1] = nvi; c.viReady[1] = c.cyc + 1;
+        ++c.cyc;
+    }
+    // 0BC0: 000002FF 800410B4
+    {
+        const int32_t nvi = (vi[2] & vi[4]);
+        c.bkValid = true; c.bkReg = 2; c.bkVal = vi[2];
+        vi[2] = nvi; c.viReady[2] = c.cyc + 1;
+        ++c.cyc;
+    }
+    // 0BC8: 000002FF 1005003F
+    {
+        const int32_t nvi = static_cast<int16_t>(vi[0] + (63));
+        c.bkValid = true; c.bkReg = 5; c.bkVal = vi[5];
+        vi[5] = nvi; c.viReady[5] = c.cyc + 1;
+        ++c.cyc;
+    }
+    // 0BD0: 000002FF 38030000
+    {
+        commitClip(c);
+        const int32_t nvi = static_cast<int32_t>(s.clip & 0x0FFFu);
+        c.bkValid = false;
+        vi[3] = nvi; c.viReady[3] = c.cyc + 1;
+        ++c.cyc;
+    }
+    // 0BD8: 000002FF 38040000
+    {
+        commitClip(c);
+        const int32_t nvi = static_cast<int32_t>(s.clip & 0x0FFFu);
+        c.bkValid = false;
+        vi[4] = nvi; c.viReady[4] = c.cyc + 1;
+        ++c.cyc;
+    }
+    // 0BE0: 000002FF 80030875
+    {
+        const int32_t nvi = (vi[1] | vi[3]);
+        c.bkValid = true; c.bkReg = 1; c.bkVal = vi[1];
+        vi[1] = nvi; c.viReady[1] = c.cyc + 1;
+        ++c.cyc;
+    }
+    // 0BE8: 000002FF 800310B4
+    {
+        const int32_t nvi = (vi[2] & vi[3]);
+        c.bkValid = true; c.bkReg = 2; c.bkVal = vi[2];
+        vi[2] = nvi; c.viReady[2] = c.cyc + 1;
+        ++c.cyc;
+    }
+    // 0BF0: 000002FF 80040875
+    {
+        const int32_t nvi = (vi[1] | vi[4]);
+        c.bkValid = true; c.bkReg = 1; c.bkVal = vi[1];
+        vi[1] = nvi; c.viReady[1] = c.cyc + 1;
+        ++c.cyc;
+    }
+    // 0BF8: 000002FF 800410B4
+    {
+        const int32_t nvi = (vi[2] & vi[4]);
+        c.bkValid = true; c.bkReg = 2; c.bkVal = vi[2];
+        vi[2] = nvi; c.viReady[2] = c.cyc + 1;
+        ++c.cyc;
+    }
+    // 0C00: 000002FF 80050874
+    {
+        const int32_t nvi = (vi[1] & vi[5]);
+        c.bkValid = true; c.bkReg = 1; c.bkVal = vi[1];
+        vi[1] = nvi; c.viReady[1] = c.cyc + 1;
+        ++c.cyc;
+    }
+    uint32_t target = 0;
+    // 0C08: 000002FF 48007800
+    {
+        stall(c, c.viReady[15]);
+        target = ((static_cast<uint32_t>(static_cast<uint16_t>(brVi(c, 15))) * 8u) & 0xFFFu);
+        c.bkValid = false;
+        ++c.cyc;
+    }
+    // 0C10: 000002FF 8000033C
+    {
+        c.bkValid = false;
+        ++c.cyc;
+    }
+    if (c.cyc >= c.budgetEnd)
+        return handoffRet(c, target);
+    return target;
+}
+
+static uint32_t vu0prog_0_0C18(VU1NativeCtx &c)
+{
+    using namespace vu1n;
+    VU1State &s = *c.st;
+    float (*vf)[4] = s.vf;
+    int32_t *vi = s.vi;
+    uint8_t *m = c.mem;
+    (void)m;
+    (void)vf;
+    (void)vi;
+    bool taken = false;
+    // 0C18: 000002FF 500E0030
+    {
+        stall(c, c.viReady[14]);
+        taken = static_cast<int16_t>(brVi(c, 0)) == static_cast<int16_t>(brVi(c, 14));
+        c.bkValid = false;
+        ++c.cyc;
+    }
+    // 0C20: 000002FF 100B0001
+    {
+        const int32_t nvi = static_cast<int16_t>(vi[0] + (1));
+        c.bkValid = true; c.bkReg = 11; c.bkVal = vi[11];
+        vi[11] = nvi; c.viReady[11] = c.cyc + 1;
+        ++c.cyc;
+    }
+    if (c.cyc >= c.budgetEnd)
+        return handoffRet(c, (taken ? 0xDA0u : 0xC28u));
+    return (taken ? 0xDA0u : 0xC28u);
+}
+
+static uint32_t vu0prog_0_0C28(VU1NativeCtx &c)
+{
+    using namespace vu1n;
+    VU1State &s = *c.st;
+    float (*vf)[4] = s.vf;
+    int32_t *vi = s.vi;
+    uint8_t *m = c.mem;
+    (void)m;
+    (void)vf;
+    (void)vi;
+    // 0C28: 000002FF 800B7074
+    {
+        stall(c, c.viReady[11]);
+        stall(c, c.viReady[14]);
+        const int32_t nvi = (vi[14] & vi[11]);
+        c.bkValid = true; c.bkReg = 1; c.bkVal = vi[1];
+        vi[1] = nvi; c.viReady[1] = c.cyc + 1;
+        ++c.cyc;
+    }
+    // 0C30: 000002FF 800173B1
+    {
+        const int32_t nvi = static_cast<int16_t>(vi[14] - vi[1]);
+        c.bkValid = true; c.bkReg = 14; c.bkVal = vi[14];
+        vi[14] = nvi; c.viReady[14] = c.cyc + 1;
+        ++c.cyc;
+    }
+    bool taken = false;
+    // 0C38: 000002FF 50010029
+    {
+        taken = static_cast<int16_t>(brVi(c, 0)) == static_cast<int16_t>(brVi(c, 1));
+        c.bkValid = false;
+        ++c.cyc;
+    }
+    // 0C40: 000002FF 8000033C
+    {
+        c.bkValid = false;
+        ++c.cyc;
+    }
+    if (c.cyc >= c.budgetEnd)
+        return handoffRet(c, (taken ? 0xD88u : 0xC48u));
+    return (taken ? 0xD88u : 0xC48u);
+}
+
+static uint32_t vu0prog_0_0C48(VU1NativeCtx &c)
+{
+    using namespace vu1n;
+    VU1State &s = *c.st;
+    float (*vf)[4] = s.vf;
+    int32_t *vi = s.vi;
+    uint8_t *m = c.mem;
+    (void)m;
+    (void)vf;
+    (void)vi;
+    // 0C48: 000002FF 01E15000
+    {
+        stall(c, c.viReady[10]);
+        const uint32_t la = ((static_cast<uint32_t>(static_cast<int32_t>(vi[10] + (0))) * 16u) & 0xFF0u);
+        const float l0 = ldf(m, la + 0);
+        const float l1 = ldf(m, la + 4);
+        const float l2 = ldf(m, la + 8);
+        const float l3 = ldf(m, la + 12);
+        vf[1][0] = l0; c.vfReady[1][0] = c.cyc + 4;
+        vf[1][1] = l1; c.vfReady[1][1] = c.cyc + 4;
+        vf[1][2] = l2; c.vfReady[1][2] = c.cyc + 4;
+        vf[1][3] = l3; c.vfReady[1][3] = c.cyc + 4;
+        c.bkValid = false;
+        ++c.cyc;
+    }
+    // 0C50: 000002FF 01E25001
+    {
+        const uint32_t la = ((static_cast<uint32_t>(static_cast<int32_t>(vi[10] + (1))) * 16u) & 0xFF0u);
+        const float l0 = ldf(m, la + 0);
+        const float l1 = ldf(m, la + 4);
+        const float l2 = ldf(m, la + 8);
+        const float l3 = ldf(m, la + 12);
+        vf[2][0] = l0; c.vfReady[2][0] = c.cyc + 4;
+        vf[2][1] = l1; c.vfReady[2][1] = c.cyc + 4;
+        vf[2][2] = l2; c.vfReady[2][2] = c.cyc + 4;
+        vf[2][3] = l3; c.vfReady[2][3] = c.cyc + 4;
+        c.bkValid = false;
+        ++c.cyc;
+    }
+    // 0C58: 000002FF 01E35002
+    {
+        const uint32_t la = ((static_cast<uint32_t>(static_cast<int32_t>(vi[10] + (2))) * 16u) & 0xFF0u);
+        const float l0 = ldf(m, la + 0);
+        const float l1 = ldf(m, la + 4);
+        const float l2 = ldf(m, la + 8);
+        const float l3 = ldf(m, la + 12);
+        vf[3][0] = l0; c.vfReady[3][0] = c.cyc + 4;
+        vf[3][1] = l1; c.vfReady[3][1] = c.cyc + 4;
+        vf[3][2] = l2; c.vfReady[3][2] = c.cyc + 4;
+        vf[3][3] = l3; c.vfReady[3][3] = c.cyc + 4;
+        c.bkValid = false;
+        ++c.cyc;
+    }
+    // 0C60: 000002FF 01E45003
+    {
+        const uint32_t la = ((static_cast<uint32_t>(static_cast<int32_t>(vi[10] + (3))) * 16u) & 0xFF0u);
+        const float l0 = ldf(m, la + 0);
+        const float l1 = ldf(m, la + 4);
+        const float l2 = ldf(m, la + 8);
+        const float l3 = ldf(m, la + 12);
+        vf[4][0] = l0; c.vfReady[4][0] = c.cyc + 4;
+        vf[4][1] = l1; c.vfReady[4][1] = c.cyc + 4;
+        vf[4][2] = l2; c.vfReady[4][2] = c.cyc + 4;
+        vf[4][3] = l3; c.vfReady[4][3] = c.cyc + 4;
+        c.bkValid = false;
+        ++c.cyc;
+    }
+    // 0C68: 000002FF 01E55004
+    {
+        const uint32_t la = ((static_cast<uint32_t>(static_cast<int32_t>(vi[10] + (4))) * 16u) & 0xFF0u);
+        const float l0 = ldf(m, la + 0);
+        const float l1 = ldf(m, la + 4);
+        const float l2 = ldf(m, la + 8);
+        const float l3 = ldf(m, la + 12);
+        vf[5][0] = l0; c.vfReady[5][0] = c.cyc + 4;
+        vf[5][1] = l1; c.vfReady[5][1] = c.cyc + 4;
+        vf[5][2] = l2; c.vfReady[5][2] = c.cyc + 4;
+        vf[5][3] = l3; c.vfReady[5][3] = c.cyc + 4;
+        c.bkValid = false;
+        ++c.cyc;
+    }
+    // 0C70: 010001C3 10010080
+    {
+        uint32_t stk = 0u;
+        uint32_t f0 = 0u;
+        const float u0 = fAddF(N(vf[0][0]), N(vf[0][3]), f0);
+        pushMacStatus(c, 0u | macBits(f0, 8u), 0u | f0, stk);
+        const int32_t nvi = static_cast<int16_t>(vi[0] + (128));
+        vf[7][0] = u0; c.vfReady[7][0] = c.cyc + 4;
+        c.bkValid = true; c.bkReg = 1; c.bkVal = vi[1];
+        vi[1] = nvi; c.viReady[1] = c.cyc + 1;
+        ++c.cyc;
+    }
+    // 0C78: 01C6086A 8000033C
+    {
+        stall(c, c.vfReady[6][0]);
+        stall(c, c.vfReady[6][1]);
+        stall(c, c.vfReady[6][2]);
+        uint32_t stk = 0u;
+        uint32_t f0 = 0u;
+        const float u0 = fMulF(N(vf[1][0]), N(vf[6][0]), f0);
+        uint32_t f1 = 0u;
+        const float u1 = fMulF(N(vf[1][1]), N(vf[6][1]), f1);
+        uint32_t f2 = 0u;
+        const float u2 = fMulF(N(vf[1][2]), N(vf[6][2]), f2);
+        pushMacStatus(c, 0u | macBits(f0, 8u) | macBits(f1, 4u) | macBits(f2, 2u), 0u | f0 | f1 | f2, stk);
+        vf[1][0] = u0; c.vfReady[1][0] = c.cyc + 4;
+        vf[1][1] = u1; c.vfReady[1][1] = c.cyc + 4;
+        vf[1][2] = u2; c.vfReady[1][2] = c.cyc + 4;
+        c.bkValid = false;
+        ++c.cyc;
+    }
+    // 0C80: 01C610AA 8000033C
+    {
+        uint32_t stk = 0u;
+        uint32_t f0 = 0u;
+        const float u0 = fMulF(N(vf[2][0]), N(vf[6][0]), f0);
+        uint32_t f1 = 0u;
+        const float u1 = fMulF(N(vf[2][1]), N(vf[6][1]), f1);
+        uint32_t f2 = 0u;
+        const float u2 = fMulF(N(vf[2][2]), N(vf[6][2]), f2);
+        pushMacStatus(c, 0u | macBits(f0, 8u) | macBits(f1, 4u) | macBits(f2, 2u), 0u | f0 | f1 | f2, stk);
+        vf[2][0] = u0; c.vfReady[2][0] = c.cyc + 4;
+        vf[2][1] = u1; c.vfReady[2][1] = c.cyc + 4;
+        vf[2][2] = u2; c.vfReady[2][2] = c.cyc + 4;
+        c.bkValid = false;
+        ++c.cyc;
+    }
+    // 0C88: 01C618EA 8000033C
+    {
+        uint32_t stk = 0u;
+        uint32_t f0 = 0u;
+        const float u0 = fMulF(N(vf[3][0]), N(vf[6][0]), f0);
+        uint32_t f1 = 0u;
+        const float u1 = fMulF(N(vf[3][1]), N(vf[6][1]), f1);
+        uint32_t f2 = 0u;
+        const float u2 = fMulF(N(vf[3][2]), N(vf[6][2]), f2);
+        pushMacStatus(c, 0u | macBits(f0, 8u) | macBits(f1, 4u) | macBits(f2, 2u), 0u | f0 | f1 | f2, stk);
+        vf[3][0] = u0; c.vfReady[3][0] = c.cyc + 4;
+        vf[3][1] = u1; c.vfReady[3][1] = c.cyc + 4;
+        vf[3][2] = u2; c.vfReady[3][2] = c.cyc + 4;
+        c.bkValid = false;
+        ++c.cyc;
+    }
+    // 0C90: 01C6212A 8000033C
+    {
+        uint32_t stk = 0u;
+        uint32_t f0 = 0u;
+        const float u0 = fMulF(N(vf[4][0]), N(vf[6][0]), f0);
+        uint32_t f1 = 0u;
+        const float u1 = fMulF(N(vf[4][1]), N(vf[6][1]), f1);
+        uint32_t f2 = 0u;
+        const float u2 = fMulF(N(vf[4][2]), N(vf[6][2]), f2);
+        pushMacStatus(c, 0u | macBits(f0, 8u) | macBits(f1, 4u) | macBits(f2, 2u), 0u | f0 | f1 | f2, stk);
+        vf[4][0] = u0; c.vfReady[4][0] = c.cyc + 4;
+        vf[4][1] = u1; c.vfReady[4][1] = c.cyc + 4;
+        vf[4][2] = u2; c.vfReady[4][2] = c.cyc + 4;
+        c.bkValid = false;
+        ++c.cyc;
+    }
+    // 0C98: 01C6296A 8000033C
+    {
+        uint32_t stk = 0u;
+        uint32_t f0 = 0u;
+        const float u0 = fMulF(N(vf[5][0]), N(vf[6][0]), f0);
+        uint32_t f1 = 0u;
+        const float u1 = fMulF(N(vf[5][1]), N(vf[6][1]), f1);
+        uint32_t f2 = 0u;
+        const float u2 = fMulF(N(vf[5][2]), N(vf[6][2]), f2);
+        pushMacStatus(c, 0u | macBits(f0, 8u) | macBits(f1, 4u) | macBits(f2, 2u), 0u | f0 | f1 | f2, stk);
+        vf[5][0] = u0; c.vfReady[5][0] = c.cyc + 4;
+        vf[5][1] = u1; c.vfReady[5][1] = c.cyc + 4;
+        vf[5][2] = u2; c.vfReady[5][2] = c.cyc + 4;
+        c.bkValid = false;
+        ++c.cyc;
+    }
+    // 0CA0: 0101083D 8000033C
+    {
+        uint32_t stk = 0u;
+        uint32_t f0 = 0u;
+        const float u0 = fAddF(N(vf[1][0]), N(vf[1][1]), f0);
+        pushMacStatus(c, 0u | macBits(f0, 8u), 0u | f0, stk);
+        s.acc[0] = u0; c.accReady[0] = c.cyc + 1u;
+        c.bkValid = false;
+        ++c.cyc;
+    }
+    // 0CA8: 010138BE 8000033C
+    {
+        uint32_t stk = 0u;
+        uint32_t f0 = 0u;
+        const float u0 = fMaddF(N(s.acc[0]), N(vf[7][0]), N(vf[1][2]), f0, stk);
+        pushMacStatus(c, 0u | macBits(f0, 8u), 0u | f0, stk);
+        s.acc[0] = u0; c.accReady[0] = c.cyc + 1u;
+        c.bkValid = false;
+        ++c.cyc;
+    }
+    // 0CB0: 010138BF 8000033C
+    {
+        uint32_t stk = 0u;
+        uint32_t f0 = 0u;
+        const float u0 = fMaddF(N(s.acc[0]), N(vf[7][0]), N(vf[1][3]), f0, stk);
+        pushMacStatus(c, 0u | macBits(f0, 8u), 0u | f0, stk);
+        s.acc[0] = u0; c.accReady[0] = c.cyc + 1u;
+        c.bkValid = false;
+        ++c.cyc;
+    }
+    // 0CB8: 0106380F 8000033C
+    {
+        stall(c, c.vfReady[6][3]);
+        uint32_t stk = 0u;
+        uint32_t f0 = 0u;
+        const float u0 = fMsubF(N(s.acc[0]), N(vf[7][0]), N(vf[6][3]), f0, stk);
+        pushMacStatus(c, 0u | macBits(f0, 8u), 0u | f0, stk);
+        c.bkValid = false;
+        ++c.cyc;
+    }
+    // 0CC0: 0102103D 8000033C
+    {
+        uint32_t stk = 0u;
+        uint32_t f0 = 0u;
+        const float u0 = fAddF(N(vf[2][0]), N(vf[2][1]), f0);
+        pushMacStatus(c, 0u | macBits(f0, 8u), 0u | f0, stk);
+        s.acc[0] = u0; c.accReady[0] = c.cyc + 1u;
+        c.bkValid = false;
+        ++c.cyc;
+    }
+    // 0CC8: 010238BE 8000033C
+    {
+        uint32_t stk = 0u;
+        uint32_t f0 = 0u;
+        const float u0 = fMaddF(N(s.acc[0]), N(vf[7][0]), N(vf[2][2]), f0, stk);
+        pushMacStatus(c, 0u | macBits(f0, 8u), 0u | f0, stk);
+        s.acc[0] = u0; c.accReady[0] = c.cyc + 1u;
+        c.bkValid = false;
+        ++c.cyc;
+    }
+    // 0CD0: 010238BF 8000033C
+    {
+        uint32_t stk = 0u;
+        uint32_t f0 = 0u;
+        const float u0 = fMaddF(N(s.acc[0]), N(vf[7][0]), N(vf[2][3]), f0, stk);
+        pushMacStatus(c, 0u | macBits(f0, 8u), 0u | f0, stk);
+        s.acc[0] = u0; c.accReady[0] = c.cyc + 1u;
+        c.bkValid = false;
+        ++c.cyc;
+    }
+    // 0CD8: 0106380F 34020800
+    {
+        commitClip(c);
+        uint32_t stk = 0u;
+        uint32_t f0 = 0u;
+        const float u0 = fMsubF(N(s.acc[0]), N(vf[7][0]), N(vf[6][3]), f0, stk);
+        pushMacStatus(c, 0u | macBits(f0, 8u), 0u | f0, stk);
+        const int32_t nvi = static_cast<int32_t>(s.mac & static_cast<uint32_t>(static_cast<uint16_t>(vi[1])));
+        c.bkValid = false;
+        vi[2] = nvi; c.viReady[2] = c.cyc + 1;
+        ++c.cyc;
+    }
+    bool taken = false;
+    // 0CE0: 0103183D 50020814
+    {
+        uint32_t stk = 0u;
+        uint32_t f0 = 0u;
+        const float u0 = fAddF(N(vf[3][0]), N(vf[3][1]), f0);
+        pushMacStatus(c, 0u | macBits(f0, 8u), 0u | f0, stk);
+        taken = static_cast<int16_t>(brVi(c, 1)) == static_cast<int16_t>(brVi(c, 2));
+        s.acc[0] = u0; c.accReady[0] = c.cyc + 1u;
+        c.bkValid = false;
+        ++c.cyc;
+    }
+    // 0CE8: 010338BE 8000033C
+    {
+        uint32_t stk = 0u;
+        uint32_t f0 = 0u;
+        const float u0 = fMaddF(N(s.acc[0]), N(vf[7][0]), N(vf[3][2]), f0, stk);
+        pushMacStatus(c, 0u | macBits(f0, 8u), 0u | f0, stk);
+        s.acc[0] = u0; c.accReady[0] = c.cyc + 1u;
+        c.bkValid = false;
+        ++c.cyc;
+    }
+    if (c.cyc >= c.budgetEnd)
+        return handoffRet(c, (taken ? 0xD88u : 0xCF0u));
+    return (taken ? 0xD88u : 0xCF0u);
+}
+
+static uint32_t vu0prog_0_0CF0(VU1NativeCtx &c)
+{
+    using namespace vu1n;
+    VU1State &s = *c.st;
+    float (*vf)[4] = s.vf;
+    int32_t *vi = s.vi;
+    uint8_t *m = c.mem;
+    (void)m;
+    (void)vf;
+    (void)vi;
+    // 0CF0: 010338BF 8000033C
+    {
+        stall(c, c.accReady[0]);
+        stall(c, c.vfReady[3][3]);
+        stall(c, c.vfReady[7][0]);
+        uint32_t stk = 0u;
+        uint32_t f0 = 0u;
+        const float u0 = fMaddF(N(s.acc[0]), N(vf[7][0]), N(vf[3][3]), f0, stk);
+        pushMacStatus(c, 0u | macBits(f0, 8u), 0u | f0, stk);
+        s.acc[0] = u0; c.accReady[0] = c.cyc + 1u;
+        c.bkValid = false;
+        ++c.cyc;
+    }
+    // 0CF8: 0106380F 34020800
+    {
+        stall(c, c.vfReady[6][3]);
+        stall(c, c.viReady[1]);
+        commitClip(c);
+        uint32_t stk = 0u;
+        uint32_t f0 = 0u;
+        const float u0 = fMsubF(N(s.acc[0]), N(vf[7][0]), N(vf[6][3]), f0, stk);
+        pushMacStatus(c, 0u | macBits(f0, 8u), 0u | f0, stk);
+        const int32_t nvi = static_cast<int32_t>(s.mac & static_cast<uint32_t>(static_cast<uint16_t>(vi[1])));
+        c.bkValid = false;
+        vi[2] = nvi; c.viReady[2] = c.cyc + 1;
+        ++c.cyc;
+    }
+    bool taken = false;
+    // 0D00: 0104203D 50020810
+    {
+        stall(c, c.vfReady[4][0]);
+        stall(c, c.vfReady[4][1]);
+        uint32_t stk = 0u;
+        uint32_t f0 = 0u;
+        const float u0 = fAddF(N(vf[4][0]), N(vf[4][1]), f0);
+        pushMacStatus(c, 0u | macBits(f0, 8u), 0u | f0, stk);
+        taken = static_cast<int16_t>(brVi(c, 1)) == static_cast<int16_t>(brVi(c, 2));
+        s.acc[0] = u0; c.accReady[0] = c.cyc + 1u;
+        c.bkValid = false;
+        ++c.cyc;
+    }
+    // 0D08: 010438BE 8000033C
+    {
+        stall(c, c.vfReady[4][2]);
+        uint32_t stk = 0u;
+        uint32_t f0 = 0u;
+        const float u0 = fMaddF(N(s.acc[0]), N(vf[7][0]), N(vf[4][2]), f0, stk);
+        pushMacStatus(c, 0u | macBits(f0, 8u), 0u | f0, stk);
+        s.acc[0] = u0; c.accReady[0] = c.cyc + 1u;
+        c.bkValid = false;
+        ++c.cyc;
+    }
+    if (c.cyc >= c.budgetEnd)
+        return handoffRet(c, (taken ? 0xD88u : 0xD10u));
+    return (taken ? 0xD88u : 0xD10u);
+}
+
+static uint32_t vu0prog_0_0D10(VU1NativeCtx &c)
+{
+    using namespace vu1n;
+    VU1State &s = *c.st;
+    float (*vf)[4] = s.vf;
+    int32_t *vi = s.vi;
+    uint8_t *m = c.mem;
+    (void)m;
+    (void)vf;
+    (void)vi;
+    // 0D10: 010438BF 8000033C
+    {
+        stall(c, c.accReady[0]);
+        stall(c, c.vfReady[4][3]);
+        stall(c, c.vfReady[7][0]);
+        uint32_t stk = 0u;
+        uint32_t f0 = 0u;
+        const float u0 = fMaddF(N(s.acc[0]), N(vf[7][0]), N(vf[4][3]), f0, stk);
+        pushMacStatus(c, 0u | macBits(f0, 8u), 0u | f0, stk);
+        s.acc[0] = u0; c.accReady[0] = c.cyc + 1u;
+        c.bkValid = false;
+        ++c.cyc;
+    }
+    // 0D18: 0106380F 34020800
+    {
+        stall(c, c.vfReady[6][3]);
+        stall(c, c.viReady[1]);
+        commitClip(c);
+        uint32_t stk = 0u;
+        uint32_t f0 = 0u;
+        const float u0 = fMsubF(N(s.acc[0]), N(vf[7][0]), N(vf[6][3]), f0, stk);
+        pushMacStatus(c, 0u | macBits(f0, 8u), 0u | f0, stk);
+        const int32_t nvi = static_cast<int32_t>(s.mac & static_cast<uint32_t>(static_cast<uint16_t>(vi[1])));
+        c.bkValid = false;
+        vi[2] = nvi; c.viReady[2] = c.cyc + 1;
+        ++c.cyc;
+    }
+    bool taken = false;
+    // 0D20: 0105283D 5002080C
+    {
+        stall(c, c.vfReady[5][0]);
+        stall(c, c.vfReady[5][1]);
+        uint32_t stk = 0u;
+        uint32_t f0 = 0u;
+        const float u0 = fAddF(N(vf[5][0]), N(vf[5][1]), f0);
+        pushMacStatus(c, 0u | macBits(f0, 8u), 0u | f0, stk);
+        taken = static_cast<int16_t>(brVi(c, 1)) == static_cast<int16_t>(brVi(c, 2));
+        s.acc[0] = u0; c.accReady[0] = c.cyc + 1u;
+        c.bkValid = false;
+        ++c.cyc;
+    }
+    // 0D28: 010538BE 8000033C
+    {
+        stall(c, c.vfReady[5][2]);
+        uint32_t stk = 0u;
+        uint32_t f0 = 0u;
+        const float u0 = fMaddF(N(s.acc[0]), N(vf[7][0]), N(vf[5][2]), f0, stk);
+        pushMacStatus(c, 0u | macBits(f0, 8u), 0u | f0, stk);
+        s.acc[0] = u0; c.accReady[0] = c.cyc + 1u;
+        c.bkValid = false;
+        ++c.cyc;
+    }
+    if (c.cyc >= c.budgetEnd)
+        return handoffRet(c, (taken ? 0xD88u : 0xD30u));
+    return (taken ? 0xD88u : 0xD30u);
+}
+
+static uint32_t vu0prog_0_0D30(VU1NativeCtx &c)
+{
+    using namespace vu1n;
+    VU1State &s = *c.st;
+    float (*vf)[4] = s.vf;
+    int32_t *vi = s.vi;
+    uint8_t *m = c.mem;
+    (void)m;
+    (void)vf;
+    (void)vi;
+    // 0D30: 010538BF 8000033C
+    {
+        stall(c, c.accReady[0]);
+        stall(c, c.vfReady[5][3]);
+        stall(c, c.vfReady[7][0]);
+        uint32_t stk = 0u;
+        uint32_t f0 = 0u;
+        const float u0 = fMaddF(N(s.acc[0]), N(vf[7][0]), N(vf[5][3]), f0, stk);
+        pushMacStatus(c, 0u | macBits(f0, 8u), 0u | f0, stk);
+        s.acc[0] = u0; c.accReady[0] = c.cyc + 1u;
+        c.bkValid = false;
+        ++c.cyc;
+    }
+    // 0D38: 0106380F 34020800
+    {
+        stall(c, c.vfReady[6][3]);
+        stall(c, c.viReady[1]);
+        commitClip(c);
+        uint32_t stk = 0u;
+        uint32_t f0 = 0u;
+        const float u0 = fMsubF(N(s.acc[0]), N(vf[7][0]), N(vf[6][3]), f0, stk);
+        pushMacStatus(c, 0u | macBits(f0, 8u), 0u | f0, stk);
+        const int32_t nvi = static_cast<int32_t>(s.mac & static_cast<uint32_t>(static_cast<uint16_t>(vi[1])));
+        c.bkValid = false;
+        vi[2] = nvi; c.viReady[2] = c.cyc + 1;
+        ++c.cyc;
+    }
+    bool taken = false;
+    // 0D40: 000002FF 50020808
+    {
+        taken = static_cast<int16_t>(brVi(c, 1)) == static_cast<int16_t>(brVi(c, 2));
+        c.bkValid = false;
+        ++c.cyc;
+    }
+    // 0D48: 000002FF 8000033C
+    {
+        c.bkValid = false;
+        ++c.cyc;
+    }
+    if (c.cyc >= c.budgetEnd)
+        return handoffRet(c, (taken ? 0xD88u : 0xD50u));
+    return (taken ? 0xD88u : 0xD50u);
+}
+
+static uint32_t vu0prog_0_0D50(VU1NativeCtx &c)
+{
+    using namespace vu1n;
+    VU1State &s = *c.st;
+    float (*vf)[4] = s.vf;
+    int32_t *vi = s.vi;
+    uint8_t *m = c.mem;
+    (void)m;
+    (void)vf;
+    (void)vi;
+    // 0D50: 000002FF 8000033C
+    {
+        c.bkValid = false;
+        ++c.cyc;
+    }
+    // 0D58: 000002FF 34020800
+    {
+        stall(c, c.viReady[1]);
+        commitClip(c);
+        const int32_t nvi = static_cast<int32_t>(s.mac & static_cast<uint32_t>(static_cast<uint16_t>(vi[1])));
+        c.bkValid = false;
+        vi[2] = nvi; c.viReady[2] = c.cyc + 1;
+        ++c.cyc;
+    }
+    bool taken = false;
+    // 0D60: 000002FF 50020804
+    {
+        taken = static_cast<int16_t>(brVi(c, 1)) == static_cast<int16_t>(brVi(c, 2));
+        c.bkValid = false;
+        ++c.cyc;
+    }
+    // 0D68: 000002FF 8000033C
+    {
+        c.bkValid = false;
+        ++c.cyc;
+    }
+    if (c.cyc >= c.budgetEnd)
+        return handoffRet(c, (taken ? 0xD88u : 0xD70u));
+    return (taken ? 0xD88u : 0xD70u);
+}
+
+static uint32_t vu0prog_0_0D70(VU1NativeCtx &c)
+{
+    using namespace vu1n;
+    VU1State &s = *c.st;
+    float (*vf)[4] = s.vf;
+    int32_t *vi = s.vi;
+    uint8_t *m = c.mem;
+    (void)m;
+    (void)vf;
+    (void)vi;
+    // 0D70: 000002FF 10010001
+    {
+        const int32_t nvi = static_cast<int16_t>(vi[0] + (1));
+        c.bkValid = true; c.bkReg = 1; c.bkVal = vi[1];
+        vi[1] = nvi; c.viReady[1] = c.cyc + 1;
+        ++c.cyc;
+    }
+    uint32_t target = 0;
+    // 0D78: 000002FF 48007800
+    {
+        stall(c, c.viReady[15]);
+        target = ((static_cast<uint32_t>(static_cast<uint16_t>(brVi(c, 15))) * 8u) & 0xFFFu);
+        c.bkValid = false;
+        ++c.cyc;
+    }
+    // 0D80: 000002FF 8000033C
+    {
+        c.bkValid = false;
+        ++c.cyc;
+    }
+    if (c.cyc >= c.budgetEnd)
+        return handoffRet(c, target);
+    return target;
+}
+
+static uint32_t vu0prog_0_0D88(VU1NativeCtx &c)
+{
+    using namespace vu1n;
+    VU1State &s = *c.st;
+    float (*vf)[4] = s.vf;
+    int32_t *vi = s.vi;
+    uint8_t *m = c.mem;
+    (void)m;
+    (void)vf;
+    (void)vi;
+    // 0D88: 000002FF 800A5172
+    {
+        stall(c, c.viReady[10]);
+        const int32_t nvi = static_cast<int16_t>(vi[10] + (5));
+        c.bkValid = true; c.bkReg = 10; c.bkVal = vi[10];
+        vi[10] = nvi; c.viReady[10] = c.cyc + 1;
+        ++c.cyc;
+    }
+    bool taken = false;
+    // 0D90: 000002FF 520E07D2
+    {
+        stall(c, c.viReady[14]);
+        taken = static_cast<int16_t>(brVi(c, 0)) != static_cast<int16_t>(brVi(c, 14));
+        c.bkValid = false;
+        ++c.cyc;
+    }
+    // 0D98: 000002FF 800B5AF0
+    {
+        stall(c, c.viReady[11]);
+        const int32_t nvi = static_cast<int16_t>(vi[11] + vi[11]);
+        c.bkValid = true; c.bkReg = 11; c.bkVal = vi[11];
+        vi[11] = nvi; c.viReady[11] = c.cyc + 1;
+        ++c.cyc;
+    }
+    if (c.cyc >= c.budgetEnd)
+        return handoffRet(c, (taken ? 0xC28u : 0xDA0u));
+    return (taken ? 0xC28u : 0xDA0u);
+}
+
+static uint32_t vu0prog_0_0DA0(VU1NativeCtx &c)
+{
+    using namespace vu1n;
+    VU1State &s = *c.st;
+    float (*vf)[4] = s.vf;
+    int32_t *vi = s.vi;
+    uint8_t *m = c.mem;
+    (void)m;
+    (void)vf;
+    (void)vi;
+    // 0DA0: 000002FF 10010000
+    {
+        const int32_t nvi = static_cast<int16_t>(vi[0] + (0));
+        c.bkValid = true; c.bkReg = 1; c.bkVal = vi[1];
+        vi[1] = nvi; c.viReady[1] = c.cyc + 1;
+        ++c.cyc;
+    }
+    uint32_t target = 0;
+    // 0DA8: 000002FF 48007800
+    {
+        stall(c, c.viReady[15]);
+        target = ((static_cast<uint32_t>(static_cast<uint16_t>(brVi(c, 15))) * 8u) & 0xFFFu);
+        c.bkValid = false;
+        ++c.cyc;
+    }
+    // 0DB0: 000002FF 8000033C
+    {
+        c.bkValid = false;
+        ++c.cyc;
+    }
+    if (c.cyc >= c.budgetEnd)
+        return handoffRet(c, target);
+    return target;
+}
+
+static uint32_t vu0prog_0_0DB8(VU1NativeCtx &c)
+{
+    using namespace vu1n;
+    VU1State &s = *c.st;
+    float (*vf)[4] = s.vf;
+    int32_t *vi = s.vi;
+    uint8_t *m = c.mem;
+    (void)m;
+    (void)vf;
+    (void)vi;
+    // 0DB8: 000002FF 01EA0040
+    {
+        const uint32_t la = ((static_cast<uint32_t>(static_cast<int32_t>(vi[0] + (64))) * 16u) & 0xFF0u);
+        const float l0 = ldf(m, la + 0);
+        const float l1 = ldf(m, la + 4);
+        const float l2 = ldf(m, la + 8);
+        const float l3 = ldf(m, la + 12);
+        vf[10][0] = l0; c.vfReady[10][0] = c.cyc + 4;
+        vf[10][1] = l1; c.vfReady[10][1] = c.cyc + 4;
+        vf[10][2] = l2; c.vfReady[10][2] = c.cyc + 4;
+        vf[10][3] = l3; c.vfReady[10][3] = c.cyc + 4;
+        c.bkValid = false;
+        ++c.cyc;
+    }
+    // 0DC0: 000002FF 01EB0041
+    {
+        const uint32_t la = ((static_cast<uint32_t>(static_cast<int32_t>(vi[0] + (65))) * 16u) & 0xFF0u);
+        const float l0 = ldf(m, la + 0);
+        const float l1 = ldf(m, la + 4);
+        const float l2 = ldf(m, la + 8);
+        const float l3 = ldf(m, la + 12);
+        vf[11][0] = l0; c.vfReady[11][0] = c.cyc + 4;
+        vf[11][1] = l1; c.vfReady[11][1] = c.cyc + 4;
+        vf[11][2] = l2; c.vfReady[11][2] = c.cyc + 4;
+        vf[11][3] = l3; c.vfReady[11][3] = c.cyc + 4;
+        c.bkValid = false;
+        ++c.cyc;
+    }
+    // 0DC8: 000002FF 01EC0042
+    {
+        const uint32_t la = ((static_cast<uint32_t>(static_cast<int32_t>(vi[0] + (66))) * 16u) & 0xFF0u);
+        const float l0 = ldf(m, la + 0);
+        const float l1 = ldf(m, la + 4);
+        const float l2 = ldf(m, la + 8);
+        const float l3 = ldf(m, la + 12);
+        vf[12][0] = l0; c.vfReady[12][0] = c.cyc + 4;
+        vf[12][1] = l1; c.vfReady[12][1] = c.cyc + 4;
+        vf[12][2] = l2; c.vfReady[12][2] = c.cyc + 4;
+        vf[12][3] = l3; c.vfReady[12][3] = c.cyc + 4;
+        c.bkValid = false;
+        ++c.cyc;
+    }
+    // 0DD0: 000002FF 01ED0043
+    {
+        const uint32_t la = ((static_cast<uint32_t>(static_cast<int32_t>(vi[0] + (67))) * 16u) & 0xFF0u);
+        const float l0 = ldf(m, la + 0);
+        const float l1 = ldf(m, la + 4);
+        const float l2 = ldf(m, la + 8);
+        const float l3 = ldf(m, la + 12);
+        vf[13][0] = l0; c.vfReady[13][0] = c.cyc + 4;
+        vf[13][1] = l1; c.vfReady[13][1] = c.cyc + 4;
+        vf[13][2] = l2; c.vfReady[13][2] = c.cyc + 4;
+        vf[13][3] = l3; c.vfReady[13][3] = c.cyc + 4;
+        c.bkValid = false;
+        ++c.cyc;
+    }
+    // 0DD8: 000002FF 81EFA33C
+    {
+        stall(c, c.vfReady[20][0]);
+        stall(c, c.vfReady[20][1]);
+        stall(c, c.vfReady[20][2]);
+        stall(c, c.vfReady[20][3]);
+        const float l0 = vf[20][0];
+        const float l1 = vf[20][1];
+        const float l2 = vf[20][2];
+        const float l3 = vf[20][3];
+        vf[15][0] = l0; c.vfReady[15][0] = c.cyc + 4;
+        vf[15][1] = l1; c.vfReady[15][1] = c.cyc + 4;
+        vf[15][2] = l2; c.vfReady[15][2] = c.cyc + 4;
+        vf[15][3] = l3; c.vfReady[15][3] = c.cyc + 4;
+        c.bkValid = false;
+        ++c.cyc;
+    }
+    // 0DE0: 000002FF 81F0AB3C
+    {
+        stall(c, c.vfReady[21][0]);
+        stall(c, c.vfReady[21][1]);
+        stall(c, c.vfReady[21][2]);
+        stall(c, c.vfReady[21][3]);
+        const float l0 = vf[21][0];
+        const float l1 = vf[21][1];
+        const float l2 = vf[21][2];
+        const float l3 = vf[21][3];
+        vf[16][0] = l0; c.vfReady[16][0] = c.cyc + 4;
+        vf[16][1] = l1; c.vfReady[16][1] = c.cyc + 4;
+        vf[16][2] = l2; c.vfReady[16][2] = c.cyc + 4;
+        vf[16][3] = l3; c.vfReady[16][3] = c.cyc + 4;
+        c.bkValid = false;
+        ++c.cyc;
+    }
+    // 0DE8: 000002FF 420F079B
+    {
+        const int32_t nvi = 447;
+        c.bkValid = false;
+        vi[15] = nvi; c.viReady[15] = c.cyc + 1;
+        ++c.cyc;
+    }
+    // 0DF0: 000002FF 8000033C
+    {
+        c.bkValid = false;
+        ++c.cyc;
+    }
+    if (c.cyc >= c.budgetEnd)
+        return handoffRet(c, 0xAC8u);
+    return 0xAC8u;
+}
+
+static uint32_t vu0prog_0_0DF8(VU1NativeCtx &c)
+{
+    using namespace vu1n;
+    VU1State &s = *c.st;
+    float (*vf)[4] = s.vf;
+    int32_t *vi = s.vi;
+    uint8_t *m = c.mem;
+    (void)m;
+    (void)vf;
+    (void)vi;
+    bool taken = false;
+    // 0DF8: 000002FF 50020003
+    {
+        stall(c, c.viReady[2]);
+        taken = static_cast<int16_t>(brVi(c, 0)) == static_cast<int16_t>(brVi(c, 2));
+        c.bkValid = false;
+        ++c.cyc;
+    }
+    // 0E00: 000002FF 100D0800
+    {
+        stall(c, c.viReady[1]);
+        const int32_t nvi = static_cast<int16_t>(vi[1] + (0));
+        c.bkValid = true; c.bkReg = 13; c.bkVal = vi[13];
+        vi[13] = nvi; c.viReady[13] = c.cyc + 1;
+        ++c.cyc;
+    }
+    if (c.cyc >= c.budgetEnd)
+        return handoffRet(c, (taken ? 0xE18u : 0xE08u));
+    return (taken ? 0xE18u : 0xE08u);
+}
+
+static uint32_t vu0prog_0_0E08(VU1NativeCtx &c)
+{
+    using namespace vu1n;
+    VU1State &s = *c.st;
+    float (*vf)[4] = s.vf;
+    int32_t *vi = s.vi;
+    uint8_t *m = c.mem;
+    (void)m;
+    (void)vf;
+    (void)vi;
+    // 0E08: 400002FF 10010001
+    {
+        const int32_t nvi = static_cast<int16_t>(vi[0] + (1));
+        c.bkValid = true; c.bkReg = 1; c.bkVal = vi[1];
+        vi[1] = nvi; c.viReady[1] = c.cyc + 1;
+        ++c.cyc;
+    }
+    // 0E10: 000002FF 8000033C
+    {
+        c.bkValid = false;
+        ++c.cyc;
+    }
+    s.pc = 0xE18;
+    finish(c);
+    return kEnded;
+}
+
+static uint32_t vu0prog_0_0E18(VU1NativeCtx &c)
+{
+    using namespace vu1n;
+    VU1State &s = *c.st;
+    float (*vf)[4] = s.vf;
+    int32_t *vi = s.vi;
+    uint8_t *m = c.mem;
+    (void)m;
+    (void)vf;
+    (void)vi;
+    bool taken = false;
+    // 0E18: 000002FF 500E0007
+    {
+        stall(c, c.viReady[14]);
+        taken = static_cast<int16_t>(brVi(c, 0)) == static_cast<int16_t>(brVi(c, 14));
+        c.bkValid = false;
+        ++c.cyc;
+    }
+    // 0E20: 000002FF 81E6B33C
+    {
+        stall(c, c.vfReady[22][0]);
+        stall(c, c.vfReady[22][1]);
+        stall(c, c.vfReady[22][2]);
+        stall(c, c.vfReady[22][3]);
+        const float l0 = vf[22][0];
+        const float l1 = vf[22][1];
+        const float l2 = vf[22][2];
+        const float l3 = vf[22][3];
+        vf[6][0] = l0; c.vfReady[6][0] = c.cyc + 4;
+        vf[6][1] = l1; c.vfReady[6][1] = c.cyc + 4;
+        vf[6][2] = l2; c.vfReady[6][2] = c.cyc + 4;
+        vf[6][3] = l3; c.vfReady[6][3] = c.cyc + 4;
+        c.bkValid = false;
+        ++c.cyc;
+    }
+    if (c.cyc >= c.budgetEnd)
+        return handoffRet(c, (taken ? 0xE58u : 0xE28u));
+    return (taken ? 0xE58u : 0xE28u);
+}
+
+static uint32_t vu0prog_0_0E28(VU1NativeCtx &c)
+{
+    using namespace vu1n;
+    VU1State &s = *c.st;
+    float (*vf)[4] = s.vf;
+    int32_t *vi = s.vi;
+    uint8_t *m = c.mem;
+    (void)m;
+    (void)vf;
+    (void)vi;
+    // 0E28: 000002FF 420F07BD
+    {
+        const int32_t nvi = 455;
+        c.bkValid = false;
+        vi[15] = nvi; c.viReady[15] = c.cyc + 1;
+        ++c.cyc;
+    }
+    // 0E30: 000002FF 100A0050
+    {
+        const int32_t nvi = static_cast<int16_t>(vi[0] + (80));
+        c.bkValid = true; c.bkReg = 10; c.bkVal = vi[10];
+        vi[10] = nvi; c.viReady[10] = c.cyc + 1;
+        ++c.cyc;
+    }
+    if (c.cyc >= c.budgetEnd)
+        return handoffRet(c, 0xC18u);
+    return 0xC18u;
+}
+
+static uint32_t vu0prog_0_0E38(VU1NativeCtx &c)
+{
+    using namespace vu1n;
+    VU1State &s = *c.st;
+    float (*vf)[4] = s.vf;
+    int32_t *vi = s.vi;
+    uint8_t *m = c.mem;
+    (void)m;
+    (void)vf;
+    (void)vi;
+    bool taken = false;
+    // 0E38: 000002FF 50010003
+    {
+        stall(c, c.viReady[1]);
+        taken = static_cast<int16_t>(brVi(c, 0)) == static_cast<int16_t>(brVi(c, 1));
+        c.bkValid = false;
+        ++c.cyc;
+    }
+    // 0E40: 000002FF 8000033C
+    {
+        c.bkValid = false;
+        ++c.cyc;
+    }
+    if (c.cyc >= c.budgetEnd)
+        return handoffRet(c, (taken ? 0xE58u : 0xE48u));
+    return (taken ? 0xE58u : 0xE48u);
+}
+
+static uint32_t vu0prog_0_0E48(VU1NativeCtx &c)
+{
+    using namespace vu1n;
+    VU1State &s = *c.st;
+    float (*vf)[4] = s.vf;
+    int32_t *vi = s.vi;
+    uint8_t *m = c.mem;
+    (void)m;
+    (void)vf;
+    (void)vi;
+    // 0E48: 400002FF 10010002
+    {
+        const int32_t nvi = static_cast<int16_t>(vi[0] + (2));
+        c.bkValid = true; c.bkReg = 1; c.bkVal = vi[1];
+        vi[1] = nvi; c.viReady[1] = c.cyc + 1;
+        ++c.cyc;
+    }
+    // 0E50: 000002FF 8000033C
+    {
+        c.bkValid = false;
+        ++c.cyc;
+    }
+    s.pc = 0xE58;
+    finish(c);
+    return kEnded;
+}
+
+static uint32_t vu0prog_0_0E58(VU1NativeCtx &c)
+{
+    using namespace vu1n;
+    VU1State &s = *c.st;
+    float (*vf)[4] = s.vf;
+    int32_t *vi = s.vi;
+    uint8_t *m = c.mem;
+    (void)m;
+    (void)vf;
+    (void)vi;
+    // 0E58: 000002FF 8000033C
+    {
+        c.bkValid = false;
+        ++c.cyc;
+    }
+    bool taken = false;
+    // 0E60: 000002FF 520D0003
+    {
+        stall(c, c.viReady[13]);
+        taken = static_cast<int16_t>(brVi(c, 0)) != static_cast<int16_t>(brVi(c, 13));
+        c.bkValid = false;
+        ++c.cyc;
+    }
+    // 0E68: 000002FF 8000033C
+    {
+        c.bkValid = false;
+        ++c.cyc;
+    }
+    if (c.cyc >= c.budgetEnd)
+        return handoffRet(c, (taken ? 0xE80u : 0xE70u));
+    return (taken ? 0xE80u : 0xE70u);
+}
+
+static uint32_t vu0prog_0_0E70(VU1NativeCtx &c)
+{
+    using namespace vu1n;
+    VU1State &s = *c.st;
+    float (*vf)[4] = s.vf;
+    int32_t *vi = s.vi;
+    uint8_t *m = c.mem;
+    (void)m;
+    (void)vf;
+    (void)vi;
+    // 0E70: 400002FF 10010000
+    {
+        const int32_t nvi = static_cast<int16_t>(vi[0] + (0));
+        c.bkValid = true; c.bkReg = 1; c.bkVal = vi[1];
+        vi[1] = nvi; c.viReady[1] = c.cyc + 1;
+        ++c.cyc;
+    }
+    // 0E78: 000002FF 8000033C
+    {
+        c.bkValid = false;
+        ++c.cyc;
+    }
+    s.pc = 0xE80;
+    finish(c);
+    return kEnded;
+}
+
+static uint32_t vu0prog_0_0E80(VU1NativeCtx &c)
+{
+    using namespace vu1n;
+    VU1State &s = *c.st;
+    float (*vf)[4] = s.vf;
+    int32_t *vi = s.vi;
+    uint8_t *m = c.mem;
+    (void)m;
+    (void)vf;
+    (void)vi;
+    // 0E80: 000002FF 01EA0044
+    {
+        const uint32_t la = ((static_cast<uint32_t>(static_cast<int32_t>(vi[0] + (68))) * 16u) & 0xFF0u);
+        const float l0 = ldf(m, la + 0);
+        const float l1 = ldf(m, la + 4);
+        const float l2 = ldf(m, la + 8);
+        const float l3 = ldf(m, la + 12);
+        vf[10][0] = l0; c.vfReady[10][0] = c.cyc + 4;
+        vf[10][1] = l1; c.vfReady[10][1] = c.cyc + 4;
+        vf[10][2] = l2; c.vfReady[10][2] = c.cyc + 4;
+        vf[10][3] = l3; c.vfReady[10][3] = c.cyc + 4;
+        c.bkValid = false;
+        ++c.cyc;
+    }
+    // 0E88: 000002FF 01EB0045
+    {
+        const uint32_t la = ((static_cast<uint32_t>(static_cast<int32_t>(vi[0] + (69))) * 16u) & 0xFF0u);
+        const float l0 = ldf(m, la + 0);
+        const float l1 = ldf(m, la + 4);
+        const float l2 = ldf(m, la + 8);
+        const float l3 = ldf(m, la + 12);
+        vf[11][0] = l0; c.vfReady[11][0] = c.cyc + 4;
+        vf[11][1] = l1; c.vfReady[11][1] = c.cyc + 4;
+        vf[11][2] = l2; c.vfReady[11][2] = c.cyc + 4;
+        vf[11][3] = l3; c.vfReady[11][3] = c.cyc + 4;
+        c.bkValid = false;
+        ++c.cyc;
+    }
+    // 0E90: 000002FF 01EC0046
+    {
+        const uint32_t la = ((static_cast<uint32_t>(static_cast<int32_t>(vi[0] + (70))) * 16u) & 0xFF0u);
+        const float l0 = ldf(m, la + 0);
+        const float l1 = ldf(m, la + 4);
+        const float l2 = ldf(m, la + 8);
+        const float l3 = ldf(m, la + 12);
+        vf[12][0] = l0; c.vfReady[12][0] = c.cyc + 4;
+        vf[12][1] = l1; c.vfReady[12][1] = c.cyc + 4;
+        vf[12][2] = l2; c.vfReady[12][2] = c.cyc + 4;
+        vf[12][3] = l3; c.vfReady[12][3] = c.cyc + 4;
+        c.bkValid = false;
+        ++c.cyc;
+    }
+    // 0E98: 000002FF 01ED0047
+    {
+        const uint32_t la = ((static_cast<uint32_t>(static_cast<int32_t>(vi[0] + (71))) * 16u) & 0xFF0u);
+        const float l0 = ldf(m, la + 0);
+        const float l1 = ldf(m, la + 4);
+        const float l2 = ldf(m, la + 8);
+        const float l3 = ldf(m, la + 12);
+        vf[13][0] = l0; c.vfReady[13][0] = c.cyc + 4;
+        vf[13][1] = l1; c.vfReady[13][1] = c.cyc + 4;
+        vf[13][2] = l2; c.vfReady[13][2] = c.cyc + 4;
+        vf[13][3] = l3; c.vfReady[13][3] = c.cyc + 4;
+        c.bkValid = false;
+        ++c.cyc;
+    }
+    // 0EA0: 000002FF 81EFA33C
+    {
+        stall(c, c.vfReady[20][0]);
+        stall(c, c.vfReady[20][1]);
+        stall(c, c.vfReady[20][2]);
+        stall(c, c.vfReady[20][3]);
+        const float l0 = vf[20][0];
+        const float l1 = vf[20][1];
+        const float l2 = vf[20][2];
+        const float l3 = vf[20][3];
+        vf[15][0] = l0; c.vfReady[15][0] = c.cyc + 4;
+        vf[15][1] = l1; c.vfReady[15][1] = c.cyc + 4;
+        vf[15][2] = l2; c.vfReady[15][2] = c.cyc + 4;
+        vf[15][3] = l3; c.vfReady[15][3] = c.cyc + 4;
+        c.bkValid = false;
+        ++c.cyc;
+    }
+    // 0EA8: 000002FF 81F0AB3C
+    {
+        stall(c, c.vfReady[21][0]);
+        stall(c, c.vfReady[21][1]);
+        stall(c, c.vfReady[21][2]);
+        stall(c, c.vfReady[21][3]);
+        const float l0 = vf[21][0];
+        const float l1 = vf[21][1];
+        const float l2 = vf[21][2];
+        const float l3 = vf[21][3];
+        vf[16][0] = l0; c.vfReady[16][0] = c.cyc + 4;
+        vf[16][1] = l1; c.vfReady[16][1] = c.cyc + 4;
+        vf[16][2] = l2; c.vfReady[16][2] = c.cyc + 4;
+        vf[16][3] = l3; c.vfReady[16][3] = c.cyc + 4;
+        c.bkValid = false;
+        ++c.cyc;
+    }
+    // 0EB0: 000002FF 420F0782
+    {
+        const int32_t nvi = 472;
+        c.bkValid = false;
+        vi[15] = nvi; c.viReady[15] = c.cyc + 1;
+        ++c.cyc;
+    }
+    // 0EB8: 000002FF 8000033C
+    {
+        c.bkValid = false;
+        ++c.cyc;
+    }
+    if (c.cyc >= c.budgetEnd)
+        return handoffRet(c, 0xAC8u);
+    return 0xAC8u;
+}
+
+static uint32_t vu0prog_0_0EC0(VU1NativeCtx &c)
+{
+    using namespace vu1n;
+    VU1State &s = *c.st;
+    float (*vf)[4] = s.vf;
+    int32_t *vi = s.vi;
+    uint8_t *m = c.mem;
+    (void)m;
+    (void)vf;
+    (void)vi;
+    bool taken = false;
+    // 0EC0: 000002FF 52010003
+    {
+        stall(c, c.viReady[1]);
+        taken = static_cast<int16_t>(brVi(c, 0)) != static_cast<int16_t>(brVi(c, 1));
+        c.bkValid = false;
+        ++c.cyc;
+    }
+    // 0EC8: 000002FF 8000033C
+    {
+        c.bkValid = false;
+        ++c.cyc;
+    }
+    if (c.cyc >= c.budgetEnd)
+        return handoffRet(c, (taken ? 0xEE0u : 0xED0u));
+    return (taken ? 0xEE0u : 0xED0u);
+}
+
+static uint32_t vu0prog_0_0ED0(VU1NativeCtx &c)
+{
+    using namespace vu1n;
+    VU1State &s = *c.st;
+    float (*vf)[4] = s.vf;
+    int32_t *vi = s.vi;
+    uint8_t *m = c.mem;
+    (void)m;
+    (void)vf;
+    (void)vi;
+    // 0ED0: 400002FF 10010003
+    {
+        const int32_t nvi = static_cast<int16_t>(vi[0] + (3));
+        c.bkValid = true; c.bkReg = 1; c.bkVal = vi[1];
+        vi[1] = nvi; c.viReady[1] = c.cyc + 1;
+        ++c.cyc;
+    }
+    // 0ED8: 000002FF 8000033C
+    {
+        c.bkValid = false;
+        ++c.cyc;
+    }
+    s.pc = 0xEE0;
+    finish(c);
+    return kEnded;
+}
+
+static uint32_t vu0prog_0_0EE0(VU1NativeCtx &c)
+{
+    using namespace vu1n;
+    VU1State &s = *c.st;
+    float (*vf)[4] = s.vf;
+    int32_t *vi = s.vi;
+    uint8_t *m = c.mem;
+    (void)m;
+    (void)vf;
+    (void)vi;
+    // 0EE0: 400002FF 10010004
+    {
+        const int32_t nvi = static_cast<int16_t>(vi[0] + (4));
+        c.bkValid = true; c.bkReg = 1; c.bkVal = vi[1];
+        vi[1] = nvi; c.viReady[1] = c.cyc + 1;
+        ++c.cyc;
+    }
+    // 0EE8: 000002FF 8000033C
+    {
+        c.bkValid = false;
+        ++c.cyc;
+    }
+    s.pc = 0xEF0;
+    finish(c);
+    return kEnded;
+}
+
+static uint32_t vu0prog_0_0EF0(VU1NativeCtx &c)
+{
+    using namespace vu1n;
+    VU1State &s = *c.st;
+    float (*vf)[4] = s.vf;
+    int32_t *vi = s.vi;
+    uint8_t *m = c.mem;
+    (void)m;
+    (void)vf;
+    (void)vi;
+    bool taken = false;
+    // 0EF0: 000002FF 500E0007
+    {
+        stall(c, c.viReady[14]);
+        taken = static_cast<int16_t>(brVi(c, 0)) == static_cast<int16_t>(brVi(c, 14));
+        c.bkValid = false;
+        ++c.cyc;
+    }
+    // 0EF8: 000002FF 81E6B33C
+    {
+        stall(c, c.vfReady[22][0]);
+        stall(c, c.vfReady[22][1]);
+        stall(c, c.vfReady[22][2]);
+        stall(c, c.vfReady[22][3]);
+        const float l0 = vf[22][0];
+        const float l1 = vf[22][1];
+        const float l2 = vf[22][2];
+        const float l3 = vf[22][3];
+        vf[6][0] = l0; c.vfReady[6][0] = c.cyc + 4;
+        vf[6][1] = l1; c.vfReady[6][1] = c.cyc + 4;
+        vf[6][2] = l2; c.vfReady[6][2] = c.cyc + 4;
+        vf[6][3] = l3; c.vfReady[6][3] = c.cyc + 4;
+        c.bkValid = false;
+        ++c.cyc;
+    }
+    if (c.cyc >= c.budgetEnd)
+        return handoffRet(c, (taken ? 0xF30u : 0xF00u));
+    return (taken ? 0xF30u : 0xF00u);
+}
+
+static uint32_t vu0prog_0_0F00(VU1NativeCtx &c)
+{
+    using namespace vu1n;
+    VU1State &s = *c.st;
+    float (*vf)[4] = s.vf;
+    int32_t *vi = s.vi;
+    uint8_t *m = c.mem;
+    (void)m;
+    (void)vf;
+    (void)vi;
+    // 0F00: 000002FF 420F07A2
+    {
+        const int32_t nvi = 482;
+        c.bkValid = false;
+        vi[15] = nvi; c.viReady[15] = c.cyc + 1;
+        ++c.cyc;
+    }
+    // 0F08: 000002FF 100A0050
+    {
+        const int32_t nvi = static_cast<int16_t>(vi[0] + (80));
+        c.bkValid = true; c.bkReg = 10; c.bkVal = vi[10];
+        vi[10] = nvi; c.viReady[10] = c.cyc + 1;
+        ++c.cyc;
+    }
+    if (c.cyc >= c.budgetEnd)
+        return handoffRet(c, 0xC18u);
+    return 0xC18u;
+}
+
+static uint32_t vu0prog_0_0F10(VU1NativeCtx &c)
+{
+    using namespace vu1n;
+    VU1State &s = *c.st;
+    float (*vf)[4] = s.vf;
+    int32_t *vi = s.vi;
+    uint8_t *m = c.mem;
+    (void)m;
+    (void)vf;
+    (void)vi;
+    bool taken = false;
+    // 0F10: 000002FF 50010003
+    {
+        stall(c, c.viReady[1]);
+        taken = static_cast<int16_t>(brVi(c, 0)) == static_cast<int16_t>(brVi(c, 1));
+        c.bkValid = false;
+        ++c.cyc;
+    }
+    // 0F18: 000002FF 8000033C
+    {
+        c.bkValid = false;
+        ++c.cyc;
+    }
+    if (c.cyc >= c.budgetEnd)
+        return handoffRet(c, (taken ? 0xF30u : 0xF20u));
+    return (taken ? 0xF30u : 0xF20u);
+}
+
+static uint32_t vu0prog_0_0F20(VU1NativeCtx &c)
+{
+    using namespace vu1n;
+    VU1State &s = *c.st;
+    float (*vf)[4] = s.vf;
+    int32_t *vi = s.vi;
+    uint8_t *m = c.mem;
+    (void)m;
+    (void)vf;
+    (void)vi;
+    // 0F20: 400002FF 10010002
+    {
+        const int32_t nvi = static_cast<int16_t>(vi[0] + (2));
+        c.bkValid = true; c.bkReg = 1; c.bkVal = vi[1];
+        vi[1] = nvi; c.viReady[1] = c.cyc + 1;
+        ++c.cyc;
+    }
+    // 0F28: 000002FF 8000033C
+    {
+        c.bkValid = false;
+        ++c.cyc;
+    }
+    s.pc = 0xF30;
+    finish(c);
+    return kEnded;
+}
+
+static uint32_t vu0prog_0_0F30(VU1NativeCtx &c)
+{
+    using namespace vu1n;
+    VU1State &s = *c.st;
+    float (*vf)[4] = s.vf;
+    int32_t *vi = s.vi;
+    uint8_t *m = c.mem;
+    (void)m;
+    (void)vf;
+    (void)vi;
+    // 0F30: 400002FF 10010000
+    {
+        const int32_t nvi = static_cast<int16_t>(vi[0] + (0));
+        c.bkValid = true; c.bkReg = 1; c.bkVal = vi[1];
+        vi[1] = nvi; c.viReady[1] = c.cyc + 1;
+        ++c.cyc;
+    }
+    // 0F38: 000002FF 8000033C
+    {
+        c.bkValid = false;
+        ++c.cyc;
+    }
+    s.pc = 0xF40;
+    finish(c);
+    return kEnded;
+}
+
+static VU1NativeExit vu0prog_0(VU1NativeCtx &c, uint32_t pc)
+{
+    for (;;)
+    {
+        uint32_t next;
+        switch (pc)
+        {
+        case 0x0: next = vu0prog_0_0000(c); break;
+        case 0x28: next = vu0prog_0_0028(c); break;
+        case 0x260: next = vu0prog_0_0260(c); break;
+        case 0x570: next = vu0prog_0_0570(c); break;
+        case 0x6E0: next = vu0prog_0_06E0(c); break;
+        case 0x7A8: next = vu0prog_0_07A8(c); break;
+        case 0x7E0: next = vu0prog_0_07E0(c); break;
+        case 0x7F0: next = vu0prog_0_07F0(c); break;
+        case 0x800: next = vu0prog_0_0800(c); break;
+        case 0x810: next = vu0prog_0_0810(c); break;
+        case 0x818: next = vu0prog_0_0818(c); break;
+        case 0x828: next = vu0prog_0_0828(c); break;
+        case 0x8A8: next = vu0prog_0_08A8(c); break;
+        case 0x8C8: next = vu0prog_0_08C8(c); break;
+        case 0x8E8: next = vu0prog_0_08E8(c); break;
+        case 0x908: next = vu0prog_0_0908(c); break;
+        case 0x928: next = vu0prog_0_0928(c); break;
+        case 0x938: next = vu0prog_0_0938(c); break;
+        case 0x948: next = vu0prog_0_0948(c); break;
+        case 0x9B8: next = vu0prog_0_09B8(c); break;
+        case 0x9E8: next = vu0prog_0_09E8(c); break;
+        case 0xA18: next = vu0prog_0_0A18(c); break;
+        case 0xA48: next = vu0prog_0_0A48(c); break;
+        case 0xA78: next = vu0prog_0_0A78(c); break;
+        case 0xA98: next = vu0prog_0_0A98(c); break;
+        case 0xAA8: next = vu0prog_0_0AA8(c); break;
+        case 0xAB8: next = vu0prog_0_0AB8(c); break;
+        case 0xAC8: next = vu0prog_0_0AC8(c); break;
+        case 0xC18: next = vu0prog_0_0C18(c); break;
+        case 0xC28: next = vu0prog_0_0C28(c); break;
+        case 0xC48: next = vu0prog_0_0C48(c); break;
+        case 0xCF0: next = vu0prog_0_0CF0(c); break;
+        case 0xD10: next = vu0prog_0_0D10(c); break;
+        case 0xD30: next = vu0prog_0_0D30(c); break;
+        case 0xD50: next = vu0prog_0_0D50(c); break;
+        case 0xD70: next = vu0prog_0_0D70(c); break;
+        case 0xD88: next = vu0prog_0_0D88(c); break;
+        case 0xDA0: next = vu0prog_0_0DA0(c); break;
+        case 0xDB8: next = vu0prog_0_0DB8(c); break;
+        case 0xDF8: next = vu0prog_0_0DF8(c); break;
+        case 0xE08: next = vu0prog_0_0E08(c); break;
+        case 0xE18: next = vu0prog_0_0E18(c); break;
+        case 0xE28: next = vu0prog_0_0E28(c); break;
+        case 0xE38: next = vu0prog_0_0E38(c); break;
+        case 0xE48: next = vu0prog_0_0E48(c); break;
+        case 0xE58: next = vu0prog_0_0E58(c); break;
+        case 0xE70: next = vu0prog_0_0E70(c); break;
+        case 0xE80: next = vu0prog_0_0E80(c); break;
+        case 0xEC0: next = vu0prog_0_0EC0(c); break;
+        case 0xED0: next = vu0prog_0_0ED0(c); break;
+        case 0xEE0: next = vu0prog_0_0EE0(c); break;
+        case 0xEF0: next = vu0prog_0_0EF0(c); break;
+        case 0xF00: next = vu0prog_0_0F00(c); break;
+        case 0xF10: next = vu0prog_0_0F10(c); break;
+        case 0xF20: next = vu0prog_0_0F20(c); break;
+        case 0xF30: next = vu0prog_0_0F30(c); break;
+        default: return vu1n::handoff(c, pc);
+        }
+        if (next == kEnded)
+            return VU1NativeExit::Ended;
+        if (next == kHandoff)
+            return VU1NativeExit::Handoff;
+        pc = next;
+    }
+}
+
+const uint16_t vu0prog_0_spans[] = {0x0, 0x278, 0x570, 0xF40, 0, 0};
+const uint16_t vu0prog_0_entries[] = {0x0, 0x570, 0x6E0, 0x828, 0x948, 0xDB8, 0xEF0, 0xFFFF};
+const VU1NativeImage vu0prog_0_image = {"vu0prog_0", 0x3D5DEC2C970AD9AAull, vu0prog_0_spans, vu0prog_0_entries, vu0prog_0, true};
+const vu1n::Registrar vu0prog_0_reg(&vu0prog_0_image);
+
 }
 
 // Referenced by the runtime so the linker keeps this translation unit.
-int g_vu0NativeGeneratedImages = 0;
+int g_vu0NativeGeneratedImages = 1;
