@@ -602,7 +602,7 @@ void GSCpuBackend::Initialize(uint8_t *vram, uint32_t vramSize)
     if (vram && vramSize < GSMem::MEMORY_SIZE)
         throw std::invalid_argument("GS CPU backend requires at least 4 MiB of VRAM");
 
-    std::lock_guard<std::mutex> lock(m_mutex);
+    std::lock_guard<GsLock> lock(m_mutex);
     SyncUnlocked(0);
     m_vram = vram;
     m_vramSize = vramSize;
@@ -611,7 +611,7 @@ void GSCpuBackend::Initialize(uint8_t *vram, uint32_t vramSize)
 
 void GSCpuBackend::Reset()
 {
-    std::lock_guard<std::mutex> lock(m_mutex);
+    std::lock_guard<GsLock> lock(m_mutex);
     SyncUnlocked(0);
     ResetUnlocked();
 }
@@ -632,7 +632,7 @@ void GSCpuBackend::ResetUnlocked()
 
 void GSCpuBackend::Submit(const GSPrimitiveBatch &batch)
 {
-    std::lock_guard<std::mutex> lock(m_mutex);
+    std::lock_guard<GsLock> lock(m_mutex);
     if (!m_vram || batch.vertexCount == 0u)
         return;
     if (m_threadMode < 0)
@@ -651,11 +651,9 @@ void GSCpuBackend::Submit(const GSPrimitiveBatch &batch)
     }
     g_perfGsDraws.fetch_add(1u, std::memory_order_relaxed);
     NoteDrawHazardsUnlocked(batch);
-    Command command;
-    command.global = false;
-    command.batch = batch;
     const uint8_t tpsm = batch.state.context.tex0.psm;
-    if (batch.state.prim.tme && (isFourBitIndexedPsm(tpsm) || isEightBitIndexedPsm(tpsm)))
+    const bool indexed = batch.state.prim.tme && (isFourBitIndexedPsm(tpsm) || isEightBitIndexedPsm(tpsm));
+    if (indexed)
     {
         // Decode the CLUT on this thread (m_clut is only changed here) and hand the draw an
         // immutable copy, so CLUT loads never have to wait for queued draws.
@@ -671,18 +669,29 @@ void GSCpuBackend::Submit(const GSPrimitiveBatch &batch)
             m_sharedPaletteVersion = m_clutVersion;
             m_sharedPaletteKey = key;
         }
-        command.palette = m_sharedPalette;
     }
-    if (m_hasPending && m_pendingPrims < kMaxBatchPrims && m_pending.palette == command.palette &&
+    const std::array<uint32_t, 256> *palette = indexed ? m_sharedPalette.get() : nullptr;
+    if (m_hasPending && m_pendingPrims < kMaxBatchPrims && m_pending.palette.get() == palette &&
         m_pending.batch.vertexCount == batch.vertexCount &&
         std::memcmp(&m_pending.batch.state, &batch.state, sizeof(GSDrawState)) == 0)
     {
-        m_pending.more.insert(m_pending.more.end(), batch.vertices.begin(), batch.vertices.end());
+        m_pending.more.resize(m_pending.more.size() + 3u);
+        GSVertex *dst = m_pending.more.data() + m_pending.more.size() - 3u;
+        dst[0] = batch.vertices[0];
+        dst[1] = batch.vertices[1];
+        dst[2] = batch.vertices[2];
         ++m_pendingPrims;
         return;
     }
     FlushPendingUnlocked();
-    m_pending = std::move(command);
+    m_pending.global = false;
+    m_pending.batch = batch;
+    if (indexed)
+        m_pending.palette = m_sharedPalette;
+    else
+        m_pending.palette.reset();
+    m_pending.fn = nullptr;
+    m_pending.more.clear();
     m_pending.more.reserve(kMaxBatchPrims * 3u);
     m_hasPending = true;
     m_pendingPrims = 1;
@@ -690,7 +699,7 @@ void GSCpuBackend::Submit(const GSPrimitiveBatch &batch)
 
 void GSCpuBackend::LoadClut(const GSTex0Reg &tex0, const GSTexClutReg &texclut)
 {
-    std::lock_guard<std::mutex> lock(m_mutex);
+    std::lock_guard<GsLock> lock(m_mutex);
     if (!m_vram || (!isFourBitIndexedPsm(tex0.psm) && !isEightBitIndexedPsm(tex0.psm)))
         return;
 
@@ -817,7 +826,7 @@ void GSCpuBackend::LoadClutUnlocked(const GSTex0Reg &tex0, const GSTexClutReg &t
 void GSCpuBackend::Flush()
 {
     // Publish the draw batch being collected; queued work is picked up by the raster workers.
-    std::lock_guard<std::mutex> lock(m_mutex);
+    std::lock_guard<GsLock> lock(m_mutex);
     FlushPendingUnlocked();
 }
 
@@ -828,7 +837,7 @@ void GSCpuBackend::TextureFlush()
 
 void GSCpuBackend::Sync(GSSyncReason reason)
 {
-    std::lock_guard<std::mutex> lock(m_mutex);
+    std::lock_guard<GsLock> lock(m_mutex);
     if (reason == GSSyncReason::Presentation && threaded() && s_asyncPresent)
         return; // Present() takes an ordered snapshot instead
     SyncUnlocked(2);
@@ -836,7 +845,7 @@ void GSCpuBackend::Sync(GSSyncReason reason)
 
 uint32_t GSCpuBackend::ReadVram(uint32_t psm, uint32_t base, uint32_t bw, uint32_t x, uint32_t y) const
 {
-    std::lock_guard<std::mutex> lock(m_mutex);
+    std::lock_guard<GsLock> lock(m_mutex);
     SyncUnlocked(3);
     return ReadVramUnlocked(psm, base, bw, x, y);
 }
@@ -858,7 +867,7 @@ uint32_t GSCpuBackend::ReadTextureVramUnlocked(uint32_t psm, uint32_t base, uint
 
 void GSCpuBackend::WriteVram(uint32_t psm, uint32_t base, uint32_t bw, uint32_t x, uint32_t y, uint32_t value)
 {
-    std::lock_guard<std::mutex> lock(m_mutex);
+    std::lock_guard<GsLock> lock(m_mutex);
     if (threaded())
         EnqueueGlobalUnlocked([this, psm, base, bw, x, y, value]()
                               { WriteVramUnlocked(psm, base, bw, x, y, value); });
@@ -875,7 +884,7 @@ void GSCpuBackend::WriteVramUnlocked(uint32_t psm, uint32_t base, uint32_t bw, u
 
 void GSCpuBackend::SnapshotVram(std::vector<uint8_t> &out) const
 {
-    std::lock_guard<std::mutex> lock(m_mutex);
+    std::lock_guard<GsLock> lock(m_mutex);
     SyncUnlocked(4);
     if (!m_vram || m_vramSize == 0u)
     {
@@ -888,7 +897,7 @@ void GSCpuBackend::SnapshotVram(std::vector<uint8_t> &out) const
 
 GSTransferSnapshot GSCpuBackend::GetTransferSnapshot() const
 {
-    std::lock_guard<std::mutex> lock(m_mutex);
+    std::lock_guard<GsLock> lock(m_mutex);
     SyncUnlocked(5);
     GSTransferSnapshot result = m_transferState;
     result.localToHostPendingBytes = m_localToHostReadPos < m_localToHostBuffer.size()
@@ -1132,7 +1141,9 @@ void GSCpuBackend::FlushPendingUnlocked() const
     m_hasPending = false;
     m_pendingPrims = 0;
     const_cast<GSCpuBackend *>(this)->EnqueueRawUnlocked(std::move(m_pending));
-    m_pending = Command{};
+    m_pending.palette.reset();
+    m_pending.fn = nullptr;
+    m_pending.more = std::vector<GSVertex>();
 }
 
 void GSCpuBackend::EnqueueUnlocked(Command &&command)
@@ -3069,7 +3080,7 @@ std::atomic<uint32_t> g_ssx3TransferLogged{0}; // reset by F10 (ps2_runtime.cpp)
 
 void GSCpuBackend::BeginTransfer(const GSTransferCommand &command)
 {
-    std::lock_guard<std::mutex> lock(m_mutex);
+    std::lock_guard<GsLock> lock(m_mutex);
     // Threaded mode: m_transfer/m_transferState belong to this thread. Queued upload chunks carry
     // their own copy of the transfer and start position, so transfers never wait on each other.
     if (threaded() && command.direction == 2u && m_vram)
@@ -3142,7 +3153,7 @@ void GSCpuBackend::BeginTransferUnlocked(const GSTransferCommand &command)
 
 void GSCpuBackend::UploadImage(const uint8_t *data, uint32_t sizeBytes)
 {
-    std::lock_guard<std::mutex> lock(m_mutex);
+    std::lock_guard<GsLock> lock(m_mutex);
     if (!data || sizeBytes == 0u || !m_vram)
         return;
     if (threaded())
@@ -3265,6 +3276,44 @@ void GSCpuBackend::UploadImageImpl(const GSTransferCommand &xfer, GSTransferSnap
     case GS_PSM_Z16S: runs(GsSurf<GSMem::Z16S>{}, 2u, ld16); return;
     case GS_PSM_T8: runs(GsSurf<GSMem::P8>{}, 1u, ld8); return;
     case GS_PSM_T8H: runs(GsSurf<GSMem::P8H>{}, 1u, ld8); return;
+    default: break;
+    }
+    // 4-bit formats: two pixels per byte, low nibble first (same order as the loop below).
+    auto nibbles = [&](auto surfTag)
+    {
+        using Surf = decltype(surfTag);
+        Surf surf;
+        surf.init(dbp, dbw);
+        uint32_t col = st.copiedPixels % rrw, row = st.copiedPixels / rrw;
+        while (offset < sizeBytes && st.direction == 0u)
+        {
+            const uint8_t packed = data[offset++];
+            const uint32_t remaining = st.totalPixels - st.copiedPixels;
+            if (write)
+                surf.write(m_vram, dsax + col, xfer.trxpos.dsay + row, packed & 0x0Fu);
+            if (++col == rrw)
+            {
+                col = 0u;
+                ++row;
+            }
+            if (remaining > 1u)
+            {
+                if (write)
+                    surf.write(m_vram, dsax + col, xfer.trxpos.dsay + row, (packed >> 4u) & 0x0Fu);
+                if (++col == rrw)
+                {
+                    col = 0u;
+                    ++row;
+                }
+            }
+            advancePixel(std::min<uint32_t>(2u, remaining));
+        }
+    };
+    switch (dpsm)
+    {
+    case GS_PSM_T4: nibbles(GsSurf<GSMem::P4>{}); return;
+    case GS_PSM_T4HL: nibbles(GsSurf<GSMem::P4HL>{}); return;
+    case GS_PSM_T4HH: nibbles(GsSurf<GSMem::P4HH>{}); return;
     default: break;
     }
 
@@ -3475,7 +3524,7 @@ void GSCpuBackend::PerformLocalToHostTransfer()
 
 uint32_t GSCpuBackend::ConsumeLocalToHostBytes(uint8_t *dst, uint32_t maxBytes)
 {
-    std::lock_guard<std::mutex> lock(m_mutex);
+    std::lock_guard<GsLock> lock(m_mutex);
     SyncUnlocked(8);
     if (!dst || maxBytes == 0u || m_localToHostReadPos >= m_localToHostBuffer.size())
         return 0u;
@@ -3488,7 +3537,7 @@ uint32_t GSCpuBackend::ConsumeLocalToHostBytes(uint8_t *dst, uint32_t maxBytes)
 
 bool GSCpuBackend::ClearFramebuffer(const GSContext &context, uint32_t rgba)
 {
-    std::lock_guard<std::mutex> lock(m_mutex);
+    std::lock_guard<GsLock> lock(m_mutex);
     if (!m_vram || context.frame.fbw == 0u)
         return false;
     const uint8_t cpsm = context.frame.psm;
@@ -3643,7 +3692,7 @@ PresentationFrame GSCpuBackend::Present(const GSPresentationRequest &request)
         // show the most recent completed one: at most one host frame behind, never a wait.
         if (!m_presentPending.exchange(true))
         {
-            std::lock_guard<std::mutex> lock(m_mutex);
+            std::lock_guard<GsLock> lock(m_mutex);
             EnqueueGlobalUnlocked([this, request]()
                                   {
                                       m_presentStage.resize(m_vramSize);

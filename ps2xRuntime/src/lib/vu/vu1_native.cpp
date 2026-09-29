@@ -27,7 +27,8 @@ struct VU1NativeAccess
     static uint8_t *xgkickBuffer(VU1Interpreter &vu) { return vu.m_xgkick.packet.data(); }
     static uint32_t xgkickBufferSize() { return VU1Interpreter::XgkickPipeline::kBufferSize; }
     static uint64_t &cycle(VU1Interpreter &vu) { return vu.m_cycle; }
-    static uint32_t workingClip(VU1Interpreter &vu) { return vu.m_workingClip; }
+    // what resetScheduler() would have set (execute() no longer resets before a native run)
+    static uint32_t workingClip(VU1Interpreter &vu) { return vu.m_state.clip; }
 
     static void submit(VU1NativeCtx &c)
     {
@@ -48,6 +49,7 @@ struct VU1NativeAccess
     {
         VU1Interpreter &vu = *c.vu;
         vu1n::xgProgressTo(c, c.cyc);
+        vu.resetScheduler(); // execute() skipped it for the native attempt
         vu.m_cycle = c.cyc;
         vu.m_state.cycles = c.cyc;
         vu.m_state.pc = pc;

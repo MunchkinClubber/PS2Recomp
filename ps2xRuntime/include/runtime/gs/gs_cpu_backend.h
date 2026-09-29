@@ -15,6 +15,28 @@
 struct GSPixelPipe;
 struct GSTexSampler;
 
+// Light lock for the backend's producer-side state: taken once per primitive on the EE thread and
+// only occasionally by the host presentation thread, so a spin/yield lock beats std::mutex.
+class GsLock
+{
+public:
+    void lock() noexcept
+    {
+        for (uint32_t spins = 0; m_flag.exchange(true, std::memory_order_acquire);)
+            while (m_flag.load(std::memory_order_relaxed))
+            {
+                if (++spins < 64u)
+                    continue;
+                std::this_thread::yield();
+            }
+    }
+    bool try_lock() noexcept { return !m_flag.exchange(true, std::memory_order_acquire); }
+    void unlock() noexcept { m_flag.store(false, std::memory_order_release); }
+
+private:
+    std::atomic<bool> m_flag{false};
+};
+
 class GSCpuBackend final : public GSRasterBackend
 {
 public:
@@ -175,7 +197,7 @@ private:
     using ReadVramFunc = uint32_t (*)(uint8_t *, uint32_t, uint32_t, uint32_t, uint32_t);
 
     static constexpr size_t kPsmHandlerCount = 1u << 6u;
-    mutable std::mutex m_mutex;
+    mutable GsLock m_mutex; // producer-side state; nearly uncontended (EE thread, host present)
     uint8_t *m_vram = nullptr;
     uint32_t m_vramSize = 0;
     std::array<ReadVramFunc, kPsmHandlerCount> m_readVramFuncs{};

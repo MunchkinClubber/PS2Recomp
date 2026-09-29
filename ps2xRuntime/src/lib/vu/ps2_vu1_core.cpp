@@ -1677,7 +1677,8 @@ void VU1Interpreter::execute(uint8_t *vuCode, uint32_t codeSize,
                              uint32_t startPC, uint32_t top, uint32_t itop,
                              uint32_t maxCycles)
 {
-    resetScheduler();
+    // resetScheduler() runs only on the interpreter paths (a native run needs none of that
+    // state; a native handoff resets it before loading its own pipeline state).
     m_state.pc = startPC & microAddressMask();
     m_state.ebit = false;
     m_state.haltAfterDelaySlot = false;
@@ -1721,6 +1722,7 @@ void VU1Interpreter::execute(uint8_t *vuCode, uint32_t codeSize,
             return;
         }
     }
+    resetScheduler();
     run(vuCode, codeSize, vuData, dataSize, gs, memory, maxCycles);
 }
 
