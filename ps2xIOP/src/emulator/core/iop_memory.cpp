@@ -269,10 +269,23 @@ namespace ps2x::iop::detail
         const uint32_t wordsPerBlock = std::max<uint32_t>(blockControl & 0xFFFFu, 1u);
         const uint32_t blockCount = std::max<uint32_t>(blockControl >> 16u, 1u);
         const uint64_t transferWords = static_cast<uint64_t>(wordsPerBlock) * blockCount;
-        m_dmaStart = DmaStart{
-            secondCore ? kDmaSpu1Irq : kDmaSpu0Irq,
-            std::max<uint64_t>(transferWords * 2u, 64u),
-        };
+        // A core in auto-DMA mode (ADMAS bit 0 for core 0, bit 1 for core 1) takes its input at
+        // the playback rate: 4 bytes (one 16-bit L+R sample pair) per 48 kHz tick, i.e. one
+        // 32-bit word per 768 IOP cycles. Completing it at memory speed instead made the sound
+        // driver refill and re-mix its buffers continuously.
+        const uint32_t admasAddress = 0x1F9001B0u + (secondCore ? 0x400u : 0u);
+        uint32_t admas = 0u;
+        if (const auto current = m_hardware.find(admasAddress); current != m_hardware.end())
+            admas = current->second & 0xFFFFu;
+        const bool autoDma = (admas & (secondCore ? 2u : 1u)) != 0u;
+        DmaStart start;
+        start.irq = secondCore ? kDmaSpu1Irq : kDmaSpu0Irq;
+        start.delayCycles = autoDma ? std::max<uint64_t>(transferWords * 768u, 64u)
+                                    : std::max<uint64_t>(transferWords * 2u, 64u);
+        start.words = transferWords;
+        start.admas = admas;
+        start.autoDma = autoDma;
+        m_dmaStart = start;
     }
 
     std::optional<IopMemory::DmaStart> IopMemory::takeDmaStart() noexcept

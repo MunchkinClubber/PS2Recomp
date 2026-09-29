@@ -182,7 +182,19 @@ namespace ps2x::iop::detail
             if (!memory.hasDmaStart())
                 return;
             if (const auto dma = memory.takeDmaStart())
-                pendingDmaInterrupts[dma->irq] = totalCycles + dma->delayCycles;
+            {
+                if (spuDmaLogged < 12u)
+                {
+                    ++spuDmaLogged;
+                    std::ostringstream out;
+                    out << "[IOP] SPU2 DMA start irq=0x" << std::hex << dma->irq << std::dec << " words=" << dma->words
+                        << " admas=0x" << std::hex << dma->admas << std::dec << (dma->autoDma ? " (auto-DMA, paced)" : "")
+                        << " completes in " << dma->delayCycles << " cycles";
+                    log(LogLevel::Info, out.str());
+                }
+                const bool pace = dma->autoDma && admaPacing;
+                pendingDmaInterrupts[dma->irq] = totalCycles + (pace ? dma->delayCycles : std::max<uint64_t>(dma->words * 2u, 64u));
+            }
         }
 
         bool readRam(uint32_t address, void *destination, size_t size) const
@@ -734,6 +746,9 @@ namespace ps2x::iop::detail
 
         // PS2_IOP_PROFILE=1: sample the IOP PC every 16 instructions and count import calls; a
         // summary goes to the log every ~64M instructions (hot guest code by module + offset).
+        uint32_t spuDmaLogged = 0u;
+        // PS2_IOP_ADMA_PACE=0 restores memory-speed completion for SPU2 auto-DMA.
+        const bool admaPacing = [] { const char *v = std::getenv("PS2_IOP_ADMA_PACE"); return !(v && *v == '0'); }();
         const bool profiling = [] { const char *v = std::getenv("PS2_IOP_PROFILE"); return v && *v && *v != '0'; }();
         std::unordered_map<uint32_t, uint64_t> profPcs;
         std::unordered_map<std::string, uint64_t> profImports;

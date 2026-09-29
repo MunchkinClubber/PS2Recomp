@@ -35,6 +35,9 @@ namespace ps2x::iop::detail
         {
             int irq = 0;
             uint64_t delayCycles = 0;
+            uint64_t words = 0;
+            uint32_t admas = 0;  // the core's SPU2 ADMAS register at the time of the start
+            bool autoDma = false; // SPU2 auto-DMA (sound input): paced by 48 kHz playback
         };
 
         IopMemory();
