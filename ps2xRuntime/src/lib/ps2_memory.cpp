@@ -17,6 +17,9 @@
 #include <cstdlib>
 #include <thread>
 #include "ThreadNaming.h"
+#if defined(_WIN32)
+extern "C" __declspec(dllimport) int __stdcall SetThreadPriority(void *hThread, int nPriority);
+#endif
 #if defined(_MSC_VER)
 #include <intrin.h>
 #else
@@ -67,6 +70,7 @@ struct PS2Memory::GpuJob
     std::function<void()> fn;               // extra work run after the streams
     bool drain = true;
     bool countKick = false;
+    uint64_t enqueueNs = 0; // for the worker's scheduling-latency statistic
 };
 
 void vif1Observe(uint32_t) {} // old overlap measurement hook (ps2_runtime.cpp still calls it)
@@ -77,7 +81,12 @@ namespace
     std::atomic<uint64_t> s_vif1KickNs{0}, s_vif1Kicks{0};
     std::atomic<uint64_t> s_gpuSyncNs[PS2Memory::kGpuSyncReasonCount]{};
     std::atomic<uint64_t> s_gpuSyncCount[PS2Memory::kGpuSyncReasonCount]{};
-    std::atomic<uint64_t> s_gpuBusyNs{0}, s_gpuBackpressureNs{0}, s_gpuJobs{0};
+    std::atomic<uint64_t> s_gpuBusyNs{0}, s_gpuBackpressureNs{0}, s_gpuJobs{0}, s_gpuLatencyNs{0};
+
+    inline uint64_t gpuNowNs()
+    {
+        return static_cast<uint64_t>(std::chrono::duration_cast<std::chrono::nanoseconds>(std::chrono::steady_clock::now().time_since_epoch()).count());
+    }
 
     thread_local bool t_onGpuWorker = false;
 
@@ -108,12 +117,21 @@ namespace
         {
             t_onGpuWorker = true;
             ThreadNaming::SetCurrentThreadName("GPU worker");
+#if defined(_WIN32)
+            // The worker is on the critical path; don't let the spinning raster threads starve it.
+            SetThreadPriority(GetCurrentThread(), 1 /* THREAD_PRIORITY_ABOVE_NORMAL */);
+#endif
+            uint64_t lastEndNs = gpuNowNs();
             for (;;)
             {
                 if (queued.load(std::memory_order_acquire) == 0u)
                 {
+                    // Stay awake briefly: the EE usually queues the next job within a few hundred us.
                     for (int i = 0; i < 4000 && queued.load(std::memory_order_acquire) == 0u; ++i)
                         _mm_pause();
+                    const uint64_t spinUntil = gpuNowNs() + 500000u;
+                    while (queued.load(std::memory_order_acquire) == 0u && gpuNowNs() < spinUntil)
+                        std::this_thread::yield();
                 }
                 PS2Memory::GpuJob job;
                 {
@@ -125,6 +143,12 @@ namespace
                     queued.fetch_sub(1u, std::memory_order_relaxed);
                 }
                 const auto t0 = std::chrono::steady_clock::now();
+                {
+                    const uint64_t startNs = gpuNowNs();
+                    const uint64_t readyNs = std::max(job.enqueueNs, lastEndNs);
+                    if (startNs > readyNs)
+                        s_gpuLatencyNs.fetch_add(startNs - readyNs, std::memory_order_relaxed);
+                }
                 const bool hadVif = !job.vif1.empty();
                 memory->runGpuJob(job);
                 job = PS2Memory::GpuJob{};
@@ -133,6 +157,7 @@ namespace
                 s_gpuJobs.fetch_add(1u, std::memory_order_relaxed);
                 if (hadVif)
                     pendingVif.fetch_sub(1u, std::memory_order_relaxed);
+                lastEndNs = gpuNowNs();
                 done.fetch_add(1u, std::memory_order_release);
             }
         }
@@ -203,6 +228,7 @@ namespace
             }
             w.pendingVif.fetch_add(1u, std::memory_order_relaxed);
         }
+        job.enqueueNs = gpuNowNs();
         {
             std::lock_guard<std::mutex> lock(w.mutex);
             w.queue.push_back(std::move(job));
@@ -234,11 +260,11 @@ void PS2Memory::runGpuJob(GpuJob &job)
 
 void vif1ObsReport(double frames)
 {
-    static uint64_t lastKicks = 0, lastKickNs = 0, lastBusy = 0, lastBp = 0, lastJobs = 0;
+    static uint64_t lastKicks = 0, lastKickNs = 0, lastBusy = 0, lastBp = 0, lastJobs = 0, lastLat = 0;
     static uint64_t lastSyncNs[PS2Memory::kGpuSyncReasonCount]{}, lastSyncCount[PS2Memory::kGpuSyncReasonCount]{};
     static const char *names[PS2Memory::kGpuSyncReasonCount] = {"dma", "privread", "csr", "vifreg", "vu1mem", "gscall", "other"};
     const uint64_t kicks = s_vif1Kicks.load(), kickNs = s_vif1KickNs.load(), busy = s_gpuBusyNs.load(),
-                   bp = s_gpuBackpressureNs.load(), jobs = s_gpuJobs.load();
+                   bp = s_gpuBackpressureNs.load(), jobs = s_gpuJobs.load(), lat = s_gpuLatencyNs.load();
     std::string text;
     double syncMs = 0.0;
     for (uint32_t i = 0; i < PS2Memory::kGpuSyncReasonCount; ++i)
@@ -255,15 +281,16 @@ void vif1ObsReport(double frames)
         lastSyncCount[i] = c;
         lastSyncNs[i] = ns;
     }
-    std::fprintf(stderr, "[ssx3:perf]   VIF1 kicks %.1f/frame, %.2f ms/frame | GPU worker: %s, busy %.1f ms/frame, %.1f jobs/frame; EE waited %.2f ms/frame (syncs:%s), backpressure %.2f ms/frame\n",
+    std::fprintf(stderr, "[ssx3:perf]   VIF1 kicks %.1f/frame, %.2f ms/frame | GPU worker: %s, busy %.1f ms/frame, %.1f jobs/frame, start latency %.2f ms/frame; EE waited %.2f ms/frame (syncs:%s), backpressure %.2f ms/frame\n",
                  (kicks - lastKicks) / frames, (kickNs - lastKickNs) / 1e6 / frames, gpuAsyncEnabled() ? "async" : "off",
-                 (busy - lastBusy) / 1e6 / frames, (jobs - lastJobs) / frames, syncMs, text.empty() ? " none" : text.c_str(),
+                 (busy - lastBusy) / 1e6 / frames, (jobs - lastJobs) / frames, (lat - lastLat) / 1e6 / frames, syncMs, text.empty() ? " none" : text.c_str(),
                  (bp - lastBp) / 1e6 / frames);
     lastKicks = kicks;
     lastKickNs = kickNs;
     lastBusy = busy;
     lastBp = bp;
     lastJobs = jobs;
+    lastLat = lat;
 }
 
 namespace

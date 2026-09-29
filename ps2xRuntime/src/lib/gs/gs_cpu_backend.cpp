@@ -2492,7 +2492,6 @@ namespace
     template <class Tex, bool TME>
     int triRowT(const TriShade &c, const uint8_t *vram, int xs, int xe, SpanPx *out)
     {
-        constexpr float kEdgeEpsilon = 1.0e-4f;
         const GSVertex &v0 = *c.v0;
         const GSVertex &v1 = *c.v1;
         const GSVertex &v2 = *c.v2;
@@ -2510,9 +2509,6 @@ namespace
             float w0 = ((a0 * (px - fx2) + rowB0) * winding) * invAbsDenom;
             float w1 = ((a1 * (px - fx2) + rowB1) * winding) * invAbsDenom;
             float w2 = 1.0f - w0 - w1;
-
-            if (w0 < -kEdgeEpsilon || w1 < -kEdgeEpsilon || w2 < -kEdgeEpsilon)
-                continue;
 
             double z = v0.z * w0 + v1.z * w1 + v2.z * w2;
 
@@ -2866,7 +2862,6 @@ void GSCpuBackend::DrawTriangle(const GSPrimitiveBatch &batch)
 
     const float winding = (denom < 0.0f) ? -1.0f : 1.0f;
     const float invAbsDenom = 1.0f / std::fabs(denom);
-    constexpr float kEdgeEpsilon = 1.0e-4f;
 
     GSPixelPipe pipe;
     SetupPixelPipe(state, pipe);
@@ -2884,15 +2879,33 @@ void GSCpuBackend::DrawTriangle(const GSPrimitiveBatch &batch)
     const float a0 = fy1 - fy2, b0 = fx2 - fx1;
     const float a1 = fy2 - fy0, b1 = fx0 - fx2;
 
-    // Conservative per-row span (in double, widened by a pixel) so that the
-    // exact per-pixel edge test below only runs near the triangle.
-    const double sd = static_cast<double>(winding) * static_cast<double>(invAbsDenom);
-    const double ea0 = a0 * sd, ea1 = a1 * sd;
 
     const SpanWriteFn spanWriter = m_vram ? selectSpanWriter(pipe) : nullptr;
     const TriRowFn triRow = (spanWriter && !textureFeedsBack(state, maxY)) ? selectTriRow(tme, tex.psm) : nullptr;
     TriShade shade{&v0, &v1, &v2, &sampler, &tex, a0, a1, fx2, 0.0f, 0.0f, winding, invAbsDenom, iip, fst};
     SpanPx span[kMaxSpan];
+
+    // Edge functions oriented so the interior is positive; values are exact in double (vertex
+    // coordinates are 1/16 fixed point).
+    struct EdgeX
+    {
+        double x, y, dx, dy;
+        bool topLeft;
+    } ex[3];
+    {
+        const double px[3] = {fx0, fx1, fx2}, pyv[3] = {fy0, fy1, fy2};
+        const double area = (px[1] - px[0]) * (pyv[2] - pyv[0]) - (pyv[1] - pyv[0]) * (px[2] - px[0]);
+        const double sgn = area > 0.0 ? 1.0 : -1.0;
+        for (int e = 0; e < 3; ++e)
+        {
+            const int i = e, j = (e + 1) % 3;
+            ex[e].x = px[i];
+            ex[e].y = pyv[i];
+            ex[e].dx = sgn * (px[j] - px[i]);
+            ex[e].dy = sgn * (pyv[j] - pyv[i]);
+            ex[e].topLeft = (ex[e].dy == 0.0 && ex[e].dx > 0.0) || ex[e].dy < 0.0;
+        }
+    }
 
     for (int y = minY; y <= maxY; ++y)
     {
@@ -2902,37 +2915,65 @@ void GSCpuBackend::DrawTriangle(const GSPrimitiveBatch &batch)
         const float rowB0 = b0 * (py - fy2);
         const float rowB1 = b1 * (py - fy2);
 
-        // w0(px) ~= ea0*(px-fx2) + eb0, w1 similarly, w2 = 1 - w0 - w1.
-        double lo = static_cast<double>(minX), hi = static_cast<double>(maxX);
+        // Exact coverage with a top-left fill rule: pixels whose sample point lies exactly on an
+        // edge shared by two triangles are drawn by only one of them (otherwise blended passes
+        // hit those pixels twice - dotted lines along mesh edges).
+        int xs = minX, xe = maxX;
         {
-            const double eb0 = static_cast<double>(rowB0) * sd;
-            const double eb1 = static_cast<double>(rowB1) * sd;
-            const double k[3][2] = {{ea0, eb0 - ea0 * fx2},
-                                    {ea1, eb1 - ea1 * fx2},
-                                    {-ea0 - ea1, 1.0 - (eb0 - ea0 * fx2) - (eb1 - ea1 * fx2)}};
             bool empty = false;
             for (int e = 0; e < 3 && !empty; ++e)
             {
-                const double slope = k[e][0], icpt = k[e][1];
-                // Need slope*px + icpt >= -eps (px = x + 0.5); widen by 1e-3 in value space.
-                const double limit = -1.0e-3 - icpt;
-                if (std::fabs(slope) < 1.0e-12)
+                const double A = -ex[e].dy;                                   // coefficient of px
+                const double B = ex[e].dx * (static_cast<double>(py) - ex[e].y) + ex[e].dy * ex[e].x;
+                const bool tl = ex[e].topLeft;
+                auto inside = [&](int x)
                 {
-                    if (icpt < -1.0e-2)
+                    const double v = A * (static_cast<double>(x) + 0.5) + B;
+                    return v > 0.0 || (v == 0.0 && tl);
+                };
+                if (A == 0.0)
+                {
+                    if (!(B > 0.0 || (B == 0.0 && tl)))
                         empty = true;
                     continue;
                 }
-                const double bound = limit / slope - 0.5;
-                if (slope > 0.0)
-                    lo = std::max(lo, std::floor(bound) - 1.0);
+                const double root = -B / A - 0.5;
+                if (A > 0.0)
+                {
+                    // inside for x >= first
+                    if (root > static_cast<double>(xe) + 1.0)
+                    {
+                        empty = true;
+                        continue;
+                    }
+                    int x = static_cast<int>(std::floor(std::max(root, static_cast<double>(xs) - 1.0)));
+                    while (x <= xe && !inside(x))
+                        ++x;
+                    while (x > xs && inside(x - 1))
+                        --x;
+                    xs = std::max(xs, x);
+                }
                 else
-                    hi = std::min(hi, std::ceil(bound) + 1.0);
+                {
+                    // inside for x <= last
+                    if (root < static_cast<double>(xs) - 1.0)
+                    {
+                        empty = true;
+                        continue;
+                    }
+                    int x = static_cast<int>(std::ceil(std::min(root, static_cast<double>(xe) + 1.0)));
+                    while (x >= xs && !inside(x))
+                        --x;
+                    while (x < xe && inside(x + 1))
+                        ++x;
+                    xe = std::min(xe, x);
+                }
+                if (xs > xe)
+                    empty = true;
             }
-            if (empty || lo > hi)
+            if (empty || xs > xe)
                 continue;
         }
-        const int xs = static_cast<int>(lo);
-        const int xe = static_cast<int>(hi);
         if (triRow)
         {
             shade.rowB0 = rowB0;
@@ -2948,9 +2989,6 @@ void GSCpuBackend::DrawTriangle(const GSPrimitiveBatch &batch)
             float w0 = ((a0 * (px - fx2) + rowB0) * winding) * invAbsDenom;
             float w1 = ((a1 * (px - fx2) + rowB1) * winding) * invAbsDenom;
             float w2 = 1.0f - w0 - w1;
-
-            if (w0 < -kEdgeEpsilon || w1 < -kEdgeEpsilon || w2 < -kEdgeEpsilon)
-                continue;
 
             double z = v0.z * w0 + v1.z * w1 + v2.z * w2;
 

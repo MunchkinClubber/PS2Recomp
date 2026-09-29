@@ -1775,6 +1775,8 @@ void GS::WriteVram(uint32_t psm, uint32_t base, uint32_t bw, uint32_t x, uint32_
         m_backend->WriteVram(psm, base, bw, x, y, value);
 }
 
+void (*g_gsDrawWatch)(const GSPrimitiveBatch &) = nullptr; // offline debugging hook (replay tool)
+
 GSPrimitiveBatch GS::buildDrawBatch(int vertexCount) const
 {
     GSPrimitiveBatch batch{};
@@ -1799,6 +1801,8 @@ GSPrimitiveBatch GS::buildDrawBatch(int vertexCount) const
     const uint8_t mmag = static_cast<uint8_t>((tex1 >> 5u) & 0x1u);
     const uint8_t mmin = static_cast<uint8_t>((tex1 >> 6u) & 0x7u);
     batch.state.linearFilter = mmag != 0u || mmin == 1u || (mmin & 0x4u) != 0u;
+    if (g_gsDrawWatch)
+        g_gsDrawWatch(batch);
     return batch;
 }
 
