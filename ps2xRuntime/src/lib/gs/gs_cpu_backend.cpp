@@ -49,6 +49,12 @@ namespace
     thread_local uint32_t t_bandCount = 1u;
     thread_local uint32_t t_workerSlot = 0u;
     const bool s_gsHazDebug = std::getenv("GS_HAZ_DEBUG") != nullptr; // log barrier causes
+    // PS2_GS_ASYNC_PRESENT=0: present with a full sync (the host thread waits for queued work).
+    const bool s_asyncPresent = []
+    {
+        const char *v = std::getenv("PS2_GS_ASYNC_PRESENT");
+        return !(v && *v == '0');
+    }();
     thread_local const uint32_t *t_drawPalette = nullptr; // palette captured when the draw was queued
 
     inline bool rowInBand(int y)
@@ -792,9 +798,11 @@ void GSCpuBackend::TextureFlush()
     // Texture reads go straight to VRAM (no texture cache to invalidate).
 }
 
-void GSCpuBackend::Sync(GSSyncReason)
+void GSCpuBackend::Sync(GSSyncReason reason)
 {
     std::lock_guard<std::mutex> lock(m_mutex);
+    if (reason == GSSyncReason::Presentation && threaded() && s_asyncPresent)
+        return; // Present() takes an ordered snapshot instead
     SyncUnlocked(2);
 }
 
@@ -1031,7 +1039,7 @@ void GSCpuBackend::WorkerMain(uint32_t index)
             {
                 std::unique_lock<std::mutex> lock(m_wakeMutex);
                 m_sleepers.fetch_add(1u);
-                m_wakeCv.wait_for(lock, std::chrono::milliseconds(2), [&]()
+                m_wakeCv.wait_for(lock, std::chrono::milliseconds(1), [&]()
                                   { return m_writeIdx.load() > idx || m_stopWorkers.load(); });
                 m_sleepers.fetch_sub(1u);
             }
@@ -1089,13 +1097,20 @@ void GSCpuBackend::EnqueueUnlocked(Command &&command)
         g_perfGsWaitNs.fetch_add(gsNowNs() - t0, std::memory_order_relaxed);
         g_perfGsQueueFullNs.fetch_add(gsNowNs() - t0, std::memory_order_relaxed);
     }
+    const bool global = command.global;
     m_ring[idx % kRingSize] = std::move(command);
     m_writeIdx.store(idx + 1u); // seq_cst: pairs with the m_sleepers check below
-    if (m_sleepers.load() != 0u)
-    {
-        std::lock_guard<std::mutex> lock(m_wakeMutex);
-        m_wakeCv.notify_all();
-    }
+    // Waking sleepers costs a lock and a kernel call: do it for barriers and at most every 16
+    // draws (sleeping workers also re-check every millisecond, and syncs wake them).
+    if (m_sleepers.load() != 0u && (global || idx + 1u - m_lastWakeIdx >= 16u))
+        WakeWorkers();
+}
+
+void GSCpuBackend::WakeWorkers() const
+{
+    m_lastWakeIdx = m_writeIdx.load(std::memory_order_relaxed);
+    std::lock_guard<std::mutex> lock(m_wakeMutex);
+    m_wakeCv.notify_all();
 }
 
 void GSCpuBackend::EnqueueGlobalUnlocked(std::function<void()> fn, uint32_t touchStart, uint32_t touchEnd)
@@ -1182,6 +1197,8 @@ void GSCpuBackend::SyncUnlocked(int reason) const
     const uint64_t target = m_writeIdx.load(std::memory_order_acquire);
     if (MinDone() >= target)
         return;
+    if (m_sleepers.load() != 0u)
+        WakeWorkers();
     g_perfGsSyncs.fetch_add(1u, std::memory_order_relaxed);
     const uint64_t t0 = gsNowNs();
     gsWaitUntil([&]()
@@ -3142,6 +3159,51 @@ void GSCpuBackend::UploadImageImpl(const GSTransferCommand &xfer, GSTransferSnap
         st.y = xfer.trxpos.dsay + (st.copiedPixels / rrw);
     };
 
+    // Fast path: whole row runs written with the destination format fixed at compile time. Same
+    // pixels, coordinates and transfer-state updates as the per-pixel loop below.
+    auto runs = [&](auto surfTag, uint32_t bpp, auto load)
+    {
+        using Surf = decltype(surfTag);
+        Surf surf;
+        surf.init(dbp, dbw);
+        while (st.direction == 0u && sizeBytes - offset >= bpp)
+        {
+            const uint32_t col = st.copiedPixels % rrw;
+            uint32_t run = std::min<uint32_t>(rrw - col, (sizeBytes - offset) / bpp);
+            run = std::min<uint32_t>(run, st.totalPixels - st.copiedPixels);
+            if (run == 0u)
+                break;
+            if (write)
+            {
+                const uint32_t x0 = st.x;
+                const uint32_t y = st.y;
+                const uint8_t *src = data + offset;
+                for (uint32_t i = 0; i < run; ++i)
+                    surf.write(m_vram, x0 + i, y, load(src + i * bpp));
+            }
+            offset += run * bpp;
+            advancePixel(run);
+        }
+    };
+    auto ld32 = [](const uint8_t *q) { uint32_t v; std::memcpy(&v, q, 4); return v; };
+    auto ld24 = [](const uint8_t *q) { return static_cast<uint32_t>(q[0]) | (static_cast<uint32_t>(q[1]) << 8u) | (static_cast<uint32_t>(q[2]) << 16u); };
+    auto ld16 = [](const uint8_t *q) { uint16_t v; std::memcpy(&v, q, 2); return static_cast<uint32_t>(v); };
+    auto ld8 = [](const uint8_t *q) { return static_cast<uint32_t>(q[0]); };
+    switch (dpsm)
+    {
+    case GS_PSM_CT32: runs(GsSurf<GSMem::C32>{}, 4u, ld32); return;
+    case GS_PSM_Z32: runs(GsSurf<GSMem::Z32>{}, 4u, ld32); return;
+    case GS_PSM_CT24: runs(GsSurf<GSMem::C24>{}, 3u, ld24); return;
+    case GS_PSM_Z24: runs(GsSurf<GSMem::Z24>{}, 3u, ld24); return;
+    case GS_PSM_CT16: runs(GsSurf<GSMem::C16>{}, 2u, ld16); return;
+    case GS_PSM_CT16S: runs(GsSurf<GSMem::C16S>{}, 2u, ld16); return;
+    case GS_PSM_Z16: runs(GsSurf<GSMem::Z16>{}, 2u, ld16); return;
+    case GS_PSM_Z16S: runs(GsSurf<GSMem::Z16S>{}, 2u, ld16); return;
+    case GS_PSM_T8: runs(GsSurf<GSMem::P8>{}, 1u, ld8); return;
+    case GS_PSM_T8H: runs(GsSurf<GSMem::P8H>{}, 1u, ld8); return;
+    default: break;
+    }
+
     while (offset < sizeBytes && st.direction == 0u)
     {
         switch (dpsm)
@@ -3511,6 +3573,49 @@ bool GSCpuBackend::CopyFrameToHostRgba(const GSFrameReg &frame,
 
 PresentationFrame GSCpuBackend::Present(const GSPresentationRequest &request)
 {
+    if (threaded() && s_asyncPresent && m_vram && m_vramSize != 0u)
+    {
+        // Queue a snapshot of VRAM at this point of the command stream (one at a time), then
+        // show the most recent completed one: at most one host frame behind, never a wait.
+        if (!m_presentPending.exchange(true))
+        {
+            std::lock_guard<std::mutex> lock(m_mutex);
+            EnqueueGlobalUnlocked([this, request]()
+                                  {
+                                      m_presentStage.resize(m_vramSize);
+                                      std::memcpy(m_presentStage.data(), m_vram, m_vramSize);
+                                      {
+                                          std::lock_guard<std::mutex> presentLock(m_presentMutex);
+                                          m_presentStage.swap(m_presentLatest);
+                                          m_presentLatestRequest = request;
+                                          m_presentLatestNew = true;
+                                          m_presentHaveAny = true;
+                                      }
+                                      m_presentPending.store(false); },
+                                  0u, 0u);
+        }
+        thread_local std::vector<uint8_t> shown;
+        thread_local GSPresentationRequest shownRequest{};
+        thread_local bool haveShown = false;
+        {
+            std::lock_guard<std::mutex> presentLock(m_presentMutex);
+            if (m_presentLatestNew)
+            {
+                shown.swap(m_presentLatest);
+                shownRequest = m_presentLatestRequest;
+                m_presentLatestNew = false;
+                haveShown = true;
+            }
+        }
+        if (haveShown && !shown.empty())
+        {
+            thread_local GSCpuBackend shownBackend;
+            shownBackend.Initialize(shown.data(), static_cast<uint32_t>(shown.size()));
+            return shownBackend.PresentFromLocalMemory(shownRequest);
+        }
+        // Nothing captured yet: fall through to a synchronous snapshot.
+    }
+
     // Snapshot local memory under the backend lock, then perform the expensive
     // display conversion without holding the producer-side raster lock.
     thread_local std::vector<uint8_t> snapshot;

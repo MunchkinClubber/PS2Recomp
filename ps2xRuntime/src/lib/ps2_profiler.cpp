@@ -159,7 +159,7 @@ namespace
                                   { return a.second > b.second; });
                         std::fprintf(f, "thread %lu: %llu samples\n", static_cast<unsigned long>(tid),
                                      static_cast<unsigned long long>(info->samples));
-                        for (size_t i = 0; i < top.size() && i < 40; ++i)
+                        for (size_t i = 0; i < top.size() && i < 80; ++i)
                             std::fprintf(f, "  %6.2f%%  %s\n", 100.0 * static_cast<double>(top[i].second) / static_cast<double>(info->samples),
                                          top[i].first.c_str());
                         std::fprintf(f, "\n");

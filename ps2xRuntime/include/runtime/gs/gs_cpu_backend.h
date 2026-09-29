@@ -85,8 +85,10 @@ private:
     alignas(64) std::atomic<uint64_t> m_writeIdx{0};
     std::atomic<bool> m_stopWorkers{false};
     std::atomic<uint32_t> m_sleepers{0};
-    std::mutex m_wakeMutex;
-    std::condition_variable m_wakeCv;
+    mutable std::mutex m_wakeMutex;
+    mutable std::condition_variable m_wakeCv;
+    mutable uint64_t m_lastWakeIdx = 0; // producer side: m_writeIdx at the last wake-up
+    void WakeWorkers() const;
     std::vector<DirtyRange> m_dirty;  // target ranges written by draws queued since the last barrier
     std::vector<DirtyRange> m_reads;  // texture ranges read by draws queued since the last barrier
     struct Epoch
@@ -95,6 +97,15 @@ private:
         std::vector<DirtyRange> ranges; // writes + reads of its draws, plus the barrier's own writes
     };
     std::vector<Epoch> m_epochs;  // closed epochs that may still be running
+    // Asynchronous presentation (threaded mode): a queued barrier copies VRAM into m_presentStage
+    // at its place in the command stream; Present() converts the latest completed copy, so the
+    // host thread never waits for (or blocks) the producer.
+    std::mutex m_presentMutex;
+    std::vector<uint8_t> m_presentStage, m_presentLatest;
+    GSPresentationRequest m_presentStageRequest{}, m_presentLatestRequest{};
+    bool m_presentLatestNew = false;
+    bool m_presentHaveAny = false;
+    std::atomic<bool> m_presentPending{false};
     std::shared_ptr<const std::array<uint32_t, 256>> m_sharedPalette;
     uint64_t m_sharedPaletteVersion = 0;
     uint64_t m_sharedPaletteKey = ~0ull;
