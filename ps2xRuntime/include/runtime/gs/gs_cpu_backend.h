@@ -65,7 +65,7 @@ private:
         uint32_t start;
         uint32_t end;
     };
-    static constexpr uint32_t kRingSize = 4096u;
+    static constexpr uint32_t kRingSize = 32768u;
     void StartWorkersUnlocked();
     void StopWorkers();
     void WorkerMain(uint32_t index);
@@ -137,6 +137,7 @@ private:
     uint32_t FetchTexel(const GSTexSampler &sampler, int u, int v) const;
 
     void PerformLocalToLocalTransfer();
+    void CopyLocalToLocal(const GSTransferCommand &transfer);
     void PerformLocalToHostTransfer();
     PresentationFrame PresentFromLocalMemory(const GSPresentationRequest &request);
     bool CopyFrameToHostRgba(const GSFrameReg &frame,

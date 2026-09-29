@@ -540,6 +540,9 @@ namespace GSMem
 
 	void InitLookupTables();
 
+	// The page lookup table the Read*/Write* functions use for `psm` (PixelStorageTraits<psm>::PageLookupTableT).
+	const void* PageTableData(u32 psm);
+
     // Shares swizzle, VRAM wrapping, and lane extraction with the direct reads.
     u32 ReadTexture(TexturePageCache* cache, const u8* data, u32 psm, u32 bp, u32 bw, u32 x, u32 y);
 

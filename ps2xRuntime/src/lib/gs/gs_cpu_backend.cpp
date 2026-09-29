@@ -8,6 +8,7 @@
 #include "ps2_log.h"
 #include <atomic>
 #include <algorithm>
+#include <map>
 #include <cmath>
 #include <cstdio>
 #include <cstring>
@@ -1877,8 +1878,15 @@ void GSCpuBackend::SetupPixelPipe(const GSDrawState &state, GSPixelPipe &p) cons
     p.zmask = ctx.zbuf.zmask;
 }
 
+#ifdef GS_RASTER_STATS
+thread_local uint64_t t_statKey = 0;
+std::map<uint64_t, uint64_t> g_statPixels;
+#endif
 GS_FORCEINLINE void GSCpuBackend::WritePixelFast(const GSPixelPipe &p, int x, int y, uint32_t z, uint8_t r, uint8_t g, uint8_t b, uint8_t a, uint8_t fog)
 {
+#ifdef GS_RASTER_STATS
+    ++g_statPixels[t_statKey];
+#endif
     if (x < p.sx0 || x > p.sx1 || y < p.sy0 || y > p.sy1)
         return;
 
@@ -2088,6 +2096,26 @@ namespace
     }
 }
 
+#ifdef GS_RASTER_STATS
+extern thread_local uint64_t t_statKey;
+static uint64_t statKey(int type, const GSDrawState &st, const GSPixelPipe &p)
+{
+    const auto &c = st.context;
+    uint64_t k = 0; int sh = 0;
+    auto put = [&](uint64_t v, int bits) { k |= (v & ((1ull << bits) - 1)) << sh; sh += bits; };
+    put(type, 2); put(st.prim.tme, 1); put(st.prim.fst, 1); put(st.prim.iip, 1); put(st.linearFilter, 1);
+    put(c.tex0.psm, 6); put(p.fpsm, 6); put(p.zpsm, 6); put(p.ztest, 2); put(p.zmask, 1); put(p.abe, 1);
+    put(c.alpha & 0xFF, 8); put(c.test & 1, 1); put((c.test >> 1) & 7, 3); put((c.test >> 12) & 3, 2); put(p.date, 1);
+    put(p.fge, 1); put(p.fbmsk != 0, 1); put(c.tex0.tfx, 2); put(c.tex0.tcc, 1); put(c.clamp & 0xF, 4); put(p.pabe,1); put(p.fbaForce,1);
+    {
+        const GsByteRange t = gsBufferRange(c.tex0.tbp0, c.tex0.tbw, c.tex0.psm, st.textureHeight);
+        const GsByteRange f = gsBufferRange(c.frame.fbp * 32u, std::max<uint32_t>(c.frame.fbw, 1u), c.frame.psm, 1024u);
+        put(st.prim.tme && t.start < f.end && f.start < t.end, 1);
+        put(c.tex0.tbp0 == c.frame.fbp * 32u, 1);
+    }
+    return k;
+}
+#endif
 GS_FORCEINLINE uint32_t GSCpuBackend::SampleFast(const GSTexSampler &s, float sv, float tv, float q, uint16_t u, uint16_t v) const
 {
     float texUf, texVf;
@@ -2124,6 +2152,442 @@ GS_FORCEINLINE uint32_t GSCpuBackend::SampleFast(const GSTexSampler &s, float sv
            (static_cast<uint32_t>(lerpChannelFast(c00, c10, c01, c11, 8, fx, fy)) << 8) |
            (static_cast<uint32_t>(lerpChannelFast(c00, c10, c01, c11, 16, fx, fy)) << 16) |
            (static_cast<uint32_t>(lerpChannelFast(c00, c10, c01, c11, 24, fx, fy)) << 24);
+}
+
+// ---- Templated span pipeline ------------------------------------------------------------------
+// The same per-pixel arithmetic as WritePixelFast / SampleFast / the triangle and sprite loops,
+// with the framebuffer, Z buffer and texture formats fixed at compile time (VRAM swizzles inlined
+// instead of called through function pointers). A row is shaded into a span first, then written.
+// Draws whose texture overlaps their own framebuffer or Z buffer are processed one pixel at a time
+// so a texel written earlier in the same primitive is still read back in the original order.
+namespace
+{
+    using GSMem::PixelStorageMode;
+
+    template <PixelStorageMode M>
+    struct GsSurf
+    {
+        using Tr = GSMem::PixelStorageTraits<M>;
+        const typename Tr::PageLookupTableT *table;
+        uint32_t bp, bw;
+        GS_FORCEINLINE void init(uint32_t base, uint32_t width)
+        {
+            static const auto *const kTable = static_cast<const typename Tr::PageLookupTableT *>(GSMem::PageTableData(static_cast<uint32_t>(M)));
+            table = kTable;
+            bp = base;
+            bw = width;
+        }
+        GS_FORCEINLINE uint32_t read(const uint8_t *vram, uint32_t x, uint32_t y) const
+        {
+            return static_cast<uint32_t>(Tr::Read(*table, vram, bp, bw, x, y));
+        }
+        GS_FORCEINLINE void write(uint8_t *vram, uint32_t x, uint32_t y, uint32_t v) const
+        {
+            Tr::Write(*table, vram, bp, bw, x, y, static_cast<typename Tr::PackedT>(v));
+        }
+    };
+
+    struct SpanPx
+    {
+        int x;
+        uint32_t z;
+        uint8_t r, g, b, a, fog;
+    };
+    constexpr int kMaxSpan = 2048;
+
+    using SpanWriteFn = void (*)(uint8_t *vram, const GSPixelPipe &p, int y, const SpanPx *px, int n);
+
+    template <PixelStorageMode FM, PixelStorageMode ZM, int ZT>
+    void writeSpanT(uint8_t *vram, const GSPixelPipe &p, int y, const SpanPx *px, int n)
+    {
+        GsSurf<FM> fbs;
+        fbs.init(p.fbp, p.fbw);
+        GsSurf<ZM> zbs;
+        zbs.init(p.zbp, p.fbw);
+        for (int i = 0; i < n; ++i)
+        {
+#ifdef GS_RASTER_STATS
+            ++g_statPixels[t_statKey];
+#endif
+            const int x = px[i].x;
+            uint32_t z = px[i].z;
+            uint8_t r = px[i].r, g = px[i].g, b = px[i].b, a = px[i].a;
+            const uint8_t fog = px[i].fog;
+            if (x < p.sx0 || x > p.sx1 || y < p.sy0 || y > p.sy1)
+                continue;
+
+            if (p.fge)
+            {
+                const uint32_t inverseFog = 255u - fog;
+                r = static_cast<uint8_t>(((static_cast<uint32_t>(fog) * r) >> 8) + ((inverseFog * p.fogR) >> 8));
+                g = static_cast<uint8_t>(((static_cast<uint32_t>(fog) * g) >> 8) + ((inverseFog * p.fogG) >> 8));
+                b = static_cast<uint8_t>(((static_cast<uint32_t>(fog) * b) >> 8) + ((inverseFog * p.fogB) >> 8));
+            }
+
+            if (z > p.zmax)
+                z = p.zmax;
+
+            const PixelWriteMask writeMask = classifyAlphaTest(p.test, a, static_cast<uint8_t>(p.fpsm));
+            if (!writeMask.writesAnything())
+                continue;
+
+            const bool writesFb = writeMask.writesFramebuffer();
+            const bool preserveDestinationAlpha = writeMask.writeRgb && !writeMask.writeAlpha && p.fbCT32;
+            const bool frmw = p.dateNeedsRead || (writesFb && ((p.fbmsk != 0) || p.abe || preserveDestinationAlpha));
+
+            u32 rawFramebufferPixel = 0;
+            u32 fbrgba = 0;
+            if (frmw)
+            {
+                rawFramebufferPixel = fbs.read(vram, static_cast<uint32_t>(x), static_cast<uint32_t>(y));
+                fbrgba = rawFramebufferPixel;
+                if (p.fb16)
+                    fbrgba = Rgba5551ToRgba8888(static_cast<u16>(fbrgba));
+                else if (p.fbCT24)
+                    fbrgba |= 0x80000000u;
+            }
+
+            if (p.date && !passesDestinationAlphaTest(p.test, static_cast<uint8_t>(p.fpsm), rawFramebufferPixel))
+                continue;
+
+            if constexpr (ZT == 0)
+                continue;
+            else if constexpr (ZT == 2)
+            {
+                if (!(z >= zbs.read(vram, static_cast<uint32_t>(x), static_cast<uint32_t>(y))))
+                    continue;
+            }
+            else if constexpr (ZT == 3)
+            {
+                if (!(z > zbs.read(vram, static_cast<uint32_t>(x), static_cast<uint32_t>(y))))
+                    continue;
+            }
+
+            if (writesFb)
+            {
+                if (p.abe && !(p.pabe && (a & 0x80u) == 0u))
+                {
+                    const int dr = fbrgba & 0xFF;
+                    const int dg = (fbrgba >> 8) & 0xFF;
+                    const int db = (fbrgba >> 16) & 0xFF;
+                    const int da = (fbrgba >> 24) & 0xFF;
+                    const int cAlpha = (p.csel == 0) ? a : (p.csel == 1) ? da : p.fix;
+                    auto pick = [](uint8_t sel, int cs, int cd) -> int
+                    { return sel == 0 ? cs : (sel == 1 ? cd : 0); };
+                    r = clampU8(((pick(p.asel, r, dr) - pick(p.bsel, r, dr)) * cAlpha >> 7) + pick(p.dsel, r, dr));
+                    g = clampU8(((pick(p.asel, g, dg) - pick(p.bsel, g, dg)) * cAlpha >> 7) + pick(p.dsel, g, dg));
+                    b = clampU8(((pick(p.asel, b, db) - pick(p.bsel, b, db)) * cAlpha >> 7) + pick(p.dsel, b, db));
+                }
+
+                if (writeMask.writeAlpha && p.fbaForce)
+                    a = static_cast<uint8_t>(a | 0x80u);
+
+                u32 pixel = pack32(r, g, b, a);
+                if (p.fbmsk != 0)
+                    pixel = (pixel & ~p.fbmsk) | (fbrgba & p.fbmsk);
+                if (preserveDestinationAlpha)
+                    pixel = (pixel & 0x00FFFFFFu) | (fbrgba & 0xFF000000u);
+                if (p.fb16)
+                    pixel = Rgba8888ToRgba5551(pixel);
+                fbs.write(vram, static_cast<uint32_t>(x), static_cast<uint32_t>(y), pixel);
+            }
+
+            if (writeMask.writeDepth && !p.zmask)
+                zbs.write(vram, static_cast<uint32_t>(x), static_cast<uint32_t>(y), z);
+        }
+    }
+
+#define GS_SPANW_ZT(FM, ZM) &writeSpanT<FM, ZM, 0>, &writeSpanT<FM, ZM, 1>, &writeSpanT<FM, ZM, 2>, &writeSpanT<FM, ZM, 3>
+#define GS_SPANW_Z(FM) GS_SPANW_ZT(FM, GSMem::Z32), GS_SPANW_ZT(FM, GSMem::Z24), GS_SPANW_ZT(FM, GSMem::Z16), GS_SPANW_ZT(FM, GSMem::Z16S)
+    const SpanWriteFn kSpanWriters[4 * 4 * 4] = {
+        GS_SPANW_Z(GSMem::C32), GS_SPANW_Z(GSMem::C24), GS_SPANW_Z(GSMem::C16), GS_SPANW_Z(GSMem::C16S)};
+#undef GS_SPANW_Z
+#undef GS_SPANW_ZT
+
+    SpanWriteFn selectSpanWriter(const GSPixelPipe &p)
+    {
+        int fi = -1, zi = -1;
+        switch (p.fpsm)
+        {
+        case GS_PSM_CT32: fi = 0; break;
+        case GS_PSM_CT24: fi = 1; break;
+        case GS_PSM_CT16: fi = 2; break;
+        case GS_PSM_CT16S: fi = 3; break;
+        default: break;
+        }
+        switch (p.zpsm)
+        {
+        case GS_PSM_Z32: zi = 0; break;
+        case GS_PSM_Z24: zi = 1; break;
+        case GS_PSM_Z16: zi = 2; break;
+        case GS_PSM_Z16S: zi = 3; break;
+        default: break;
+        }
+        if (fi < 0 || zi < 0 || p.ztest > 3u)
+            return nullptr;
+        return kSpanWriters[(fi * 4 + zi) * 4 + static_cast<int>(p.ztest)];
+    }
+
+    // Texture fetch with the storage format fixed (FetchTexel / SampleFast).
+    template <PixelStorageMode TM>
+    struct TexFetchT
+    {
+        GsSurf<TM> surf;
+        GS_FORCEINLINE void init(const GSTexSampler &s) { surf.init(s.tbp0, s.tbw); }
+        GS_FORCEINLINE uint32_t fetch(const GSTexSampler &s, const uint8_t *vram, int sampleU, int sampleV) const
+        {
+            sampleU = wrapTextureCoordinate(sampleU, s.texW, s.wrapU, s.minU, s.maxU);
+            sampleV = wrapTextureCoordinate(sampleV, s.texH, s.wrapV, s.minV, s.maxV);
+            const uint32_t out = surf.read(vram, static_cast<uint32_t>(sampleU), static_cast<uint32_t>(sampleV));
+            if constexpr (TM == GSMem::C32)
+                return out;
+            else if constexpr (TM == GSMem::Z32 || TM == GSMem::C24 || TM == GSMem::Z24)
+                return applyTexa(s.texa, s.psm, out);
+            else if constexpr (TM == GSMem::C16 || TM == GSMem::C16S || TM == GSMem::Z16 || TM == GSMem::Z16S)
+                return applyTexa(s.texa, s.psm, Rgba5551ToRgba8888(static_cast<u16>(out)));
+            else
+                return s.palette[out & 0xFFu];
+        }
+        GS_FORCEINLINE uint32_t sample(const GSTexSampler &s, const uint8_t *vram, float sv, float tv, float q, uint16_t u, uint16_t v) const
+        {
+            float texUf, texVf;
+            if (s.fst)
+            {
+                texUf = static_cast<float>(u) / 16.0f;
+                texVf = static_cast<float>(v) / 16.0f;
+            }
+            else
+            {
+                const float invQ = 1.0f / fabsQ(q);
+                texUf = sv * invQ * s.texWf;
+                texVf = tv * invQ * s.texHf;
+            }
+
+            if (!s.linear)
+                return fetch(s, vram, static_cast<int>(texUf), static_cast<int>(texVf));
+
+            const float sampleU = texUf - 0.5f;
+            const float sampleV = texVf - 0.5f;
+            const int u0 = static_cast<int>(std::floor(sampleU));
+            const int v0 = static_cast<int>(std::floor(sampleV));
+            const float fx = sampleU - static_cast<float>(u0);
+            const float fy = sampleV - static_cast<float>(v0);
+
+            const uint32_t c00 = fetch(s, vram, u0, v0);
+            const uint32_t c10 = fetch(s, vram, u0 + 1, v0);
+            const uint32_t c01 = fetch(s, vram, u0, v0 + 1);
+            const uint32_t c11 = fetch(s, vram, u0 + 1, v0 + 1);
+            if (c00 == c10 && c00 == c01 && c00 == c11)
+                return c00;
+
+            return static_cast<uint32_t>(lerpChannelFast(c00, c10, c01, c11, 0, fx, fy)) |
+                   (static_cast<uint32_t>(lerpChannelFast(c00, c10, c01, c11, 8, fx, fy)) << 8) |
+                   (static_cast<uint32_t>(lerpChannelFast(c00, c10, c01, c11, 16, fx, fy)) << 16) |
+                   (static_cast<uint32_t>(lerpChannelFast(c00, c10, c01, c11, 24, fx, fy)) << 24);
+        }
+    };
+
+    struct NoTexFetch
+    {
+        GS_FORCEINLINE void init(const GSTexSampler &) {}
+    };
+
+    // ---- triangles ----
+    struct TriShade
+    {
+        const GSVertex *v0, *v1, *v2;
+        const GSTexSampler *s;
+        const GSTex0Reg *tex;
+        float a0, a1, fx2, rowB0, rowB1, winding, invAbsDenom;
+        bool iip, fst;
+    };
+    using TriRowFn = int (*)(const TriShade &c, const uint8_t *vram, int xs, int xe, SpanPx *out);
+
+    template <class Tex, bool TME>
+    int triRowT(const TriShade &c, const uint8_t *vram, int xs, int xe, SpanPx *out)
+    {
+        constexpr float kEdgeEpsilon = 1.0e-4f;
+        const GSVertex &v0 = *c.v0;
+        const GSVertex &v1 = *c.v1;
+        const GSVertex &v2 = *c.v2;
+        const float a0 = c.a0, a1 = c.a1, fx2 = c.fx2, rowB0 = c.rowB0, rowB1 = c.rowB1;
+        const float winding = c.winding, invAbsDenom = c.invAbsDenom;
+        const bool iip = c.iip, fst = c.fst;
+        Tex t;
+        if constexpr (TME)
+            t.init(*c.s);
+        int n = 0;
+        for (int x = xs; x <= xe; ++x)
+        {
+            float px = static_cast<float>(x) + 0.5f;
+
+            float w0 = ((a0 * (px - fx2) + rowB0) * winding) * invAbsDenom;
+            float w1 = ((a1 * (px - fx2) + rowB1) * winding) * invAbsDenom;
+            float w2 = 1.0f - w0 - w1;
+
+            if (w0 < -kEdgeEpsilon || w1 < -kEdgeEpsilon || w2 < -kEdgeEpsilon)
+                continue;
+
+            double z = v0.z * w0 + v1.z * w1 + v2.z * w2;
+
+            uint8_t r, g, b, a;
+            if (iip)
+            {
+                r = clampU8(static_cast<int>(v0.r * w0 + v1.r * w1 + v2.r * w2));
+                g = clampU8(static_cast<int>(v0.g * w0 + v1.g * w1 + v2.g * w2));
+                b = clampU8(static_cast<int>(v0.b * w0 + v1.b * w1 + v2.b * w2));
+                a = clampU8(static_cast<int>(v0.a * w0 + v1.a * w1 + v2.a * w2));
+            }
+            else
+            {
+                r = v2.r;
+                g = v2.g;
+                b = v2.b;
+                a = v2.a;
+            }
+
+            if constexpr (TME)
+            {
+                uint32_t texel;
+                if (fst)
+                {
+                    const uint16_t iu = static_cast<uint16_t>(v0.u * w0 + v1.u * w1 + v2.u * w2);
+                    const uint16_t iv = static_cast<uint16_t>(v0.v * w0 + v1.v * w1 + v2.v * w2);
+                    texel = t.sample(*c.s, vram, 0.0f, 0.0f, 1.0f, iu, iv);
+                }
+                else
+                {
+                    const float is = v0.s * w0 + v1.s * w1 + v2.s * w2;
+                    const float it = v0.t * w0 + v1.t * w1 + v2.t * w2;
+                    const float iq = v0.q * w0 + v1.q * w1 + v2.q * w2;
+                    texel = t.sample(*c.s, vram, is, it, iq, 0u, 0u);
+                }
+
+                const TextureCombineResult color = combineTexture(*c.tex, r, g, b, a,
+                                                                  static_cast<uint8_t>(texel & 0xFF),
+                                                                  static_cast<uint8_t>((texel >> 8) & 0xFF),
+                                                                  static_cast<uint8_t>((texel >> 16) & 0xFF),
+                                                                  static_cast<uint8_t>((texel >> 24) & 0xFF));
+                r = color.r;
+                g = color.g;
+                b = color.b;
+                a = color.a;
+            }
+
+            const uint8_t fog = clampU8(static_cast<int>(v0.fog * w0 + v1.fog * w1 + v2.fog * w2));
+            SpanPx &o = out[n++];
+            o.x = x;
+            o.z = static_cast<u32>(z + 0.5);
+            o.r = r;
+            o.g = g;
+            o.b = b;
+            o.a = a;
+            o.fog = fog;
+        }
+        return n;
+    }
+
+    // ---- sprites ----
+    struct SprShade
+    {
+        const GSTexSampler *s;
+        const GSTex0Reg *tex;
+        float u0f, u1f, texVf, spriteW, texWf, texHf;
+        int unclippedX0;
+        bool fst;
+        uint32_t z1;
+        uint8_t r, g, b, a, fog;
+    };
+    using SprRowFn = int (*)(const SprShade &c, const uint8_t *vram, int xs, int xe, SpanPx *out);
+
+    template <class Tex>
+    int sprRowT(const SprShade &c, const uint8_t *vram, int xs, int xe, SpanPx *out)
+    {
+        Tex t;
+        t.init(*c.s);
+        const float texVf = c.texVf;
+        int n = 0;
+        for (int x = xs; x <= xe; ++x)
+        {
+            float tx = (static_cast<float>(x - c.unclippedX0) + 0.5f) / c.spriteW;
+            float texUf = c.u0f + (c.u1f - c.u0f) * tx;
+            uint32_t texel = 0xFFFF00FFu;
+            if (c.fst)
+            {
+                const int fixedU = static_cast<int>((texUf * 16.0f) + 0.5f);
+                const int fixedV = static_cast<int>((texVf * 16.0f) + 0.5f);
+                const uint16_t sampleU = static_cast<uint16_t>(clampInt(fixedU, 0, 0xFFFF));
+                const uint16_t sampleV = static_cast<uint16_t>(clampInt(fixedV, 0, 0xFFFF));
+                texel = t.sample(*c.s, vram, 0.0f, 0.0f, 1.0f, sampleU, sampleV);
+            }
+            else
+            {
+                texel = t.sample(*c.s, vram, texUf / c.texWf, texVf / c.texHf, 1.0f, 0u, 0u);
+            }
+
+            const uint8_t tr = static_cast<uint8_t>(texel & 0xFF);
+            const uint8_t tg = static_cast<uint8_t>((texel >> 8) & 0xFF);
+            const uint8_t tb = static_cast<uint8_t>((texel >> 16) & 0xFF);
+            const uint8_t ta = static_cast<uint8_t>((texel >> 24) & 0xFF);
+
+            const TextureCombineResult color = combineTexture(*c.tex, c.r, c.g, c.b, c.a, tr, tg, tb, ta);
+            SpanPx &o = out[n++];
+            o.x = x;
+            o.z = c.z1;
+            o.r = color.r;
+            o.g = color.g;
+            o.b = color.b;
+            o.a = color.a;
+            o.fog = c.fog;
+        }
+        return n;
+    }
+
+#define GS_TEX_SWITCH(PSM, EXPR)                                  \
+    switch (PSM)                                                  \
+    {                                                             \
+    case GS_PSM_CT32: { constexpr auto M = GSMem::C32; return EXPR; }   \
+    case GS_PSM_CT24: { constexpr auto M = GSMem::C24; return EXPR; }   \
+    case GS_PSM_CT16: { constexpr auto M = GSMem::C16; return EXPR; }   \
+    case GS_PSM_CT16S: { constexpr auto M = GSMem::C16S; return EXPR; } \
+    case GS_PSM_T8: { constexpr auto M = GSMem::P8; return EXPR; }      \
+    case GS_PSM_T8H: { constexpr auto M = GSMem::P8H; return EXPR; }    \
+    case GS_PSM_T4: { constexpr auto M = GSMem::P4; return EXPR; }      \
+    case GS_PSM_T4HL: { constexpr auto M = GSMem::P4HL; return EXPR; }  \
+    case GS_PSM_T4HH: { constexpr auto M = GSMem::P4HH; return EXPR; }  \
+    case GS_PSM_Z32: { constexpr auto M = GSMem::Z32; return EXPR; }    \
+    case GS_PSM_Z24: { constexpr auto M = GSMem::Z24; return EXPR; }    \
+    case GS_PSM_Z16: { constexpr auto M = GSMem::Z16; return EXPR; }    \
+    case GS_PSM_Z16S: { constexpr auto M = GSMem::Z16S; return EXPR; }  \
+    default: return nullptr;                                      \
+    }
+
+    TriRowFn selectTriRow(bool tme, uint32_t psm)
+    {
+        if (!tme)
+            return &triRowT<NoTexFetch, false>;
+        GS_TEX_SWITCH(psm, (&triRowT<TexFetchT<M>, true>))
+    }
+
+    SprRowFn selectSprRow(uint32_t psm)
+    {
+        GS_TEX_SWITCH(psm, (&sprRowT<TexFetchT<M>>))
+    }
+#undef GS_TEX_SWITCH
+
+    // Texture memory overlapping what the draw writes (render-to-self): keep the per-pixel order.
+    bool textureFeedsBack(const GSDrawState &state, int yMax)
+    {
+        if (!state.prim.tme)
+            return false;
+        const auto &c = state.context;
+        const GsByteRange t = gsBufferRange(c.tex0.tbp0, c.tex0.tbw, c.tex0.psm, state.textureHeight);
+        const uint32_t rows = static_cast<uint32_t>(std::max(yMax, 0)) + 1u;
+        const uint32_t fbw = std::max<uint32_t>(c.frame.fbw, 1u);
+        const GsByteRange f = gsBufferRange(c.frame.fbp * 32u, fbw, c.frame.psm, rows);
+        const GsByteRange z = gsBufferRange(c.zbuf.zbp * 32u, fbw, c.zbuf.psm, rows);
+        return (t.start < f.end && f.start < t.end) || (t.start < z.end && z.start < t.end);
+    }
 }
 
 void GSCpuBackend::DrawSprite(const GSPrimitiveBatch &batch)
@@ -2173,6 +2637,9 @@ void GSCpuBackend::DrawSprite(const GSPrimitiveBatch &batch)
     uint8_t r = v1.r, g = v1.g, b = v1.b, a = v1.a;
     GSPixelPipe pipe;
     SetupPixelPipe(state, pipe);
+#ifdef GS_RASTER_STATS
+    t_statKey = statKey(1, state, pipe);
+#endif
 
     if (state.prim.tme)
     {
@@ -2207,12 +2674,24 @@ void GSCpuBackend::DrawSprite(const GSPrimitiveBatch &batch)
         if (spriteH < 1.0f)
             spriteH = 1.0f;
 
+        const SpanWriteFn spanWriter = m_vram ? selectSpanWriter(pipe) : nullptr;
+        const SprRowFn sprRow = (spanWriter && !textureFeedsBack(state, drawY1)) ? selectSprRow(tex.psm) : nullptr;
+        SprShade shade{&sampler, &tex, u0f, u1f, 0.0f, spriteW, static_cast<float>(texW), static_cast<float>(texH),
+                       unclippedX0, state.prim.fst != 0, z1, r, g, b, a, v1.fog};
+        SpanPx span[kMaxSpan];
+
         for (int y = drawY0; y <= drawY1; ++y)
         {
             if (!rowInBand(y))
                 continue;
             float ty = (static_cast<float>(y - unclippedY0) + 0.5f) / spriteH;
             float texVf = v0f + (v1f - v0f) * ty;
+            if (sprRow)
+            {
+                shade.texVf = texVf;
+                spanWriter(m_vram, pipe, y, span, sprRow(shade, m_vram, drawX0, drawX1, span));
+                continue;
+            }
 
             for (int x = drawX0; x <= drawX1; ++x)
             {
@@ -2244,10 +2723,21 @@ void GSCpuBackend::DrawSprite(const GSPrimitiveBatch &batch)
     }
     else
     {
+        const SpanWriteFn spanWriter = m_vram ? selectSpanWriter(pipe) : nullptr;
+        SpanPx span[kMaxSpan];
+        int spanCount = 0;
+        if (spanWriter)
+            for (int x = drawX0; x <= drawX1 && spanCount < kMaxSpan; ++x)
+                span[spanCount++] = SpanPx{x, z1, r, g, b, a, v1.fog};
         for (int y = drawY0; y <= drawY1; ++y)
         {
             if (!rowInBand(y))
                 continue;
+            if (spanWriter && spanCount == drawX1 - drawX0 + 1)
+            {
+                spanWriter(m_vram, pipe, y, span, spanCount);
+                continue;
+            }
             for (int x = drawX0; x <= drawX1; ++x)
                 WritePixelFast(pipe, x, y, z1, r, g, b, a, v1.fog);
         }
@@ -2294,6 +2784,9 @@ void GSCpuBackend::DrawTriangle(const GSPrimitiveBatch &batch)
 
     GSPixelPipe pipe;
     SetupPixelPipe(state, pipe);
+#ifdef GS_RASTER_STATS
+    t_statKey = statKey(2, state, pipe);
+#endif
     GSTexSampler sampler;
     const bool tme = state.prim.tme;
     const bool fst = state.prim.fst;
@@ -2309,6 +2802,11 @@ void GSCpuBackend::DrawTriangle(const GSPrimitiveBatch &batch)
     // exact per-pixel edge test below only runs near the triangle.
     const double sd = static_cast<double>(winding) * static_cast<double>(invAbsDenom);
     const double ea0 = a0 * sd, ea1 = a1 * sd;
+
+    const SpanWriteFn spanWriter = m_vram ? selectSpanWriter(pipe) : nullptr;
+    const TriRowFn triRow = (spanWriter && !textureFeedsBack(state, maxY)) ? selectTriRow(tme, tex.psm) : nullptr;
+    TriShade shade{&v0, &v1, &v2, &sampler, &tex, a0, a1, fx2, 0.0f, 0.0f, winding, invAbsDenom, iip, fst};
+    SpanPx span[kMaxSpan];
 
     for (int y = minY; y <= maxY; ++y)
     {
@@ -2349,6 +2847,13 @@ void GSCpuBackend::DrawTriangle(const GSPrimitiveBatch &batch)
         }
         const int xs = static_cast<int>(lo);
         const int xe = static_cast<int>(hi);
+        if (triRow)
+        {
+            shade.rowB0 = rowB0;
+            shade.rowB1 = rowB1;
+            spanWriter(m_vram, pipe, y, span, triRow(shade, m_vram, xs, xe, span));
+            continue;
+        }
 
         for (int x = xs; x <= xe; ++x)
         {
@@ -2492,11 +2997,32 @@ void GSCpuBackend::BeginTransfer(const GSTransferCommand &command)
     std::lock_guard<std::mutex> lock(m_mutex);
     // Threaded mode: m_transfer/m_transferState belong to this thread. Queued upload chunks carry
     // their own copy of the transfer and start position, so transfers never wait on each other.
+    if (threaded() && command.direction == 2u && m_vram)
+    {
+        // Local->local copy: queue it in order (a barrier) instead of waiting for the queue here.
+        // This thread's transfer state completes immediately, as it does for the direct copy.
+        g_ssx3Transfers.fetch_add(1u, std::memory_order_relaxed);
+        m_transfer = command;
+        m_transferState.x = command.trxpos.dsax;
+        m_transferState.y = command.trxpos.dsay;
+        m_transferState.totalPixels = static_cast<uint32_t>(command.trxreg.rrw) * static_cast<uint32_t>(command.trxreg.rrh);
+        m_transferState.copiedPixels = m_transferState.totalPixels;
+        m_transferState.direction = 3u;
+        m_transferState.localToHostPendingBytes = 0u;
+        const GsByteRange src = gsBufferRange(command.bitbltbuf.sbp, std::max<uint32_t>(command.bitbltbuf.sbw, 1u), command.bitbltbuf.spsm,
+                                              static_cast<uint32_t>(command.trxpos.ssay) + static_cast<uint32_t>(command.trxreg.rrh));
+        const GsByteRange dst = gsBufferRange(command.bitbltbuf.dbp, std::max<uint32_t>(command.bitbltbuf.dbw, 1u), command.bitbltbuf.dpsm,
+                                              static_cast<uint32_t>(command.trxpos.dsay) + static_cast<uint32_t>(command.trxreg.rrh));
+        EnqueueGlobalUnlocked([this, command]()
+                              { CopyLocalToLocal(command); },
+                              std::min(src.start, dst.start), std::max(src.end, dst.end));
+        return;
+    }
     if (threaded() && command.direction != 0u)
     {
         if (s_gsHazDebug)
             std::fprintf(stderr, "SYNC transfer dir=%u\n", command.direction);
-        SyncUnlocked(7); // local->local / local->host read VRAM: let queued work land first
+        SyncUnlocked(7); // local->host reads VRAM: let queued work land first
     }
     BeginTransferUnlocked(command);
 }
@@ -2688,6 +3214,26 @@ void GSCpuBackend::UploadImageImpl(const GSTransferCommand &xfer, GSTransferSnap
         default:
             return;
         }
+    }
+}
+
+void GSCpuBackend::CopyLocalToLocal(const GSTransferCommand &t)
+{
+    const uint32_t rrw = t.trxreg.rrw;
+    const uint32_t rrh = t.trxreg.rrh;
+    const uint32_t total = rrw * rrh;
+    for (uint32_t pixel = 0; pixel < total; ++pixel)
+    {
+        uint32_t x = pixel % rrw;
+        uint32_t y = pixel / rrw;
+        if ((t.trxpos.dir & 0x2u) != 0u)
+            x = rrw - x - 1u;
+        if ((t.trxpos.dir & 0x1u) != 0u)
+            y = rrh - y - 1u;
+        const uint32_t value = ReadVramUnlocked(t.bitbltbuf.spsm, t.bitbltbuf.sbp, std::max<uint32_t>(t.bitbltbuf.sbw, 1u),
+                                                x + t.trxpos.ssax, y + t.trxpos.ssay);
+        WriteVramUnlocked(t.bitbltbuf.dpsm, t.bitbltbuf.dbp, std::max<uint32_t>(t.bitbltbuf.dbw, 1u),
+                          x + t.trxpos.dsax, y + t.trxpos.dsay, value);
     }
 }
 
