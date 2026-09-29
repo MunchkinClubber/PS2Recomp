@@ -31,14 +31,6 @@ namespace
         if (ex(v[2], 0x80000000u)) f |= 0x20u;
         return f;
     }
-    inline void fcset(VU1NativeCtx &c, uint32_t value, bool sameCycleClip)
-    {
-        // FCSET cancels a CLIP issued in the same cycle (the upper half of this pair).
-        if (sameCycleClip && c.clipCount != 0u)
-            --c.clipCount;
-        c.workingClip = value & 0xFFFFFFu;
-        pushClip(c, c.workingClip);
-    }
     inline void divq(VU1NativeCtx &c, float num, float den)
     {
         uint32_t di = 0u;
@@ -80,8 +72,6 @@ static uint32_t vu1prog_0_0048(VU1NativeCtx &c)
     float (*vf)[4] = s.vf;
     int32_t *vi = s.vi;
     uint8_t *m = c.mem;
-    bool upperClipSameCycle = false;
-    (void)upperClipSameCycle;
     (void)m;
     (void)vf;
     (void)vi;
@@ -523,8 +513,6 @@ static uint32_t vu1prog_0_0530(VU1NativeCtx &c)
     float (*vf)[4] = s.vf;
     int32_t *vi = s.vi;
     uint8_t *m = c.mem;
-    bool upperClipSameCycle = false;
-    (void)upperClipSameCycle;
     (void)m;
     (void)vf;
     (void)vi;
@@ -581,8 +569,6 @@ static uint32_t vu1prog_0_0550(VU1NativeCtx &c)
     float (*vf)[4] = s.vf;
     int32_t *vi = s.vi;
     uint8_t *m = c.mem;
-    bool upperClipSameCycle = false;
-    (void)upperClipSameCycle;
     (void)m;
     (void)vf;
     (void)vi;
@@ -1003,8 +989,6 @@ static uint32_t vu1prog_0_0698(VU1NativeCtx &c)
     float (*vf)[4] = s.vf;
     int32_t *vi = s.vi;
     uint8_t *m = c.mem;
-    bool upperClipSameCycle = false;
-    (void)upperClipSameCycle;
     (void)m;
     (void)vf;
     (void)vi;
@@ -1033,8 +1017,6 @@ static uint32_t vu1prog_0_06A8(VU1NativeCtx &c)
     float (*vf)[4] = s.vf;
     int32_t *vi = s.vi;
     uint8_t *m = c.mem;
-    bool upperClipSameCycle = false;
-    (void)upperClipSameCycle;
     (void)m;
     (void)vf;
     (void)vi;
@@ -1079,8 +1061,6 @@ static uint32_t vu1prog_0_06C8(VU1NativeCtx &c)
     float (*vf)[4] = s.vf;
     int32_t *vi = s.vi;
     uint8_t *m = c.mem;
-    bool upperClipSameCycle = false;
-    (void)upperClipSameCycle;
     (void)m;
     (void)vf;
     (void)vi;
@@ -1156,8 +1136,6 @@ static uint32_t vu1prog_0_0708(VU1NativeCtx &c)
     float (*vf)[4] = s.vf;
     int32_t *vi = s.vi;
     uint8_t *m = c.mem;
-    bool upperClipSameCycle = false;
-    (void)upperClipSameCycle;
     (void)m;
     (void)vf;
     (void)vi;
@@ -1235,8 +1213,6 @@ static uint32_t vu1prog_0_0740(VU1NativeCtx &c)
     float (*vf)[4] = s.vf;
     int32_t *vi = s.vi;
     uint8_t *m = c.mem;
-    bool upperClipSameCycle = false;
-    (void)upperClipSameCycle;
     (void)m;
     (void)vf;
     (void)vi;
@@ -1360,8 +1336,6 @@ static uint32_t vu1prog_0_07A0(VU1NativeCtx &c)
     float (*vf)[4] = s.vf;
     int32_t *vi = s.vi;
     uint8_t *m = c.mem;
-    bool upperClipSameCycle = false;
-    (void)upperClipSameCycle;
     (void)m;
     (void)vf;
     (void)vi;
@@ -1396,8 +1370,6 @@ static uint32_t vu1prog_0_07B0(VU1NativeCtx &c)
     float (*vf)[4] = s.vf;
     int32_t *vi = s.vi;
     uint8_t *m = c.mem;
-    bool upperClipSameCycle = false;
-    (void)upperClipSameCycle;
     (void)m;
     (void)vf;
     (void)vi;
@@ -1470,8 +1442,6 @@ static uint32_t vu1prog_0_07F0(VU1NativeCtx &c)
     float (*vf)[4] = s.vf;
     int32_t *vi = s.vi;
     uint8_t *m = c.mem;
-    bool upperClipSameCycle = false;
-    (void)upperClipSameCycle;
     (void)m;
     (void)vf;
     (void)vi;
@@ -1500,8 +1470,6 @@ static uint32_t vu1prog_0_0800(VU1NativeCtx &c)
     float (*vf)[4] = s.vf;
     int32_t *vi = s.vi;
     uint8_t *m = c.mem;
-    bool upperClipSameCycle = false;
-    (void)upperClipSameCycle;
     (void)m;
     (void)vf;
     (void)vi;
@@ -1707,8 +1675,6 @@ static uint32_t vu1prog_0_0870(VU1NativeCtx &c)
     float (*vf)[4] = s.vf;
     int32_t *vi = s.vi;
     uint8_t *m = c.mem;
-    bool upperClipSameCycle = false;
-    (void)upperClipSameCycle;
     (void)m;
     (void)vf;
     (void)vi;
@@ -1945,8 +1911,6 @@ static uint32_t vu1prog_0_08F0(VU1NativeCtx &c)
     float (*vf)[4] = s.vf;
     int32_t *vi = s.vi;
     uint8_t *m = c.mem;
-    bool upperClipSameCycle = false;
-    (void)upperClipSameCycle;
     (void)m;
     (void)vf;
     (void)vi;
@@ -2046,8 +2010,6 @@ static uint32_t vu1prog_0_09A0(VU1NativeCtx &c)
     float (*vf)[4] = s.vf;
     int32_t *vi = s.vi;
     uint8_t *m = c.mem;
-    bool upperClipSameCycle = false;
-    (void)upperClipSameCycle;
     (void)m;
     (void)vf;
     (void)vi;
@@ -2121,8 +2083,6 @@ static uint32_t vu1prog_0_09E0(VU1NativeCtx &c)
     float (*vf)[4] = s.vf;
     int32_t *vi = s.vi;
     uint8_t *m = c.mem;
-    bool upperClipSameCycle = false;
-    (void)upperClipSameCycle;
     (void)m;
     (void)vf;
     (void)vi;
@@ -2191,8 +2151,6 @@ static uint32_t vu1prog_0_0A20(VU1NativeCtx &c)
     float (*vf)[4] = s.vf;
     int32_t *vi = s.vi;
     uint8_t *m = c.mem;
-    bool upperClipSameCycle = false;
-    (void)upperClipSameCycle;
     (void)m;
     (void)vf;
     (void)vi;
@@ -2218,8 +2176,6 @@ static uint32_t vu1prog_0_0A38(VU1NativeCtx &c)
     float (*vf)[4] = s.vf;
     int32_t *vi = s.vi;
     uint8_t *m = c.mem;
-    bool upperClipSameCycle = false;
-    (void)upperClipSameCycle;
     (void)m;
     (void)vf;
     (void)vi;
@@ -2319,8 +2275,6 @@ static uint32_t vu1prog_0_0A90(VU1NativeCtx &c)
     float (*vf)[4] = s.vf;
     int32_t *vi = s.vi;
     uint8_t *m = c.mem;
-    bool upperClipSameCycle = false;
-    (void)upperClipSameCycle;
     (void)m;
     (void)vf;
     (void)vi;
@@ -2420,8 +2374,6 @@ static uint32_t vu1prog_0_0AE8(VU1NativeCtx &c)
     float (*vf)[4] = s.vf;
     int32_t *vi = s.vi;
     uint8_t *m = c.mem;
-    bool upperClipSameCycle = false;
-    (void)upperClipSameCycle;
     (void)m;
     (void)vf;
     (void)vi;
@@ -2447,8 +2399,6 @@ static uint32_t vu1prog_0_0BD8(VU1NativeCtx &c)
     float (*vf)[4] = s.vf;
     int32_t *vi = s.vi;
     uint8_t *m = c.mem;
-    bool upperClipSameCycle = false;
-    (void)upperClipSameCycle;
     (void)m;
     (void)vf;
     (void)vi;
@@ -2476,8 +2426,6 @@ static uint32_t vu1prog_0_0BE8(VU1NativeCtx &c)
     float (*vf)[4] = s.vf;
     int32_t *vi = s.vi;
     uint8_t *m = c.mem;
-    bool upperClipSameCycle = false;
-    (void)upperClipSameCycle;
     (void)m;
     (void)vf;
     (void)vi;
@@ -2498,8 +2446,6 @@ static uint32_t vu1prog_0_0BF0(VU1NativeCtx &c)
     float (*vf)[4] = s.vf;
     int32_t *vi = s.vi;
     uint8_t *m = c.mem;
-    bool upperClipSameCycle = false;
-    (void)upperClipSameCycle;
     (void)m;
     (void)vf;
     (void)vi;
@@ -2537,8 +2483,6 @@ static uint32_t vu1prog_0_0C08(VU1NativeCtx &c)
     float (*vf)[4] = s.vf;
     int32_t *vi = s.vi;
     uint8_t *m = c.mem;
-    bool upperClipSameCycle = false;
-    (void)upperClipSameCycle;
     (void)m;
     (void)vf;
     (void)vi;
@@ -2593,8 +2537,6 @@ static uint32_t vu1prog_0_0C30(VU1NativeCtx &c)
     float (*vf)[4] = s.vf;
     int32_t *vi = s.vi;
     uint8_t *m = c.mem;
-    bool upperClipSameCycle = false;
-    (void)upperClipSameCycle;
     (void)m;
     (void)vf;
     (void)vi;
@@ -2623,8 +2565,6 @@ static uint32_t vu1prog_0_0C48(VU1NativeCtx &c)
     float (*vf)[4] = s.vf;
     int32_t *vi = s.vi;
     uint8_t *m = c.mem;
-    bool upperClipSameCycle = false;
-    (void)upperClipSameCycle;
     (void)m;
     (void)vf;
     (void)vi;
@@ -2681,8 +2621,6 @@ static uint32_t vu1prog_0_0C78(VU1NativeCtx &c)
     float (*vf)[4] = s.vf;
     int32_t *vi = s.vi;
     uint8_t *m = c.mem;
-    bool upperClipSameCycle = false;
-    (void)upperClipSameCycle;
     (void)m;
     (void)vf;
     (void)vi;
@@ -2796,8 +2734,6 @@ static uint32_t vu1prog_0_0CC8(VU1NativeCtx &c)
     float (*vf)[4] = s.vf;
     int32_t *vi = s.vi;
     uint8_t *m = c.mem;
-    bool upperClipSameCycle = false;
-    (void)upperClipSameCycle;
     (void)m;
     (void)vf;
     (void)vi;
@@ -2825,8 +2761,6 @@ static uint32_t vu1prog_0_0CD8(VU1NativeCtx &c)
     float (*vf)[4] = s.vf;
     int32_t *vi = s.vi;
     uint8_t *m = c.mem;
-    bool upperClipSameCycle = false;
-    (void)upperClipSameCycle;
     (void)m;
     (void)vf;
     (void)vi;
@@ -2852,8 +2786,6 @@ static uint32_t vu1prog_0_0CF0(VU1NativeCtx &c)
     float (*vf)[4] = s.vf;
     int32_t *vi = s.vi;
     uint8_t *m = c.mem;
-    bool upperClipSameCycle = false;
-    (void)upperClipSameCycle;
     (void)m;
     (void)vf;
     (void)vi;
@@ -2910,8 +2842,6 @@ static uint32_t vu1prog_0_0D20(VU1NativeCtx &c)
     float (*vf)[4] = s.vf;
     int32_t *vi = s.vi;
     uint8_t *m = c.mem;
-    bool upperClipSameCycle = false;
-    (void)upperClipSameCycle;
     (void)m;
     (void)vf;
     (void)vi;
@@ -3025,8 +2955,6 @@ static uint32_t vu1prog_0_0D70(VU1NativeCtx &c)
     float (*vf)[4] = s.vf;
     int32_t *vi = s.vi;
     uint8_t *m = c.mem;
-    bool upperClipSameCycle = false;
-    (void)upperClipSameCycle;
     (void)m;
     (void)vf;
     (void)vi;
@@ -3054,8 +2982,6 @@ static uint32_t vu1prog_0_0D80(VU1NativeCtx &c)
     float (*vf)[4] = s.vf;
     int32_t *vi = s.vi;
     uint8_t *m = c.mem;
-    bool upperClipSameCycle = false;
-    (void)upperClipSameCycle;
     (void)m;
     (void)vf;
     (void)vi;
@@ -3081,8 +3007,6 @@ static uint32_t vu1prog_0_0D90(VU1NativeCtx &c)
     float (*vf)[4] = s.vf;
     int32_t *vi = s.vi;
     uint8_t *m = c.mem;
-    bool upperClipSameCycle = false;
-    (void)upperClipSameCycle;
     (void)m;
     (void)vf;
     (void)vi;
@@ -3379,8 +3303,6 @@ static uint32_t vu1prog_0_0E50(VU1NativeCtx &c)
     float (*vf)[4] = s.vf;
     int32_t *vi = s.vi;
     uint8_t *m = c.mem;
-    bool upperClipSameCycle = false;
-    (void)upperClipSameCycle;
     (void)m;
     (void)vf;
     (void)vi;
@@ -3462,8 +3384,6 @@ static uint32_t vu1prog_0_0E98(VU1NativeCtx &c)
     float (*vf)[4] = s.vf;
     int32_t *vi = s.vi;
     uint8_t *m = c.mem;
-    bool upperClipSameCycle = false;
-    (void)upperClipSameCycle;
     (void)m;
     (void)vf;
     (void)vi;
@@ -3516,8 +3436,6 @@ static uint32_t vu1prog_0_0EC0(VU1NativeCtx &c)
     float (*vf)[4] = s.vf;
     int32_t *vi = s.vi;
     uint8_t *m = c.mem;
-    bool upperClipSameCycle = false;
-    (void)upperClipSameCycle;
     (void)m;
     (void)vf;
     (void)vi;
@@ -3599,8 +3517,6 @@ static uint32_t vu1prog_0_0F08(VU1NativeCtx &c)
     float (*vf)[4] = s.vf;
     int32_t *vi = s.vi;
     uint8_t *m = c.mem;
-    bool upperClipSameCycle = false;
-    (void)upperClipSameCycle;
     (void)m;
     (void)vf;
     (void)vi;
@@ -3653,8 +3569,6 @@ static uint32_t vu1prog_0_0F30(VU1NativeCtx &c)
     float (*vf)[4] = s.vf;
     int32_t *vi = s.vi;
     uint8_t *m = c.mem;
-    bool upperClipSameCycle = false;
-    (void)upperClipSameCycle;
     (void)m;
     (void)vf;
     (void)vi;
@@ -3736,8 +3650,6 @@ static uint32_t vu1prog_0_0F78(VU1NativeCtx &c)
     float (*vf)[4] = s.vf;
     int32_t *vi = s.vi;
     uint8_t *m = c.mem;
-    bool upperClipSameCycle = false;
-    (void)upperClipSameCycle;
     (void)m;
     (void)vf;
     (void)vi;
@@ -3790,8 +3702,6 @@ static uint32_t vu1prog_0_0FA0(VU1NativeCtx &c)
     float (*vf)[4] = s.vf;
     int32_t *vi = s.vi;
     uint8_t *m = c.mem;
-    bool upperClipSameCycle = false;
-    (void)upperClipSameCycle;
     (void)m;
     (void)vf;
     (void)vi;
@@ -3873,8 +3783,6 @@ static uint32_t vu1prog_0_0FE8(VU1NativeCtx &c)
     float (*vf)[4] = s.vf;
     int32_t *vi = s.vi;
     uint8_t *m = c.mem;
-    bool upperClipSameCycle = false;
-    (void)upperClipSameCycle;
     (void)m;
     (void)vf;
     (void)vi;
@@ -4004,8 +3912,6 @@ static uint32_t vu1prog_0_1060(VU1NativeCtx &c)
     float (*vf)[4] = s.vf;
     int32_t *vi = s.vi;
     uint8_t *m = c.mem;
-    bool upperClipSameCycle = false;
-    (void)upperClipSameCycle;
     (void)m;
     (void)vf;
     (void)vi;
@@ -4183,8 +4089,6 @@ static uint32_t vu1prog_0_10E8(VU1NativeCtx &c)
     float (*vf)[4] = s.vf;
     int32_t *vi = s.vi;
     uint8_t *m = c.mem;
-    bool upperClipSameCycle = false;
-    (void)upperClipSameCycle;
     (void)m;
     (void)vf;
     (void)vi;
@@ -4252,8 +4156,6 @@ static uint32_t vu1prog_0_1120(VU1NativeCtx &c)
     float (*vf)[4] = s.vf;
     int32_t *vi = s.vi;
     uint8_t *m = c.mem;
-    bool upperClipSameCycle = false;
-    (void)upperClipSameCycle;
     (void)m;
     (void)vf;
     (void)vi;
@@ -4327,8 +4229,6 @@ static uint32_t vu1prog_0_1160(VU1NativeCtx &c)
     float (*vf)[4] = s.vf;
     int32_t *vi = s.vi;
     uint8_t *m = c.mem;
-    bool upperClipSameCycle = false;
-    (void)upperClipSameCycle;
     (void)m;
     (void)vf;
     (void)vi;
@@ -4431,8 +4331,6 @@ static uint32_t vu1prog_0_11C0(VU1NativeCtx &c)
     float (*vf)[4] = s.vf;
     int32_t *vi = s.vi;
     uint8_t *m = c.mem;
-    bool upperClipSameCycle = false;
-    (void)upperClipSameCycle;
     (void)m;
     (void)vf;
     (void)vi;
@@ -4527,8 +4425,6 @@ static uint32_t vu1prog_0_1218(VU1NativeCtx &c)
     float (*vf)[4] = s.vf;
     int32_t *vi = s.vi;
     uint8_t *m = c.mem;
-    bool upperClipSameCycle = false;
-    (void)upperClipSameCycle;
     (void)m;
     (void)vf;
     (void)vi;
@@ -4623,8 +4519,6 @@ static uint32_t vu1prog_0_1270(VU1NativeCtx &c)
     float (*vf)[4] = s.vf;
     int32_t *vi = s.vi;
     uint8_t *m = c.mem;
-    bool upperClipSameCycle = false;
-    (void)upperClipSameCycle;
     (void)m;
     (void)vf;
     (void)vi;
@@ -4727,8 +4621,6 @@ static uint32_t vu1prog_0_12D0(VU1NativeCtx &c)
     float (*vf)[4] = s.vf;
     int32_t *vi = s.vi;
     uint8_t *m = c.mem;
-    bool upperClipSameCycle = false;
-    (void)upperClipSameCycle;
     (void)m;
     (void)vf;
     (void)vi;
@@ -4823,8 +4715,6 @@ static uint32_t vu1prog_0_1328(VU1NativeCtx &c)
     float (*vf)[4] = s.vf;
     int32_t *vi = s.vi;
     uint8_t *m = c.mem;
-    bool upperClipSameCycle = false;
-    (void)upperClipSameCycle;
     (void)m;
     (void)vf;
     (void)vi;
@@ -4888,8 +4778,6 @@ static uint32_t vu1prog_0_1368(VU1NativeCtx &c)
     float (*vf)[4] = s.vf;
     int32_t *vi = s.vi;
     uint8_t *m = c.mem;
-    bool upperClipSameCycle = false;
-    (void)upperClipSameCycle;
     (void)m;
     (void)vf;
     (void)vi;
@@ -5040,8 +4928,6 @@ static uint32_t vu1prog_0_13F8(VU1NativeCtx &c)
     float (*vf)[4] = s.vf;
     int32_t *vi = s.vi;
     uint8_t *m = c.mem;
-    bool upperClipSameCycle = false;
-    (void)upperClipSameCycle;
     (void)m;
     (void)vf;
     (void)vi;
@@ -5093,8 +4979,6 @@ static uint32_t vu1prog_0_1420(VU1NativeCtx &c)
     float (*vf)[4] = s.vf;
     int32_t *vi = s.vi;
     uint8_t *m = c.mem;
-    bool upperClipSameCycle = false;
-    (void)upperClipSameCycle;
     (void)m;
     (void)vf;
     (void)vi;
@@ -5167,8 +5051,6 @@ static uint32_t vu1prog_0_1460(VU1NativeCtx &c)
     float (*vf)[4] = s.vf;
     int32_t *vi = s.vi;
     uint8_t *m = c.mem;
-    bool upperClipSameCycle = false;
-    (void)upperClipSameCycle;
     (void)m;
     (void)vf;
     (void)vi;
@@ -5235,8 +5117,6 @@ static uint32_t vu1prog_0_1498(VU1NativeCtx &c)
     float (*vf)[4] = s.vf;
     int32_t *vi = s.vi;
     uint8_t *m = c.mem;
-    bool upperClipSameCycle = false;
-    (void)upperClipSameCycle;
     (void)m;
     (void)vf;
     (void)vi;
@@ -5302,8 +5182,6 @@ static uint32_t vu1prog_0_14D0(VU1NativeCtx &c)
     float (*vf)[4] = s.vf;
     int32_t *vi = s.vi;
     uint8_t *m = c.mem;
-    bool upperClipSameCycle = false;
-    (void)upperClipSameCycle;
     (void)m;
     (void)vf;
     (void)vi;
@@ -5370,8 +5248,6 @@ static uint32_t vu1prog_0_1508(VU1NativeCtx &c)
     float (*vf)[4] = s.vf;
     int32_t *vi = s.vi;
     uint8_t *m = c.mem;
-    bool upperClipSameCycle = false;
-    (void)upperClipSameCycle;
     (void)m;
     (void)vf;
     (void)vi;
@@ -5438,8 +5314,6 @@ static uint32_t vu1prog_0_1540(VU1NativeCtx &c)
     float (*vf)[4] = s.vf;
     int32_t *vi = s.vi;
     uint8_t *m = c.mem;
-    bool upperClipSameCycle = false;
-    (void)upperClipSameCycle;
     (void)m;
     (void)vf;
     (void)vi;
@@ -5503,8 +5377,6 @@ static uint32_t vu1prog_0_1580(VU1NativeCtx &c)
     float (*vf)[4] = s.vf;
     int32_t *vi = s.vi;
     uint8_t *m = c.mem;
-    bool upperClipSameCycle = false;
-    (void)upperClipSameCycle;
     (void)m;
     (void)vf;
     (void)vi;
@@ -5795,8 +5667,6 @@ static uint32_t vu1prog_0_1638(VU1NativeCtx &c)
     float (*vf)[4] = s.vf;
     int32_t *vi = s.vi;
     uint8_t *m = c.mem;
-    bool upperClipSameCycle = false;
-    (void)upperClipSameCycle;
     (void)m;
     (void)vf;
     (void)vi;
@@ -5878,8 +5748,6 @@ static uint32_t vu1prog_0_1680(VU1NativeCtx &c)
     float (*vf)[4] = s.vf;
     int32_t *vi = s.vi;
     uint8_t *m = c.mem;
-    bool upperClipSameCycle = false;
-    (void)upperClipSameCycle;
     (void)m;
     (void)vf;
     (void)vi;
@@ -5961,8 +5829,6 @@ static uint32_t vu1prog_0_16C8(VU1NativeCtx &c)
     float (*vf)[4] = s.vf;
     int32_t *vi = s.vi;
     uint8_t *m = c.mem;
-    bool upperClipSameCycle = false;
-    (void)upperClipSameCycle;
     (void)m;
     (void)vf;
     (void)vi;
@@ -6015,8 +5881,6 @@ static uint32_t vu1prog_0_16F0(VU1NativeCtx &c)
     float (*vf)[4] = s.vf;
     int32_t *vi = s.vi;
     uint8_t *m = c.mem;
-    bool upperClipSameCycle = false;
-    (void)upperClipSameCycle;
     (void)m;
     (void)vf;
     (void)vi;
@@ -6098,8 +5962,6 @@ static uint32_t vu1prog_0_1738(VU1NativeCtx &c)
     float (*vf)[4] = s.vf;
     int32_t *vi = s.vi;
     uint8_t *m = c.mem;
-    bool upperClipSameCycle = false;
-    (void)upperClipSameCycle;
     (void)m;
     (void)vf;
     (void)vi;
@@ -6181,8 +6043,6 @@ static uint32_t vu1prog_0_1780(VU1NativeCtx &c)
     float (*vf)[4] = s.vf;
     int32_t *vi = s.vi;
     uint8_t *m = c.mem;
-    bool upperClipSameCycle = false;
-    (void)upperClipSameCycle;
     (void)m;
     (void)vf;
     (void)vi;
@@ -6235,8 +6095,6 @@ static uint32_t vu1prog_0_17A8(VU1NativeCtx &c)
     float (*vf)[4] = s.vf;
     int32_t *vi = s.vi;
     uint8_t *m = c.mem;
-    bool upperClipSameCycle = false;
-    (void)upperClipSameCycle;
     (void)m;
     (void)vf;
     (void)vi;
@@ -6318,8 +6176,6 @@ static uint32_t vu1prog_0_17F0(VU1NativeCtx &c)
     float (*vf)[4] = s.vf;
     int32_t *vi = s.vi;
     uint8_t *m = c.mem;
-    bool upperClipSameCycle = false;
-    (void)upperClipSameCycle;
     (void)m;
     (void)vf;
     (void)vi;
@@ -6401,8 +6257,6 @@ static uint32_t vu1prog_0_1838(VU1NativeCtx &c)
     float (*vf)[4] = s.vf;
     int32_t *vi = s.vi;
     uint8_t *m = c.mem;
-    bool upperClipSameCycle = false;
-    (void)upperClipSameCycle;
     (void)m;
     (void)vf;
     (void)vi;
@@ -6455,8 +6309,6 @@ static uint32_t vu1prog_0_1860(VU1NativeCtx &c)
     float (*vf)[4] = s.vf;
     int32_t *vi = s.vi;
     uint8_t *m = c.mem;
-    bool upperClipSameCycle = false;
-    (void)upperClipSameCycle;
     (void)m;
     (void)vf;
     (void)vi;
@@ -6538,8 +6390,6 @@ static uint32_t vu1prog_0_18A8(VU1NativeCtx &c)
     float (*vf)[4] = s.vf;
     int32_t *vi = s.vi;
     uint8_t *m = c.mem;
-    bool upperClipSameCycle = false;
-    (void)upperClipSameCycle;
     (void)m;
     (void)vf;
     (void)vi;
@@ -6621,8 +6471,6 @@ static uint32_t vu1prog_0_18F0(VU1NativeCtx &c)
     float (*vf)[4] = s.vf;
     int32_t *vi = s.vi;
     uint8_t *m = c.mem;
-    bool upperClipSameCycle = false;
-    (void)upperClipSameCycle;
     (void)m;
     (void)vf;
     (void)vi;
@@ -6672,8 +6520,6 @@ static uint32_t vu1prog_0_2338(VU1NativeCtx &c)
     float (*vf)[4] = s.vf;
     int32_t *vi = s.vi;
     uint8_t *m = c.mem;
-    bool upperClipSameCycle = false;
-    (void)upperClipSameCycle;
     (void)m;
     (void)vf;
     (void)vi;
@@ -6738,8 +6584,6 @@ static uint32_t vu1prog_0_2360(VU1NativeCtx &c)
     float (*vf)[4] = s.vf;
     int32_t *vi = s.vi;
     uint8_t *m = c.mem;
-    bool upperClipSameCycle = false;
-    (void)upperClipSameCycle;
     (void)m;
     (void)vf;
     (void)vi;
@@ -7153,8 +6997,6 @@ static uint32_t vu1prog_0_2430(VU1NativeCtx &c)
     float (*vf)[4] = s.vf;
     int32_t *vi = s.vi;
     uint8_t *m = c.mem;
-    bool upperClipSameCycle = false;
-    (void)upperClipSameCycle;
     (void)m;
     (void)vf;
     (void)vi;
@@ -7183,8 +7025,6 @@ static uint32_t vu1prog_0_2440(VU1NativeCtx &c)
     float (*vf)[4] = s.vf;
     int32_t *vi = s.vi;
     uint8_t *m = c.mem;
-    bool upperClipSameCycle = false;
-    (void)upperClipSameCycle;
     (void)m;
     (void)vf;
     (void)vi;
@@ -7249,8 +7089,6 @@ static uint32_t vu1prog_0_2468(VU1NativeCtx &c)
     float (*vf)[4] = s.vf;
     int32_t *vi = s.vi;
     uint8_t *m = c.mem;
-    bool upperClipSameCycle = false;
-    (void)upperClipSameCycle;
     (void)m;
     (void)vf;
     (void)vi;
@@ -7769,8 +7607,6 @@ static uint32_t vu1prog_0_25A8(VU1NativeCtx &c)
     float (*vf)[4] = s.vf;
     int32_t *vi = s.vi;
     uint8_t *m = c.mem;
-    bool upperClipSameCycle = false;
-    (void)upperClipSameCycle;
     (void)m;
     (void)vf;
     (void)vi;
@@ -7799,8 +7635,6 @@ static uint32_t vu1prog_0_25B8(VU1NativeCtx &c)
     float (*vf)[4] = s.vf;
     int32_t *vi = s.vi;
     uint8_t *m = c.mem;
-    bool upperClipSameCycle = false;
-    (void)upperClipSameCycle;
     (void)m;
     (void)vf;
     (void)vi;
@@ -7964,8 +7798,6 @@ static uint32_t vu1prog_0_2620(VU1NativeCtx &c)
     float (*vf)[4] = s.vf;
     int32_t *vi = s.vi;
     uint8_t *m = c.mem;
-    bool upperClipSameCycle = false;
-    (void)upperClipSameCycle;
     (void)m;
     (void)vf;
     (void)vi;
@@ -8084,8 +7916,6 @@ static uint32_t vu1prog_0_2670(VU1NativeCtx &c)
     float (*vf)[4] = s.vf;
     int32_t *vi = s.vi;
     uint8_t *m = c.mem;
-    bool upperClipSameCycle = false;
-    (void)upperClipSameCycle;
     (void)m;
     (void)vf;
     (void)vi;
@@ -8114,8 +7944,6 @@ static uint32_t vu1prog_0_2680(VU1NativeCtx &c)
     float (*vf)[4] = s.vf;
     int32_t *vi = s.vi;
     uint8_t *m = c.mem;
-    bool upperClipSameCycle = false;
-    (void)upperClipSameCycle;
     (void)m;
     (void)vf;
     (void)vi;
@@ -8694,8 +8522,6 @@ static uint32_t vu1prog_0_27C8(VU1NativeCtx &c)
     float (*vf)[4] = s.vf;
     int32_t *vi = s.vi;
     uint8_t *m = c.mem;
-    bool upperClipSameCycle = false;
-    (void)upperClipSameCycle;
     (void)m;
     (void)vf;
     (void)vi;
@@ -8909,8 +8735,6 @@ static uint32_t vu1prog_0_2818(VU1NativeCtx &c)
     float (*vf)[4] = s.vf;
     int32_t *vi = s.vi;
     uint8_t *m = c.mem;
-    bool upperClipSameCycle = false;
-    (void)upperClipSameCycle;
     (void)m;
     (void)vf;
     (void)vi;
@@ -9128,8 +8952,6 @@ static uint32_t vu1prog_0_2868(VU1NativeCtx &c)
     float (*vf)[4] = s.vf;
     int32_t *vi = s.vi;
     uint8_t *m = c.mem;
-    bool upperClipSameCycle = false;
-    (void)upperClipSameCycle;
     (void)m;
     (void)vf;
     (void)vi;
@@ -9171,8 +8993,6 @@ static uint32_t vu1prog_0_2880(VU1NativeCtx &c)
     float (*vf)[4] = s.vf;
     int32_t *vi = s.vi;
     uint8_t *m = c.mem;
-    bool upperClipSameCycle = false;
-    (void)upperClipSameCycle;
     (void)m;
     (void)vf;
     (void)vi;
@@ -9228,8 +9048,6 @@ static uint32_t vu1prog_0_28A8(VU1NativeCtx &c)
     float (*vf)[4] = s.vf;
     int32_t *vi = s.vi;
     uint8_t *m = c.mem;
-    bool upperClipSameCycle = false;
-    (void)upperClipSameCycle;
     (void)m;
     (void)vf;
     (void)vi;
@@ -9258,8 +9076,6 @@ static uint32_t vu1prog_0_28B8(VU1NativeCtx &c)
     float (*vf)[4] = s.vf;
     int32_t *vi = s.vi;
     uint8_t *m = c.mem;
-    bool upperClipSameCycle = false;
-    (void)upperClipSameCycle;
     (void)m;
     (void)vf;
     (void)vi;
@@ -9287,8 +9103,6 @@ static uint32_t vu1prog_0_28C8(VU1NativeCtx &c)
     float (*vf)[4] = s.vf;
     int32_t *vi = s.vi;
     uint8_t *m = c.mem;
-    bool upperClipSameCycle = false;
-    (void)upperClipSameCycle;
     (void)m;
     (void)vf;
     (void)vi;
@@ -9316,8 +9130,6 @@ static uint32_t vu1prog_0_28D8(VU1NativeCtx &c)
     float (*vf)[4] = s.vf;
     int32_t *vi = s.vi;
     uint8_t *m = c.mem;
-    bool upperClipSameCycle = false;
-    (void)upperClipSameCycle;
     (void)m;
     (void)vf;
     (void)vi;
@@ -9364,8 +9176,6 @@ static uint32_t vu1prog_0_28F8(VU1NativeCtx &c)
     float (*vf)[4] = s.vf;
     int32_t *vi = s.vi;
     uint8_t *m = c.mem;
-    bool upperClipSameCycle = false;
-    (void)upperClipSameCycle;
     (void)m;
     (void)vf;
     (void)vi;
@@ -9397,8 +9207,6 @@ static uint32_t vu1prog_0_2908(VU1NativeCtx &c)
     float (*vf)[4] = s.vf;
     int32_t *vi = s.vi;
     uint8_t *m = c.mem;
-    bool upperClipSameCycle = false;
-    (void)upperClipSameCycle;
     (void)m;
     (void)vf;
     (void)vi;
@@ -9430,8 +9238,6 @@ static uint32_t vu1prog_0_2918(VU1NativeCtx &c)
     float (*vf)[4] = s.vf;
     int32_t *vi = s.vi;
     uint8_t *m = c.mem;
-    bool upperClipSameCycle = false;
-    (void)upperClipSameCycle;
     (void)m;
     (void)vf;
     (void)vi;
@@ -9463,8 +9269,6 @@ static uint32_t vu1prog_0_2928(VU1NativeCtx &c)
     float (*vf)[4] = s.vf;
     int32_t *vi = s.vi;
     uint8_t *m = c.mem;
-    bool upperClipSameCycle = false;
-    (void)upperClipSameCycle;
     (void)m;
     (void)vf;
     (void)vi;
@@ -9496,8 +9300,6 @@ static uint32_t vu1prog_0_2938(VU1NativeCtx &c)
     float (*vf)[4] = s.vf;
     int32_t *vi = s.vi;
     uint8_t *m = c.mem;
-    bool upperClipSameCycle = false;
-    (void)upperClipSameCycle;
     (void)m;
     (void)vf;
     (void)vi;
@@ -9526,8 +9328,6 @@ static uint32_t vu1prog_0_2948(VU1NativeCtx &c)
     float (*vf)[4] = s.vf;
     int32_t *vi = s.vi;
     uint8_t *m = c.mem;
-    bool upperClipSameCycle = false;
-    (void)upperClipSameCycle;
     (void)m;
     (void)vf;
     (void)vi;
@@ -9922,8 +9722,6 @@ static uint32_t vu1prog_0_2A18(VU1NativeCtx &c)
     float (*vf)[4] = s.vf;
     int32_t *vi = s.vi;
     uint8_t *m = c.mem;
-    bool upperClipSameCycle = false;
-    (void)upperClipSameCycle;
     (void)m;
     (void)vf;
     (void)vi;
@@ -9992,8 +9790,6 @@ static uint32_t vu1prog_0_2A48(VU1NativeCtx &c)
     float (*vf)[4] = s.vf;
     int32_t *vi = s.vi;
     uint8_t *m = c.mem;
-    bool upperClipSameCycle = false;
-    (void)upperClipSameCycle;
     (void)m;
     (void)vf;
     (void)vi;
@@ -10022,8 +9818,6 @@ static uint32_t vu1prog_0_2A58(VU1NativeCtx &c)
     float (*vf)[4] = s.vf;
     int32_t *vi = s.vi;
     uint8_t *m = c.mem;
-    bool upperClipSameCycle = false;
-    (void)upperClipSameCycle;
     (void)m;
     (void)vf;
     (void)vi;
@@ -10070,8 +9864,6 @@ static uint32_t vu1prog_0_2A78(VU1NativeCtx &c)
     float (*vf)[4] = s.vf;
     int32_t *vi = s.vi;
     uint8_t *m = c.mem;
-    bool upperClipSameCycle = false;
-    (void)upperClipSameCycle;
     (void)m;
     (void)vf;
     (void)vi;
@@ -10103,8 +9895,6 @@ static uint32_t vu1prog_0_2A88(VU1NativeCtx &c)
     float (*vf)[4] = s.vf;
     int32_t *vi = s.vi;
     uint8_t *m = c.mem;
-    bool upperClipSameCycle = false;
-    (void)upperClipSameCycle;
     (void)m;
     (void)vf;
     (void)vi;
@@ -10136,8 +9926,6 @@ static uint32_t vu1prog_0_2A98(VU1NativeCtx &c)
     float (*vf)[4] = s.vf;
     int32_t *vi = s.vi;
     uint8_t *m = c.mem;
-    bool upperClipSameCycle = false;
-    (void)upperClipSameCycle;
     (void)m;
     (void)vf;
     (void)vi;
@@ -10169,8 +9957,6 @@ static uint32_t vu1prog_0_2AA8(VU1NativeCtx &c)
     float (*vf)[4] = s.vf;
     int32_t *vi = s.vi;
     uint8_t *m = c.mem;
-    bool upperClipSameCycle = false;
-    (void)upperClipSameCycle;
     (void)m;
     (void)vf;
     (void)vi;
@@ -10202,8 +9988,6 @@ static uint32_t vu1prog_0_2AB8(VU1NativeCtx &c)
     float (*vf)[4] = s.vf;
     int32_t *vi = s.vi;
     uint8_t *m = c.mem;
-    bool upperClipSameCycle = false;
-    (void)upperClipSameCycle;
     (void)m;
     (void)vf;
     (void)vi;
@@ -10232,8 +10016,6 @@ static uint32_t vu1prog_0_2AC8(VU1NativeCtx &c)
     float (*vf)[4] = s.vf;
     int32_t *vi = s.vi;
     uint8_t *m = c.mem;
-    bool upperClipSameCycle = false;
-    (void)upperClipSameCycle;
     (void)m;
     (void)vf;
     (void)vi;
@@ -10628,8 +10410,6 @@ static uint32_t vu1prog_0_2B98(VU1NativeCtx &c)
     float (*vf)[4] = s.vf;
     int32_t *vi = s.vi;
     uint8_t *m = c.mem;
-    bool upperClipSameCycle = false;
-    (void)upperClipSameCycle;
     (void)m;
     (void)vf;
     (void)vi;
@@ -10698,8 +10478,6 @@ static uint32_t vu1prog_0_2BC8(VU1NativeCtx &c)
     float (*vf)[4] = s.vf;
     int32_t *vi = s.vi;
     uint8_t *m = c.mem;
-    bool upperClipSameCycle = false;
-    (void)upperClipSameCycle;
     (void)m;
     (void)vf;
     (void)vi;
@@ -10728,8 +10506,6 @@ static uint32_t vu1prog_0_2BD8(VU1NativeCtx &c)
     float (*vf)[4] = s.vf;
     int32_t *vi = s.vi;
     uint8_t *m = c.mem;
-    bool upperClipSameCycle = false;
-    (void)upperClipSameCycle;
     (void)m;
     (void)vf;
     (void)vi;
@@ -10774,8 +10550,6 @@ static uint32_t vu1prog_0_2BF8(VU1NativeCtx &c)
     float (*vf)[4] = s.vf;
     int32_t *vi = s.vi;
     uint8_t *m = c.mem;
-    bool upperClipSameCycle = false;
-    (void)upperClipSameCycle;
     (void)m;
     (void)vf;
     (void)vi;
@@ -10874,8 +10648,6 @@ static uint32_t vu1prog_0_2C50(VU1NativeCtx &c)
     float (*vf)[4] = s.vf;
     int32_t *vi = s.vi;
     uint8_t *m = c.mem;
-    bool upperClipSameCycle = false;
-    (void)upperClipSameCycle;
     (void)m;
     (void)vf;
     (void)vi;
@@ -11462,8 +11234,6 @@ static uint32_t vu1prog_0_2DA0(VU1NativeCtx &c)
     float (*vf)[4] = s.vf;
     int32_t *vi = s.vi;
     uint8_t *m = c.mem;
-    bool upperClipSameCycle = false;
-    (void)upperClipSameCycle;
     (void)m;
     (void)vf;
     (void)vi;
@@ -11675,8 +11445,6 @@ static uint32_t vu1prog_0_2DF0(VU1NativeCtx &c)
     float (*vf)[4] = s.vf;
     int32_t *vi = s.vi;
     uint8_t *m = c.mem;
-    bool upperClipSameCycle = false;
-    (void)upperClipSameCycle;
     (void)m;
     (void)vf;
     (void)vi;
@@ -11901,8 +11669,6 @@ static uint32_t vu1prog_0_2E48(VU1NativeCtx &c)
     float (*vf)[4] = s.vf;
     int32_t *vi = s.vi;
     uint8_t *m = c.mem;
-    bool upperClipSameCycle = false;
-    (void)upperClipSameCycle;
     (void)m;
     (void)vf;
     (void)vi;
@@ -11946,8 +11712,6 @@ static uint32_t vu1prog_0_2E60(VU1NativeCtx &c)
     float (*vf)[4] = s.vf;
     int32_t *vi = s.vi;
     uint8_t *m = c.mem;
-    bool upperClipSameCycle = false;
-    (void)upperClipSameCycle;
     (void)m;
     (void)vf;
     (void)vi;
@@ -11989,8 +11753,6 @@ static uint32_t vu1prog_0_2E70(VU1NativeCtx &c)
     float (*vf)[4] = s.vf;
     int32_t *vi = s.vi;
     uint8_t *m = c.mem;
-    bool upperClipSameCycle = false;
-    (void)upperClipSameCycle;
     (void)m;
     (void)vf;
     (void)vi;
@@ -12178,8 +11940,6 @@ static uint32_t vu1prog_0_2EB8(VU1NativeCtx &c)
     float (*vf)[4] = s.vf;
     int32_t *vi = s.vi;
     uint8_t *m = c.mem;
-    bool upperClipSameCycle = false;
-    (void)upperClipSameCycle;
     (void)m;
     (void)vf;
     (void)vi;
@@ -12378,8 +12138,6 @@ static uint32_t vu1prog_0_2F58(VU1NativeCtx &c)
     float (*vf)[4] = s.vf;
     int32_t *vi = s.vi;
     uint8_t *m = c.mem;
-    bool upperClipSameCycle = false;
-    (void)upperClipSameCycle;
     (void)m;
     (void)vf;
     (void)vi;
@@ -12425,8 +12183,6 @@ static uint32_t vu1prog_0_2F70(VU1NativeCtx &c)
     float (*vf)[4] = s.vf;
     int32_t *vi = s.vi;
     uint8_t *m = c.mem;
-    bool upperClipSameCycle = false;
-    (void)upperClipSameCycle;
     (void)m;
     (void)vf;
     (void)vi;
@@ -12455,8 +12211,6 @@ static uint32_t vu1prog_0_2F80(VU1NativeCtx &c)
     float (*vf)[4] = s.vf;
     int32_t *vi = s.vi;
     uint8_t *m = c.mem;
-    bool upperClipSameCycle = false;
-    (void)upperClipSameCycle;
     (void)m;
     (void)vf;
     (void)vi;
@@ -12484,8 +12238,6 @@ static uint32_t vu1prog_0_2F90(VU1NativeCtx &c)
     float (*vf)[4] = s.vf;
     int32_t *vi = s.vi;
     uint8_t *m = c.mem;
-    bool upperClipSameCycle = false;
-    (void)upperClipSameCycle;
     (void)m;
     (void)vf;
     (void)vi;
@@ -12513,8 +12265,6 @@ static uint32_t vu1prog_0_2FA0(VU1NativeCtx &c)
     float (*vf)[4] = s.vf;
     int32_t *vi = s.vi;
     uint8_t *m = c.mem;
-    bool upperClipSameCycle = false;
-    (void)upperClipSameCycle;
     (void)m;
     (void)vf;
     (void)vi;
@@ -12542,8 +12292,6 @@ static uint32_t vu1prog_0_2FB0(VU1NativeCtx &c)
     float (*vf)[4] = s.vf;
     int32_t *vi = s.vi;
     uint8_t *m = c.mem;
-    bool upperClipSameCycle = false;
-    (void)upperClipSameCycle;
     (void)m;
     (void)vf;
     (void)vi;
@@ -12571,8 +12319,6 @@ static uint32_t vu1prog_0_2FC0(VU1NativeCtx &c)
     float (*vf)[4] = s.vf;
     int32_t *vi = s.vi;
     uint8_t *m = c.mem;
-    bool upperClipSameCycle = false;
-    (void)upperClipSameCycle;
     (void)m;
     (void)vf;
     (void)vi;
@@ -12626,8 +12372,6 @@ static uint32_t vu1prog_0_2FE8(VU1NativeCtx &c)
     float (*vf)[4] = s.vf;
     int32_t *vi = s.vi;
     uint8_t *m = c.mem;
-    bool upperClipSameCycle = false;
-    (void)upperClipSameCycle;
     (void)m;
     (void)vf;
     (void)vi;
@@ -12659,8 +12403,6 @@ static uint32_t vu1prog_0_2FF8(VU1NativeCtx &c)
     float (*vf)[4] = s.vf;
     int32_t *vi = s.vi;
     uint8_t *m = c.mem;
-    bool upperClipSameCycle = false;
-    (void)upperClipSameCycle;
     (void)m;
     (void)vf;
     (void)vi;
@@ -12692,8 +12434,6 @@ static uint32_t vu1prog_0_3008(VU1NativeCtx &c)
     float (*vf)[4] = s.vf;
     int32_t *vi = s.vi;
     uint8_t *m = c.mem;
-    bool upperClipSameCycle = false;
-    (void)upperClipSameCycle;
     (void)m;
     (void)vf;
     (void)vi;
@@ -12725,8 +12465,6 @@ static uint32_t vu1prog_0_3018(VU1NativeCtx &c)
     float (*vf)[4] = s.vf;
     int32_t *vi = s.vi;
     uint8_t *m = c.mem;
-    bool upperClipSameCycle = false;
-    (void)upperClipSameCycle;
     (void)m;
     (void)vf;
     (void)vi;
@@ -12758,8 +12496,6 @@ static uint32_t vu1prog_0_3028(VU1NativeCtx &c)
     float (*vf)[4] = s.vf;
     int32_t *vi = s.vi;
     uint8_t *m = c.mem;
-    bool upperClipSameCycle = false;
-    (void)upperClipSameCycle;
     (void)m;
     (void)vf;
     (void)vi;
@@ -12788,8 +12524,6 @@ static uint32_t vu1prog_0_3038(VU1NativeCtx &c)
     float (*vf)[4] = s.vf;
     int32_t *vi = s.vi;
     uint8_t *m = c.mem;
-    bool upperClipSameCycle = false;
-    (void)upperClipSameCycle;
     (void)m;
     (void)vf;
     (void)vi;
@@ -13249,8 +12983,6 @@ static uint32_t vu1prog_0_3150(VU1NativeCtx &c)
     float (*vf)[4] = s.vf;
     int32_t *vi = s.vi;
     uint8_t *m = c.mem;
-    bool upperClipSameCycle = false;
-    (void)upperClipSameCycle;
     (void)m;
     (void)vf;
     (void)vi;
@@ -13321,8 +13053,6 @@ static uint32_t vu1prog_0_3180(VU1NativeCtx &c)
     float (*vf)[4] = s.vf;
     int32_t *vi = s.vi;
     uint8_t *m = c.mem;
-    bool upperClipSameCycle = false;
-    (void)upperClipSameCycle;
     (void)m;
     (void)vf;
     (void)vi;
@@ -13351,8 +13081,6 @@ static uint32_t vu1prog_0_3190(VU1NativeCtx &c)
     float (*vf)[4] = s.vf;
     int32_t *vi = s.vi;
     uint8_t *m = c.mem;
-    bool upperClipSameCycle = false;
-    (void)upperClipSameCycle;
     (void)m;
     (void)vf;
     (void)vi;
@@ -13406,8 +13134,6 @@ static uint32_t vu1prog_0_31B8(VU1NativeCtx &c)
     float (*vf)[4] = s.vf;
     int32_t *vi = s.vi;
     uint8_t *m = c.mem;
-    bool upperClipSameCycle = false;
-    (void)upperClipSameCycle;
     (void)m;
     (void)vf;
     (void)vi;
@@ -13439,8 +13165,6 @@ static uint32_t vu1prog_0_31C8(VU1NativeCtx &c)
     float (*vf)[4] = s.vf;
     int32_t *vi = s.vi;
     uint8_t *m = c.mem;
-    bool upperClipSameCycle = false;
-    (void)upperClipSameCycle;
     (void)m;
     (void)vf;
     (void)vi;
@@ -13472,8 +13196,6 @@ static uint32_t vu1prog_0_31D8(VU1NativeCtx &c)
     float (*vf)[4] = s.vf;
     int32_t *vi = s.vi;
     uint8_t *m = c.mem;
-    bool upperClipSameCycle = false;
-    (void)upperClipSameCycle;
     (void)m;
     (void)vf;
     (void)vi;
@@ -13505,8 +13227,6 @@ static uint32_t vu1prog_0_31E8(VU1NativeCtx &c)
     float (*vf)[4] = s.vf;
     int32_t *vi = s.vi;
     uint8_t *m = c.mem;
-    bool upperClipSameCycle = false;
-    (void)upperClipSameCycle;
     (void)m;
     (void)vf;
     (void)vi;
@@ -13538,8 +13258,6 @@ static uint32_t vu1prog_0_31F8(VU1NativeCtx &c)
     float (*vf)[4] = s.vf;
     int32_t *vi = s.vi;
     uint8_t *m = c.mem;
-    bool upperClipSameCycle = false;
-    (void)upperClipSameCycle;
     (void)m;
     (void)vf;
     (void)vi;
@@ -13568,8 +13286,6 @@ static uint32_t vu1prog_0_3208(VU1NativeCtx &c)
     float (*vf)[4] = s.vf;
     int32_t *vi = s.vi;
     uint8_t *m = c.mem;
-    bool upperClipSameCycle = false;
-    (void)upperClipSameCycle;
     (void)m;
     (void)vf;
     (void)vi;
@@ -14029,8 +13745,6 @@ static uint32_t vu1prog_0_3320(VU1NativeCtx &c)
     float (*vf)[4] = s.vf;
     int32_t *vi = s.vi;
     uint8_t *m = c.mem;
-    bool upperClipSameCycle = false;
-    (void)upperClipSameCycle;
     (void)m;
     (void)vf;
     (void)vi;
@@ -14101,8 +13815,6 @@ static uint32_t vu1prog_0_3350(VU1NativeCtx &c)
     float (*vf)[4] = s.vf;
     int32_t *vi = s.vi;
     uint8_t *m = c.mem;
-    bool upperClipSameCycle = false;
-    (void)upperClipSameCycle;
     (void)m;
     (void)vf;
     (void)vi;
@@ -14131,8 +13843,6 @@ static uint32_t vu1prog_0_3360(VU1NativeCtx &c)
     float (*vf)[4] = s.vf;
     int32_t *vi = s.vi;
     uint8_t *m = c.mem;
-    bool upperClipSameCycle = false;
-    (void)upperClipSameCycle;
     (void)m;
     (void)vf;
     (void)vi;
@@ -14186,8 +13896,6 @@ static uint32_t vu1prog_0_3388(VU1NativeCtx &c)
     float (*vf)[4] = s.vf;
     int32_t *vi = s.vi;
     uint8_t *m = c.mem;
-    bool upperClipSameCycle = false;
-    (void)upperClipSameCycle;
     (void)m;
     (void)vf;
     (void)vi;
@@ -14219,8 +13927,6 @@ static uint32_t vu1prog_0_3398(VU1NativeCtx &c)
     float (*vf)[4] = s.vf;
     int32_t *vi = s.vi;
     uint8_t *m = c.mem;
-    bool upperClipSameCycle = false;
-    (void)upperClipSameCycle;
     (void)m;
     (void)vf;
     (void)vi;
@@ -14252,8 +13958,6 @@ static uint32_t vu1prog_0_33A8(VU1NativeCtx &c)
     float (*vf)[4] = s.vf;
     int32_t *vi = s.vi;
     uint8_t *m = c.mem;
-    bool upperClipSameCycle = false;
-    (void)upperClipSameCycle;
     (void)m;
     (void)vf;
     (void)vi;
@@ -14285,8 +13989,6 @@ static uint32_t vu1prog_0_33B8(VU1NativeCtx &c)
     float (*vf)[4] = s.vf;
     int32_t *vi = s.vi;
     uint8_t *m = c.mem;
-    bool upperClipSameCycle = false;
-    (void)upperClipSameCycle;
     (void)m;
     (void)vf;
     (void)vi;
@@ -14318,8 +14020,6 @@ static uint32_t vu1prog_0_33C8(VU1NativeCtx &c)
     float (*vf)[4] = s.vf;
     int32_t *vi = s.vi;
     uint8_t *m = c.mem;
-    bool upperClipSameCycle = false;
-    (void)upperClipSameCycle;
     (void)m;
     (void)vf;
     (void)vi;
@@ -14348,8 +14048,6 @@ static uint32_t vu1prog_0_33D8(VU1NativeCtx &c)
     float (*vf)[4] = s.vf;
     int32_t *vi = s.vi;
     uint8_t *m = c.mem;
-    bool upperClipSameCycle = false;
-    (void)upperClipSameCycle;
     (void)m;
     (void)vf;
     (void)vi;
@@ -14800,8 +14498,6 @@ static uint32_t vu1prog_0_34E8(VU1NativeCtx &c)
     float (*vf)[4] = s.vf;
     int32_t *vi = s.vi;
     uint8_t *m = c.mem;
-    bool upperClipSameCycle = false;
-    (void)upperClipSameCycle;
     (void)m;
     (void)vf;
     (void)vi;
@@ -14864,8 +14560,6 @@ static uint32_t vu1prog_0_3510(VU1NativeCtx &c)
     float (*vf)[4] = s.vf;
     int32_t *vi = s.vi;
     uint8_t *m = c.mem;
-    bool upperClipSameCycle = false;
-    (void)upperClipSameCycle;
     (void)m;
     (void)vf;
     (void)vi;
@@ -14894,8 +14588,6 @@ static uint32_t vu1prog_0_3520(VU1NativeCtx &c)
     float (*vf)[4] = s.vf;
     int32_t *vi = s.vi;
     uint8_t *m = c.mem;
-    bool upperClipSameCycle = false;
-    (void)upperClipSameCycle;
     (void)m;
     (void)vf;
     (void)vi;
@@ -14949,8 +14641,6 @@ static uint32_t vu1prog_0_3548(VU1NativeCtx &c)
     float (*vf)[4] = s.vf;
     int32_t *vi = s.vi;
     uint8_t *m = c.mem;
-    bool upperClipSameCycle = false;
-    (void)upperClipSameCycle;
     (void)m;
     (void)vf;
     (void)vi;
@@ -14982,8 +14672,6 @@ static uint32_t vu1prog_0_3558(VU1NativeCtx &c)
     float (*vf)[4] = s.vf;
     int32_t *vi = s.vi;
     uint8_t *m = c.mem;
-    bool upperClipSameCycle = false;
-    (void)upperClipSameCycle;
     (void)m;
     (void)vf;
     (void)vi;
@@ -15015,8 +14703,6 @@ static uint32_t vu1prog_0_3568(VU1NativeCtx &c)
     float (*vf)[4] = s.vf;
     int32_t *vi = s.vi;
     uint8_t *m = c.mem;
-    bool upperClipSameCycle = false;
-    (void)upperClipSameCycle;
     (void)m;
     (void)vf;
     (void)vi;
@@ -15048,8 +14734,6 @@ static uint32_t vu1prog_0_3578(VU1NativeCtx &c)
     float (*vf)[4] = s.vf;
     int32_t *vi = s.vi;
     uint8_t *m = c.mem;
-    bool upperClipSameCycle = false;
-    (void)upperClipSameCycle;
     (void)m;
     (void)vf;
     (void)vi;
@@ -15081,8 +14765,6 @@ static uint32_t vu1prog_0_3588(VU1NativeCtx &c)
     float (*vf)[4] = s.vf;
     int32_t *vi = s.vi;
     uint8_t *m = c.mem;
-    bool upperClipSameCycle = false;
-    (void)upperClipSameCycle;
     (void)m;
     (void)vf;
     (void)vi;
@@ -15111,8 +14793,6 @@ static uint32_t vu1prog_0_3598(VU1NativeCtx &c)
     float (*vf)[4] = s.vf;
     int32_t *vi = s.vi;
     uint8_t *m = c.mem;
-    bool upperClipSameCycle = false;
-    (void)upperClipSameCycle;
     (void)m;
     (void)vf;
     (void)vi;
@@ -15549,8 +15229,6 @@ static uint32_t vu1prog_0_3698(VU1NativeCtx &c)
     float (*vf)[4] = s.vf;
     int32_t *vi = s.vi;
     uint8_t *m = c.mem;
-    bool upperClipSameCycle = false;
-    (void)upperClipSameCycle;
     (void)m;
     (void)vf;
     (void)vi;
@@ -15613,8 +15291,6 @@ static uint32_t vu1prog_0_36C0(VU1NativeCtx &c)
     float (*vf)[4] = s.vf;
     int32_t *vi = s.vi;
     uint8_t *m = c.mem;
-    bool upperClipSameCycle = false;
-    (void)upperClipSameCycle;
     (void)m;
     (void)vf;
     (void)vi;
@@ -15643,8 +15319,6 @@ static uint32_t vu1prog_0_36D0(VU1NativeCtx &c)
     float (*vf)[4] = s.vf;
     int32_t *vi = s.vi;
     uint8_t *m = c.mem;
-    bool upperClipSameCycle = false;
-    (void)upperClipSameCycle;
     (void)m;
     (void)vf;
     (void)vi;
@@ -15721,8 +15395,6 @@ static uint32_t vu1prog_0_3708(VU1NativeCtx &c)
     float (*vf)[4] = s.vf;
     int32_t *vi = s.vi;
     uint8_t *m = c.mem;
-    bool upperClipSameCycle = false;
-    (void)upperClipSameCycle;
     (void)m;
     (void)vf;
     (void)vi;
@@ -15850,8 +15522,6 @@ static uint32_t vu1prog_0_3748(VU1NativeCtx &c)
     float (*vf)[4] = s.vf;
     int32_t *vi = s.vi;
     uint8_t *m = c.mem;
-    bool upperClipSameCycle = false;
-    (void)upperClipSameCycle;
     (void)m;
     (void)vf;
     (void)vi;
@@ -15889,8 +15559,6 @@ static uint32_t vu1prog_0_3758(VU1NativeCtx &c)
     float (*vf)[4] = s.vf;
     int32_t *vi = s.vi;
     uint8_t *m = c.mem;
-    bool upperClipSameCycle = false;
-    (void)upperClipSameCycle;
     (void)m;
     (void)vf;
     (void)vi;
@@ -15919,8 +15587,6 @@ static uint32_t vu1prog_0_3768(VU1NativeCtx &c)
     float (*vf)[4] = s.vf;
     int32_t *vi = s.vi;
     uint8_t *m = c.mem;
-    bool upperClipSameCycle = false;
-    (void)upperClipSameCycle;
     (void)m;
     (void)vf;
     (void)vi;
@@ -16015,8 +15681,6 @@ static uint32_t vu1prog_0_3788(VU1NativeCtx &c)
     float (*vf)[4] = s.vf;
     int32_t *vi = s.vi;
     uint8_t *m = c.mem;
-    bool upperClipSameCycle = false;
-    (void)upperClipSameCycle;
     (void)m;
     (void)vf;
     (void)vi;
@@ -16089,8 +15753,6 @@ static uint32_t vu1prog_0_37A0(VU1NativeCtx &c)
     float (*vf)[4] = s.vf;
     int32_t *vi = s.vi;
     uint8_t *m = c.mem;
-    bool upperClipSameCycle = false;
-    (void)upperClipSameCycle;
     (void)m;
     (void)vf;
     (void)vi;
@@ -16194,8 +15856,6 @@ static uint32_t vu1prog_0_37C8(VU1NativeCtx &c)
     float (*vf)[4] = s.vf;
     int32_t *vi = s.vi;
     uint8_t *m = c.mem;
-    bool upperClipSameCycle = false;
-    (void)upperClipSameCycle;
     (void)m;
     (void)vf;
     (void)vi;
@@ -16254,8 +15914,6 @@ static uint32_t vu1prog_0_37E8(VU1NativeCtx &c)
     float (*vf)[4] = s.vf;
     int32_t *vi = s.vi;
     uint8_t *m = c.mem;
-    bool upperClipSameCycle = false;
-    (void)upperClipSameCycle;
     (void)m;
     (void)vf;
     (void)vi;
@@ -16329,8 +15987,6 @@ static uint32_t vu1prog_0_3818(VU1NativeCtx &c)
     float (*vf)[4] = s.vf;
     int32_t *vi = s.vi;
     uint8_t *m = c.mem;
-    bool upperClipSameCycle = false;
-    (void)upperClipSameCycle;
     (void)m;
     (void)vf;
     (void)vi;
@@ -16426,8 +16082,6 @@ static uint32_t vu1prog_0_3850(VU1NativeCtx &c)
     float (*vf)[4] = s.vf;
     int32_t *vi = s.vi;
     uint8_t *m = c.mem;
-    bool upperClipSameCycle = false;
-    (void)upperClipSameCycle;
     (void)m;
     (void)vf;
     (void)vi;
@@ -16461,8 +16115,6 @@ static uint32_t vu1prog_0_3858(VU1NativeCtx &c)
     float (*vf)[4] = s.vf;
     int32_t *vi = s.vi;
     uint8_t *m = c.mem;
-    bool upperClipSameCycle = false;
-    (void)upperClipSameCycle;
     (void)m;
     (void)vf;
     (void)vi;
@@ -16575,8 +16227,6 @@ static uint32_t vu1prog_0_3890(VU1NativeCtx &c)
     float (*vf)[4] = s.vf;
     int32_t *vi = s.vi;
     uint8_t *m = c.mem;
-    bool upperClipSameCycle = false;
-    (void)upperClipSameCycle;
     (void)m;
     (void)vf;
     (void)vi;
@@ -16614,8 +16264,6 @@ static uint32_t vu1prog_0_38A0(VU1NativeCtx &c)
     float (*vf)[4] = s.vf;
     int32_t *vi = s.vi;
     uint8_t *m = c.mem;
-    bool upperClipSameCycle = false;
-    (void)upperClipSameCycle;
     (void)m;
     (void)vf;
     (void)vi;
@@ -16644,8 +16292,6 @@ static uint32_t vu1prog_0_38B0(VU1NativeCtx &c)
     float (*vf)[4] = s.vf;
     int32_t *vi = s.vi;
     uint8_t *m = c.mem;
-    bool upperClipSameCycle = false;
-    (void)upperClipSameCycle;
     (void)m;
     (void)vf;
     (void)vi;
@@ -16740,8 +16386,6 @@ static uint32_t vu1prog_0_38D0(VU1NativeCtx &c)
     float (*vf)[4] = s.vf;
     int32_t *vi = s.vi;
     uint8_t *m = c.mem;
-    bool upperClipSameCycle = false;
-    (void)upperClipSameCycle;
     (void)m;
     (void)vf;
     (void)vi;
@@ -16814,8 +16458,6 @@ static uint32_t vu1prog_0_38E8(VU1NativeCtx &c)
     float (*vf)[4] = s.vf;
     int32_t *vi = s.vi;
     uint8_t *m = c.mem;
-    bool upperClipSameCycle = false;
-    (void)upperClipSameCycle;
     (void)m;
     (void)vf;
     (void)vi;
@@ -16919,8 +16561,6 @@ static uint32_t vu1prog_0_3910(VU1NativeCtx &c)
     float (*vf)[4] = s.vf;
     int32_t *vi = s.vi;
     uint8_t *m = c.mem;
-    bool upperClipSameCycle = false;
-    (void)upperClipSameCycle;
     (void)m;
     (void)vf;
     (void)vi;
@@ -16979,8 +16619,6 @@ static uint32_t vu1prog_0_3930(VU1NativeCtx &c)
     float (*vf)[4] = s.vf;
     int32_t *vi = s.vi;
     uint8_t *m = c.mem;
-    bool upperClipSameCycle = false;
-    (void)upperClipSameCycle;
     (void)m;
     (void)vf;
     (void)vi;
@@ -17054,8 +16692,6 @@ static uint32_t vu1prog_0_3960(VU1NativeCtx &c)
     float (*vf)[4] = s.vf;
     int32_t *vi = s.vi;
     uint8_t *m = c.mem;
-    bool upperClipSameCycle = false;
-    (void)upperClipSameCycle;
     (void)m;
     (void)vf;
     (void)vi;
@@ -17151,8 +16787,6 @@ static uint32_t vu1prog_0_3998(VU1NativeCtx &c)
     float (*vf)[4] = s.vf;
     int32_t *vi = s.vi;
     uint8_t *m = c.mem;
-    bool upperClipSameCycle = false;
-    (void)upperClipSameCycle;
     (void)m;
     (void)vf;
     (void)vi;
@@ -17186,8 +16820,6 @@ static uint32_t vu1prog_0_39A0(VU1NativeCtx &c)
     float (*vf)[4] = s.vf;
     int32_t *vi = s.vi;
     uint8_t *m = c.mem;
-    bool upperClipSameCycle = false;
-    (void)upperClipSameCycle;
     (void)m;
     (void)vf;
     (void)vi;
@@ -17300,8 +16932,6 @@ static uint32_t vu1prog_0_39D8(VU1NativeCtx &c)
     float (*vf)[4] = s.vf;
     int32_t *vi = s.vi;
     uint8_t *m = c.mem;
-    bool upperClipSameCycle = false;
-    (void)upperClipSameCycle;
     (void)m;
     (void)vf;
     (void)vi;
@@ -17339,8 +16969,6 @@ static uint32_t vu1prog_0_39E8(VU1NativeCtx &c)
     float (*vf)[4] = s.vf;
     int32_t *vi = s.vi;
     uint8_t *m = c.mem;
-    bool upperClipSameCycle = false;
-    (void)upperClipSameCycle;
     (void)m;
     (void)vf;
     (void)vi;
@@ -17369,8 +16997,6 @@ static uint32_t vu1prog_0_39F8(VU1NativeCtx &c)
     float (*vf)[4] = s.vf;
     int32_t *vi = s.vi;
     uint8_t *m = c.mem;
-    bool upperClipSameCycle = false;
-    (void)upperClipSameCycle;
     (void)m;
     (void)vf;
     (void)vi;
@@ -17465,8 +17091,6 @@ static uint32_t vu1prog_0_3A18(VU1NativeCtx &c)
     float (*vf)[4] = s.vf;
     int32_t *vi = s.vi;
     uint8_t *m = c.mem;
-    bool upperClipSameCycle = false;
-    (void)upperClipSameCycle;
     (void)m;
     (void)vf;
     (void)vi;
@@ -17539,8 +17163,6 @@ static uint32_t vu1prog_0_3A30(VU1NativeCtx &c)
     float (*vf)[4] = s.vf;
     int32_t *vi = s.vi;
     uint8_t *m = c.mem;
-    bool upperClipSameCycle = false;
-    (void)upperClipSameCycle;
     (void)m;
     (void)vf;
     (void)vi;
@@ -17644,8 +17266,6 @@ static uint32_t vu1prog_0_3A58(VU1NativeCtx &c)
     float (*vf)[4] = s.vf;
     int32_t *vi = s.vi;
     uint8_t *m = c.mem;
-    bool upperClipSameCycle = false;
-    (void)upperClipSameCycle;
     (void)m;
     (void)vf;
     (void)vi;
@@ -17704,8 +17324,6 @@ static uint32_t vu1prog_0_3A78(VU1NativeCtx &c)
     float (*vf)[4] = s.vf;
     int32_t *vi = s.vi;
     uint8_t *m = c.mem;
-    bool upperClipSameCycle = false;
-    (void)upperClipSameCycle;
     (void)m;
     (void)vf;
     (void)vi;
@@ -17779,8 +17397,6 @@ static uint32_t vu1prog_0_3AA8(VU1NativeCtx &c)
     float (*vf)[4] = s.vf;
     int32_t *vi = s.vi;
     uint8_t *m = c.mem;
-    bool upperClipSameCycle = false;
-    (void)upperClipSameCycle;
     (void)m;
     (void)vf;
     (void)vi;
@@ -17876,8 +17492,6 @@ static uint32_t vu1prog_0_3AE0(VU1NativeCtx &c)
     float (*vf)[4] = s.vf;
     int32_t *vi = s.vi;
     uint8_t *m = c.mem;
-    bool upperClipSameCycle = false;
-    (void)upperClipSameCycle;
     (void)m;
     (void)vf;
     (void)vi;
@@ -17911,8 +17525,6 @@ static uint32_t vu1prog_0_3AE8(VU1NativeCtx &c)
     float (*vf)[4] = s.vf;
     int32_t *vi = s.vi;
     uint8_t *m = c.mem;
-    bool upperClipSameCycle = false;
-    (void)upperClipSameCycle;
     (void)m;
     (void)vf;
     (void)vi;
@@ -18025,8 +17637,6 @@ static uint32_t vu1prog_0_3B20(VU1NativeCtx &c)
     float (*vf)[4] = s.vf;
     int32_t *vi = s.vi;
     uint8_t *m = c.mem;
-    bool upperClipSameCycle = false;
-    (void)upperClipSameCycle;
     (void)m;
     (void)vf;
     (void)vi;
@@ -18064,8 +17674,6 @@ static uint32_t vu1prog_0_3B30(VU1NativeCtx &c)
     float (*vf)[4] = s.vf;
     int32_t *vi = s.vi;
     uint8_t *m = c.mem;
-    bool upperClipSameCycle = false;
-    (void)upperClipSameCycle;
     (void)m;
     (void)vf;
     (void)vi;
@@ -18094,8 +17702,6 @@ static uint32_t vu1prog_0_3B40(VU1NativeCtx &c)
     float (*vf)[4] = s.vf;
     int32_t *vi = s.vi;
     uint8_t *m = c.mem;
-    bool upperClipSameCycle = false;
-    (void)upperClipSameCycle;
     (void)m;
     (void)vf;
     (void)vi;
@@ -18190,8 +17796,6 @@ static uint32_t vu1prog_0_3B60(VU1NativeCtx &c)
     float (*vf)[4] = s.vf;
     int32_t *vi = s.vi;
     uint8_t *m = c.mem;
-    bool upperClipSameCycle = false;
-    (void)upperClipSameCycle;
     (void)m;
     (void)vf;
     (void)vi;
@@ -18264,8 +17868,6 @@ static uint32_t vu1prog_0_3B78(VU1NativeCtx &c)
     float (*vf)[4] = s.vf;
     int32_t *vi = s.vi;
     uint8_t *m = c.mem;
-    bool upperClipSameCycle = false;
-    (void)upperClipSameCycle;
     (void)m;
     (void)vf;
     (void)vi;
@@ -18369,8 +17971,6 @@ static uint32_t vu1prog_0_3BA0(VU1NativeCtx &c)
     float (*vf)[4] = s.vf;
     int32_t *vi = s.vi;
     uint8_t *m = c.mem;
-    bool upperClipSameCycle = false;
-    (void)upperClipSameCycle;
     (void)m;
     (void)vf;
     (void)vi;
@@ -18429,8 +18029,6 @@ static uint32_t vu1prog_0_3BC0(VU1NativeCtx &c)
     float (*vf)[4] = s.vf;
     int32_t *vi = s.vi;
     uint8_t *m = c.mem;
-    bool upperClipSameCycle = false;
-    (void)upperClipSameCycle;
     (void)m;
     (void)vf;
     (void)vi;
@@ -18504,8 +18102,6 @@ static uint32_t vu1prog_0_3BF0(VU1NativeCtx &c)
     float (*vf)[4] = s.vf;
     int32_t *vi = s.vi;
     uint8_t *m = c.mem;
-    bool upperClipSameCycle = false;
-    (void)upperClipSameCycle;
     (void)m;
     (void)vf;
     (void)vi;
@@ -18601,8 +18197,6 @@ static uint32_t vu1prog_0_3C28(VU1NativeCtx &c)
     float (*vf)[4] = s.vf;
     int32_t *vi = s.vi;
     uint8_t *m = c.mem;
-    bool upperClipSameCycle = false;
-    (void)upperClipSameCycle;
     (void)m;
     (void)vf;
     (void)vi;
@@ -18636,8 +18230,6 @@ static uint32_t vu1prog_0_3C30(VU1NativeCtx &c)
     float (*vf)[4] = s.vf;
     int32_t *vi = s.vi;
     uint8_t *m = c.mem;
-    bool upperClipSameCycle = false;
-    (void)upperClipSameCycle;
     (void)m;
     (void)vf;
     (void)vi;
@@ -18750,8 +18342,6 @@ static uint32_t vu1prog_0_3C68(VU1NativeCtx &c)
     float (*vf)[4] = s.vf;
     int32_t *vi = s.vi;
     uint8_t *m = c.mem;
-    bool upperClipSameCycle = false;
-    (void)upperClipSameCycle;
     (void)m;
     (void)vf;
     (void)vi;
@@ -18789,8 +18379,6 @@ static uint32_t vu1prog_0_3C78(VU1NativeCtx &c)
     float (*vf)[4] = s.vf;
     int32_t *vi = s.vi;
     uint8_t *m = c.mem;
-    bool upperClipSameCycle = false;
-    (void)upperClipSameCycle;
     (void)m;
     (void)vf;
     (void)vi;
@@ -18819,8 +18407,6 @@ static uint32_t vu1prog_0_3C88(VU1NativeCtx &c)
     float (*vf)[4] = s.vf;
     int32_t *vi = s.vi;
     uint8_t *m = c.mem;
-    bool upperClipSameCycle = false;
-    (void)upperClipSameCycle;
     (void)m;
     (void)vf;
     (void)vi;
@@ -18915,8 +18501,6 @@ static uint32_t vu1prog_0_3CA8(VU1NativeCtx &c)
     float (*vf)[4] = s.vf;
     int32_t *vi = s.vi;
     uint8_t *m = c.mem;
-    bool upperClipSameCycle = false;
-    (void)upperClipSameCycle;
     (void)m;
     (void)vf;
     (void)vi;
@@ -18989,8 +18573,6 @@ static uint32_t vu1prog_0_3CC0(VU1NativeCtx &c)
     float (*vf)[4] = s.vf;
     int32_t *vi = s.vi;
     uint8_t *m = c.mem;
-    bool upperClipSameCycle = false;
-    (void)upperClipSameCycle;
     (void)m;
     (void)vf;
     (void)vi;
@@ -19094,8 +18676,6 @@ static uint32_t vu1prog_0_3CE8(VU1NativeCtx &c)
     float (*vf)[4] = s.vf;
     int32_t *vi = s.vi;
     uint8_t *m = c.mem;
-    bool upperClipSameCycle = false;
-    (void)upperClipSameCycle;
     (void)m;
     (void)vf;
     (void)vi;
@@ -19154,8 +18734,6 @@ static uint32_t vu1prog_0_3D08(VU1NativeCtx &c)
     float (*vf)[4] = s.vf;
     int32_t *vi = s.vi;
     uint8_t *m = c.mem;
-    bool upperClipSameCycle = false;
-    (void)upperClipSameCycle;
     (void)m;
     (void)vf;
     (void)vi;
@@ -19229,8 +18807,6 @@ static uint32_t vu1prog_0_3D38(VU1NativeCtx &c)
     float (*vf)[4] = s.vf;
     int32_t *vi = s.vi;
     uint8_t *m = c.mem;
-    bool upperClipSameCycle = false;
-    (void)upperClipSameCycle;
     (void)m;
     (void)vf;
     (void)vi;
@@ -19278,8 +18854,6 @@ static uint32_t vu1prog_0_3D60(VU1NativeCtx &c)
     float (*vf)[4] = s.vf;
     int32_t *vi = s.vi;
     uint8_t *m = c.mem;
-    bool upperClipSameCycle = false;
-    (void)upperClipSameCycle;
     (void)m;
     (void)vf;
     (void)vi;
@@ -19320,8 +18894,6 @@ static uint32_t vu1prog_0_3D80(VU1NativeCtx &c)
     float (*vf)[4] = s.vf;
     int32_t *vi = s.vi;
     uint8_t *m = c.mem;
-    bool upperClipSameCycle = false;
-    (void)upperClipSameCycle;
     (void)m;
     (void)vf;
     (void)vi;
@@ -19355,8 +18927,6 @@ static uint32_t vu1prog_0_3D98(VU1NativeCtx &c)
     float (*vf)[4] = s.vf;
     int32_t *vi = s.vi;
     uint8_t *m = c.mem;
-    bool upperClipSameCycle = false;
-    (void)upperClipSameCycle;
     (void)m;
     (void)vf;
     (void)vi;
@@ -19383,8 +18953,6 @@ static uint32_t vu1prog_0_3DA8(VU1NativeCtx &c)
     float (*vf)[4] = s.vf;
     int32_t *vi = s.vi;
     uint8_t *m = c.mem;
-    bool upperClipSameCycle = false;
-    (void)upperClipSameCycle;
     (void)m;
     (void)vf;
     (void)vi;
@@ -19525,8 +19093,6 @@ static uint32_t vu1prog_0_3E00(VU1NativeCtx &c)
     float (*vf)[4] = s.vf;
     int32_t *vi = s.vi;
     uint8_t *m = c.mem;
-    bool upperClipSameCycle = false;
-    (void)upperClipSameCycle;
     (void)m;
     (void)vf;
     (void)vi;
@@ -19727,8 +19293,6 @@ static uint32_t vu1prog_0_3E58(VU1NativeCtx &c)
     float (*vf)[4] = s.vf;
     int32_t *vi = s.vi;
     uint8_t *m = c.mem;
-    bool upperClipSameCycle = false;
-    (void)upperClipSameCycle;
     (void)m;
     (void)vf;
     (void)vi;
@@ -19793,8 +19357,6 @@ static uint32_t vu1prog_0_3E98(VU1NativeCtx &c)
     float (*vf)[4] = s.vf;
     int32_t *vi = s.vi;
     uint8_t *m = c.mem;
-    bool upperClipSameCycle = false;
-    (void)upperClipSameCycle;
     (void)m;
     (void)vf;
     (void)vi;
@@ -20060,8 +19622,6 @@ static uint32_t vu1prog_1_0000(VU1NativeCtx &c)
     float (*vf)[4] = s.vf;
     int32_t *vi = s.vi;
     uint8_t *m = c.mem;
-    bool upperClipSameCycle = false;
-    (void)upperClipSameCycle;
     (void)m;
     (void)vf;
     (void)vi;
@@ -20087,8 +19647,6 @@ static uint32_t vu1prog_1_0010(VU1NativeCtx &c)
     float (*vf)[4] = s.vf;
     int32_t *vi = s.vi;
     uint8_t *m = c.mem;
-    bool upperClipSameCycle = false;
-    (void)upperClipSameCycle;
     (void)m;
     (void)vf;
     (void)vi;
@@ -20114,8 +19672,6 @@ static uint32_t vu1prog_1_0020(VU1NativeCtx &c)
     float (*vf)[4] = s.vf;
     int32_t *vi = s.vi;
     uint8_t *m = c.mem;
-    bool upperClipSameCycle = false;
-    (void)upperClipSameCycle;
     (void)m;
     (void)vf;
     (void)vi;
@@ -20141,8 +19697,6 @@ static uint32_t vu1prog_1_0030(VU1NativeCtx &c)
     float (*vf)[4] = s.vf;
     int32_t *vi = s.vi;
     uint8_t *m = c.mem;
-    bool upperClipSameCycle = false;
-    (void)upperClipSameCycle;
     (void)m;
     (void)vf;
     (void)vi;
@@ -20168,8 +19722,6 @@ static uint32_t vu1prog_1_0040(VU1NativeCtx &c)
     float (*vf)[4] = s.vf;
     int32_t *vi = s.vi;
     uint8_t *m = c.mem;
-    bool upperClipSameCycle = false;
-    (void)upperClipSameCycle;
     (void)m;
     (void)vf;
     (void)vi;
@@ -20195,8 +19747,6 @@ static uint32_t vu1prog_1_0050(VU1NativeCtx &c)
     float (*vf)[4] = s.vf;
     int32_t *vi = s.vi;
     uint8_t *m = c.mem;
-    bool upperClipSameCycle = false;
-    (void)upperClipSameCycle;
     (void)m;
     (void)vf;
     (void)vi;
@@ -20222,8 +19772,6 @@ static uint32_t vu1prog_1_0070(VU1NativeCtx &c)
     float (*vf)[4] = s.vf;
     int32_t *vi = s.vi;
     uint8_t *m = c.mem;
-    bool upperClipSameCycle = false;
-    (void)upperClipSameCycle;
     (void)m;
     (void)vf;
     (void)vi;
@@ -20249,8 +19797,6 @@ static uint32_t vu1prog_1_0080(VU1NativeCtx &c)
     float (*vf)[4] = s.vf;
     int32_t *vi = s.vi;
     uint8_t *m = c.mem;
-    bool upperClipSameCycle = false;
-    (void)upperClipSameCycle;
     (void)m;
     (void)vf;
     (void)vi;
@@ -20703,8 +20249,6 @@ static uint32_t vu1prog_1_0158(VU1NativeCtx &c)
     float (*vf)[4] = s.vf;
     int32_t *vi = s.vi;
     uint8_t *m = c.mem;
-    bool upperClipSameCycle = false;
-    (void)upperClipSameCycle;
     (void)m;
     (void)vf;
     (void)vi;
@@ -21161,8 +20705,6 @@ static uint32_t vu1prog_1_0220(VU1NativeCtx &c)
     float (*vf)[4] = s.vf;
     int32_t *vi = s.vi;
     uint8_t *m = c.mem;
-    bool upperClipSameCycle = false;
-    (void)upperClipSameCycle;
     (void)m;
     (void)vf;
     (void)vi;
@@ -21283,8 +20825,6 @@ static uint32_t vu1prog_1_0258(VU1NativeCtx &c)
     float (*vf)[4] = s.vf;
     int32_t *vi = s.vi;
     uint8_t *m = c.mem;
-    bool upperClipSameCycle = false;
-    (void)upperClipSameCycle;
     (void)m;
     (void)vf;
     (void)vi;
@@ -21413,8 +20953,6 @@ static uint32_t vu1prog_1_02C8(VU1NativeCtx &c)
     float (*vf)[4] = s.vf;
     int32_t *vi = s.vi;
     uint8_t *m = c.mem;
-    bool upperClipSameCycle = false;
-    (void)upperClipSameCycle;
     (void)m;
     (void)vf;
     (void)vi;
@@ -21522,8 +21060,6 @@ static uint32_t vu1prog_1_0300(VU1NativeCtx &c)
     float (*vf)[4] = s.vf;
     int32_t *vi = s.vi;
     uint8_t *m = c.mem;
-    bool upperClipSameCycle = false;
-    (void)upperClipSameCycle;
     (void)m;
     (void)vf;
     (void)vi;
@@ -21637,8 +21173,6 @@ static uint32_t vu1prog_1_0340(VU1NativeCtx &c)
     float (*vf)[4] = s.vf;
     int32_t *vi = s.vi;
     uint8_t *m = c.mem;
-    bool upperClipSameCycle = false;
-    (void)upperClipSameCycle;
     (void)m;
     (void)vf;
     (void)vi;
@@ -21724,8 +21258,6 @@ static uint32_t vu1prog_1_0368(VU1NativeCtx &c)
     float (*vf)[4] = s.vf;
     int32_t *vi = s.vi;
     uint8_t *m = c.mem;
-    bool upperClipSameCycle = false;
-    (void)upperClipSameCycle;
     (void)m;
     (void)vf;
     (void)vi;
@@ -21799,8 +21331,6 @@ static uint32_t vu1prog_1_0388(VU1NativeCtx &c)
     float (*vf)[4] = s.vf;
     int32_t *vi = s.vi;
     uint8_t *m = c.mem;
-    bool upperClipSameCycle = false;
-    (void)upperClipSameCycle;
     (void)m;
     (void)vf;
     (void)vi;
@@ -21826,8 +21356,6 @@ static uint32_t vu1prog_1_0398(VU1NativeCtx &c)
     float (*vf)[4] = s.vf;
     int32_t *vi = s.vi;
     uint8_t *m = c.mem;
-    bool upperClipSameCycle = false;
-    (void)upperClipSameCycle;
     (void)m;
     (void)vf;
     (void)vi;
@@ -22086,8 +21614,6 @@ static uint32_t vu1prog_1_0448(VU1NativeCtx &c)
     float (*vf)[4] = s.vf;
     int32_t *vi = s.vi;
     uint8_t *m = c.mem;
-    bool upperClipSameCycle = false;
-    (void)upperClipSameCycle;
     (void)m;
     (void)vf;
     (void)vi;
@@ -22454,8 +21980,7 @@ static uint32_t vu1prog_1_0448(VU1NativeCtx &c)
         const float u1 = fMadd(N(s.acc[1]), N(vf[2][1]), N(vf[15][0]));
         const float u2 = fMadd(N(s.acc[2]), N(vf[2][2]), N(vf[15][0]));
         const float u3 = fMadd(N(s.acc[3]), N(vf[2][3]), N(vf[15][0]));
-        upperClipSameCycle = false;
-        fcset(c, 0x3FFFFu, upperClipSameCycle);
+        fcset(c, 0x3FFFFu);
         s.acc[0] = u0; c.accReady[0] = c.cyc + 1u;
         s.acc[1] = u1; c.accReady[1] = c.cyc + 1u;
         s.acc[2] = u2; c.accReady[2] = c.cyc + 1u;
@@ -22995,8 +22520,6 @@ static uint32_t vu1prog_1_0628(VU1NativeCtx &c)
     float (*vf)[4] = s.vf;
     int32_t *vi = s.vi;
     uint8_t *m = c.mem;
-    bool upperClipSameCycle = false;
-    (void)upperClipSameCycle;
     (void)m;
     (void)vf;
     (void)vi;
@@ -23568,8 +23091,6 @@ static uint32_t vu1prog_1_0720(VU1NativeCtx &c)
     float (*vf)[4] = s.vf;
     int32_t *vi = s.vi;
     uint8_t *m = c.mem;
-    bool upperClipSameCycle = false;
-    (void)upperClipSameCycle;
     (void)m;
     (void)vf;
     (void)vi;
@@ -23896,8 +23417,6 @@ static uint32_t vu1prog_1_07C0(VU1NativeCtx &c)
     float (*vf)[4] = s.vf;
     int32_t *vi = s.vi;
     uint8_t *m = c.mem;
-    bool upperClipSameCycle = false;
-    (void)upperClipSameCycle;
     (void)m;
     (void)vf;
     (void)vi;
@@ -23931,8 +23450,6 @@ static uint32_t vu1prog_1_07D8(VU1NativeCtx &c)
     float (*vf)[4] = s.vf;
     int32_t *vi = s.vi;
     uint8_t *m = c.mem;
-    bool upperClipSameCycle = false;
-    (void)upperClipSameCycle;
     (void)m;
     (void)vf;
     (void)vi;
@@ -23972,8 +23489,6 @@ static uint32_t vu1prog_1_07F8(VU1NativeCtx &c)
     float (*vf)[4] = s.vf;
     int32_t *vi = s.vi;
     uint8_t *m = c.mem;
-    bool upperClipSameCycle = false;
-    (void)upperClipSameCycle;
     (void)m;
     (void)vf;
     (void)vi;
@@ -24338,8 +23853,6 @@ static uint32_t vu1prog_1_08F0(VU1NativeCtx &c)
     float (*vf)[4] = s.vf;
     int32_t *vi = s.vi;
     uint8_t *m = c.mem;
-    bool upperClipSameCycle = false;
-    (void)upperClipSameCycle;
     (void)m;
     (void)vf;
     (void)vi;
@@ -24646,8 +24159,7 @@ static uint32_t vu1prog_1_08F0(VU1NativeCtx &c)
         const float u1 = fMadd(N(s.acc[1]), N(vf[4][1]), N(vf[22][2]));
         const float u2 = fMadd(N(s.acc[2]), N(vf[4][2]), N(vf[22][2]));
         const float u3 = fMadd(N(s.acc[3]), N(vf[4][3]), N(vf[22][2]));
-        upperClipSameCycle = false;
-        fcset(c, 0x3FFFFu, upperClipSameCycle);
+        fcset(c, 0x3FFFFu);
         s.acc[0] = u0; c.accReady[0] = c.cyc + 1u;
         s.acc[1] = u1; c.accReady[1] = c.cyc + 1u;
         s.acc[2] = u2; c.accReady[2] = c.cyc + 1u;
@@ -24703,8 +24215,6 @@ static uint32_t vu1prog_1_09B0(VU1NativeCtx &c)
     float (*vf)[4] = s.vf;
     int32_t *vi = s.vi;
     uint8_t *m = c.mem;
-    bool upperClipSameCycle = false;
-    (void)upperClipSameCycle;
     (void)m;
     (void)vf;
     (void)vi;
@@ -25231,8 +24741,6 @@ static uint32_t vu1prog_1_0AA8(VU1NativeCtx &c)
     float (*vf)[4] = s.vf;
     int32_t *vi = s.vi;
     uint8_t *m = c.mem;
-    bool upperClipSameCycle = false;
-    (void)upperClipSameCycle;
     (void)m;
     (void)vf;
     (void)vi;
@@ -25507,8 +25015,6 @@ static uint32_t vu1prog_1_0B40(VU1NativeCtx &c)
     float (*vf)[4] = s.vf;
     int32_t *vi = s.vi;
     uint8_t *m = c.mem;
-    bool upperClipSameCycle = false;
-    (void)upperClipSameCycle;
     (void)m;
     (void)vf;
     (void)vi;
@@ -25542,8 +25048,6 @@ static uint32_t vu1prog_1_0B58(VU1NativeCtx &c)
     float (*vf)[4] = s.vf;
     int32_t *vi = s.vi;
     uint8_t *m = c.mem;
-    bool upperClipSameCycle = false;
-    (void)upperClipSameCycle;
     (void)m;
     (void)vf;
     (void)vi;
@@ -25813,8 +25317,6 @@ static uint32_t vu1prog_1_0C28(VU1NativeCtx &c)
     float (*vf)[4] = s.vf;
     int32_t *vi = s.vi;
     uint8_t *m = c.mem;
-    bool upperClipSameCycle = false;
-    (void)upperClipSameCycle;
     (void)m;
     (void)vf;
     (void)vi;
@@ -25955,8 +25457,6 @@ static uint32_t vu1prog_1_0C78(VU1NativeCtx &c)
     float (*vf)[4] = s.vf;
     int32_t *vi = s.vi;
     uint8_t *m = c.mem;
-    bool upperClipSameCycle = false;
-    (void)upperClipSameCycle;
     (void)m;
     (void)vf;
     (void)vi;
@@ -26054,8 +25554,6 @@ static uint32_t vu1prog_1_0CB8(VU1NativeCtx &c)
     float (*vf)[4] = s.vf;
     int32_t *vi = s.vi;
     uint8_t *m = c.mem;
-    bool upperClipSameCycle = false;
-    (void)upperClipSameCycle;
     (void)m;
     (void)vf;
     (void)vi;
@@ -26178,8 +25676,6 @@ static uint32_t vu1prog_1_0D20(VU1NativeCtx &c)
     float (*vf)[4] = s.vf;
     int32_t *vi = s.vi;
     uint8_t *m = c.mem;
-    bool upperClipSameCycle = false;
-    (void)upperClipSameCycle;
     (void)m;
     (void)vf;
     (void)vi;
@@ -26558,8 +26054,6 @@ static uint32_t vu1prog_1_0DF8(VU1NativeCtx &c)
     float (*vf)[4] = s.vf;
     int32_t *vi = s.vi;
     uint8_t *m = c.mem;
-    bool upperClipSameCycle = false;
-    (void)upperClipSameCycle;
     (void)m;
     (void)vf;
     (void)vi;
@@ -26753,8 +26247,6 @@ static uint32_t vu1prog_1_0E40(VU1NativeCtx &c)
     float (*vf)[4] = s.vf;
     int32_t *vi = s.vi;
     uint8_t *m = c.mem;
-    bool upperClipSameCycle = false;
-    (void)upperClipSameCycle;
     (void)m;
     (void)vf;
     (void)vi;
@@ -26969,8 +26461,6 @@ static uint32_t vu1prog_1_0E88(VU1NativeCtx &c)
     float (*vf)[4] = s.vf;
     int32_t *vi = s.vi;
     uint8_t *m = c.mem;
-    bool upperClipSameCycle = false;
-    (void)upperClipSameCycle;
     (void)m;
     (void)vf;
     (void)vi;
@@ -27193,8 +26683,6 @@ static uint32_t vu1prog_1_0ED0(VU1NativeCtx &c)
     float (*vf)[4] = s.vf;
     int32_t *vi = s.vi;
     uint8_t *m = c.mem;
-    bool upperClipSameCycle = false;
-    (void)upperClipSameCycle;
     (void)m;
     (void)vf;
     (void)vi;
@@ -27538,8 +27026,6 @@ static uint32_t vu1prog_1_0FA8(VU1NativeCtx &c)
     float (*vf)[4] = s.vf;
     int32_t *vi = s.vi;
     uint8_t *m = c.mem;
-    bool upperClipSameCycle = false;
-    (void)upperClipSameCycle;
     (void)m;
     (void)vf;
     (void)vi;
@@ -27877,8 +27363,6 @@ static uint32_t vu1prog_1_1080(VU1NativeCtx &c)
     float (*vf)[4] = s.vf;
     int32_t *vi = s.vi;
     uint8_t *m = c.mem;
-    bool upperClipSameCycle = false;
-    (void)upperClipSameCycle;
     (void)m;
     (void)vf;
     (void)vi;
@@ -28162,8 +27646,6 @@ static uint32_t vu1prog_1_1120(VU1NativeCtx &c)
     float (*vf)[4] = s.vf;
     int32_t *vi = s.vi;
     uint8_t *m = c.mem;
-    bool upperClipSameCycle = false;
-    (void)upperClipSameCycle;
     (void)m;
     (void)vf;
     (void)vi;
@@ -28202,8 +27684,6 @@ static uint32_t vu1prog_1_1138(VU1NativeCtx &c)
     float (*vf)[4] = s.vf;
     int32_t *vi = s.vi;
     uint8_t *m = c.mem;
-    bool upperClipSameCycle = false;
-    (void)upperClipSameCycle;
     (void)m;
     (void)vf;
     (void)vi;
@@ -28237,8 +27717,6 @@ static uint32_t vu1prog_1_1150(VU1NativeCtx &c)
     float (*vf)[4] = s.vf;
     int32_t *vi = s.vi;
     uint8_t *m = c.mem;
-    bool upperClipSameCycle = false;
-    (void)upperClipSameCycle;
     (void)m;
     (void)vf;
     (void)vi;
@@ -28608,8 +28086,6 @@ static uint32_t vu1prog_2_0010(VU1NativeCtx &c)
     float (*vf)[4] = s.vf;
     int32_t *vi = s.vi;
     uint8_t *m = c.mem;
-    bool upperClipSameCycle = false;
-    (void)upperClipSameCycle;
     (void)m;
     (void)vf;
     (void)vi;
@@ -28635,8 +28111,6 @@ static uint32_t vu1prog_2_0030(VU1NativeCtx &c)
     float (*vf)[4] = s.vf;
     int32_t *vi = s.vi;
     uint8_t *m = c.mem;
-    bool upperClipSameCycle = false;
-    (void)upperClipSameCycle;
     (void)m;
     (void)vf;
     (void)vi;
@@ -28662,8 +28136,6 @@ static uint32_t vu1prog_2_0040(VU1NativeCtx &c)
     float (*vf)[4] = s.vf;
     int32_t *vi = s.vi;
     uint8_t *m = c.mem;
-    bool upperClipSameCycle = false;
-    (void)upperClipSameCycle;
     (void)m;
     (void)vf;
     (void)vi;
@@ -28689,8 +28161,6 @@ static uint32_t vu1prog_2_0258(VU1NativeCtx &c)
     float (*vf)[4] = s.vf;
     int32_t *vi = s.vi;
     uint8_t *m = c.mem;
-    bool upperClipSameCycle = false;
-    (void)upperClipSameCycle;
     (void)m;
     (void)vf;
     (void)vi;
@@ -28819,8 +28289,6 @@ static uint32_t vu1prog_2_02C8(VU1NativeCtx &c)
     float (*vf)[4] = s.vf;
     int32_t *vi = s.vi;
     uint8_t *m = c.mem;
-    bool upperClipSameCycle = false;
-    (void)upperClipSameCycle;
     (void)m;
     (void)vf;
     (void)vi;
@@ -28928,8 +28396,6 @@ static uint32_t vu1prog_2_0300(VU1NativeCtx &c)
     float (*vf)[4] = s.vf;
     int32_t *vi = s.vi;
     uint8_t *m = c.mem;
-    bool upperClipSameCycle = false;
-    (void)upperClipSameCycle;
     (void)m;
     (void)vf;
     (void)vi;
@@ -29043,8 +28509,6 @@ static uint32_t vu1prog_2_0340(VU1NativeCtx &c)
     float (*vf)[4] = s.vf;
     int32_t *vi = s.vi;
     uint8_t *m = c.mem;
-    bool upperClipSameCycle = false;
-    (void)upperClipSameCycle;
     (void)m;
     (void)vf;
     (void)vi;
@@ -29130,8 +28594,6 @@ static uint32_t vu1prog_2_0368(VU1NativeCtx &c)
     float (*vf)[4] = s.vf;
     int32_t *vi = s.vi;
     uint8_t *m = c.mem;
-    bool upperClipSameCycle = false;
-    (void)upperClipSameCycle;
     (void)m;
     (void)vf;
     (void)vi;
@@ -29205,8 +28667,6 @@ static uint32_t vu1prog_2_0388(VU1NativeCtx &c)
     float (*vf)[4] = s.vf;
     int32_t *vi = s.vi;
     uint8_t *m = c.mem;
-    bool upperClipSameCycle = false;
-    (void)upperClipSameCycle;
     (void)m;
     (void)vf;
     (void)vi;
@@ -29232,8 +28692,6 @@ static uint32_t vu1prog_2_0398(VU1NativeCtx &c)
     float (*vf)[4] = s.vf;
     int32_t *vi = s.vi;
     uint8_t *m = c.mem;
-    bool upperClipSameCycle = false;
-    (void)upperClipSameCycle;
     (void)m;
     (void)vf;
     (void)vi;
@@ -29492,8 +28950,6 @@ static uint32_t vu1prog_2_0448(VU1NativeCtx &c)
     float (*vf)[4] = s.vf;
     int32_t *vi = s.vi;
     uint8_t *m = c.mem;
-    bool upperClipSameCycle = false;
-    (void)upperClipSameCycle;
     (void)m;
     (void)vf;
     (void)vi;
@@ -29860,8 +29316,7 @@ static uint32_t vu1prog_2_0448(VU1NativeCtx &c)
         const float u1 = fMadd(N(s.acc[1]), N(vf[2][1]), N(vf[15][0]));
         const float u2 = fMadd(N(s.acc[2]), N(vf[2][2]), N(vf[15][0]));
         const float u3 = fMadd(N(s.acc[3]), N(vf[2][3]), N(vf[15][0]));
-        upperClipSameCycle = false;
-        fcset(c, 0x3FFFFu, upperClipSameCycle);
+        fcset(c, 0x3FFFFu);
         s.acc[0] = u0; c.accReady[0] = c.cyc + 1u;
         s.acc[1] = u1; c.accReady[1] = c.cyc + 1u;
         s.acc[2] = u2; c.accReady[2] = c.cyc + 1u;
@@ -30401,8 +29856,6 @@ static uint32_t vu1prog_2_0628(VU1NativeCtx &c)
     float (*vf)[4] = s.vf;
     int32_t *vi = s.vi;
     uint8_t *m = c.mem;
-    bool upperClipSameCycle = false;
-    (void)upperClipSameCycle;
     (void)m;
     (void)vf;
     (void)vi;
@@ -30974,8 +30427,6 @@ static uint32_t vu1prog_2_0720(VU1NativeCtx &c)
     float (*vf)[4] = s.vf;
     int32_t *vi = s.vi;
     uint8_t *m = c.mem;
-    bool upperClipSameCycle = false;
-    (void)upperClipSameCycle;
     (void)m;
     (void)vf;
     (void)vi;
@@ -31302,8 +30753,6 @@ static uint32_t vu1prog_2_07C0(VU1NativeCtx &c)
     float (*vf)[4] = s.vf;
     int32_t *vi = s.vi;
     uint8_t *m = c.mem;
-    bool upperClipSameCycle = false;
-    (void)upperClipSameCycle;
     (void)m;
     (void)vf;
     (void)vi;
@@ -31337,8 +30786,6 @@ static uint32_t vu1prog_2_07D8(VU1NativeCtx &c)
     float (*vf)[4] = s.vf;
     int32_t *vi = s.vi;
     uint8_t *m = c.mem;
-    bool upperClipSameCycle = false;
-    (void)upperClipSameCycle;
     (void)m;
     (void)vf;
     (void)vi;
@@ -31378,8 +30825,6 @@ static uint32_t vu1prog_2_0B58(VU1NativeCtx &c)
     float (*vf)[4] = s.vf;
     int32_t *vi = s.vi;
     uint8_t *m = c.mem;
-    bool upperClipSameCycle = false;
-    (void)upperClipSameCycle;
     (void)m;
     (void)vf;
     (void)vi;
@@ -31649,8 +31094,6 @@ static uint32_t vu1prog_2_0C28(VU1NativeCtx &c)
     float (*vf)[4] = s.vf;
     int32_t *vi = s.vi;
     uint8_t *m = c.mem;
-    bool upperClipSameCycle = false;
-    (void)upperClipSameCycle;
     (void)m;
     (void)vf;
     (void)vi;
@@ -31791,8 +31234,6 @@ static uint32_t vu1prog_2_0C78(VU1NativeCtx &c)
     float (*vf)[4] = s.vf;
     int32_t *vi = s.vi;
     uint8_t *m = c.mem;
-    bool upperClipSameCycle = false;
-    (void)upperClipSameCycle;
     (void)m;
     (void)vf;
     (void)vi;
@@ -31930,8 +31371,9244 @@ static uint32_t vu1prog_3_0000(VU1NativeCtx &c)
     float (*vf)[4] = s.vf;
     int32_t *vi = s.vi;
     uint8_t *m = c.mem;
-    bool upperClipSameCycle = false;
-    (void)upperClipSameCycle;
+    (void)m;
+    (void)vf;
+    (void)vi;
+    // 0000: 000002FF 22000000
+    {
+        fcset(c, 0x0u);
+        c.bkValid = false;
+        ++c.cyc;
+    }
+    // 0008: 010003EB 01F00000
+    {
+        const float u0 = vmax(N(vf[0][0]), N(vf[0][0]));
+        const uint32_t la = ((static_cast<uint32_t>(static_cast<int32_t>(vi[0] + (0))) * 16u) & 0x3FF0u);
+        const float l0 = ldf(m, la + 0);
+        const float l1 = ldf(m, la + 4);
+        const float l2 = ldf(m, la + 8);
+        const float l3 = ldf(m, la + 12);
+        vf[16][0] = l0; c.vfReady[16][0] = c.cyc + 4;
+        vf[16][1] = l1; c.vfReady[16][1] = c.cyc + 4;
+        vf[16][2] = l2; c.vfReady[16][2] = c.cyc + 4;
+        vf[16][3] = l3; c.vfReady[16][3] = c.cyc + 4;
+        vf[15][0] = u0; c.vfReady[15][0] = c.cyc + 4;
+        c.bkValid = false;
+        ++c.cyc;
+    }
+    // 0010: 000002FF 800206BC
+    {
+        const int32_t nvi = static_cast<int32_t>(s.top & 0x3FFu);
+        c.bkValid = false;
+        vi[2] = nvi; c.viReady[2] = c.cyc + 1;
+        ++c.cyc;
+    }
+    // 0018: 000002FF 01E5100C
+    {
+        const uint32_t la = ((static_cast<uint32_t>(static_cast<int32_t>(vi[2] + (12))) * 16u) & 0x3FF0u);
+        const float l0 = ldf(m, la + 0);
+        const float l1 = ldf(m, la + 4);
+        const float l2 = ldf(m, la + 8);
+        const float l3 = ldf(m, la + 12);
+        vf[5][0] = l0; c.vfReady[5][0] = c.cyc + 4;
+        vf[5][1] = l1; c.vfReady[5][1] = c.cyc + 4;
+        vf[5][2] = l2; c.vfReady[5][2] = c.cyc + 4;
+        vf[5][3] = l3; c.vfReady[5][3] = c.cyc + 4;
+        c.bkValid = false;
+        ++c.cyc;
+    }
+    // 0020: 000002FF 01F80001
+    {
+        const uint32_t la = ((static_cast<uint32_t>(static_cast<int32_t>(vi[0] + (1))) * 16u) & 0x3FF0u);
+        const float l0 = ldf(m, la + 0);
+        const float l1 = ldf(m, la + 4);
+        const float l2 = ldf(m, la + 8);
+        const float l3 = ldf(m, la + 12);
+        vf[24][0] = l0; c.vfReady[24][0] = c.cyc + 4;
+        vf[24][1] = l1; c.vfReady[24][1] = c.cyc + 4;
+        vf[24][2] = l2; c.vfReady[24][2] = c.cyc + 4;
+        vf[24][3] = l3; c.vfReady[24][3] = c.cyc + 4;
+        c.bkValid = false;
+        ++c.cyc;
+    }
+    // 0028: 000002FF 01F20002
+    {
+        const uint32_t la = ((static_cast<uint32_t>(static_cast<int32_t>(vi[0] + (2))) * 16u) & 0x3FF0u);
+        const float l0 = ldf(m, la + 0);
+        const float l1 = ldf(m, la + 4);
+        const float l2 = ldf(m, la + 8);
+        const float l3 = ldf(m, la + 12);
+        vf[18][0] = l0; c.vfReady[18][0] = c.cyc + 4;
+        vf[18][1] = l1; c.vfReady[18][1] = c.cyc + 4;
+        vf[18][2] = l2; c.vfReady[18][2] = c.cyc + 4;
+        vf[18][3] = l3; c.vfReady[18][3] = c.cyc + 4;
+        c.bkValid = false;
+        ++c.cyc;
+    }
+    // 0030: 01E581BC 01F90003
+    {
+        stall(c, c.vfReady[5][0]);
+        uint32_t stk = 0u;
+        uint32_t f0 = 0u;
+        const float u0 = fMulF(N(vf[16][0]), N(vf[5][0]), f0);
+        uint32_t f1 = 0u;
+        const float u1 = fMulF(N(vf[16][1]), N(vf[5][0]), f1);
+        uint32_t f2 = 0u;
+        const float u2 = fMulF(N(vf[16][2]), N(vf[5][0]), f2);
+        uint32_t f3 = 0u;
+        const float u3 = fMulF(N(vf[16][3]), N(vf[5][0]), f3);
+        pushMacStatus(c, 0u | macBits(f0, 8u) | macBits(f1, 4u) | macBits(f2, 2u) | macBits(f3, 1u), 0u | f0 | f1 | f2 | f3, stk);
+        const uint32_t la = ((static_cast<uint32_t>(static_cast<int32_t>(vi[0] + (3))) * 16u) & 0x3FF0u);
+        const float l0 = ldf(m, la + 0);
+        const float l1 = ldf(m, la + 4);
+        const float l2 = ldf(m, la + 8);
+        const float l3 = ldf(m, la + 12);
+        vf[25][0] = l0; c.vfReady[25][0] = c.cyc + 4;
+        vf[25][1] = l1; c.vfReady[25][1] = c.cyc + 4;
+        vf[25][2] = l2; c.vfReady[25][2] = c.cyc + 4;
+        vf[25][3] = l3; c.vfReady[25][3] = c.cyc + 4;
+        s.acc[0] = u0; c.accReady[0] = c.cyc + 1u;
+        s.acc[1] = u1; c.accReady[1] = c.cyc + 1u;
+        s.acc[2] = u2; c.accReady[2] = c.cyc + 1u;
+        s.acc[3] = u3; c.accReady[3] = c.cyc + 1u;
+        c.bkValid = false;
+        ++c.cyc;
+    }
+    // 0038: 01E5C0BD 01E4100B
+    {
+        stall(c, c.vfReady[24][0]);
+        stall(c, c.vfReady[24][1]);
+        stall(c, c.vfReady[24][2]);
+        stall(c, c.vfReady[24][3]);
+        uint32_t stk = 0u;
+        uint32_t f0 = 0u;
+        const float u0 = fMaddF(N(s.acc[0]), N(vf[24][0]), N(vf[5][1]), f0, stk);
+        uint32_t f1 = 0u;
+        const float u1 = fMaddF(N(s.acc[1]), N(vf[24][1]), N(vf[5][1]), f1, stk);
+        uint32_t f2 = 0u;
+        const float u2 = fMaddF(N(s.acc[2]), N(vf[24][2]), N(vf[5][1]), f2, stk);
+        uint32_t f3 = 0u;
+        const float u3 = fMaddF(N(s.acc[3]), N(vf[24][3]), N(vf[5][1]), f3, stk);
+        pushMacStatus(c, 0u | macBits(f0, 8u) | macBits(f1, 4u) | macBits(f2, 2u) | macBits(f3, 1u), 0u | f0 | f1 | f2 | f3, stk);
+        const uint32_t la = ((static_cast<uint32_t>(static_cast<int32_t>(vi[2] + (11))) * 16u) & 0x3FF0u);
+        const float l0 = ldf(m, la + 0);
+        const float l1 = ldf(m, la + 4);
+        const float l2 = ldf(m, la + 8);
+        const float l3 = ldf(m, la + 12);
+        vf[4][0] = l0; c.vfReady[4][0] = c.cyc + 4;
+        vf[4][1] = l1; c.vfReady[4][1] = c.cyc + 4;
+        vf[4][2] = l2; c.vfReady[4][2] = c.cyc + 4;
+        vf[4][3] = l3; c.vfReady[4][3] = c.cyc + 4;
+        s.acc[0] = u0; c.accReady[0] = c.cyc + 1u;
+        s.acc[1] = u1; c.accReady[1] = c.cyc + 1u;
+        s.acc[2] = u2; c.accReady[2] = c.cyc + 1u;
+        s.acc[3] = u3; c.accReady[3] = c.cyc + 1u;
+        c.bkValid = false;
+        ++c.cyc;
+    }
+    // 0040: 81E590BE BF3AE148
+    {
+        stall(c, c.vfReady[18][0]);
+        stall(c, c.vfReady[18][1]);
+        stall(c, c.vfReady[18][2]);
+        stall(c, c.vfReady[18][3]);
+        uint32_t stk = 0u;
+        uint32_t f0 = 0u;
+        const float u0 = fMaddF(N(s.acc[0]), N(vf[18][0]), N(vf[5][2]), f0, stk);
+        uint32_t f1 = 0u;
+        const float u1 = fMaddF(N(s.acc[1]), N(vf[18][1]), N(vf[5][2]), f1, stk);
+        uint32_t f2 = 0u;
+        const float u2 = fMaddF(N(s.acc[2]), N(vf[18][2]), N(vf[5][2]), f2, stk);
+        uint32_t f3 = 0u;
+        const float u3 = fMaddF(N(s.acc[3]), N(vf[18][3]), N(vf[5][2]), f3, stk);
+        pushMacStatus(c, 0u | macBits(f0, 8u) | macBits(f1, 4u) | macBits(f2, 2u) | macBits(f3, 1u), 0u | f0 | f1 | f2 | f3, stk);
+        s.i = N(bitsf(0xBF3AE148u));
+        s.acc[0] = u0; c.accReady[0] = c.cyc + 1u;
+        s.acc[1] = u1; c.accReady[1] = c.cyc + 1u;
+        s.acc[2] = u2; c.accReady[2] = c.cyc + 1u;
+        s.acc[3] = u3; c.accReady[3] = c.cyc + 1u;
+        c.bkValid = false;
+        ++c.cyc;
+    }
+    // 0048: 01000462 8000033C
+    {
+        uint32_t stk = 0u;
+        uint32_t f0 = 0u;
+        const float u0 = fAddF(N(vf[0][0]), N(s.i), f0);
+        pushMacStatus(c, 0u | macBits(f0, 8u), 0u | f0, stk);
+        vf[17][0] = u0; c.vfReady[17][0] = c.cyc + 4;
+        c.bkValid = false;
+        ++c.cyc;
+    }
+    // 0050: 01E5C94B 8000033C
+    {
+        uint32_t stk = 0u;
+        uint32_t f0 = 0u;
+        const float u0 = fMaddF(N(s.acc[0]), N(vf[25][0]), N(vf[5][3]), f0, stk);
+        uint32_t f1 = 0u;
+        const float u1 = fMaddF(N(s.acc[1]), N(vf[25][1]), N(vf[5][3]), f1, stk);
+        uint32_t f2 = 0u;
+        const float u2 = fMaddF(N(s.acc[2]), N(vf[25][2]), N(vf[5][3]), f2, stk);
+        uint32_t f3 = 0u;
+        const float u3 = fMaddF(N(s.acc[3]), N(vf[25][3]), N(vf[5][3]), f3, stk);
+        pushMacStatus(c, 0u | macBits(f0, 8u) | macBits(f1, 4u) | macBits(f2, 2u) | macBits(f3, 1u), 0u | f0 | f1 | f2 | f3, stk);
+        vf[5][0] = u0; c.vfReady[5][0] = c.cyc + 4;
+        vf[5][1] = u1; c.vfReady[5][1] = c.cyc + 4;
+        vf[5][2] = u2; c.vfReady[5][2] = c.cyc + 4;
+        vf[5][3] = u3; c.vfReady[5][3] = c.cyc + 4;
+        c.bkValid = false;
+        ++c.cyc;
+    }
+    // 0058: 01E481BC 01E31006
+    {
+        uint32_t stk = 0u;
+        uint32_t f0 = 0u;
+        const float u0 = fMulF(N(vf[16][0]), N(vf[4][0]), f0);
+        uint32_t f1 = 0u;
+        const float u1 = fMulF(N(vf[16][1]), N(vf[4][0]), f1);
+        uint32_t f2 = 0u;
+        const float u2 = fMulF(N(vf[16][2]), N(vf[4][0]), f2);
+        uint32_t f3 = 0u;
+        const float u3 = fMulF(N(vf[16][3]), N(vf[4][0]), f3);
+        pushMacStatus(c, 0u | macBits(f0, 8u) | macBits(f1, 4u) | macBits(f2, 2u) | macBits(f3, 1u), 0u | f0 | f1 | f2 | f3, stk);
+        const uint32_t la = ((static_cast<uint32_t>(static_cast<int32_t>(vi[2] + (6))) * 16u) & 0x3FF0u);
+        const float l0 = ldf(m, la + 0);
+        const float l1 = ldf(m, la + 4);
+        const float l2 = ldf(m, la + 8);
+        const float l3 = ldf(m, la + 12);
+        vf[3][0] = l0; c.vfReady[3][0] = c.cyc + 4;
+        vf[3][1] = l1; c.vfReady[3][1] = c.cyc + 4;
+        vf[3][2] = l2; c.vfReady[3][2] = c.cyc + 4;
+        vf[3][3] = l3; c.vfReady[3][3] = c.cyc + 4;
+        s.acc[0] = u0; c.accReady[0] = c.cyc + 1u;
+        s.acc[1] = u1; c.accReady[1] = c.cyc + 1u;
+        s.acc[2] = u2; c.accReady[2] = c.cyc + 1u;
+        s.acc[3] = u3; c.accReady[3] = c.cyc + 1u;
+        c.bkValid = false;
+        ++c.cyc;
+    }
+    // 0060: 01E4C0BD 8000033C
+    {
+        uint32_t stk = 0u;
+        uint32_t f0 = 0u;
+        const float u0 = fMaddF(N(s.acc[0]), N(vf[24][0]), N(vf[4][1]), f0, stk);
+        uint32_t f1 = 0u;
+        const float u1 = fMaddF(N(s.acc[1]), N(vf[24][1]), N(vf[4][1]), f1, stk);
+        uint32_t f2 = 0u;
+        const float u2 = fMaddF(N(s.acc[2]), N(vf[24][2]), N(vf[4][1]), f2, stk);
+        uint32_t f3 = 0u;
+        const float u3 = fMaddF(N(s.acc[3]), N(vf[24][3]), N(vf[4][1]), f3, stk);
+        pushMacStatus(c, 0u | macBits(f0, 8u) | macBits(f1, 4u) | macBits(f2, 2u) | macBits(f3, 1u), 0u | f0 | f1 | f2 | f3, stk);
+        s.acc[0] = u0; c.accReady[0] = c.cyc + 1u;
+        s.acc[1] = u1; c.accReady[1] = c.cyc + 1u;
+        s.acc[2] = u2; c.accReady[2] = c.cyc + 1u;
+        s.acc[3] = u3; c.accReady[3] = c.cyc + 1u;
+        c.bkValid = false;
+        ++c.cyc;
+    }
+    // 0068: 01E490BE 8000033C
+    {
+        uint32_t stk = 0u;
+        uint32_t f0 = 0u;
+        const float u0 = fMaddF(N(s.acc[0]), N(vf[18][0]), N(vf[4][2]), f0, stk);
+        uint32_t f1 = 0u;
+        const float u1 = fMaddF(N(s.acc[1]), N(vf[18][1]), N(vf[4][2]), f1, stk);
+        uint32_t f2 = 0u;
+        const float u2 = fMaddF(N(s.acc[2]), N(vf[18][2]), N(vf[4][2]), f2, stk);
+        uint32_t f3 = 0u;
+        const float u3 = fMaddF(N(s.acc[3]), N(vf[18][3]), N(vf[4][2]), f3, stk);
+        pushMacStatus(c, 0u | macBits(f0, 8u) | macBits(f1, 4u) | macBits(f2, 2u) | macBits(f3, 1u), 0u | f0 | f1 | f2 | f3, stk);
+        s.acc[0] = u0; c.accReady[0] = c.cyc + 1u;
+        s.acc[1] = u1; c.accReady[1] = c.cyc + 1u;
+        s.acc[2] = u2; c.accReady[2] = c.cyc + 1u;
+        s.acc[3] = u3; c.accReady[3] = c.cyc + 1u;
+        c.bkValid = false;
+        ++c.cyc;
+    }
+    // 0070: 01E4C90B 8000033C
+    {
+        uint32_t stk = 0u;
+        uint32_t f0 = 0u;
+        const float u0 = fMaddF(N(s.acc[0]), N(vf[25][0]), N(vf[4][3]), f0, stk);
+        uint32_t f1 = 0u;
+        const float u1 = fMaddF(N(s.acc[1]), N(vf[25][1]), N(vf[4][3]), f1, stk);
+        uint32_t f2 = 0u;
+        const float u2 = fMaddF(N(s.acc[2]), N(vf[25][2]), N(vf[4][3]), f2, stk);
+        uint32_t f3 = 0u;
+        const float u3 = fMaddF(N(s.acc[3]), N(vf[25][3]), N(vf[4][3]), f3, stk);
+        pushMacStatus(c, 0u | macBits(f0, 8u) | macBits(f1, 4u) | macBits(f2, 2u) | macBits(f3, 1u), 0u | f0 | f1 | f2 | f3, stk);
+        vf[4][0] = u0; c.vfReady[4][0] = c.cyc + 4;
+        vf[4][1] = u1; c.vfReady[4][1] = c.cyc + 4;
+        vf[4][2] = u2; c.vfReady[4][2] = c.cyc + 4;
+        vf[4][3] = u3; c.vfReady[4][3] = c.cyc + 4;
+        c.bkValid = false;
+        ++c.cyc;
+    }
+    // 0078: 01E381BC 01EA100D
+    {
+        uint32_t stk = 0u;
+        uint32_t f0 = 0u;
+        const float u0 = fMulF(N(vf[16][0]), N(vf[3][0]), f0);
+        uint32_t f1 = 0u;
+        const float u1 = fMulF(N(vf[16][1]), N(vf[3][0]), f1);
+        uint32_t f2 = 0u;
+        const float u2 = fMulF(N(vf[16][2]), N(vf[3][0]), f2);
+        uint32_t f3 = 0u;
+        const float u3 = fMulF(N(vf[16][3]), N(vf[3][0]), f3);
+        pushMacStatus(c, 0u | macBits(f0, 8u) | macBits(f1, 4u) | macBits(f2, 2u) | macBits(f3, 1u), 0u | f0 | f1 | f2 | f3, stk);
+        const uint32_t la = ((static_cast<uint32_t>(static_cast<int32_t>(vi[2] + (13))) * 16u) & 0x3FF0u);
+        const float l0 = ldf(m, la + 0);
+        const float l1 = ldf(m, la + 4);
+        const float l2 = ldf(m, la + 8);
+        const float l3 = ldf(m, la + 12);
+        vf[10][0] = l0; c.vfReady[10][0] = c.cyc + 4;
+        vf[10][1] = l1; c.vfReady[10][1] = c.cyc + 4;
+        vf[10][2] = l2; c.vfReady[10][2] = c.cyc + 4;
+        vf[10][3] = l3; c.vfReady[10][3] = c.cyc + 4;
+        s.acc[0] = u0; c.accReady[0] = c.cyc + 1u;
+        s.acc[1] = u1; c.accReady[1] = c.cyc + 1u;
+        s.acc[2] = u2; c.accReady[2] = c.cyc + 1u;
+        s.acc[3] = u3; c.accReady[3] = c.cyc + 1u;
+        c.bkValid = false;
+        ++c.cyc;
+    }
+    // 0080: 01E3C0BD 8000033C
+    {
+        uint32_t stk = 0u;
+        uint32_t f0 = 0u;
+        const float u0 = fMaddF(N(s.acc[0]), N(vf[24][0]), N(vf[3][1]), f0, stk);
+        uint32_t f1 = 0u;
+        const float u1 = fMaddF(N(s.acc[1]), N(vf[24][1]), N(vf[3][1]), f1, stk);
+        uint32_t f2 = 0u;
+        const float u2 = fMaddF(N(s.acc[2]), N(vf[24][2]), N(vf[3][1]), f2, stk);
+        uint32_t f3 = 0u;
+        const float u3 = fMaddF(N(s.acc[3]), N(vf[24][3]), N(vf[3][1]), f3, stk);
+        pushMacStatus(c, 0u | macBits(f0, 8u) | macBits(f1, 4u) | macBits(f2, 2u) | macBits(f3, 1u), 0u | f0 | f1 | f2 | f3, stk);
+        s.acc[0] = u0; c.accReady[0] = c.cyc + 1u;
+        s.acc[1] = u1; c.accReady[1] = c.cyc + 1u;
+        s.acc[2] = u2; c.accReady[2] = c.cyc + 1u;
+        s.acc[3] = u3; c.accReady[3] = c.cyc + 1u;
+        c.bkValid = false;
+        ++c.cyc;
+    }
+    // 0088: 01E390BE 8000033C
+    {
+        uint32_t stk = 0u;
+        uint32_t f0 = 0u;
+        const float u0 = fMaddF(N(s.acc[0]), N(vf[18][0]), N(vf[3][2]), f0, stk);
+        uint32_t f1 = 0u;
+        const float u1 = fMaddF(N(s.acc[1]), N(vf[18][1]), N(vf[3][2]), f1, stk);
+        uint32_t f2 = 0u;
+        const float u2 = fMaddF(N(s.acc[2]), N(vf[18][2]), N(vf[3][2]), f2, stk);
+        uint32_t f3 = 0u;
+        const float u3 = fMaddF(N(s.acc[3]), N(vf[18][3]), N(vf[3][2]), f3, stk);
+        pushMacStatus(c, 0u | macBits(f0, 8u) | macBits(f1, 4u) | macBits(f2, 2u) | macBits(f3, 1u), 0u | f0 | f1 | f2 | f3, stk);
+        s.acc[0] = u0; c.accReady[0] = c.cyc + 1u;
+        s.acc[1] = u1; c.accReady[1] = c.cyc + 1u;
+        s.acc[2] = u2; c.accReady[2] = c.cyc + 1u;
+        s.acc[3] = u3; c.accReady[3] = c.cyc + 1u;
+        c.bkValid = false;
+        ++c.cyc;
+    }
+    // 0090: 01E3C8CB 01EB100E
+    {
+        uint32_t stk = 0u;
+        uint32_t f0 = 0u;
+        const float u0 = fMaddF(N(s.acc[0]), N(vf[25][0]), N(vf[3][3]), f0, stk);
+        uint32_t f1 = 0u;
+        const float u1 = fMaddF(N(s.acc[1]), N(vf[25][1]), N(vf[3][3]), f1, stk);
+        uint32_t f2 = 0u;
+        const float u2 = fMaddF(N(s.acc[2]), N(vf[25][2]), N(vf[3][3]), f2, stk);
+        uint32_t f3 = 0u;
+        const float u3 = fMaddF(N(s.acc[3]), N(vf[25][3]), N(vf[3][3]), f3, stk);
+        pushMacStatus(c, 0u | macBits(f0, 8u) | macBits(f1, 4u) | macBits(f2, 2u) | macBits(f3, 1u), 0u | f0 | f1 | f2 | f3, stk);
+        const uint32_t la = ((static_cast<uint32_t>(static_cast<int32_t>(vi[2] + (14))) * 16u) & 0x3FF0u);
+        const float l0 = ldf(m, la + 0);
+        const float l1 = ldf(m, la + 4);
+        const float l2 = ldf(m, la + 8);
+        const float l3 = ldf(m, la + 12);
+        vf[11][0] = l0; c.vfReady[11][0] = c.cyc + 4;
+        vf[11][1] = l1; c.vfReady[11][1] = c.cyc + 4;
+        vf[11][2] = l2; c.vfReady[11][2] = c.cyc + 4;
+        vf[11][3] = l3; c.vfReady[11][3] = c.cyc + 4;
+        vf[3][0] = u0; c.vfReady[3][0] = c.cyc + 4;
+        vf[3][1] = u1; c.vfReady[3][1] = c.cyc + 4;
+        vf[3][2] = u2; c.vfReady[3][2] = c.cyc + 4;
+        vf[3][3] = u3; c.vfReady[3][3] = c.cyc + 4;
+        c.bkValid = false;
+        ++c.cyc;
+    }
+    // 0098: 01EA81BC 01EC1007
+    {
+        uint32_t stk = 0u;
+        uint32_t f0 = 0u;
+        const float u0 = fMulF(N(vf[16][0]), N(vf[10][0]), f0);
+        uint32_t f1 = 0u;
+        const float u1 = fMulF(N(vf[16][1]), N(vf[10][0]), f1);
+        uint32_t f2 = 0u;
+        const float u2 = fMulF(N(vf[16][2]), N(vf[10][0]), f2);
+        uint32_t f3 = 0u;
+        const float u3 = fMulF(N(vf[16][3]), N(vf[10][0]), f3);
+        pushMacStatus(c, 0u | macBits(f0, 8u) | macBits(f1, 4u) | macBits(f2, 2u) | macBits(f3, 1u), 0u | f0 | f1 | f2 | f3, stk);
+        const uint32_t la = ((static_cast<uint32_t>(static_cast<int32_t>(vi[2] + (7))) * 16u) & 0x3FF0u);
+        const float l0 = ldf(m, la + 0);
+        const float l1 = ldf(m, la + 4);
+        const float l2 = ldf(m, la + 8);
+        const float l3 = ldf(m, la + 12);
+        vf[12][0] = l0; c.vfReady[12][0] = c.cyc + 4;
+        vf[12][1] = l1; c.vfReady[12][1] = c.cyc + 4;
+        vf[12][2] = l2; c.vfReady[12][2] = c.cyc + 4;
+        vf[12][3] = l3; c.vfReady[12][3] = c.cyc + 4;
+        s.acc[0] = u0; c.accReady[0] = c.cyc + 1u;
+        s.acc[1] = u1; c.accReady[1] = c.cyc + 1u;
+        s.acc[2] = u2; c.accReady[2] = c.cyc + 1u;
+        s.acc[3] = u3; c.accReady[3] = c.cyc + 1u;
+        c.bkValid = false;
+        ++c.cyc;
+    }
+    // 00A0: 01EAC0BD 01ED1008
+    {
+        uint32_t stk = 0u;
+        uint32_t f0 = 0u;
+        const float u0 = fMaddF(N(s.acc[0]), N(vf[24][0]), N(vf[10][1]), f0, stk);
+        uint32_t f1 = 0u;
+        const float u1 = fMaddF(N(s.acc[1]), N(vf[24][1]), N(vf[10][1]), f1, stk);
+        uint32_t f2 = 0u;
+        const float u2 = fMaddF(N(s.acc[2]), N(vf[24][2]), N(vf[10][1]), f2, stk);
+        uint32_t f3 = 0u;
+        const float u3 = fMaddF(N(s.acc[3]), N(vf[24][3]), N(vf[10][1]), f3, stk);
+        pushMacStatus(c, 0u | macBits(f0, 8u) | macBits(f1, 4u) | macBits(f2, 2u) | macBits(f3, 1u), 0u | f0 | f1 | f2 | f3, stk);
+        const uint32_t la = ((static_cast<uint32_t>(static_cast<int32_t>(vi[2] + (8))) * 16u) & 0x3FF0u);
+        const float l0 = ldf(m, la + 0);
+        const float l1 = ldf(m, la + 4);
+        const float l2 = ldf(m, la + 8);
+        const float l3 = ldf(m, la + 12);
+        vf[13][0] = l0; c.vfReady[13][0] = c.cyc + 4;
+        vf[13][1] = l1; c.vfReady[13][1] = c.cyc + 4;
+        vf[13][2] = l2; c.vfReady[13][2] = c.cyc + 4;
+        vf[13][3] = l3; c.vfReady[13][3] = c.cyc + 4;
+        s.acc[0] = u0; c.accReady[0] = c.cyc + 1u;
+        s.acc[1] = u1; c.accReady[1] = c.cyc + 1u;
+        s.acc[2] = u2; c.accReady[2] = c.cyc + 1u;
+        s.acc[3] = u3; c.accReady[3] = c.cyc + 1u;
+        c.bkValid = false;
+        ++c.cyc;
+    }
+    // 00A8: 01EA90BE 1004013B
+    {
+        uint32_t stk = 0u;
+        uint32_t f0 = 0u;
+        const float u0 = fMaddF(N(s.acc[0]), N(vf[18][0]), N(vf[10][2]), f0, stk);
+        uint32_t f1 = 0u;
+        const float u1 = fMaddF(N(s.acc[1]), N(vf[18][1]), N(vf[10][2]), f1, stk);
+        uint32_t f2 = 0u;
+        const float u2 = fMaddF(N(s.acc[2]), N(vf[18][2]), N(vf[10][2]), f2, stk);
+        uint32_t f3 = 0u;
+        const float u3 = fMaddF(N(s.acc[3]), N(vf[18][3]), N(vf[10][2]), f3, stk);
+        pushMacStatus(c, 0u | macBits(f0, 8u) | macBits(f1, 4u) | macBits(f2, 2u) | macBits(f3, 1u), 0u | f0 | f1 | f2 | f3, stk);
+        const int32_t nvi = static_cast<int16_t>(vi[0] + (315));
+        s.acc[0] = u0; c.accReady[0] = c.cyc + 1u;
+        s.acc[1] = u1; c.accReady[1] = c.cyc + 1u;
+        s.acc[2] = u2; c.accReady[2] = c.cyc + 1u;
+        s.acc[3] = u3; c.accReady[3] = c.cyc + 1u;
+        c.bkValid = true; c.bkReg = 4; c.bkVal = vi[4];
+        vi[4] = nvi; c.viReady[4] = c.cyc + 1;
+        ++c.cyc;
+    }
+    // 00B0: 01EACA8B 01F30005
+    {
+        uint32_t stk = 0u;
+        uint32_t f0 = 0u;
+        const float u0 = fMaddF(N(s.acc[0]), N(vf[25][0]), N(vf[10][3]), f0, stk);
+        uint32_t f1 = 0u;
+        const float u1 = fMaddF(N(s.acc[1]), N(vf[25][1]), N(vf[10][3]), f1, stk);
+        uint32_t f2 = 0u;
+        const float u2 = fMaddF(N(s.acc[2]), N(vf[25][2]), N(vf[10][3]), f2, stk);
+        uint32_t f3 = 0u;
+        const float u3 = fMaddF(N(s.acc[3]), N(vf[25][3]), N(vf[10][3]), f3, stk);
+        pushMacStatus(c, 0u | macBits(f0, 8u) | macBits(f1, 4u) | macBits(f2, 2u) | macBits(f3, 1u), 0u | f0 | f1 | f2 | f3, stk);
+        const uint32_t la = ((static_cast<uint32_t>(static_cast<int32_t>(vi[0] + (5))) * 16u) & 0x3FF0u);
+        const float l0 = ldf(m, la + 0);
+        const float l1 = ldf(m, la + 4);
+        const float l2 = ldf(m, la + 8);
+        const float l3 = ldf(m, la + 12);
+        vf[19][0] = l0; c.vfReady[19][0] = c.cyc + 4;
+        vf[19][1] = l1; c.vfReady[19][1] = c.cyc + 4;
+        vf[19][2] = l2; c.vfReady[19][2] = c.cyc + 4;
+        vf[19][3] = l3; c.vfReady[19][3] = c.cyc + 4;
+        vf[10][0] = u0; c.vfReady[10][0] = c.cyc + 4;
+        vf[10][1] = u1; c.vfReady[10][1] = c.cyc + 4;
+        vf[10][2] = u2; c.vfReady[10][2] = c.cyc + 4;
+        vf[10][3] = u3; c.vfReady[10][3] = c.cyc + 4;
+        c.bkValid = false;
+        ++c.cyc;
+    }
+    // 00B8: 01EB81BC 01F40004
+    {
+        uint32_t stk = 0u;
+        uint32_t f0 = 0u;
+        const float u0 = fMulF(N(vf[16][0]), N(vf[11][0]), f0);
+        uint32_t f1 = 0u;
+        const float u1 = fMulF(N(vf[16][1]), N(vf[11][0]), f1);
+        uint32_t f2 = 0u;
+        const float u2 = fMulF(N(vf[16][2]), N(vf[11][0]), f2);
+        uint32_t f3 = 0u;
+        const float u3 = fMulF(N(vf[16][3]), N(vf[11][0]), f3);
+        pushMacStatus(c, 0u | macBits(f0, 8u) | macBits(f1, 4u) | macBits(f2, 2u) | macBits(f3, 1u), 0u | f0 | f1 | f2 | f3, stk);
+        const uint32_t la = ((static_cast<uint32_t>(static_cast<int32_t>(vi[0] + (4))) * 16u) & 0x3FF0u);
+        const float l0 = ldf(m, la + 0);
+        const float l1 = ldf(m, la + 4);
+        const float l2 = ldf(m, la + 8);
+        const float l3 = ldf(m, la + 12);
+        vf[20][0] = l0; c.vfReady[20][0] = c.cyc + 4;
+        vf[20][1] = l1; c.vfReady[20][1] = c.cyc + 4;
+        vf[20][2] = l2; c.vfReady[20][2] = c.cyc + 4;
+        vf[20][3] = l3; c.vfReady[20][3] = c.cyc + 4;
+        s.acc[0] = u0; c.accReady[0] = c.cyc + 1u;
+        s.acc[1] = u1; c.accReady[1] = c.cyc + 1u;
+        s.acc[2] = u2; c.accReady[2] = c.cyc + 1u;
+        s.acc[3] = u3; c.accReady[3] = c.cyc + 1u;
+        c.bkValid = false;
+        ++c.cyc;
+    }
+    // 00C0: 01EBC0BD 01F5100F
+    {
+        uint32_t stk = 0u;
+        uint32_t f0 = 0u;
+        const float u0 = fMaddF(N(s.acc[0]), N(vf[24][0]), N(vf[11][1]), f0, stk);
+        uint32_t f1 = 0u;
+        const float u1 = fMaddF(N(s.acc[1]), N(vf[24][1]), N(vf[11][1]), f1, stk);
+        uint32_t f2 = 0u;
+        const float u2 = fMaddF(N(s.acc[2]), N(vf[24][2]), N(vf[11][1]), f2, stk);
+        uint32_t f3 = 0u;
+        const float u3 = fMaddF(N(s.acc[3]), N(vf[24][3]), N(vf[11][1]), f3, stk);
+        pushMacStatus(c, 0u | macBits(f0, 8u) | macBits(f1, 4u) | macBits(f2, 2u) | macBits(f3, 1u), 0u | f0 | f1 | f2 | f3, stk);
+        const uint32_t la = ((static_cast<uint32_t>(static_cast<int32_t>(vi[2] + (15))) * 16u) & 0x3FF0u);
+        const float l0 = ldf(m, la + 0);
+        const float l1 = ldf(m, la + 4);
+        const float l2 = ldf(m, la + 8);
+        const float l3 = ldf(m, la + 12);
+        vf[21][0] = l0; c.vfReady[21][0] = c.cyc + 4;
+        vf[21][1] = l1; c.vfReady[21][1] = c.cyc + 4;
+        vf[21][2] = l2; c.vfReady[21][2] = c.cyc + 4;
+        vf[21][3] = l3; c.vfReady[21][3] = c.cyc + 4;
+        s.acc[0] = u0; c.accReady[0] = c.cyc + 1u;
+        s.acc[1] = u1; c.accReady[1] = c.cyc + 1u;
+        s.acc[2] = u2; c.accReady[2] = c.cyc + 1u;
+        s.acc[3] = u3; c.accReady[3] = c.cyc + 1u;
+        c.bkValid = false;
+        ++c.cyc;
+    }
+    // 00C8: 01EB90BE 01F61010
+    {
+        uint32_t stk = 0u;
+        uint32_t f0 = 0u;
+        const float u0 = fMaddF(N(s.acc[0]), N(vf[18][0]), N(vf[11][2]), f0, stk);
+        uint32_t f1 = 0u;
+        const float u1 = fMaddF(N(s.acc[1]), N(vf[18][1]), N(vf[11][2]), f1, stk);
+        uint32_t f2 = 0u;
+        const float u2 = fMaddF(N(s.acc[2]), N(vf[18][2]), N(vf[11][2]), f2, stk);
+        uint32_t f3 = 0u;
+        const float u3 = fMaddF(N(s.acc[3]), N(vf[18][3]), N(vf[11][2]), f3, stk);
+        pushMacStatus(c, 0u | macBits(f0, 8u) | macBits(f1, 4u) | macBits(f2, 2u) | macBits(f3, 1u), 0u | f0 | f1 | f2 | f3, stk);
+        const uint32_t la = ((static_cast<uint32_t>(static_cast<int32_t>(vi[2] + (16))) * 16u) & 0x3FF0u);
+        const float l0 = ldf(m, la + 0);
+        const float l1 = ldf(m, la + 4);
+        const float l2 = ldf(m, la + 8);
+        const float l3 = ldf(m, la + 12);
+        vf[22][0] = l0; c.vfReady[22][0] = c.cyc + 4;
+        vf[22][1] = l1; c.vfReady[22][1] = c.cyc + 4;
+        vf[22][2] = l2; c.vfReady[22][2] = c.cyc + 4;
+        vf[22][3] = l3; c.vfReady[22][3] = c.cyc + 4;
+        s.acc[0] = u0; c.accReady[0] = c.cyc + 1u;
+        s.acc[1] = u1; c.accReady[1] = c.cyc + 1u;
+        s.acc[2] = u2; c.accReady[2] = c.cyc + 1u;
+        s.acc[3] = u3; c.accReady[3] = c.cyc + 1u;
+        c.bkValid = false;
+        ++c.cyc;
+    }
+    // 00D0: 01EBCACB 09091000
+    {
+        uint32_t stk = 0u;
+        uint32_t f0 = 0u;
+        const float u0 = fMaddF(N(s.acc[0]), N(vf[25][0]), N(vf[11][3]), f0, stk);
+        uint32_t f1 = 0u;
+        const float u1 = fMaddF(N(s.acc[1]), N(vf[25][1]), N(vf[11][3]), f1, stk);
+        uint32_t f2 = 0u;
+        const float u2 = fMaddF(N(s.acc[2]), N(vf[25][2]), N(vf[11][3]), f2, stk);
+        uint32_t f3 = 0u;
+        const float u3 = fMaddF(N(s.acc[3]), N(vf[25][3]), N(vf[11][3]), f3, stk);
+        pushMacStatus(c, 0u | macBits(f0, 8u) | macBits(f1, 4u) | macBits(f2, 2u) | macBits(f3, 1u), 0u | f0 | f1 | f2 | f3, stk);
+        const int32_t nvi = static_cast<int32_t>(static_cast<int16_t>(ldu(m, ((static_cast<uint32_t>(static_cast<int32_t>(vi[2] + (0))) * 16u) & 0x3FF0u) + 0) & 0xFFFFu));
+        vf[11][0] = u0; c.vfReady[11][0] = c.cyc + 4;
+        vf[11][1] = u1; c.vfReady[11][1] = c.cyc + 4;
+        vf[11][2] = u2; c.vfReady[11][2] = c.cyc + 4;
+        vf[11][3] = u3; c.vfReady[11][3] = c.cyc + 4;
+        c.bkValid = false;
+        vi[9] = nvi; c.viReady[9] = c.cyc + 4;
+        ++c.cyc;
+    }
+    // 00D8: 01EC81BC 01E91005
+    {
+        uint32_t stk = 0u;
+        uint32_t f0 = 0u;
+        const float u0 = fMulF(N(vf[16][0]), N(vf[12][0]), f0);
+        uint32_t f1 = 0u;
+        const float u1 = fMulF(N(vf[16][1]), N(vf[12][0]), f1);
+        uint32_t f2 = 0u;
+        const float u2 = fMulF(N(vf[16][2]), N(vf[12][0]), f2);
+        uint32_t f3 = 0u;
+        const float u3 = fMulF(N(vf[16][3]), N(vf[12][0]), f3);
+        pushMacStatus(c, 0u | macBits(f0, 8u) | macBits(f1, 4u) | macBits(f2, 2u) | macBits(f3, 1u), 0u | f0 | f1 | f2 | f3, stk);
+        const uint32_t la = ((static_cast<uint32_t>(static_cast<int32_t>(vi[2] + (5))) * 16u) & 0x3FF0u);
+        const float l0 = ldf(m, la + 0);
+        const float l1 = ldf(m, la + 4);
+        const float l2 = ldf(m, la + 8);
+        const float l3 = ldf(m, la + 12);
+        vf[9][0] = l0; c.vfReady[9][0] = c.cyc + 4;
+        vf[9][1] = l1; c.vfReady[9][1] = c.cyc + 4;
+        vf[9][2] = l2; c.vfReady[9][2] = c.cyc + 4;
+        vf[9][3] = l3; c.vfReady[9][3] = c.cyc + 4;
+        s.acc[0] = u0; c.accReady[0] = c.cyc + 1u;
+        s.acc[1] = u1; c.accReady[1] = c.cyc + 1u;
+        s.acc[2] = u2; c.accReady[2] = c.cyc + 1u;
+        s.acc[3] = u3; c.accReady[3] = c.cyc + 1u;
+        c.bkValid = false;
+        ++c.cyc;
+    }
+    // 00E0: 01ECC0BD 01C81004
+    {
+        uint32_t stk = 0u;
+        uint32_t f0 = 0u;
+        const float u0 = fMaddF(N(s.acc[0]), N(vf[24][0]), N(vf[12][1]), f0, stk);
+        uint32_t f1 = 0u;
+        const float u1 = fMaddF(N(s.acc[1]), N(vf[24][1]), N(vf[12][1]), f1, stk);
+        uint32_t f2 = 0u;
+        const float u2 = fMaddF(N(s.acc[2]), N(vf[24][2]), N(vf[12][1]), f2, stk);
+        uint32_t f3 = 0u;
+        const float u3 = fMaddF(N(s.acc[3]), N(vf[24][3]), N(vf[12][1]), f3, stk);
+        pushMacStatus(c, 0u | macBits(f0, 8u) | macBits(f1, 4u) | macBits(f2, 2u) | macBits(f3, 1u), 0u | f0 | f1 | f2 | f3, stk);
+        const uint32_t la = ((static_cast<uint32_t>(static_cast<int32_t>(vi[2] + (4))) * 16u) & 0x3FF0u);
+        const float l0 = ldf(m, la + 0);
+        const float l1 = ldf(m, la + 4);
+        const float l2 = ldf(m, la + 8);
+        vf[8][0] = l0; c.vfReady[8][0] = c.cyc + 4;
+        vf[8][1] = l1; c.vfReady[8][1] = c.cyc + 4;
+        vf[8][2] = l2; c.vfReady[8][2] = c.cyc + 4;
+        s.acc[0] = u0; c.accReady[0] = c.cyc + 1u;
+        s.acc[1] = u1; c.accReady[1] = c.cyc + 1u;
+        s.acc[2] = u2; c.accReady[2] = c.cyc + 1u;
+        s.acc[3] = u3; c.accReady[3] = c.cyc + 1u;
+        c.bkValid = false;
+        ++c.cyc;
+    }
+    // 00E8: 01EC90BE 01E71003
+    {
+        uint32_t stk = 0u;
+        uint32_t f0 = 0u;
+        const float u0 = fMaddF(N(s.acc[0]), N(vf[18][0]), N(vf[12][2]), f0, stk);
+        uint32_t f1 = 0u;
+        const float u1 = fMaddF(N(s.acc[1]), N(vf[18][1]), N(vf[12][2]), f1, stk);
+        uint32_t f2 = 0u;
+        const float u2 = fMaddF(N(s.acc[2]), N(vf[18][2]), N(vf[12][2]), f2, stk);
+        uint32_t f3 = 0u;
+        const float u3 = fMaddF(N(s.acc[3]), N(vf[18][3]), N(vf[12][2]), f3, stk);
+        pushMacStatus(c, 0u | macBits(f0, 8u) | macBits(f1, 4u) | macBits(f2, 2u) | macBits(f3, 1u), 0u | f0 | f1 | f2 | f3, stk);
+        const uint32_t la = ((static_cast<uint32_t>(static_cast<int32_t>(vi[2] + (3))) * 16u) & 0x3FF0u);
+        const float l0 = ldf(m, la + 0);
+        const float l1 = ldf(m, la + 4);
+        const float l2 = ldf(m, la + 8);
+        const float l3 = ldf(m, la + 12);
+        vf[7][0] = l0; c.vfReady[7][0] = c.cyc + 4;
+        vf[7][1] = l1; c.vfReady[7][1] = c.cyc + 4;
+        vf[7][2] = l2; c.vfReady[7][2] = c.cyc + 4;
+        vf[7][3] = l3; c.vfReady[7][3] = c.cyc + 4;
+        s.acc[0] = u0; c.accReady[0] = c.cyc + 1u;
+        s.acc[1] = u1; c.accReady[1] = c.cyc + 1u;
+        s.acc[2] = u2; c.accReady[2] = c.cyc + 1u;
+        s.acc[3] = u3; c.accReady[3] = c.cyc + 1u;
+        c.bkValid = false;
+        ++c.cyc;
+    }
+    // 00F0: 01ECCB0B 00661000
+    {
+        uint32_t stk = 0u;
+        uint32_t f0 = 0u;
+        const float u0 = fMaddF(N(s.acc[0]), N(vf[25][0]), N(vf[12][3]), f0, stk);
+        uint32_t f1 = 0u;
+        const float u1 = fMaddF(N(s.acc[1]), N(vf[25][1]), N(vf[12][3]), f1, stk);
+        uint32_t f2 = 0u;
+        const float u2 = fMaddF(N(s.acc[2]), N(vf[25][2]), N(vf[12][3]), f2, stk);
+        uint32_t f3 = 0u;
+        const float u3 = fMaddF(N(s.acc[3]), N(vf[25][3]), N(vf[12][3]), f3, stk);
+        pushMacStatus(c, 0u | macBits(f0, 8u) | macBits(f1, 4u) | macBits(f2, 2u) | macBits(f3, 1u), 0u | f0 | f1 | f2 | f3, stk);
+        const uint32_t la = ((static_cast<uint32_t>(static_cast<int32_t>(vi[2] + (0))) * 16u) & 0x3FF0u);
+        const float l2 = ldf(m, la + 8);
+        const float l3 = ldf(m, la + 12);
+        vf[6][2] = l2; c.vfReady[6][2] = c.cyc + 4;
+        vf[6][3] = l3; c.vfReady[6][3] = c.cyc + 4;
+        vf[12][0] = u0; c.vfReady[12][0] = c.cyc + 4;
+        vf[12][1] = u1; c.vfReady[12][1] = c.cyc + 4;
+        vf[12][2] = u2; c.vfReady[12][2] = c.cyc + 4;
+        vf[12][3] = u3; c.vfReady[12][3] = c.cyc + 4;
+        c.bkValid = false;
+        ++c.cyc;
+    }
+    // 00F8: 01ED81BC 01EE1009
+    {
+        uint32_t stk = 0u;
+        uint32_t f0 = 0u;
+        const float u0 = fMulF(N(vf[16][0]), N(vf[13][0]), f0);
+        uint32_t f1 = 0u;
+        const float u1 = fMulF(N(vf[16][1]), N(vf[13][0]), f1);
+        uint32_t f2 = 0u;
+        const float u2 = fMulF(N(vf[16][2]), N(vf[13][0]), f2);
+        uint32_t f3 = 0u;
+        const float u3 = fMulF(N(vf[16][3]), N(vf[13][0]), f3);
+        pushMacStatus(c, 0u | macBits(f0, 8u) | macBits(f1, 4u) | macBits(f2, 2u) | macBits(f3, 1u), 0u | f0 | f1 | f2 | f3, stk);
+        const uint32_t la = ((static_cast<uint32_t>(static_cast<int32_t>(vi[2] + (9))) * 16u) & 0x3FF0u);
+        const float l0 = ldf(m, la + 0);
+        const float l1 = ldf(m, la + 4);
+        const float l2 = ldf(m, la + 8);
+        const float l3 = ldf(m, la + 12);
+        vf[14][0] = l0; c.vfReady[14][0] = c.cyc + 4;
+        vf[14][1] = l1; c.vfReady[14][1] = c.cyc + 4;
+        vf[14][2] = l2; c.vfReady[14][2] = c.cyc + 4;
+        vf[14][3] = l3; c.vfReady[14][3] = c.cyc + 4;
+        s.acc[0] = u0; c.accReady[0] = c.cyc + 1u;
+        s.acc[1] = u1; c.accReady[1] = c.cyc + 1u;
+        s.acc[2] = u2; c.accReady[2] = c.cyc + 1u;
+        s.acc[3] = u3; c.accReady[3] = c.cyc + 1u;
+        c.bkValid = false;
+        ++c.cyc;
+    }
+    // 0100: 01EDC0BD 10080046
+    {
+        uint32_t stk = 0u;
+        uint32_t f0 = 0u;
+        const float u0 = fMaddF(N(s.acc[0]), N(vf[24][0]), N(vf[13][1]), f0, stk);
+        uint32_t f1 = 0u;
+        const float u1 = fMaddF(N(s.acc[1]), N(vf[24][1]), N(vf[13][1]), f1, stk);
+        uint32_t f2 = 0u;
+        const float u2 = fMaddF(N(s.acc[2]), N(vf[24][2]), N(vf[13][1]), f2, stk);
+        uint32_t f3 = 0u;
+        const float u3 = fMaddF(N(s.acc[3]), N(vf[24][3]), N(vf[13][1]), f3, stk);
+        pushMacStatus(c, 0u | macBits(f0, 8u) | macBits(f1, 4u) | macBits(f2, 2u) | macBits(f3, 1u), 0u | f0 | f1 | f2 | f3, stk);
+        const int32_t nvi = static_cast<int16_t>(vi[0] + (70));
+        s.acc[0] = u0; c.accReady[0] = c.cyc + 1u;
+        s.acc[1] = u1; c.accReady[1] = c.cyc + 1u;
+        s.acc[2] = u2; c.accReady[2] = c.cyc + 1u;
+        s.acc[3] = u3; c.accReady[3] = c.cyc + 1u;
+        c.bkValid = true; c.bkReg = 8; c.bkVal = vi[8];
+        vi[8] = nvi; c.viReady[8] = c.cyc + 1;
+        ++c.cyc;
+    }
+    // 0108: 01ED90BE 10070000
+    {
+        uint32_t stk = 0u;
+        uint32_t f0 = 0u;
+        const float u0 = fMaddF(N(s.acc[0]), N(vf[18][0]), N(vf[13][2]), f0, stk);
+        uint32_t f1 = 0u;
+        const float u1 = fMaddF(N(s.acc[1]), N(vf[18][1]), N(vf[13][2]), f1, stk);
+        uint32_t f2 = 0u;
+        const float u2 = fMaddF(N(s.acc[2]), N(vf[18][2]), N(vf[13][2]), f2, stk);
+        uint32_t f3 = 0u;
+        const float u3 = fMaddF(N(s.acc[3]), N(vf[18][3]), N(vf[13][2]), f3, stk);
+        pushMacStatus(c, 0u | macBits(f0, 8u) | macBits(f1, 4u) | macBits(f2, 2u) | macBits(f3, 1u), 0u | f0 | f1 | f2 | f3, stk);
+        const int32_t nvi = static_cast<int16_t>(vi[0] + (0));
+        s.acc[0] = u0; c.accReady[0] = c.cyc + 1u;
+        s.acc[1] = u1; c.accReady[1] = c.cyc + 1u;
+        s.acc[2] = u2; c.accReady[2] = c.cyc + 1u;
+        s.acc[3] = u3; c.accReady[3] = c.cyc + 1u;
+        c.bkValid = true; c.bkReg = 7; c.bkVal = vi[7];
+        vi[7] = nvi; c.viReady[7] = c.cyc + 1;
+        ++c.cyc;
+    }
+    // 0110: 01EDCB4B 10062001
+    {
+        uint32_t stk = 0u;
+        uint32_t f0 = 0u;
+        const float u0 = fMaddF(N(s.acc[0]), N(vf[25][0]), N(vf[13][3]), f0, stk);
+        uint32_t f1 = 0u;
+        const float u1 = fMaddF(N(s.acc[1]), N(vf[25][1]), N(vf[13][3]), f1, stk);
+        uint32_t f2 = 0u;
+        const float u2 = fMaddF(N(s.acc[2]), N(vf[25][2]), N(vf[13][3]), f2, stk);
+        uint32_t f3 = 0u;
+        const float u3 = fMaddF(N(s.acc[3]), N(vf[25][3]), N(vf[13][3]), f3, stk);
+        pushMacStatus(c, 0u | macBits(f0, 8u) | macBits(f1, 4u) | macBits(f2, 2u) | macBits(f3, 1u), 0u | f0 | f1 | f2 | f3, stk);
+        const int32_t nvi = static_cast<int16_t>(vi[4] + (1));
+        vf[13][0] = u0; c.vfReady[13][0] = c.cyc + 4;
+        vf[13][1] = u1; c.vfReady[13][1] = c.cyc + 4;
+        vf[13][2] = u2; c.vfReady[13][2] = c.cyc + 4;
+        vf[13][3] = u3; c.vfReady[13][3] = c.cyc + 4;
+        c.bkValid = true; c.bkReg = 6; c.bkVal = vi[6];
+        vi[6] = nvi; c.viReady[6] = c.cyc + 1;
+        ++c.cyc;
+    }
+    // 0118: 01EE81BC 01FA100A
+    {
+        uint32_t stk = 0u;
+        uint32_t f0 = 0u;
+        const float u0 = fMulF(N(vf[16][0]), N(vf[14][0]), f0);
+        uint32_t f1 = 0u;
+        const float u1 = fMulF(N(vf[16][1]), N(vf[14][0]), f1);
+        uint32_t f2 = 0u;
+        const float u2 = fMulF(N(vf[16][2]), N(vf[14][0]), f2);
+        uint32_t f3 = 0u;
+        const float u3 = fMulF(N(vf[16][3]), N(vf[14][0]), f3);
+        pushMacStatus(c, 0u | macBits(f0, 8u) | macBits(f1, 4u) | macBits(f2, 2u) | macBits(f3, 1u), 0u | f0 | f1 | f2 | f3, stk);
+        const uint32_t la = ((static_cast<uint32_t>(static_cast<int32_t>(vi[2] + (10))) * 16u) & 0x3FF0u);
+        const float l0 = ldf(m, la + 0);
+        const float l1 = ldf(m, la + 4);
+        const float l2 = ldf(m, la + 8);
+        const float l3 = ldf(m, la + 12);
+        vf[26][0] = l0; c.vfReady[26][0] = c.cyc + 4;
+        vf[26][1] = l1; c.vfReady[26][1] = c.cyc + 4;
+        vf[26][2] = l2; c.vfReady[26][2] = c.cyc + 4;
+        vf[26][3] = l3; c.vfReady[26][3] = c.cyc + 4;
+        s.acc[0] = u0; c.accReady[0] = c.cyc + 1u;
+        s.acc[1] = u1; c.accReady[1] = c.cyc + 1u;
+        s.acc[2] = u2; c.accReady[2] = c.cyc + 1u;
+        s.acc[3] = u3; c.accReady[3] = c.cyc + 1u;
+        c.bkValid = false;
+        ++c.cyc;
+    }
+    // 0120: 01EEC0BD 1005029A
+    {
+        uint32_t stk = 0u;
+        uint32_t f0 = 0u;
+        const float u0 = fMaddF(N(s.acc[0]), N(vf[24][0]), N(vf[14][1]), f0, stk);
+        uint32_t f1 = 0u;
+        const float u1 = fMaddF(N(s.acc[1]), N(vf[24][1]), N(vf[14][1]), f1, stk);
+        uint32_t f2 = 0u;
+        const float u2 = fMaddF(N(s.acc[2]), N(vf[24][2]), N(vf[14][1]), f2, stk);
+        uint32_t f3 = 0u;
+        const float u3 = fMaddF(N(s.acc[3]), N(vf[24][3]), N(vf[14][1]), f3, stk);
+        pushMacStatus(c, 0u | macBits(f0, 8u) | macBits(f1, 4u) | macBits(f2, 2u) | macBits(f3, 1u), 0u | f0 | f1 | f2 | f3, stk);
+        const int32_t nvi = static_cast<int16_t>(vi[0] + (666));
+        s.acc[0] = u0; c.accReady[0] = c.cyc + 1u;
+        s.acc[1] = u1; c.accReady[1] = c.cyc + 1u;
+        s.acc[2] = u2; c.accReady[2] = c.cyc + 1u;
+        s.acc[3] = u3; c.accReady[3] = c.cyc + 1u;
+        c.bkValid = true; c.bkReg = 5; c.bkVal = vi[5];
+        vi[5] = nvi; c.viReady[5] = c.cyc + 1;
+        ++c.cyc;
+    }
+    // 0128: 01EE90BE 10030020
+    {
+        uint32_t stk = 0u;
+        uint32_t f0 = 0u;
+        const float u0 = fMaddF(N(s.acc[0]), N(vf[18][0]), N(vf[14][2]), f0, stk);
+        uint32_t f1 = 0u;
+        const float u1 = fMaddF(N(s.acc[1]), N(vf[18][1]), N(vf[14][2]), f1, stk);
+        uint32_t f2 = 0u;
+        const float u2 = fMaddF(N(s.acc[2]), N(vf[18][2]), N(vf[14][2]), f2, stk);
+        uint32_t f3 = 0u;
+        const float u3 = fMaddF(N(s.acc[3]), N(vf[18][3]), N(vf[14][2]), f3, stk);
+        pushMacStatus(c, 0u | macBits(f0, 8u) | macBits(f1, 4u) | macBits(f2, 2u) | macBits(f3, 1u), 0u | f0 | f1 | f2 | f3, stk);
+        const int32_t nvi = static_cast<int16_t>(vi[0] + (32));
+        s.acc[0] = u0; c.accReady[0] = c.cyc + 1u;
+        s.acc[1] = u1; c.accReady[1] = c.cyc + 1u;
+        s.acc[2] = u2; c.accReady[2] = c.cyc + 1u;
+        s.acc[3] = u3; c.accReady[3] = c.cyc + 1u;
+        c.bkValid = true; c.bkReg = 3; c.bkVal = vi[3];
+        vi[3] = nvi; c.viReady[3] = c.cyc + 1;
+        ++c.cyc;
+    }
+    // 0130: 01EECB8B 8042033D
+    {
+        uint32_t stk = 0u;
+        uint32_t f0 = 0u;
+        const float u0 = fMaddF(N(s.acc[0]), N(vf[25][0]), N(vf[14][3]), f0, stk);
+        uint32_t f1 = 0u;
+        const float u1 = fMaddF(N(s.acc[1]), N(vf[25][1]), N(vf[14][3]), f1, stk);
+        uint32_t f2 = 0u;
+        const float u2 = fMaddF(N(s.acc[2]), N(vf[25][2]), N(vf[14][3]), f2, stk);
+        uint32_t f3 = 0u;
+        const float u3 = fMaddF(N(s.acc[3]), N(vf[25][3]), N(vf[14][3]), f3, stk);
+        pushMacStatus(c, 0u | macBits(f0, 8u) | macBits(f1, 4u) | macBits(f2, 2u) | macBits(f3, 1u), 0u | f0 | f1 | f2 | f3, stk);
+        const float l2 = vf[0][3];
+        vf[2][2] = l2; c.vfReady[2][2] = c.cyc + 4;
+        vf[14][0] = u0; c.vfReady[14][0] = c.cyc + 4;
+        vf[14][1] = u1; c.vfReady[14][1] = c.cyc + 4;
+        vf[14][2] = u2; c.vfReady[14][2] = c.cyc + 4;
+        vf[14][3] = u3; c.vfReady[14][3] = c.cyc + 4;
+        c.bkValid = false;
+        ++c.cyc;
+    }
+    // 0138: 01FA81BC 01A21014
+    {
+        uint32_t stk = 0u;
+        uint32_t f0 = 0u;
+        const float u0 = fMulF(N(vf[16][0]), N(vf[26][0]), f0);
+        uint32_t f1 = 0u;
+        const float u1 = fMulF(N(vf[16][1]), N(vf[26][0]), f1);
+        uint32_t f2 = 0u;
+        const float u2 = fMulF(N(vf[16][2]), N(vf[26][0]), f2);
+        uint32_t f3 = 0u;
+        const float u3 = fMulF(N(vf[16][3]), N(vf[26][0]), f3);
+        pushMacStatus(c, 0u | macBits(f0, 8u) | macBits(f1, 4u) | macBits(f2, 2u) | macBits(f3, 1u), 0u | f0 | f1 | f2 | f3, stk);
+        const uint32_t la = ((static_cast<uint32_t>(static_cast<int32_t>(vi[2] + (20))) * 16u) & 0x3FF0u);
+        const float l0 = ldf(m, la + 0);
+        const float l1 = ldf(m, la + 4);
+        const float l3 = ldf(m, la + 12);
+        vf[2][0] = l0; c.vfReady[2][0] = c.cyc + 4;
+        vf[2][1] = l1; c.vfReady[2][1] = c.cyc + 4;
+        vf[2][3] = l3; c.vfReady[2][3] = c.cyc + 4;
+        s.acc[0] = u0; c.accReady[0] = c.cyc + 1u;
+        s.acc[1] = u1; c.accReady[1] = c.cyc + 1u;
+        s.acc[2] = u2; c.accReady[2] = c.cyc + 1u;
+        s.acc[3] = u3; c.accReady[3] = c.cyc + 1u;
+        c.bkValid = false;
+        ++c.cyc;
+    }
+    // 0140: 01FAC0BD 8041033D
+    {
+        uint32_t stk = 0u;
+        uint32_t f0 = 0u;
+        const float u0 = fMaddF(N(s.acc[0]), N(vf[24][0]), N(vf[26][1]), f0, stk);
+        uint32_t f1 = 0u;
+        const float u1 = fMaddF(N(s.acc[1]), N(vf[24][1]), N(vf[26][1]), f1, stk);
+        uint32_t f2 = 0u;
+        const float u2 = fMaddF(N(s.acc[2]), N(vf[24][2]), N(vf[26][1]), f2, stk);
+        uint32_t f3 = 0u;
+        const float u3 = fMaddF(N(s.acc[3]), N(vf[24][3]), N(vf[26][1]), f3, stk);
+        pushMacStatus(c, 0u | macBits(f0, 8u) | macBits(f1, 4u) | macBits(f2, 2u) | macBits(f3, 1u), 0u | f0 | f1 | f2 | f3, stk);
+        const float l2 = vf[0][3];
+        vf[1][2] = l2; c.vfReady[1][2] = c.cyc + 4;
+        s.acc[0] = u0; c.accReady[0] = c.cyc + 1u;
+        s.acc[1] = u1; c.accReady[1] = c.cyc + 1u;
+        s.acc[2] = u2; c.accReady[2] = c.cyc + 1u;
+        s.acc[3] = u3; c.accReady[3] = c.cyc + 1u;
+        c.bkValid = false;
+        ++c.cyc;
+    }
+    // 0148: 01FA90BE 01A11013
+    {
+        uint32_t stk = 0u;
+        uint32_t f0 = 0u;
+        const float u0 = fMaddF(N(s.acc[0]), N(vf[18][0]), N(vf[26][2]), f0, stk);
+        uint32_t f1 = 0u;
+        const float u1 = fMaddF(N(s.acc[1]), N(vf[18][1]), N(vf[26][2]), f1, stk);
+        uint32_t f2 = 0u;
+        const float u2 = fMaddF(N(s.acc[2]), N(vf[18][2]), N(vf[26][2]), f2, stk);
+        uint32_t f3 = 0u;
+        const float u3 = fMaddF(N(s.acc[3]), N(vf[18][3]), N(vf[26][2]), f3, stk);
+        pushMacStatus(c, 0u | macBits(f0, 8u) | macBits(f1, 4u) | macBits(f2, 2u) | macBits(f3, 1u), 0u | f0 | f1 | f2 | f3, stk);
+        const uint32_t la = ((static_cast<uint32_t>(static_cast<int32_t>(vi[2] + (19))) * 16u) & 0x3FF0u);
+        const float l0 = ldf(m, la + 0);
+        const float l1 = ldf(m, la + 4);
+        const float l3 = ldf(m, la + 12);
+        vf[1][0] = l0; c.vfReady[1][0] = c.cyc + 4;
+        vf[1][1] = l1; c.vfReady[1][1] = c.cyc + 4;
+        vf[1][3] = l3; c.vfReady[1][3] = c.cyc + 4;
+        s.acc[0] = u0; c.accReady[0] = c.cyc + 1u;
+        s.acc[1] = u1; c.accReady[1] = c.cyc + 1u;
+        s.acc[2] = u2; c.accReady[2] = c.cyc + 1u;
+        s.acc[3] = u3; c.accReady[3] = c.cyc + 1u;
+        c.bkValid = false;
+        ++c.cyc;
+    }
+    // 0150: 81FACC0B 3DE76C8B
+    {
+        uint32_t stk = 0u;
+        uint32_t f0 = 0u;
+        const float u0 = fMaddF(N(s.acc[0]), N(vf[25][0]), N(vf[26][3]), f0, stk);
+        uint32_t f1 = 0u;
+        const float u1 = fMaddF(N(s.acc[1]), N(vf[25][1]), N(vf[26][3]), f1, stk);
+        uint32_t f2 = 0u;
+        const float u2 = fMaddF(N(s.acc[2]), N(vf[25][2]), N(vf[26][3]), f2, stk);
+        uint32_t f3 = 0u;
+        const float u3 = fMaddF(N(s.acc[3]), N(vf[25][3]), N(vf[26][3]), f3, stk);
+        pushMacStatus(c, 0u | macBits(f0, 8u) | macBits(f1, 4u) | macBits(f2, 2u) | macBits(f3, 1u), 0u | f0 | f1 | f2 | f3, stk);
+        s.i = N(bitsf(0x3DE76C8Bu));
+        vf[16][0] = u0; c.vfReady[16][0] = c.cyc + 4;
+        vf[16][1] = u1; c.vfReady[16][1] = c.cyc + 4;
+        vf[16][2] = u2; c.vfReady[16][2] = c.cyc + 4;
+        vf[16][3] = u3; c.vfReady[16][3] = c.cyc + 4;
+        c.bkValid = false;
+        ++c.cyc;
+    }
+    // 0158: 008004A2 01F71011
+    {
+        uint32_t stk = 0u;
+        uint32_t f1 = 0u;
+        const float u1 = fAddF(N(vf[0][1]), N(s.i), f1);
+        pushMacStatus(c, 0u | macBits(f1, 4u), 0u | f1, stk);
+        const uint32_t la = ((static_cast<uint32_t>(static_cast<int32_t>(vi[2] + (17))) * 16u) & 0x3FF0u);
+        const float l0 = ldf(m, la + 0);
+        const float l1 = ldf(m, la + 4);
+        const float l2 = ldf(m, la + 8);
+        const float l3 = ldf(m, la + 12);
+        vf[23][0] = l0; c.vfReady[23][0] = c.cyc + 4;
+        vf[23][1] = l1; c.vfReady[23][1] = c.cyc + 4;
+        vf[23][2] = l2; c.vfReady[23][2] = c.cyc + 4;
+        vf[23][3] = l3; c.vfReady[23][3] = c.cyc + 4;
+        vf[18][1] = u1; c.vfReady[18][1] = c.cyc + 4;
+        c.bkValid = false;
+        ++c.cyc;
+    }
+    return 0x160;
+}
+
+static uint32_t vu1prog_3_0160(VU1NativeCtx &c)
+{
+    using namespace vu1n;
+    VU1State &s = *c.st;
+    float (*vf)[4] = s.vf;
+    int32_t *vi = s.vi;
+    uint8_t *m = c.mem;
+    (void)m;
+    (void)vf;
+    (void)vi;
+    // 0160: 000002FF 01FB1001
+    {
+        stall(c, c.viReady[2]);
+        const uint32_t la = ((static_cast<uint32_t>(static_cast<int32_t>(vi[2] + (1))) * 16u) & 0x3FF0u);
+        const float l0 = ldf(m, la + 0);
+        const float l1 = ldf(m, la + 4);
+        const float l2 = ldf(m, la + 8);
+        const float l3 = ldf(m, la + 12);
+        vf[27][0] = l0; c.vfReady[27][0] = c.cyc + 4;
+        vf[27][1] = l1; c.vfReady[27][1] = c.cyc + 4;
+        vf[27][2] = l2; c.vfReady[27][2] = c.cyc + 4;
+        vf[27][3] = l3; c.vfReady[27][3] = c.cyc + 4;
+        c.bkValid = false;
+        ++c.cyc;
+    }
+    // 0168: 000002FF 80604C3E
+    {
+        stall(c, c.vfReady[9][3]);
+        s.r = 0x3F800000u | (fbits(vf[9][3]) & 0x007FFFFFu);
+        c.bkValid = false;
+        ++c.cyc;
+    }
+    // 0170: 000002FF 8029043C
+    {
+        rnext(s);
+        const float l3 = bitsf(s.r);
+        vf[9][3] = l3; c.vfReady[9][3] = c.cyc + 4;
+        c.bkValid = false;
+        ++c.cyc;
+    }
+    // 0178: 000002FF 8000443E
+    {
+        stall(c, c.vfReady[8][0]);
+        s.r = 0x3F800000u | (fbits(vf[8][0]) & 0x007FFFFFu);
+        c.bkValid = false;
+        ++c.cyc;
+    }
+    // 0180: 000002FF 8108043C
+    {
+        rnext(s);
+        const float l0 = bitsf(s.r);
+        vf[8][0] = l0; c.vfReady[8][0] = c.cyc + 4;
+        c.bkValid = false;
+        ++c.cyc;
+    }
+    // 0188: 000002FF 80004C3E
+    {
+        stall(c, c.vfReady[9][0]);
+        s.r = 0x3F800000u | (fbits(vf[9][0]) & 0x007FFFFFu);
+        c.bkValid = false;
+        ++c.cyc;
+    }
+    // 0190: 000002FF 8109043C
+    {
+        rnext(s);
+        const float l0 = bitsf(s.r);
+        vf[9][0] = l0; c.vfReady[9][0] = c.cyc + 4;
+        c.bkValid = false;
+        ++c.cyc;
+    }
+    // 0198: 000002FF 8020443E
+    {
+        stall(c, c.vfReady[8][1]);
+        s.r = 0x3F800000u | (fbits(vf[8][1]) & 0x007FFFFFu);
+        c.bkValid = false;
+        ++c.cyc;
+    }
+    // 01A0: 000002FF 8088043C
+    {
+        rnext(s);
+        const float l1 = bitsf(s.r);
+        vf[8][1] = l1; c.vfReady[8][1] = c.cyc + 4;
+        c.bkValid = false;
+        ++c.cyc;
+    }
+    // 01A8: 000002FF 8040443E
+    {
+        stall(c, c.vfReady[8][2]);
+        s.r = 0x3F800000u | (fbits(vf[8][2]) & 0x007FFFFFu);
+        c.bkValid = false;
+        ++c.cyc;
+    }
+    // 01B0: 000002FF 8048043C
+    {
+        rnext(s);
+        const float l2 = bitsf(s.r);
+        vf[8][2] = l2; c.vfReady[8][2] = c.cyc + 4;
+        c.bkValid = false;
+        ++c.cyc;
+    }
+    // 01B8: 009B003F 80403C3E
+    {
+        stall(c, c.vfReady[7][2]);
+        uint32_t stk = 0u;
+        uint32_t f1 = 0u;
+        const float u1 = fAddF(N(vf[0][1]), N(vf[27][3]), f1);
+        pushMacStatus(c, 0u | macBits(f1, 4u), 0u | f1, stk);
+        s.r = 0x3F800000u | (fbits(vf[7][2]) & 0x007FFFFFu);
+        s.acc[1] = u1; c.accReady[1] = c.cyc + 1u;
+        c.bkValid = false;
+        ++c.cyc;
+    }
+    // 01C0: 0089D98B 8047043C
+    {
+        uint32_t stk = 0u;
+        uint32_t f1 = 0u;
+        const float u1 = fMaddF(N(s.acc[1]), N(vf[27][1]), N(vf[9][3]), f1, stk);
+        pushMacStatus(c, 0u | macBits(f1, 4u), 0u | f1, stk);
+        rnext(s);
+        const float l2 = bitsf(s.r);
+        vf[7][2] = l2; c.vfReady[7][2] = c.cyc + 4;
+        vf[6][1] = u1; c.vfReady[6][1] = c.cyc + 4;
+        c.bkValid = false;
+        ++c.cyc;
+    }
+    // 01C8: 000002FF 80603C3E
+    {
+        stall(c, c.vfReady[7][3]);
+        s.r = 0x3F800000u | (fbits(vf[7][3]) & 0x007FFFFFu);
+        c.bkValid = false;
+        ++c.cyc;
+    }
+    // 01D0: 01E021BF 8027043C
+    {
+        stall(c, c.vfReady[4][0]);
+        stall(c, c.vfReady[4][1]);
+        stall(c, c.vfReady[4][2]);
+        stall(c, c.vfReady[4][3]);
+        uint32_t stk = 0u;
+        uint32_t f0 = 0u;
+        const float u0 = fMulF(N(vf[4][0]), N(vf[0][3]), f0);
+        uint32_t f1 = 0u;
+        const float u1 = fMulF(N(vf[4][1]), N(vf[0][3]), f1);
+        uint32_t f2 = 0u;
+        const float u2 = fMulF(N(vf[4][2]), N(vf[0][3]), f2);
+        uint32_t f3 = 0u;
+        const float u3 = fMulF(N(vf[4][3]), N(vf[0][3]), f3);
+        pushMacStatus(c, 0u | macBits(f0, 8u) | macBits(f1, 4u) | macBits(f2, 2u) | macBits(f3, 1u), 0u | f0 | f1 | f2 | f3, stk);
+        rnext(s);
+        const float l3 = bitsf(s.r);
+        vf[7][3] = l3; c.vfReady[7][3] = c.cyc + 4;
+        s.acc[0] = u0; c.accReady[0] = c.cyc + 1u;
+        s.acc[1] = u1; c.accReady[1] = c.cyc + 1u;
+        s.acc[2] = u2; c.accReady[2] = c.cyc + 1u;
+        s.acc[3] = u3; c.accReady[3] = c.cyc + 1u;
+        c.bkValid = false;
+        ++c.cyc;
+    }
+    // 01D8: 01EF58BC 8000033C
+    {
+        stall(c, c.vfReady[11][0]);
+        stall(c, c.vfReady[11][1]);
+        stall(c, c.vfReady[11][2]);
+        stall(c, c.vfReady[11][3]);
+        stall(c, c.vfReady[15][0]);
+        uint32_t stk = 0u;
+        uint32_t f0 = 0u;
+        const float u0 = fMaddF(N(s.acc[0]), N(vf[11][0]), N(vf[15][0]), f0, stk);
+        uint32_t f1 = 0u;
+        const float u1 = fMaddF(N(s.acc[1]), N(vf[11][1]), N(vf[15][0]), f1, stk);
+        uint32_t f2 = 0u;
+        const float u2 = fMaddF(N(s.acc[2]), N(vf[11][2]), N(vf[15][0]), f2, stk);
+        uint32_t f3 = 0u;
+        const float u3 = fMaddF(N(s.acc[3]), N(vf[11][3]), N(vf[15][0]), f3, stk);
+        pushMacStatus(c, 0u | macBits(f0, 8u) | macBits(f1, 4u) | macBits(f2, 2u) | macBits(f3, 1u), 0u | f0 | f1 | f2 | f3, stk);
+        s.acc[0] = u0; c.accReady[0] = c.cyc + 1u;
+        s.acc[1] = u1; c.accReady[1] = c.cyc + 1u;
+        s.acc[2] = u2; c.accReady[2] = c.cyc + 1u;
+        s.acc[3] = u3; c.accReady[3] = c.cyc + 1u;
+        c.bkValid = false;
+        ++c.cyc;
+    }
+    // 01E0: 00463005 8000033C
+    {
+        stall(c, c.vfReady[6][2]);
+        uint32_t stk = 0u;
+        uint32_t f2 = 0u;
+        const float u2 = fSubF(N(vf[6][2]), N(vf[6][1]), f2);
+        pushMacStatus(c, 0u | macBits(f2, 2u), 0u | f2, stk);
+        c.bkValid = false;
+        ++c.cyc;
+    }
+    // 01E8: 01E728BE 8000033C
+    {
+        stall(c, c.vfReady[5][0]);
+        stall(c, c.vfReady[5][1]);
+        stall(c, c.vfReady[5][2]);
+        stall(c, c.vfReady[5][3]);
+        uint32_t stk = 0u;
+        uint32_t f0 = 0u;
+        const float u0 = fMaddF(N(s.acc[0]), N(vf[5][0]), N(vf[7][2]), f0, stk);
+        uint32_t f1 = 0u;
+        const float u1 = fMaddF(N(s.acc[1]), N(vf[5][1]), N(vf[7][2]), f1, stk);
+        uint32_t f2 = 0u;
+        const float u2 = fMaddF(N(s.acc[2]), N(vf[5][2]), N(vf[7][2]), f2, stk);
+        uint32_t f3 = 0u;
+        const float u3 = fMaddF(N(s.acc[3]), N(vf[5][3]), N(vf[7][2]), f3, stk);
+        pushMacStatus(c, 0u | macBits(f0, 8u) | macBits(f1, 4u) | macBits(f2, 2u) | macBits(f3, 1u), 0u | f0 | f1 | f2 | f3, stk);
+        s.acc[0] = u0; c.accReady[0] = c.cyc + 1u;
+        s.acc[1] = u1; c.accReady[1] = c.cyc + 1u;
+        s.acc[2] = u2; c.accReady[2] = c.cyc + 1u;
+        s.acc[3] = u3; c.accReady[3] = c.cyc + 1u;
+        c.bkValid = false;
+        ++c.cyc;
+    }
+    // 01F0: 01E7560B 8000033C
+    {
+        stall(c, c.vfReady[10][0]);
+        stall(c, c.vfReady[10][1]);
+        stall(c, c.vfReady[10][2]);
+        stall(c, c.vfReady[10][3]);
+        uint32_t stk = 0u;
+        uint32_t f0 = 0u;
+        const float u0 = fMaddF(N(s.acc[0]), N(vf[10][0]), N(vf[7][3]), f0, stk);
+        uint32_t f1 = 0u;
+        const float u1 = fMaddF(N(s.acc[1]), N(vf[10][1]), N(vf[7][3]), f1, stk);
+        uint32_t f2 = 0u;
+        const float u2 = fMaddF(N(s.acc[2]), N(vf[10][2]), N(vf[7][3]), f2, stk);
+        uint32_t f3 = 0u;
+        const float u3 = fMaddF(N(s.acc[3]), N(vf[10][3]), N(vf[7][3]), f3, stk);
+        pushMacStatus(c, 0u | macBits(f0, 8u) | macBits(f1, 4u) | macBits(f2, 2u) | macBits(f3, 1u), 0u | f0 | f1 | f2 | f3, stk);
+        vf[24][0] = u0; c.vfReady[24][0] = c.cyc + 4;
+        vf[24][1] = u1; c.vfReady[24][1] = c.cyc + 4;
+        vf[24][2] = u2; c.vfReady[24][2] = c.cyc + 4;
+        vf[24][3] = u3; c.vfReady[24][3] = c.cyc + 4;
+        c.bkValid = false;
+        ++c.cyc;
+    }
+    // 01F8: 01E061BF 8000033C
+    {
+        stall(c, c.vfReady[12][0]);
+        stall(c, c.vfReady[12][1]);
+        stall(c, c.vfReady[12][2]);
+        stall(c, c.vfReady[12][3]);
+        uint32_t stk = 0u;
+        uint32_t f0 = 0u;
+        const float u0 = fMulF(N(vf[12][0]), N(vf[0][3]), f0);
+        uint32_t f1 = 0u;
+        const float u1 = fMulF(N(vf[12][1]), N(vf[0][3]), f1);
+        uint32_t f2 = 0u;
+        const float u2 = fMulF(N(vf[12][2]), N(vf[0][3]), f2);
+        uint32_t f3 = 0u;
+        const float u3 = fMulF(N(vf[12][3]), N(vf[0][3]), f3);
+        pushMacStatus(c, 0u | macBits(f0, 8u) | macBits(f1, 4u) | macBits(f2, 2u) | macBits(f3, 1u), 0u | f0 | f1 | f2 | f3, stk);
+        s.acc[0] = u0; c.accReady[0] = c.cyc + 1u;
+        s.acc[1] = u1; c.accReady[1] = c.cyc + 1u;
+        s.acc[2] = u2; c.accReady[2] = c.cyc + 1u;
+        s.acc[3] = u3; c.accReady[3] = c.cyc + 1u;
+        c.bkValid = false;
+        ++c.cyc;
+    }
+    // 0200: 01E868BC 34011800
+    {
+        stall(c, c.vfReady[13][0]);
+        stall(c, c.vfReady[13][1]);
+        stall(c, c.vfReady[13][2]);
+        stall(c, c.vfReady[13][3]);
+        stall(c, c.viReady[3]);
+        commitClip(c);
+        uint32_t stk = 0u;
+        uint32_t f0 = 0u;
+        const float u0 = fMaddF(N(s.acc[0]), N(vf[13][0]), N(vf[8][0]), f0, stk);
+        uint32_t f1 = 0u;
+        const float u1 = fMaddF(N(s.acc[1]), N(vf[13][1]), N(vf[8][0]), f1, stk);
+        uint32_t f2 = 0u;
+        const float u2 = fMaddF(N(s.acc[2]), N(vf[13][2]), N(vf[8][0]), f2, stk);
+        uint32_t f3 = 0u;
+        const float u3 = fMaddF(N(s.acc[3]), N(vf[13][3]), N(vf[8][0]), f3, stk);
+        pushMacStatus(c, 0u | macBits(f0, 8u) | macBits(f1, 4u) | macBits(f2, 2u) | macBits(f3, 1u), 0u | f0 | f1 | f2 | f3, stk);
+        const int32_t nvi = static_cast<int32_t>(s.mac & static_cast<uint32_t>(static_cast<uint16_t>(vi[3])));
+        s.acc[0] = u0; c.accReady[0] = c.cyc + 1u;
+        s.acc[1] = u1; c.accReady[1] = c.cyc + 1u;
+        s.acc[2] = u2; c.accReady[2] = c.cyc + 1u;
+        s.acc[3] = u3; c.accReady[3] = c.cyc + 1u;
+        c.bkValid = false;
+        vi[1] = nvi; c.viReady[1] = c.cyc + 1;
+        ++c.cyc;
+    }
+    // 0208: 01E870BD 01FA1012
+    {
+        stall(c, c.vfReady[14][0]);
+        stall(c, c.vfReady[14][1]);
+        stall(c, c.vfReady[14][2]);
+        stall(c, c.vfReady[14][3]);
+        uint32_t stk = 0u;
+        uint32_t f0 = 0u;
+        const float u0 = fMaddF(N(s.acc[0]), N(vf[14][0]), N(vf[8][1]), f0, stk);
+        uint32_t f1 = 0u;
+        const float u1 = fMaddF(N(s.acc[1]), N(vf[14][1]), N(vf[8][1]), f1, stk);
+        uint32_t f2 = 0u;
+        const float u2 = fMaddF(N(s.acc[2]), N(vf[14][2]), N(vf[8][1]), f2, stk);
+        uint32_t f3 = 0u;
+        const float u3 = fMaddF(N(s.acc[3]), N(vf[14][3]), N(vf[8][1]), f3, stk);
+        pushMacStatus(c, 0u | macBits(f0, 8u) | macBits(f1, 4u) | macBits(f2, 2u) | macBits(f3, 1u), 0u | f0 | f1 | f2 | f3, stk);
+        const uint32_t la = ((static_cast<uint32_t>(static_cast<int32_t>(vi[2] + (18))) * 16u) & 0x3FF0u);
+        const float l0 = ldf(m, la + 0);
+        const float l1 = ldf(m, la + 4);
+        const float l2 = ldf(m, la + 8);
+        const float l3 = ldf(m, la + 12);
+        vf[26][0] = l0; c.vfReady[26][0] = c.cyc + 4;
+        vf[26][1] = l1; c.vfReady[26][1] = c.cyc + 4;
+        vf[26][2] = l2; c.vfReady[26][2] = c.cyc + 4;
+        vf[26][3] = l3; c.vfReady[26][3] = c.cyc + 4;
+        s.acc[0] = u0; c.accReady[0] = c.cyc + 1u;
+        s.acc[1] = u1; c.accReady[1] = c.cyc + 1u;
+        s.acc[2] = u2; c.accReady[2] = c.cyc + 1u;
+        s.acc[3] = u3; c.accReady[3] = c.cyc + 1u;
+        c.bkValid = false;
+        ++c.cyc;
+    }
+    // 0210: 01E8864A 80204C3E
+    {
+        stall(c, c.vfReady[16][0]);
+        stall(c, c.vfReady[16][1]);
+        stall(c, c.vfReady[16][2]);
+        stall(c, c.vfReady[16][3]);
+        stall(c, c.vfReady[9][1]);
+        uint32_t stk = 0u;
+        uint32_t f0 = 0u;
+        const float u0 = fMaddF(N(s.acc[0]), N(vf[16][0]), N(vf[8][2]), f0, stk);
+        uint32_t f1 = 0u;
+        const float u1 = fMaddF(N(s.acc[1]), N(vf[16][1]), N(vf[8][2]), f1, stk);
+        uint32_t f2 = 0u;
+        const float u2 = fMaddF(N(s.acc[2]), N(vf[16][2]), N(vf[8][2]), f2, stk);
+        uint32_t f3 = 0u;
+        const float u3 = fMaddF(N(s.acc[3]), N(vf[16][3]), N(vf[8][2]), f3, stk);
+        pushMacStatus(c, 0u | macBits(f0, 8u) | macBits(f1, 4u) | macBits(f2, 2u) | macBits(f3, 1u), 0u | f0 | f1 | f2 | f3, stk);
+        s.r = 0x3F800000u | (fbits(vf[9][1]) & 0x007FFFFFu);
+        vf[25][0] = u0; c.vfReady[25][0] = c.cyc + 4;
+        vf[25][1] = u1; c.vfReady[25][1] = c.cyc + 4;
+        vf[25][2] = u2; c.vfReady[25][2] = c.cyc + 4;
+        vf[25][3] = u3; c.vfReady[25][3] = c.cyc + 4;
+        c.bkValid = false;
+        ++c.cyc;
+    }
+    // 0218: 01E0A9BF 8089043C
+    {
+        stall(c, c.vfReady[21][0]);
+        stall(c, c.vfReady[21][1]);
+        stall(c, c.vfReady[21][2]);
+        stall(c, c.vfReady[21][3]);
+        uint32_t stk = 0u;
+        uint32_t f0 = 0u;
+        const float u0 = fMulF(N(vf[21][0]), N(vf[0][3]), f0);
+        uint32_t f1 = 0u;
+        const float u1 = fMulF(N(vf[21][1]), N(vf[0][3]), f1);
+        uint32_t f2 = 0u;
+        const float u2 = fMulF(N(vf[21][2]), N(vf[0][3]), f2);
+        uint32_t f3 = 0u;
+        const float u3 = fMulF(N(vf[21][3]), N(vf[0][3]), f3);
+        pushMacStatus(c, 0u | macBits(f0, 8u) | macBits(f1, 4u) | macBits(f2, 2u) | macBits(f3, 1u), 0u | f0 | f1 | f2 | f3, stk);
+        rnext(s);
+        const float l1 = bitsf(s.r);
+        vf[9][1] = l1; c.vfReady[9][1] = c.cyc + 4;
+        s.acc[0] = u0; c.accReady[0] = c.cyc + 1u;
+        s.acc[1] = u1; c.accReady[1] = c.cyc + 1u;
+        s.acc[2] = u2; c.accReady[2] = c.cyc + 1u;
+        s.acc[3] = u3; c.accReady[3] = c.cyc + 1u;
+        c.bkValid = false;
+        ++c.cyc;
+    }
+    // 0220: 01E9B0BC 8000033C
+    {
+        stall(c, c.vfReady[22][0]);
+        stall(c, c.vfReady[22][1]);
+        stall(c, c.vfReady[22][2]);
+        stall(c, c.vfReady[22][3]);
+        uint32_t stk = 0u;
+        uint32_t f0 = 0u;
+        const float u0 = fMaddF(N(s.acc[0]), N(vf[22][0]), N(vf[9][0]), f0, stk);
+        uint32_t f1 = 0u;
+        const float u1 = fMaddF(N(s.acc[1]), N(vf[22][1]), N(vf[9][0]), f1, stk);
+        uint32_t f2 = 0u;
+        const float u2 = fMaddF(N(s.acc[2]), N(vf[22][2]), N(vf[9][0]), f2, stk);
+        uint32_t f3 = 0u;
+        const float u3 = fMaddF(N(s.acc[3]), N(vf[22][3]), N(vf[9][0]), f3, stk);
+        pushMacStatus(c, 0u | macBits(f0, 8u) | macBits(f1, 4u) | macBits(f2, 2u) | macBits(f3, 1u), 0u | f0 | f1 | f2 | f3, stk);
+        s.acc[0] = u0; c.accReady[0] = c.cyc + 1u;
+        s.acc[1] = u1; c.accReady[1] = c.cyc + 1u;
+        s.acc[2] = u2; c.accReady[2] = c.cyc + 1u;
+        s.acc[3] = u3; c.accReady[3] = c.cyc + 1u;
+        c.bkValid = false;
+        ++c.cyc;
+    }
+    // 0228: 01E6D0BE 80404C3E
+    {
+        stall(c, c.vfReady[9][2]);
+        uint32_t stk = 0u;
+        uint32_t f0 = 0u;
+        const float u0 = fMaddF(N(s.acc[0]), N(vf[26][0]), N(vf[6][2]), f0, stk);
+        uint32_t f1 = 0u;
+        const float u1 = fMaddF(N(s.acc[1]), N(vf[26][1]), N(vf[6][2]), f1, stk);
+        uint32_t f2 = 0u;
+        const float u2 = fMaddF(N(s.acc[2]), N(vf[26][2]), N(vf[6][2]), f2, stk);
+        uint32_t f3 = 0u;
+        const float u3 = fMaddF(N(s.acc[3]), N(vf[26][3]), N(vf[6][2]), f3, stk);
+        pushMacStatus(c, 0u | macBits(f0, 8u) | macBits(f1, 4u) | macBits(f2, 2u) | macBits(f3, 1u), 0u | f0 | f1 | f2 | f3, stk);
+        s.r = 0x3F800000u | (fbits(vf[9][2]) & 0x007FFFFFu);
+        s.acc[0] = u0; c.accReady[0] = c.cyc + 1u;
+        s.acc[1] = u1; c.accReady[1] = c.cyc + 1u;
+        s.acc[2] = u2; c.accReady[2] = c.cyc + 1u;
+        s.acc[3] = u3; c.accReady[3] = c.cyc + 1u;
+        c.bkValid = false;
+        ++c.cyc;
+    }
+    bool taken = false;
+    // 0230: 01F91E6C 50010048
+    {
+        stall(c, c.vfReady[3][0]);
+        stall(c, c.vfReady[3][1]);
+        stall(c, c.vfReady[3][2]);
+        stall(c, c.vfReady[3][3]);
+        uint32_t stk = 0u;
+        uint32_t f0 = 0u;
+        const float u0 = fSubF(N(vf[3][0]), N(vf[25][0]), f0);
+        uint32_t f1 = 0u;
+        const float u1 = fSubF(N(vf[3][1]), N(vf[25][1]), f1);
+        uint32_t f2 = 0u;
+        const float u2 = fSubF(N(vf[3][2]), N(vf[25][2]), f2);
+        uint32_t f3 = 0u;
+        const float u3 = fSubF(N(vf[3][3]), N(vf[25][3]), f3);
+        pushMacStatus(c, 0u | macBits(f0, 8u) | macBits(f1, 4u) | macBits(f2, 2u) | macBits(f3, 1u), 0u | f0 | f1 | f2 | f3, stk);
+        taken = static_cast<int16_t>(brVi(c, 0)) == static_cast<int16_t>(brVi(c, 1));
+        vf[25][0] = u0; c.vfReady[25][0] = c.cyc + 4;
+        vf[25][1] = u1; c.vfReady[25][1] = c.cyc + 4;
+        vf[25][2] = u2; c.vfReady[25][2] = c.cyc + 4;
+        vf[25][3] = u3; c.vfReady[25][3] = c.cyc + 4;
+        c.bkValid = false;
+        ++c.cyc;
+    }
+    // 0238: 01E9BE89 8049043C
+    {
+        stall(c, c.vfReady[23][0]);
+        stall(c, c.vfReady[23][1]);
+        stall(c, c.vfReady[23][2]);
+        stall(c, c.vfReady[23][3]);
+        uint32_t stk = 0u;
+        uint32_t f0 = 0u;
+        const float u0 = fMaddF(N(s.acc[0]), N(vf[23][0]), N(vf[9][1]), f0, stk);
+        uint32_t f1 = 0u;
+        const float u1 = fMaddF(N(s.acc[1]), N(vf[23][1]), N(vf[9][1]), f1, stk);
+        uint32_t f2 = 0u;
+        const float u2 = fMaddF(N(s.acc[2]), N(vf[23][2]), N(vf[9][1]), f2, stk);
+        uint32_t f3 = 0u;
+        const float u3 = fMaddF(N(s.acc[3]), N(vf[23][3]), N(vf[9][1]), f3, stk);
+        pushMacStatus(c, 0u | macBits(f0, 8u) | macBits(f1, 4u) | macBits(f2, 2u) | macBits(f3, 1u), 0u | f0 | f1 | f2 | f3, stk);
+        rnext(s);
+        const float l2 = bitsf(s.r);
+        vf[9][2] = l2; c.vfReady[9][2] = c.cyc + 4;
+        vf[26][0] = u0; c.vfReady[26][0] = c.cyc + 4;
+        vf[26][1] = u1; c.vfReady[26][1] = c.cyc + 4;
+        vf[26][2] = u2; c.vfReady[26][2] = c.cyc + 4;
+        vf[26][3] = u3; c.vfReady[26][3] = c.cyc + 4;
+        c.bkValid = false;
+        ++c.cyc;
+    }
+    if (c.cyc >= c.budgetEnd)
+        return handoffRet(c, (taken ? 0x478u : 0x240u));
+    return (taken ? 0x478u : 0x240u);
+}
+
+static uint32_t vu1prog_3_0240(VU1NativeCtx &c)
+{
+    using namespace vu1n;
+    VU1State &s = *c.st;
+    float (*vf)[4] = s.vf;
+    int32_t *vi = s.vi;
+    uint8_t *m = c.mem;
+    (void)m;
+    (void)vf;
+    (void)vi;
+    // 0240: 0020022B 01061002
+    {
+        stall(c, c.viReady[2]);
+        const float u3 = vmax(N(vf[0][3]), N(vf[0][3]));
+        const uint32_t la = ((static_cast<uint32_t>(static_cast<int32_t>(vi[2] + (2))) * 16u) & 0x3FF0u);
+        const float l0 = ldf(m, la + 0);
+        vf[6][0] = l0; c.vfReady[6][0] = c.cyc + 4;
+        vf[8][3] = u3; c.vfReady[8][3] = c.cyc + 4;
+        c.bkValid = false;
+        ++c.cyc;
+    }
+    // 0248: 004633EB 80E603BC
+    {
+        stall(c, c.vfReady[6][1]);
+        stall(c, c.vfReady[6][2]);
+        if (c.qPending) stall(c, c.qReady);
+        const float u2 = vmax(N(vf[6][2]), N(vf[6][2]));
+        divq(c, N(vf[0][3]), N(vf[6][1]));
+        vf[15][2] = u2; c.vfReady[15][2] = c.cyc + 4;
+        c.bkValid = false;
+        ++c.cyc;
+    }
+    // 0250: 0106319A 8000033C
+    {
+        stall(c, c.vfReady[6][0]);
+        uint32_t stk = 0u;
+        uint32_t f0 = 0u;
+        const float u0 = fMulF(N(vf[6][0]), N(vf[6][2]), f0);
+        pushMacStatus(c, 0u | macBits(f0, 8u), 0u | f0, stk);
+        vf[6][0] = u0; c.vfReady[6][0] = c.cyc + 4;
+        c.bkValid = false;
+        ++c.cyc;
+    }
+    // 0258: 0100319C 800003BF
+    {
+        stall(c, c.vfReady[6][0]);
+        if (c.qPending) stall(c, c.qReady);
+        commitQ(c);
+        uint32_t stk = 0u;
+        uint32_t f0 = 0u;
+        const float u0 = fMulF(N(vf[6][0]), N(s.q), f0);
+        pushMacStatus(c, 0u | macBits(f0, 8u), 0u | f0, stk);
+        vf[6][0] = u0; c.vfReady[6][0] = c.cyc + 4;
+        c.bkValid = false;
+        ++c.cyc;
+    }
+    // 0260: 011B303E 8000033C
+    {
+        stall(c, c.vfReady[27][2]);
+        stall(c, c.vfReady[6][0]);
+        uint32_t stk = 0u;
+        uint32_t f0 = 0u;
+        const float u0 = fAddF(N(vf[6][0]), N(vf[27][2]), f0);
+        pushMacStatus(c, 0u | macBits(f0, 8u), 0u | f0, stk);
+        s.acc[0] = u0; c.accReady[0] = c.cyc + 1u;
+        c.bkValid = false;
+        ++c.cyc;
+    }
+    // 0268: 0109DF0A 01860006
+    {
+        stall(c, c.vfReady[27][0]);
+        stall(c, c.vfReady[9][2]);
+        uint32_t stk = 0u;
+        uint32_t f0 = 0u;
+        const float u0 = fMaddF(N(s.acc[0]), N(vf[27][0]), N(vf[9][2]), f0, stk);
+        pushMacStatus(c, 0u | macBits(f0, 8u), 0u | f0, stk);
+        const uint32_t la = ((static_cast<uint32_t>(static_cast<int32_t>(vi[0] + (6))) * 16u) & 0x3FF0u);
+        const float l0 = ldf(m, la + 0);
+        const float l1 = ldf(m, la + 4);
+        vf[6][0] = l0; c.vfReady[6][0] = c.cyc + 4;
+        vf[6][1] = l1; c.vfReady[6][1] = c.cyc + 4;
+        vf[28][0] = u0; c.vfReady[28][0] = c.cyc + 4;
+        c.bkValid = false;
+        ++c.cyc;
+    }
+    // 0270: 000002FF 8000033C
+    {
+        c.bkValid = false;
+        ++c.cyc;
+    }
+    // 0278: 000002FF 8000033C
+    {
+        c.bkValid = false;
+        ++c.cyc;
+    }
+    // 0280: 01C0D750 8000033C
+    {
+        stall(c, c.vfReady[26][0]);
+        stall(c, c.vfReady[26][1]);
+        stall(c, c.vfReady[26][2]);
+        const float u0 = vmax(N(vf[26][0]), N(vf[0][0]));
+        const float u1 = vmax(N(vf[26][1]), N(vf[0][0]));
+        const float u2 = vmax(N(vf[26][2]), N(vf[0][0]));
+        vf[29][0] = u0; c.vfReady[29][0] = c.cyc + 4;
+        vf[29][1] = u1; c.vfReady[29][1] = c.cyc + 4;
+        vf[29][2] = u2; c.vfReady[29][2] = c.cyc + 4;
+        c.bkValid = false;
+        ++c.cyc;
+    }
+    // 0288: 019C3198 8000033C
+    {
+        uint32_t stk = 0u;
+        uint32_t f0 = 0u;
+        const float u0 = fMulF(N(vf[6][0]), N(vf[28][0]), f0);
+        uint32_t f1 = 0u;
+        const float u1 = fMulF(N(vf[6][1]), N(vf[28][0]), f1);
+        pushMacStatus(c, 0u | macBits(f0, 8u) | macBits(f1, 4u), 0u | f0 | f1, stk);
+        vf[6][0] = u0; c.vfReady[6][0] = c.cyc + 4;
+        vf[6][1] = u1; c.vfReady[6][1] = c.cyc + 4;
+        c.bkValid = false;
+        ++c.cyc;
+    }
+    // 0290: 000002FF 8000033C
+    {
+        c.bkValid = false;
+        ++c.cyc;
+    }
+    // 0298: 8060072C 437F0000
+    {
+        uint32_t stk = 0u;
+        uint32_t f2 = 0u;
+        const float u2 = fSubF(N(vf[0][2]), N(vf[0][2]), f2);
+        uint32_t f3 = 0u;
+        const float u3 = fSubF(N(vf[0][3]), N(vf[0][3]), f3);
+        pushMacStatus(c, 0u | macBits(f2, 2u) | macBits(f3, 1u), 0u | f2 | f3, stk);
+        s.i = N(bitsf(0x437F0000u));
+        vf[28][2] = u2; c.vfReady[28][2] = c.cyc + 4;
+        vf[28][3] = u3; c.vfReady[28][3] = c.cyc + 4;
+        c.bkValid = false;
+        ++c.cyc;
+    }
+    // 02A0: 01C0EF5F 8000033C
+    {
+        const float u0 = vmin(N(vf[29][0]), N(s.i));
+        const float u1 = vmin(N(vf[29][1]), N(s.i));
+        const float u2 = vmin(N(vf[29][2]), N(s.i));
+        vf[29][0] = u0; c.vfReady[29][0] = c.cyc + 4;
+        vf[29][1] = u1; c.vfReady[29][1] = c.cyc + 4;
+        vf[29][2] = u2; c.vfReady[29][2] = c.cyc + 4;
+        c.bkValid = false;
+        ++c.cyc;
+    }
+    // 02A8: 0194372A 088A1000
+    {
+        stall(c, c.vfReady[20][0]);
+        stall(c, c.vfReady[20][1]);
+        uint32_t stk = 0u;
+        uint32_t f0 = 0u;
+        const float u0 = fMulF(N(vf[6][0]), N(vf[20][0]), f0);
+        uint32_t f1 = 0u;
+        const float u1 = fMulF(N(vf[6][1]), N(vf[20][1]), f1);
+        pushMacStatus(c, 0u | macBits(f0, 8u) | macBits(f1, 4u), 0u | f0 | f1, stk);
+        const int32_t nvi = static_cast<int32_t>(static_cast<int16_t>(ldu(m, ((static_cast<uint32_t>(static_cast<int32_t>(vi[2] + (0))) * 16u) & 0x3FF0u) + 4) & 0xFFFFu));
+        vf[28][0] = u0; c.vfReady[28][0] = c.cyc + 4;
+        vf[28][1] = u1; c.vfReady[28][1] = c.cyc + 4;
+        c.bkValid = false;
+        vi[10] = nvi; c.viReady[10] = c.cyc + 4;
+        ++c.cyc;
+    }
+    return 0x2B0;
+}
+
+static uint32_t vu1prog_3_02B0(VU1NativeCtx &c)
+{
+    using namespace vu1n;
+    VU1State &s = *c.st;
+    float (*vf)[4] = s.vf;
+    int32_t *vi = s.vi;
+    uint8_t *m = c.mem;
+    (void)m;
+    (void)vf;
+    (void)vi;
+    // 02B0: 81EF1EDA 402CCCCD
+    {
+        stall(c, c.vfReady[15][2]);
+        stall(c, c.vfReady[3][0]);
+        stall(c, c.vfReady[3][1]);
+        stall(c, c.vfReady[3][2]);
+        stall(c, c.vfReady[3][3]);
+        uint32_t stk = 0u;
+        uint32_t f0 = 0u;
+        const float u0 = fMulF(N(vf[3][0]), N(vf[15][2]), f0);
+        uint32_t f1 = 0u;
+        const float u1 = fMulF(N(vf[3][1]), N(vf[15][2]), f1);
+        uint32_t f2 = 0u;
+        const float u2 = fMulF(N(vf[3][2]), N(vf[15][2]), f2);
+        uint32_t f3 = 0u;
+        const float u3 = fMulF(N(vf[3][3]), N(vf[15][2]), f3);
+        pushMacStatus(c, 0u | macBits(f0, 8u) | macBits(f1, 4u) | macBits(f2, 2u) | macBits(f3, 1u), 0u | f0 | f1 | f2 | f3, stk);
+        s.i = N(bitsf(0x402CCCCDu));
+        vf[27][0] = u0; c.vfReady[27][0] = c.cyc + 4;
+        vf[27][1] = u1; c.vfReady[27][1] = c.cyc + 4;
+        vf[27][2] = u2; c.vfReady[27][2] = c.cyc + 4;
+        vf[27][3] = u3; c.vfReady[27][3] = c.cyc + 4;
+        c.bkValid = false;
+        ++c.cyc;
+    }
+    // 02B8: 00407C5F 8000033C
+    {
+        const float u2 = vmin(N(vf[15][2]), N(s.i));
+        vf[17][2] = u2; c.vfReady[17][2] = c.cyc + 4;
+        c.bkValid = false;
+        ++c.cyc;
+    }
+    // 02C0: 01F8DEE8 8000033C
+    {
+        stall(c, c.vfReady[24][0]);
+        stall(c, c.vfReady[24][1]);
+        stall(c, c.vfReady[24][2]);
+        stall(c, c.vfReady[24][3]);
+        stall(c, c.vfReady[27][0]);
+        stall(c, c.vfReady[27][1]);
+        stall(c, c.vfReady[27][2]);
+        stall(c, c.vfReady[27][3]);
+        uint32_t stk = 0u;
+        uint32_t f0 = 0u;
+        const float u0 = fAddF(N(vf[27][0]), N(vf[24][0]), f0);
+        uint32_t f1 = 0u;
+        const float u1 = fAddF(N(vf[27][1]), N(vf[24][1]), f1);
+        uint32_t f2 = 0u;
+        const float u2 = fAddF(N(vf[27][2]), N(vf[24][2]), f2);
+        uint32_t f3 = 0u;
+        const float u3 = fAddF(N(vf[27][3]), N(vf[24][3]), f3);
+        pushMacStatus(c, 0u | macBits(f0, 8u) | macBits(f1, 4u) | macBits(f2, 2u) | macBits(f3, 1u), 0u | f0 | f1 | f2 | f3, stk);
+        vf[27][0] = u0; c.vfReady[27][0] = c.cyc + 4;
+        vf[27][1] = u1; c.vfReady[27][1] = c.cyc + 4;
+        vf[27][2] = u2; c.vfReady[27][2] = c.cyc + 4;
+        vf[27][3] = u3; c.vfReady[27][3] = c.cyc + 4;
+        c.bkValid = false;
+        ++c.cyc;
+    }
+    // 02C8: 00518CAA 8000033C
+    {
+        stall(c, c.vfReady[17][2]);
+        uint32_t stk = 0u;
+        uint32_t f2 = 0u;
+        const float u2 = fMulF(N(vf[17][2]), N(vf[17][2]), f2);
+        pushMacStatus(c, 0u | macBits(f2, 2u), 0u | f2, stk);
+        vf[18][2] = u2; c.vfReady[18][2] = c.cyc + 4;
+        c.bkValid = false;
+        ++c.cyc;
+    }
+    // 02D0: 000002FF 8000033C
+    {
+        c.bkValid = false;
+        ++c.cyc;
+    }
+    // 02D8: 000002FF 8000033C
+    {
+        c.bkValid = false;
+        ++c.cyc;
+    }
+    // 02E0: 005189BC 8000033C
+    {
+        stall(c, c.vfReady[17][0]);
+        uint32_t stk = 0u;
+        uint32_t f2 = 0u;
+        const float u2 = fMulF(N(vf[17][2]), N(vf[17][0]), f2);
+        pushMacStatus(c, 0u | macBits(f2, 2u), 0u | f2, stk);
+        s.acc[2] = u2; c.accReady[2] = c.cyc + 1u;
+        c.bkValid = false;
+        ++c.cyc;
+    }
+    // 02E8: 00529449 8000033C
+    {
+        stall(c, c.vfReady[18][1]);
+        uint32_t stk = 0u;
+        uint32_t f2 = 0u;
+        const float u2 = fMaddF(N(s.acc[2]), N(vf[18][2]), N(vf[18][1]), f2, stk);
+        pushMacStatus(c, 0u | macBits(f2, 2u), 0u | f2, stk);
+        vf[17][2] = u2; c.vfReady[17][2] = c.cyc + 4;
+        c.bkValid = false;
+        ++c.cyc;
+    }
+    // 02F0: 000002FF 8000033C
+    {
+        c.bkValid = false;
+        ++c.cyc;
+    }
+    // 02F8: 000002FF 8000033C
+    {
+        c.bkValid = false;
+        ++c.cyc;
+    }
+    // 0300: 01E0D9BF 8000033C
+    {
+        uint32_t stk = 0u;
+        uint32_t f0 = 0u;
+        const float u0 = fMulF(N(vf[27][0]), N(vf[0][3]), f0);
+        uint32_t f1 = 0u;
+        const float u1 = fMulF(N(vf[27][1]), N(vf[0][3]), f1);
+        uint32_t f2 = 0u;
+        const float u2 = fMulF(N(vf[27][2]), N(vf[0][3]), f2);
+        uint32_t f3 = 0u;
+        const float u3 = fMulF(N(vf[27][3]), N(vf[0][3]), f3);
+        pushMacStatus(c, 0u | macBits(f0, 8u) | macBits(f1, 4u) | macBits(f2, 2u) | macBits(f3, 1u), 0u | f0 | f1 | f2 | f3, stk);
+        s.acc[0] = u0; c.accReady[0] = c.cyc + 1u;
+        s.acc[1] = u1; c.accReady[1] = c.cyc + 1u;
+        s.acc[2] = u2; c.accReady[2] = c.cyc + 1u;
+        s.acc[3] = u3; c.accReady[3] = c.cyc + 1u;
+        c.bkValid = false;
+        ++c.cyc;
+    }
+    // 0308: 01F1CECA 8000033C
+    {
+        stall(c, c.vfReady[25][0]);
+        stall(c, c.vfReady[25][1]);
+        stall(c, c.vfReady[25][2]);
+        stall(c, c.vfReady[25][3]);
+        uint32_t stk = 0u;
+        uint32_t f0 = 0u;
+        const float u0 = fMaddF(N(s.acc[0]), N(vf[25][0]), N(vf[17][2]), f0, stk);
+        uint32_t f1 = 0u;
+        const float u1 = fMaddF(N(s.acc[1]), N(vf[25][1]), N(vf[17][2]), f1, stk);
+        uint32_t f2 = 0u;
+        const float u2 = fMaddF(N(s.acc[2]), N(vf[25][2]), N(vf[17][2]), f2, stk);
+        uint32_t f3 = 0u;
+        const float u3 = fMaddF(N(s.acc[3]), N(vf[25][3]), N(vf[17][2]), f3, stk);
+        pushMacStatus(c, 0u | macBits(f0, 8u) | macBits(f1, 4u) | macBits(f2, 2u) | macBits(f3, 1u), 0u | f0 | f1 | f2 | f3, stk);
+        vf[27][0] = u0; c.vfReady[27][0] = c.cyc + 4;
+        vf[27][1] = u1; c.vfReady[27][1] = c.cyc + 4;
+        vf[27][2] = u2; c.vfReady[27][2] = c.cyc + 4;
+        vf[27][3] = u3; c.vfReady[27][3] = c.cyc + 4;
+        c.bkValid = false;
+        ++c.cyc;
+    }
+    // 0310: 01DBD9FF 8000033C
+    {
+        stall(c, c.vfReady[27][0]);
+        stall(c, c.vfReady[27][1]);
+        stall(c, c.vfReady[27][2]);
+        stall(c, c.vfReady[27][3]);
+        queueClip(c, clipBits(vf[27], vf[27][3]));
+        c.bkValid = false;
+        ++c.cyc;
+    }
+    // 0318: 000002FF 8000033C
+    {
+        c.bkValid = false;
+        ++c.cyc;
+    }
+    // 0320: 000002FF 8000033C
+    {
+        c.bkValid = false;
+        ++c.cyc;
+    }
+    // 0328: 000002FF 8000033C
+    {
+        c.bkValid = false;
+        ++c.cyc;
+    }
+    // 0330: 000002FF 2400003F
+    {
+        commitClip(c);
+        const int32_t nvi = ((s.clip & 0x3Fu) != 0u) ? 1 : 0;
+        c.bkValid = false;
+        vi[1] = nvi; c.viReady[1] = c.cyc + 1;
+        ++c.cyc;
+    }
+    bool taken = false;
+    // 0338: 000002FF 5201001F
+    {
+        taken = static_cast<int16_t>(brVi(c, 0)) != static_cast<int16_t>(brVi(c, 1));
+        c.bkValid = false;
+        ++c.cyc;
+    }
+    // 0340: 000002FF 8000033C
+    {
+        c.bkValid = false;
+        ++c.cyc;
+    }
+    if (c.cyc >= c.budgetEnd)
+        return handoffRet(c, (taken ? 0x438u : 0x348u));
+    return (taken ? 0x438u : 0x348u);
+}
+
+static uint32_t vu1prog_3_0348(VU1NativeCtx &c)
+{
+    using namespace vu1n;
+    VU1State &s = *c.st;
+    float (*vf)[4] = s.vf;
+    int32_t *vi = s.vi;
+    uint8_t *m = c.mem;
+    (void)m;
+    (void)vf;
+    (void)vi;
+    // 0348: 0028D76A 81FB03BC
+    {
+        stall(c, c.vfReady[26][3]);
+        stall(c, c.vfReady[27][3]);
+        stall(c, c.vfReady[8][3]);
+        if (c.qPending) stall(c, c.qReady);
+        uint32_t stk = 0u;
+        uint32_t f3 = 0u;
+        const float u3 = fMulF(N(vf[26][3]), N(vf[8][3]), f3);
+        pushMacStatus(c, 0u | macBits(f3, 1u), 0u | f3, stk);
+        divq(c, N(vf[0][3]), N(vf[27][3]));
+        vf[29][3] = u3; c.vfReady[29][3] = c.cyc + 4;
+        c.bkValid = false;
+        ++c.cyc;
+    }
+    // 0350: 01FEE97C 03E60800
+    {
+        stall(c, c.vfReady[1][0]);
+        stall(c, c.vfReady[1][1]);
+        stall(c, c.vfReady[1][2]);
+        stall(c, c.vfReady[1][3]);
+        stall(c, c.vfReady[29][0]);
+        stall(c, c.vfReady[29][1]);
+        stall(c, c.vfReady[29][2]);
+        stall(c, c.vfReady[29][3]);
+        stall(c, c.viReady[6]);
+        const float u0 = bitsf(static_cast<uint32_t>(floatToInt(N(vf[29][0]), 1.0f)));
+        const float u1 = bitsf(static_cast<uint32_t>(floatToInt(N(vf[29][1]), 1.0f)));
+        const float u2 = bitsf(static_cast<uint32_t>(floatToInt(N(vf[29][2]), 1.0f)));
+        const float u3 = bitsf(static_cast<uint32_t>(floatToInt(N(vf[29][3]), 1.0f)));
+        { const uint32_t w[4] = {fbits(vf[1][0]), fbits(vf[1][1]), fbits(vf[1][2]), fbits(vf[1][3])}; storeQ(c, ((static_cast<uint32_t>(static_cast<int32_t>(vi[6] + (0))) * 16u) & 0x3FF0u), w, 15); }
+        vf[30][0] = u0; c.vfReady[30][0] = c.cyc + 4;
+        vf[30][1] = u1; c.vfReady[30][1] = c.cyc + 4;
+        vf[30][2] = u2; c.vfReady[30][2] = c.cyc + 4;
+        vf[30][3] = u3; c.vfReady[30][3] = c.cyc + 4;
+        c.bkValid = false;
+        ++c.cyc;
+    }
+    // 0358: 000002FF 8000033C
+    {
+        c.bkValid = false;
+        ++c.cyc;
+    }
+    // 0360: 000002FF 8000033C
+    {
+        c.bkValid = false;
+        ++c.cyc;
+    }
+    // 0368: 01E0E7DC 10073801
+    {
+        stall(c, c.vfReady[28][0]);
+        stall(c, c.vfReady[28][1]);
+        stall(c, c.vfReady[28][2]);
+        stall(c, c.vfReady[28][3]);
+        stall(c, c.viReady[7]);
+        commitQ(c);
+        uint32_t stk = 0u;
+        uint32_t f0 = 0u;
+        const float u0 = fMulF(N(vf[28][0]), N(s.q), f0);
+        uint32_t f1 = 0u;
+        const float u1 = fMulF(N(vf[28][1]), N(s.q), f1);
+        uint32_t f2 = 0u;
+        const float u2 = fMulF(N(vf[28][2]), N(s.q), f2);
+        uint32_t f3 = 0u;
+        const float u3 = fMulF(N(vf[28][3]), N(s.q), f3);
+        pushMacStatus(c, 0u | macBits(f0, 8u) | macBits(f1, 4u) | macBits(f2, 2u) | macBits(f3, 1u), 0u | f0 | f1 | f2 | f3, stk);
+        const int32_t nvi = static_cast<int16_t>(vi[7] + (1));
+        vf[31][0] = u0; c.vfReady[31][0] = c.cyc + 4;
+        vf[31][1] = u1; c.vfReady[31][1] = c.cyc + 4;
+        vf[31][2] = u2; c.vfReady[31][2] = c.cyc + 4;
+        vf[31][3] = u3; c.vfReady[31][3] = c.cyc + 4;
+        c.bkValid = true; c.bkReg = 7; c.bkVal = vi[7];
+        vi[7] = nvi; c.viReady[7] = c.cyc + 1;
+        ++c.cyc;
+    }
+    // 0370: 000002FF 8000033C
+    {
+        c.bkValid = false;
+        ++c.cyc;
+    }
+    // 0378: 000002FF 8000033C
+    {
+        c.bkValid = false;
+        ++c.cyc;
+    }
+    // 0380: 01E0DF9C 03E6F001
+    {
+        stall(c, c.vfReady[27][0]);
+        stall(c, c.vfReady[27][1]);
+        stall(c, c.vfReady[27][2]);
+        commitQ(c);
+        uint32_t stk = 0u;
+        uint32_t f0 = 0u;
+        const float u0 = fMulF(N(vf[27][0]), N(s.q), f0);
+        uint32_t f1 = 0u;
+        const float u1 = fMulF(N(vf[27][1]), N(s.q), f1);
+        uint32_t f2 = 0u;
+        const float u2 = fMulF(N(vf[27][2]), N(s.q), f2);
+        uint32_t f3 = 0u;
+        const float u3 = fMulF(N(vf[27][3]), N(s.q), f3);
+        pushMacStatus(c, 0u | macBits(f0, 8u) | macBits(f1, 4u) | macBits(f2, 2u) | macBits(f3, 1u), 0u | f0 | f1 | f2 | f3, stk);
+        { const uint32_t w[4] = {fbits(vf[30][0]), fbits(vf[30][1]), fbits(vf[30][2]), fbits(vf[30][3])}; storeQ(c, ((static_cast<uint32_t>(static_cast<int32_t>(vi[6] + (1))) * 16u) & 0x3FF0u), w, 15); }
+        vf[30][0] = u0; c.vfReady[30][0] = c.cyc + 4;
+        vf[30][1] = u1; c.vfReady[30][1] = c.cyc + 4;
+        vf[30][2] = u2; c.vfReady[30][2] = c.cyc + 4;
+        vf[30][3] = u3; c.vfReady[30][3] = c.cyc + 4;
+        c.bkValid = false;
+        ++c.cyc;
+    }
+    // 0388: 01FBF9FD 8000033C
+    {
+        const float u0 = std::fabs(N(vf[31][0]));
+        const float u1 = std::fabs(N(vf[31][1]));
+        const float u2 = std::fabs(N(vf[31][2]));
+        const float u3 = std::fabs(N(vf[31][3]));
+        vf[27][0] = u0; c.vfReady[27][0] = c.cyc + 4;
+        vf[27][1] = u1; c.vfReady[27][1] = c.cyc + 4;
+        vf[27][2] = u2; c.vfReady[27][2] = c.cyc + 4;
+        vf[27][3] = u3; c.vfReady[27][3] = c.cyc + 4;
+        c.bkValid = false;
+        ++c.cyc;
+    }
+    // 0390: 000002FF 8000033C
+    {
+        c.bkValid = false;
+        ++c.cyc;
+    }
+    // 0398: 01E099BF 8000033C
+    {
+        stall(c, c.vfReady[19][0]);
+        stall(c, c.vfReady[19][1]);
+        stall(c, c.vfReady[19][2]);
+        stall(c, c.vfReady[19][3]);
+        uint32_t stk = 0u;
+        uint32_t f0 = 0u;
+        const float u0 = fMulF(N(vf[19][0]), N(vf[0][3]), f0);
+        uint32_t f1 = 0u;
+        const float u1 = fMulF(N(vf[19][1]), N(vf[0][3]), f1);
+        uint32_t f2 = 0u;
+        const float u2 = fMulF(N(vf[19][2]), N(vf[0][3]), f2);
+        uint32_t f3 = 0u;
+        const float u3 = fMulF(N(vf[19][3]), N(vf[0][3]), f3);
+        pushMacStatus(c, 0u | macBits(f0, 8u) | macBits(f1, 4u) | macBits(f2, 2u) | macBits(f3, 1u), 0u | f0 | f1 | f2 | f3, stk);
+        s.acc[0] = u0; c.accReady[0] = c.cyc + 1u;
+        s.acc[1] = u1; c.accReady[1] = c.cyc + 1u;
+        s.acc[2] = u2; c.accReady[2] = c.cyc + 1u;
+        s.acc[3] = u3; c.accReady[3] = c.cyc + 1u;
+        c.bkValid = false;
+        ++c.cyc;
+    }
+    // 03A0: 81F4F7A9 42800000
+    {
+        stall(c, c.vfReady[20][0]);
+        stall(c, c.vfReady[20][1]);
+        stall(c, c.vfReady[20][2]);
+        stall(c, c.vfReady[20][3]);
+        uint32_t stk = 0u;
+        uint32_t f0 = 0u;
+        const float u0 = fMaddF(N(s.acc[0]), N(vf[30][0]), N(vf[20][0]), f0, stk);
+        uint32_t f1 = 0u;
+        const float u1 = fMaddF(N(s.acc[1]), N(vf[30][1]), N(vf[20][1]), f1, stk);
+        uint32_t f2 = 0u;
+        const float u2 = fMaddF(N(s.acc[2]), N(vf[30][2]), N(vf[20][2]), f2, stk);
+        uint32_t f3 = 0u;
+        const float u3 = fMaddF(N(s.acc[3]), N(vf[30][3]), N(vf[20][3]), f3, stk);
+        pushMacStatus(c, 0u | macBits(f0, 8u) | macBits(f1, 4u) | macBits(f2, 2u) | macBits(f3, 1u), 0u | f0 | f1 | f2 | f3, stk);
+        s.i = N(bitsf(0x42800000u));
+        vf[30][0] = u0; c.vfReady[30][0] = c.cyc + 4;
+        vf[30][1] = u1; c.vfReady[30][1] = c.cyc + 4;
+        vf[30][2] = u2; c.vfReady[30][2] = c.cyc + 4;
+        vf[30][3] = u3; c.vfReady[30][3] = c.cyc + 4;
+        c.bkValid = false;
+        ++c.cyc;
+    }
+    // 03A8: 0180DEDF 8000033C
+    {
+        const float u0 = vmin(N(vf[27][0]), N(s.i));
+        const float u1 = vmin(N(vf[27][1]), N(s.i));
+        vf[27][0] = u0; c.vfReady[27][0] = c.cyc + 4;
+        vf[27][1] = u1; c.vfReady[27][1] = c.cyc + 4;
+        c.bkValid = false;
+        ++c.cyc;
+    }
+    // 03B0: 01FBF7E8 8000033C
+    {
+        stall(c, c.vfReady[27][0]);
+        stall(c, c.vfReady[27][1]);
+        stall(c, c.vfReady[30][0]);
+        stall(c, c.vfReady[30][1]);
+        stall(c, c.vfReady[30][2]);
+        stall(c, c.vfReady[30][3]);
+        uint32_t stk = 0u;
+        uint32_t f0 = 0u;
+        const float u0 = fAddF(N(vf[30][0]), N(vf[27][0]), f0);
+        uint32_t f1 = 0u;
+        const float u1 = fAddF(N(vf[30][1]), N(vf[27][1]), f1);
+        uint32_t f2 = 0u;
+        const float u2 = fAddF(N(vf[30][2]), N(vf[27][2]), f2);
+        uint32_t f3 = 0u;
+        const float u3 = fAddF(N(vf[30][3]), N(vf[27][3]), f3);
+        pushMacStatus(c, 0u | macBits(f0, 8u) | macBits(f1, 4u) | macBits(f2, 2u) | macBits(f3, 1u), 0u | f0 | f1 | f2 | f3, stk);
+        vf[31][0] = u0; c.vfReady[31][0] = c.cyc + 4;
+        vf[31][1] = u1; c.vfReady[31][1] = c.cyc + 4;
+        vf[31][2] = u2; c.vfReady[31][2] = c.cyc + 4;
+        vf[31][3] = u3; c.vfReady[31][3] = c.cyc + 4;
+        c.bkValid = false;
+        ++c.cyc;
+    }
+    // 03B8: 000002FF 8000033C
+    {
+        c.bkValid = false;
+        ++c.cyc;
+    }
+    // 03C0: 01FBF6EC 8000033C
+    {
+        uint32_t stk = 0u;
+        uint32_t f0 = 0u;
+        const float u0 = fSubF(N(vf[30][0]), N(vf[27][0]), f0);
+        uint32_t f1 = 0u;
+        const float u1 = fSubF(N(vf[30][1]), N(vf[27][1]), f1);
+        uint32_t f2 = 0u;
+        const float u2 = fSubF(N(vf[30][2]), N(vf[27][2]), f2);
+        uint32_t f3 = 0u;
+        const float u3 = fSubF(N(vf[30][3]), N(vf[27][3]), f3);
+        pushMacStatus(c, 0u | macBits(f0, 8u) | macBits(f1, 4u) | macBits(f2, 2u) | macBits(f3, 1u), 0u | f0 | f1 | f2 | f3, stk);
+        vf[27][0] = u0; c.vfReady[27][0] = c.cyc + 4;
+        vf[27][1] = u1; c.vfReady[27][1] = c.cyc + 4;
+        vf[27][2] = u2; c.vfReady[27][2] = c.cyc + 4;
+        vf[27][3] = u3; c.vfReady[27][3] = c.cyc + 4;
+        c.bkValid = false;
+        ++c.cyc;
+    }
+    // 03C8: 01FEF97D 10063005
+    {
+        stall(c, c.vfReady[31][0]);
+        stall(c, c.vfReady[31][1]);
+        stall(c, c.vfReady[31][2]);
+        stall(c, c.vfReady[31][3]);
+        const float u0 = bitsf(static_cast<uint32_t>(floatToInt(N(vf[31][0]), 16.0f)));
+        const float u1 = bitsf(static_cast<uint32_t>(floatToInt(N(vf[31][1]), 16.0f)));
+        const float u2 = bitsf(static_cast<uint32_t>(floatToInt(N(vf[31][2]), 16.0f)));
+        const float u3 = bitsf(static_cast<uint32_t>(floatToInt(N(vf[31][3]), 16.0f)));
+        const int32_t nvi = static_cast<int16_t>(vi[6] + (5));
+        vf[30][0] = u0; c.vfReady[30][0] = c.cyc + 4;
+        vf[30][1] = u1; c.vfReady[30][1] = c.cyc + 4;
+        vf[30][2] = u2; c.vfReady[30][2] = c.cyc + 4;
+        vf[30][3] = u3; c.vfReady[30][3] = c.cyc + 4;
+        c.bkValid = true; c.bkReg = 6; c.bkVal = vi[6];
+        vi[6] = nvi; c.viReady[6] = c.cyc + 1;
+        ++c.cyc;
+    }
+    // 03D0: 01FBD97D 03E617FE
+    {
+        stall(c, c.vfReady[27][0]);
+        stall(c, c.vfReady[27][1]);
+        stall(c, c.vfReady[27][2]);
+        stall(c, c.vfReady[27][3]);
+        stall(c, c.vfReady[2][0]);
+        stall(c, c.vfReady[2][1]);
+        stall(c, c.vfReady[2][2]);
+        stall(c, c.vfReady[2][3]);
+        const float u0 = bitsf(static_cast<uint32_t>(floatToInt(N(vf[27][0]), 16.0f)));
+        const float u1 = bitsf(static_cast<uint32_t>(floatToInt(N(vf[27][1]), 16.0f)));
+        const float u2 = bitsf(static_cast<uint32_t>(floatToInt(N(vf[27][2]), 16.0f)));
+        const float u3 = bitsf(static_cast<uint32_t>(floatToInt(N(vf[27][3]), 16.0f)));
+        { const uint32_t w[4] = {fbits(vf[2][0]), fbits(vf[2][1]), fbits(vf[2][2]), fbits(vf[2][3])}; storeQ(c, ((static_cast<uint32_t>(static_cast<int32_t>(vi[6] + (-2))) * 16u) & 0x3FF0u), w, 15); }
+        vf[27][0] = u0; c.vfReady[27][0] = c.cyc + 4;
+        vf[27][1] = u1; c.vfReady[27][1] = c.cyc + 4;
+        vf[27][2] = u2; c.vfReady[27][2] = c.cyc + 4;
+        vf[27][3] = u3; c.vfReady[27][3] = c.cyc + 4;
+        c.bkValid = false;
+        ++c.cyc;
+    }
+    // 03D8: 000002FF 03E6F7FF
+    {
+        stall(c, c.vfReady[30][0]);
+        stall(c, c.vfReady[30][1]);
+        stall(c, c.vfReady[30][2]);
+        stall(c, c.vfReady[30][3]);
+        { const uint32_t w[4] = {fbits(vf[30][0]), fbits(vf[30][1]), fbits(vf[30][2]), fbits(vf[30][3])}; storeQ(c, ((static_cast<uint32_t>(static_cast<int32_t>(vi[6] + (-1))) * 16u) & 0x3FF0u), w, 15); }
+        c.bkValid = false;
+        ++c.cyc;
+    }
+    bool taken = false;
+    // 03E0: 000002FF 5207400A
+    {
+        stall(c, c.viReady[8]);
+        taken = static_cast<int16_t>(brVi(c, 8)) != static_cast<int16_t>(brVi(c, 7));
+        c.bkValid = false;
+        ++c.cyc;
+    }
+    // 03E8: 00274204 03E6DFFD
+    {
+        stall(c, c.vfReady[27][0]);
+        stall(c, c.vfReady[27][1]);
+        stall(c, c.vfReady[27][2]);
+        stall(c, c.vfReady[27][3]);
+        stall(c, c.vfReady[7][0]);
+        uint32_t stk = 0u;
+        uint32_t f3 = 0u;
+        const float u3 = fSubF(N(vf[8][3]), N(vf[7][0]), f3);
+        pushMacStatus(c, 0u | macBits(f3, 1u), 0u | f3, stk);
+        { const uint32_t w[4] = {fbits(vf[27][0]), fbits(vf[27][1]), fbits(vf[27][2]), fbits(vf[27][3])}; storeQ(c, ((static_cast<uint32_t>(static_cast<int32_t>(vi[6] + (-3))) * 16u) & 0x3FF0u), w, 15); }
+        vf[8][3] = u3; c.vfReady[8][3] = c.cyc + 4;
+        c.bkValid = false;
+        ++c.cyc;
+    }
+    if (c.cyc >= c.budgetEnd)
+        return handoffRet(c, (taken ? 0x438u : 0x3F0u));
+    return (taken ? 0x438u : 0x3F0u);
+}
+
+static uint32_t vu1prog_3_03F0(VU1NativeCtx &c)
+{
+    using namespace vu1n;
+    VU1State &s = *c.st;
+    float (*vf)[4] = s.vf;
+    int32_t *vi = s.vi;
+    uint8_t *m = c.mem;
+    (void)m;
+    (void)vf;
+    (void)vi;
+    // 03F0: 000002FF 11063800
+    {
+        stall(c, c.viReady[7]);
+        const int32_t nvi = static_cast<int16_t>(vi[7] + (16384));
+        c.bkValid = true; c.bkReg = 6; c.bkVal = vi[6];
+        vi[6] = nvi; c.viReady[6] = c.cyc + 1;
+        ++c.cyc;
+    }
+    // 03F8: 000002FF 10072000
+    {
+        stall(c, c.viReady[4]);
+        const int32_t nvi = static_cast<int16_t>(vi[4] + (0));
+        c.bkValid = true; c.bkReg = 7; c.bkVal = vi[7];
+        vi[7] = nvi; c.viReady[7] = c.cyc + 1;
+        ++c.cyc;
+    }
+    // 0400: 000002FF 11063000
+    {
+        const int32_t nvi = static_cast<int16_t>(vi[6] + (16384));
+        c.bkValid = true; c.bkReg = 6; c.bkVal = vi[6];
+        vi[6] = nvi; c.viReady[6] = c.cyc + 1;
+        ++c.cyc;
+    }
+    // 0408: 000002FF 0B062000
+    {
+        { const uint32_t v = static_cast<uint32_t>(static_cast<uint16_t>(vi[6] & 0xFFFF)); const uint32_t w[4] = {v, v, v, v}; storeQ(c, ((static_cast<uint32_t>(static_cast<int32_t>(vi[4] + (0))) * 16u) & 0x3FF0u), w, 8); }
+        c.bkValid = false;
+        ++c.cyc;
+    }
+    // 0410: 000002FF 800026FC
+    {
+        xgWaitIdle(c);
+        xgStart(c, static_cast<uint32_t>(static_cast<uint16_t>(vi[4])));
+        c.bkValid = false;
+        ++c.cyc;
+    }
+    // 0418: 000002FF 10042800
+    {
+        stall(c, c.viReady[5]);
+        const int32_t nvi = static_cast<int16_t>(vi[5] + (0));
+        c.bkValid = true; c.bkReg = 4; c.bkVal = vi[4];
+        vi[4] = nvi; c.viReady[4] = c.cyc + 1;
+        ++c.cyc;
+    }
+    // 0420: 000002FF 10062801
+    {
+        const int32_t nvi = static_cast<int16_t>(vi[5] + (1));
+        c.bkValid = true; c.bkReg = 6; c.bkVal = vi[6];
+        vi[6] = nvi; c.viReady[6] = c.cyc + 1;
+        ++c.cyc;
+    }
+    // 0428: 000002FF 10053800
+    {
+        const int32_t nvi = static_cast<int16_t>(vi[7] + (0));
+        c.bkValid = true; c.bkReg = 5; c.bkVal = vi[5];
+        vi[5] = nvi; c.viReady[5] = c.cyc + 1;
+        ++c.cyc;
+    }
+    // 0430: 000002FF 10070000
+    {
+        const int32_t nvi = static_cast<int16_t>(vi[0] + (0));
+        c.bkValid = true; c.bkReg = 7; c.bkVal = vi[7];
+        vi[7] = nvi; c.viReady[7] = c.cyc + 1;
+        ++c.cyc;
+    }
+    return 0x438;
+}
+
+static uint32_t vu1prog_3_0438(VU1NativeCtx &c)
+{
+    using namespace vu1n;
+    VU1State &s = *c.st;
+    float (*vf)[4] = s.vf;
+    int32_t *vi = s.vi;
+    uint8_t *m = c.mem;
+    (void)m;
+    (void)vf;
+    (void)vi;
+    // 0438: 00477BC5 8000033C
+    {
+        stall(c, c.vfReady[15][2]);
+        stall(c, c.vfReady[7][1]);
+        uint32_t stk = 0u;
+        uint32_t f2 = 0u;
+        const float u2 = fSubF(N(vf[15][2]), N(vf[7][1]), f2);
+        pushMacStatus(c, 0u | macBits(f2, 2u), 0u | f2, stk);
+        vf[15][2] = u2; c.vfReady[15][2] = c.cyc + 4;
+        c.bkValid = false;
+        ++c.cyc;
+    }
+    // 0440: 004079FD 34011800
+    {
+        stall(c, c.vfReady[15][2]);
+        stall(c, c.viReady[3]);
+        commitClip(c);
+        const float u2 = std::fabs(N(vf[15][2]));
+        const int32_t nvi = static_cast<int32_t>(s.mac & static_cast<uint32_t>(static_cast<uint16_t>(vi[3])));
+        c.bkValid = false;
+        vi[1] = nvi; c.viReady[1] = c.cyc + 1;
+        ++c.cyc;
+    }
+    bool taken = false;
+    // 0448: 000002FF 50011805
+    {
+        taken = static_cast<int16_t>(brVi(c, 3)) == static_cast<int16_t>(brVi(c, 1));
+        c.bkValid = false;
+        ++c.cyc;
+    }
+    // 0450: 000002FF 8000033C
+    {
+        c.bkValid = false;
+        ++c.cyc;
+    }
+    if (c.cyc >= c.budgetEnd)
+        return handoffRet(c, (taken ? 0x478u : 0x458u));
+    return (taken ? 0x478u : 0x458u);
+}
+
+static uint32_t vu1prog_3_0458(VU1NativeCtx &c)
+{
+    using namespace vu1n;
+    VU1State &s = *c.st;
+    float (*vf)[4] = s.vf;
+    int32_t *vi = s.vi;
+    uint8_t *m = c.mem;
+    (void)m;
+    (void)vf;
+    (void)vi;
+    // 0458: 000002FF 120A5001
+    {
+        stall(c, c.viReady[10]);
+        const int32_t nvi = static_cast<int16_t>(vi[10] - (1));
+        c.bkValid = true; c.bkReg = 10; c.bkVal = vi[10];
+        vi[10] = nvi; c.viReady[10] = c.cyc + 1;
+        ++c.cyc;
+    }
+    // 0460: 000002FF 8000033C
+    {
+        c.bkValid = false;
+        ++c.cyc;
+    }
+    bool taken = false;
+    // 0468: 000002FF 5A0057C8
+    {
+        taken = static_cast<int16_t>(brVi(c, 10)) > 0;
+        c.bkValid = false;
+        ++c.cyc;
+    }
+    // 0470: 000002FF 8000033C
+    {
+        c.bkValid = false;
+        ++c.cyc;
+    }
+    if (c.cyc >= c.budgetEnd)
+        return handoffRet(c, (taken ? 0x2B0u : 0x478u));
+    return (taken ? 0x2B0u : 0x478u);
+}
+
+static uint32_t vu1prog_3_0478(VU1NativeCtx &c)
+{
+    using namespace vu1n;
+    VU1State &s = *c.st;
+    float (*vf)[4] = s.vf;
+    int32_t *vi = s.vi;
+    uint8_t *m = c.mem;
+    (void)m;
+    (void)vf;
+    (void)vi;
+    // 0478: 00463187 12094801
+    {
+        stall(c, c.vfReady[6][2]);
+        stall(c, c.vfReady[6][3]);
+        stall(c, c.viReady[9]);
+        uint32_t stk = 0u;
+        uint32_t f2 = 0u;
+        const float u2 = fSubF(N(vf[6][2]), N(vf[6][3]), f2);
+        pushMacStatus(c, 0u | macBits(f2, 2u), 0u | f2, stk);
+        const int32_t nvi = static_cast<int16_t>(vi[9] - (1));
+        vf[6][2] = u2; c.vfReady[6][2] = c.cyc + 4;
+        c.bkValid = true; c.bkReg = 9; c.bkVal = vi[9];
+        vi[9] = nvi; c.viReady[9] = c.cyc + 1;
+        ++c.cyc;
+    }
+    // 0480: 000002FF 8000033C
+    {
+        c.bkValid = false;
+        ++c.cyc;
+    }
+    // 0488: 000002FF 8000033C
+    {
+        c.bkValid = false;
+        ++c.cyc;
+    }
+    // 0490: 000002FF 8000033C
+    {
+        c.bkValid = false;
+        ++c.cyc;
+    }
+    // 0498: 01007BC3 34011800
+    {
+        stall(c, c.vfReady[15][0]);
+        stall(c, c.viReady[3]);
+        commitClip(c);
+        uint32_t stk = 0u;
+        uint32_t f0 = 0u;
+        const float u0 = fAddF(N(vf[15][0]), N(vf[0][3]), f0);
+        pushMacStatus(c, 0u | macBits(f0, 8u), 0u | f0, stk);
+        const int32_t nvi = static_cast<int32_t>(s.mac & static_cast<uint32_t>(static_cast<uint16_t>(vi[3])));
+        vf[15][0] = u0; c.vfReady[15][0] = c.cyc + 4;
+        c.bkValid = false;
+        vi[1] = nvi; c.viReady[1] = c.cyc + 1;
+        ++c.cyc;
+    }
+    bool taken = false;
+    // 04A0: 000002FF 50011803
+    {
+        taken = static_cast<int16_t>(brVi(c, 3)) == static_cast<int16_t>(brVi(c, 1));
+        c.bkValid = false;
+        ++c.cyc;
+    }
+    // 04A8: 000002FF 8000033C
+    {
+        c.bkValid = false;
+        ++c.cyc;
+    }
+    if (c.cyc >= c.budgetEnd)
+        return handoffRet(c, (taken ? 0x4C0u : 0x4B0u));
+    return (taken ? 0x4C0u : 0x4B0u);
+}
+
+static uint32_t vu1prog_3_04B0(VU1NativeCtx &c)
+{
+    using namespace vu1n;
+    VU1State &s = *c.st;
+    float (*vf)[4] = s.vf;
+    int32_t *vi = s.vi;
+    uint8_t *m = c.mem;
+    (void)m;
+    (void)vf;
+    (void)vi;
+    bool taken = false;
+    // 04B0: 000002FF 5A004F95
+    {
+        stall(c, c.viReady[9]);
+        taken = static_cast<int16_t>(brVi(c, 9)) > 0;
+        c.bkValid = false;
+        ++c.cyc;
+    }
+    // 04B8: 000002FF 8000033C
+    {
+        c.bkValid = false;
+        ++c.cyc;
+    }
+    if (c.cyc >= c.budgetEnd)
+        return handoffRet(c, (taken ? 0x160u : 0x4C0u));
+    return (taken ? 0x160u : 0x4C0u);
+}
+
+static uint32_t vu1prog_3_04C0(VU1NativeCtx &c)
+{
+    using namespace vu1n;
+    VU1State &s = *c.st;
+    float (*vf)[4] = s.vf;
+    int32_t *vi = s.vi;
+    uint8_t *m = c.mem;
+    (void)m;
+    (void)vf;
+    (void)vi;
+    bool taken = false;
+    // 04C0: 000002FF 50070007
+    {
+        stall(c, c.viReady[7]);
+        taken = static_cast<int16_t>(brVi(c, 0)) == static_cast<int16_t>(brVi(c, 7));
+        c.bkValid = false;
+        ++c.cyc;
+    }
+    // 04C8: 000002FF 8000033C
+    {
+        c.bkValid = false;
+        ++c.cyc;
+    }
+    if (c.cyc >= c.budgetEnd)
+        return handoffRet(c, (taken ? 0x500u : 0x4D0u));
+    return (taken ? 0x500u : 0x4D0u);
+}
+
+static uint32_t vu1prog_3_04D0(VU1NativeCtx &c)
+{
+    using namespace vu1n;
+    VU1State &s = *c.st;
+    float (*vf)[4] = s.vf;
+    int32_t *vi = s.vi;
+    uint8_t *m = c.mem;
+    (void)m;
+    (void)vf;
+    (void)vi;
+    // 04D0: 000002FF 11013800
+    {
+        stall(c, c.viReady[7]);
+        const int32_t nvi = static_cast<int16_t>(vi[7] + (16384));
+        c.bkValid = true; c.bkReg = 1; c.bkVal = vi[1];
+        vi[1] = nvi; c.viReady[1] = c.cyc + 1;
+        ++c.cyc;
+    }
+    // 04D8: 000002FF 11010800
+    {
+        const int32_t nvi = static_cast<int16_t>(vi[1] + (16384));
+        c.bkValid = true; c.bkReg = 1; c.bkVal = vi[1];
+        vi[1] = nvi; c.viReady[1] = c.cyc + 1;
+        ++c.cyc;
+    }
+    // 04E0: 000002FF 0B012000
+    {
+        stall(c, c.viReady[4]);
+        { const uint32_t v = static_cast<uint32_t>(static_cast<uint16_t>(vi[1] & 0xFFFF)); const uint32_t w[4] = {v, v, v, v}; storeQ(c, ((static_cast<uint32_t>(static_cast<int32_t>(vi[4] + (0))) * 16u) & 0x3FF0u), w, 8); }
+        c.bkValid = false;
+        ++c.cyc;
+    }
+    // 04E8: 000002FF 800026FC
+    {
+        xgWaitIdle(c);
+        xgStart(c, static_cast<uint32_t>(static_cast<uint16_t>(vi[4])));
+        c.bkValid = false;
+        ++c.cyc;
+    }
+    // 04F0: 400002FF 8000033C
+    {
+        c.bkValid = false;
+        ++c.cyc;
+    }
+    // 04F8: 000002FF 8000033C
+    {
+        c.bkValid = false;
+        ++c.cyc;
+    }
+    s.pc = 0x500;
+    finish(c);
+    return kEnded;
+}
+
+static uint32_t vu1prog_3_0500(VU1NativeCtx &c)
+{
+    using namespace vu1n;
+    VU1State &s = *c.st;
+    float (*vf)[4] = s.vf;
+    int32_t *vi = s.vi;
+    uint8_t *m = c.mem;
+    (void)m;
+    (void)vf;
+    (void)vi;
+    // 0500: 400002FF 8000033C
+    {
+        c.bkValid = false;
+        ++c.cyc;
+    }
+    // 0508: 000002FF 8000033C
+    {
+        c.bkValid = false;
+        ++c.cyc;
+    }
+    s.pc = 0x510;
+    finish(c);
+    return kEnded;
+}
+
+static uint32_t vu1prog_3_0510(VU1NativeCtx &c)
+{
+    using namespace vu1n;
+    VU1State &s = *c.st;
+    float (*vf)[4] = s.vf;
+    int32_t *vi = s.vi;
+    uint8_t *m = c.mem;
+    (void)m;
+    (void)vf;
+    (void)vi;
+    // 0510: 000002FF 22000000
+    {
+        fcset(c, 0x0u);
+        c.bkValid = false;
+        ++c.cyc;
+    }
+    // 0518: 000002FF 800206BC
+    {
+        const int32_t nvi = static_cast<int32_t>(s.top & 0x3FFu);
+        c.bkValid = false;
+        vi[2] = nvi; c.viReady[2] = c.cyc + 1;
+        ++c.cyc;
+    }
+    // 0520: 000002FF 1004013B
+    {
+        const int32_t nvi = static_cast<int16_t>(vi[0] + (315));
+        c.bkValid = true; c.bkReg = 4; c.bkVal = vi[4];
+        vi[4] = nvi; c.viReady[4] = c.cyc + 1;
+        ++c.cyc;
+    }
+    // 0528: 000002FF 01C91007
+    {
+        const uint32_t la = ((static_cast<uint32_t>(static_cast<int32_t>(vi[2] + (7))) * 16u) & 0x3FF0u);
+        const float l0 = ldf(m, la + 0);
+        const float l1 = ldf(m, la + 4);
+        const float l2 = ldf(m, la + 8);
+        vf[9][0] = l0; c.vfReady[9][0] = c.cyc + 4;
+        vf[9][1] = l1; c.vfReady[9][1] = c.cyc + 4;
+        vf[9][2] = l2; c.vfReady[9][2] = c.cyc + 4;
+        c.bkValid = false;
+        ++c.cyc;
+    }
+    // 0530: 000002FF 01CA1008
+    {
+        const uint32_t la = ((static_cast<uint32_t>(static_cast<int32_t>(vi[2] + (8))) * 16u) & 0x3FF0u);
+        const float l0 = ldf(m, la + 0);
+        const float l1 = ldf(m, la + 4);
+        const float l2 = ldf(m, la + 8);
+        vf[10][0] = l0; c.vfReady[10][0] = c.cyc + 4;
+        vf[10][1] = l1; c.vfReady[10][1] = c.cyc + 4;
+        vf[10][2] = l2; c.vfReady[10][2] = c.cyc + 4;
+        c.bkValid = false;
+        ++c.cyc;
+    }
+    // 0538: 000002FF 01CB1009
+    {
+        const uint32_t la = ((static_cast<uint32_t>(static_cast<int32_t>(vi[2] + (9))) * 16u) & 0x3FF0u);
+        const float l0 = ldf(m, la + 0);
+        const float l1 = ldf(m, la + 4);
+        const float l2 = ldf(m, la + 8);
+        vf[11][0] = l0; c.vfReady[11][0] = c.cyc + 4;
+        vf[11][1] = l1; c.vfReady[11][1] = c.cyc + 4;
+        vf[11][2] = l2; c.vfReady[11][2] = c.cyc + 4;
+        c.bkValid = false;
+        ++c.cyc;
+    }
+    // 0540: 800002FF BF3AE148
+    {
+        s.i = N(bitsf(0xBF3AE148u));
+        c.bkValid = false;
+        ++c.cyc;
+    }
+    // 0548: 000002FF 01CC100A
+    {
+        const uint32_t la = ((static_cast<uint32_t>(static_cast<int32_t>(vi[2] + (10))) * 16u) & 0x3FF0u);
+        const float l0 = ldf(m, la + 0);
+        const float l1 = ldf(m, la + 4);
+        const float l2 = ldf(m, la + 8);
+        vf[12][0] = l0; c.vfReady[12][0] = c.cyc + 4;
+        vf[12][1] = l1; c.vfReady[12][1] = c.cyc + 4;
+        vf[12][2] = l2; c.vfReady[12][2] = c.cyc + 4;
+        c.bkValid = false;
+        ++c.cyc;
+    }
+    // 0550: 81000362 3DE76C8B
+    {
+        uint32_t stk = 0u;
+        uint32_t f0 = 0u;
+        const float u0 = fAddF(N(vf[0][0]), N(s.i), f0);
+        pushMacStatus(c, 0u | macBits(f0, 8u), 0u | f0, stk);
+        s.i = N(bitsf(0x3DE76C8Bu));
+        vf[13][0] = u0; c.vfReady[13][0] = c.cyc + 4;
+        c.bkValid = false;
+        ++c.cyc;
+    }
+    // 0558: 000002FF 09091015
+    {
+        const int32_t nvi = static_cast<int32_t>(static_cast<int16_t>(ldu(m, ((static_cast<uint32_t>(static_cast<int32_t>(vi[2] + (21))) * 16u) & 0x3FF0u) + 0) & 0xFFFFu));
+        c.bkValid = false;
+        vi[9] = nvi; c.viReady[9] = c.cyc + 4;
+        ++c.cyc;
+    }
+    // 0560: 000002FF 004F1015
+    {
+        const uint32_t la = ((static_cast<uint32_t>(static_cast<int32_t>(vi[2] + (21))) * 16u) & 0x3FF0u);
+        const float l2 = ldf(m, la + 8);
+        vf[15][2] = l2; c.vfReady[15][2] = c.cyc + 4;
+        c.bkValid = false;
+        ++c.cyc;
+    }
+    // 0568: 000002FF 088A1015
+    {
+        const int32_t nvi = static_cast<int32_t>(static_cast<int16_t>(ldu(m, ((static_cast<uint32_t>(static_cast<int32_t>(vi[2] + (21))) * 16u) & 0x3FF0u) + 4) & 0xFFFFu));
+        c.bkValid = false;
+        vi[10] = nvi; c.viReady[10] = c.cyc + 4;
+        ++c.cyc;
+    }
+    // 0570: 000002FF 00301015
+    {
+        const uint32_t la = ((static_cast<uint32_t>(static_cast<int32_t>(vi[2] + (21))) * 16u) & 0x3FF0u);
+        const float l3 = ldf(m, la + 12);
+        vf[16][3] = l3; c.vfReady[16][3] = c.cyc + 4;
+        c.bkValid = false;
+        ++c.cyc;
+    }
+    // 0578: 000002FF 100B1016
+    {
+        const int32_t nvi = static_cast<int16_t>(vi[2] + (22));
+        c.bkValid = true; c.bkReg = 11; c.bkVal = vi[11];
+        vi[11] = nvi; c.viReady[11] = c.cyc + 1;
+        ++c.cyc;
+    }
+    // 0580: 000002FF 816F03BC
+    {
+        if (c.qPending) stall(c, c.qReady);
+        divq(c, N(vf[0][3]), N(vf[15][2]));
+        c.bkValid = false;
+        ++c.cyc;
+    }
+    // 0588: 000002FF 01881003
+    {
+        const uint32_t la = ((static_cast<uint32_t>(static_cast<int32_t>(vi[2] + (3))) * 16u) & 0x3FF0u);
+        const float l0 = ldf(m, la + 0);
+        const float l1 = ldf(m, la + 4);
+        vf[8][0] = l0; c.vfReady[8][0] = c.cyc + 4;
+        vf[8][1] = l1; c.vfReady[8][1] = c.cyc + 4;
+        c.bkValid = false;
+        ++c.cyc;
+    }
+    // 0590: 000002FF 00271000
+    {
+        const uint32_t la = ((static_cast<uint32_t>(static_cast<int32_t>(vi[2] + (0))) * 16u) & 0x3FF0u);
+        const float l3 = ldf(m, la + 12);
+        vf[7][3] = l3; c.vfReady[7][3] = c.cyc + 4;
+        c.bkValid = false;
+        ++c.cyc;
+    }
+    // 0598: 000002FF 01C6100E
+    {
+        const uint32_t la = ((static_cast<uint32_t>(static_cast<int32_t>(vi[2] + (14))) * 16u) & 0x3FF0u);
+        const float l0 = ldf(m, la + 0);
+        const float l1 = ldf(m, la + 4);
+        const float l2 = ldf(m, la + 8);
+        vf[6][0] = l0; c.vfReady[6][0] = c.cyc + 4;
+        vf[6][1] = l1; c.vfReady[6][1] = c.cyc + 4;
+        vf[6][2] = l2; c.vfReady[6][2] = c.cyc + 4;
+        c.bkValid = false;
+        ++c.cyc;
+    }
+    // 05A0: 000002FF 01C5100D
+    {
+        const uint32_t la = ((static_cast<uint32_t>(static_cast<int32_t>(vi[2] + (13))) * 16u) & 0x3FF0u);
+        const float l0 = ldf(m, la + 0);
+        const float l1 = ldf(m, la + 4);
+        const float l2 = ldf(m, la + 8);
+        vf[5][0] = l0; c.vfReady[5][0] = c.cyc + 4;
+        vf[5][1] = l1; c.vfReady[5][1] = c.cyc + 4;
+        vf[5][2] = l2; c.vfReady[5][2] = c.cyc + 4;
+        c.bkValid = false;
+        ++c.cyc;
+    }
+    // 05A8: 000002FF 01C4100C
+    {
+        const uint32_t la = ((static_cast<uint32_t>(static_cast<int32_t>(vi[2] + (12))) * 16u) & 0x3FF0u);
+        const float l0 = ldf(m, la + 0);
+        const float l1 = ldf(m, la + 4);
+        const float l2 = ldf(m, la + 8);
+        vf[4][0] = l0; c.vfReady[4][0] = c.cyc + 4;
+        vf[4][1] = l1; c.vfReady[4][1] = c.cyc + 4;
+        vf[4][2] = l2; c.vfReady[4][2] = c.cyc + 4;
+        c.bkValid = false;
+        ++c.cyc;
+    }
+    // 05B0: 000002FF 01C3100B
+    {
+        const uint32_t la = ((static_cast<uint32_t>(static_cast<int32_t>(vi[2] + (11))) * 16u) & 0x3FF0u);
+        const float l0 = ldf(m, la + 0);
+        const float l1 = ldf(m, la + 4);
+        const float l2 = ldf(m, la + 8);
+        vf[3][0] = l0; c.vfReady[3][0] = c.cyc + 4;
+        vf[3][1] = l1; c.vfReady[3][1] = c.cyc + 4;
+        vf[3][2] = l2; c.vfReady[3][2] = c.cyc + 4;
+        c.bkValid = false;
+        ++c.cyc;
+    }
+    // 05B8: 000002FF 10080046
+    {
+        const int32_t nvi = static_cast<int16_t>(vi[0] + (70));
+        c.bkValid = true; c.bkReg = 8; c.bkVal = vi[8];
+        vi[8] = nvi; c.viReady[8] = c.cyc + 1;
+        ++c.cyc;
+    }
+    // 05C0: 000002FF 10070000
+    {
+        const int32_t nvi = static_cast<int16_t>(vi[0] + (0));
+        c.bkValid = true; c.bkReg = 7; c.bkVal = vi[7];
+        vi[7] = nvi; c.viReady[7] = c.cyc + 1;
+        ++c.cyc;
+    }
+    // 05C8: 000002FF 10062001
+    {
+        const int32_t nvi = static_cast<int16_t>(vi[4] + (1));
+        c.bkValid = true; c.bkReg = 6; c.bkVal = vi[6];
+        vi[6] = nvi; c.viReady[6] = c.cyc + 1;
+        ++c.cyc;
+    }
+    // 05D0: 000002FF 1005029A
+    {
+        const int32_t nvi = static_cast<int16_t>(vi[0] + (666));
+        c.bkValid = true; c.bkReg = 5; c.bkVal = vi[5];
+        vi[5] = nvi; c.viReady[5] = c.cyc + 1;
+        ++c.cyc;
+    }
+    // 05D8: 000002FF 10030010
+    {
+        const int32_t nvi = static_cast<int16_t>(vi[0] + (16));
+        c.bkValid = true; c.bkReg = 3; c.bkVal = vi[3];
+        vi[3] = nvi; c.viReady[3] = c.cyc + 1;
+        ++c.cyc;
+    }
+    // 05E0: 000002FF 8042033D
+    {
+        const float l2 = vf[0][3];
+        vf[2][2] = l2; c.vfReady[2][2] = c.cyc + 4;
+        c.bkValid = false;
+        ++c.cyc;
+    }
+    // 05E8: 000002FF 01A21014
+    {
+        const uint32_t la = ((static_cast<uint32_t>(static_cast<int32_t>(vi[2] + (20))) * 16u) & 0x3FF0u);
+        const float l0 = ldf(m, la + 0);
+        const float l1 = ldf(m, la + 4);
+        const float l3 = ldf(m, la + 12);
+        vf[2][0] = l0; c.vfReady[2][0] = c.cyc + 4;
+        vf[2][1] = l1; c.vfReady[2][1] = c.cyc + 4;
+        vf[2][3] = l3; c.vfReady[2][3] = c.cyc + 4;
+        c.bkValid = false;
+        ++c.cyc;
+    }
+    // 05F0: 008003A2 8041033D
+    {
+        uint32_t stk = 0u;
+        uint32_t f1 = 0u;
+        const float u1 = fAddF(N(vf[0][1]), N(s.i), f1);
+        pushMacStatus(c, 0u | macBits(f1, 4u), 0u | f1, stk);
+        const float l2 = vf[0][3];
+        vf[1][2] = l2; c.vfReady[1][2] = c.cyc + 4;
+        vf[14][1] = u1; c.vfReady[14][1] = c.cyc + 4;
+        c.bkValid = false;
+        ++c.cyc;
+    }
+    // 05F8: 00800460 01A11013
+    {
+        commitQ(c);
+        uint32_t stk = 0u;
+        uint32_t f1 = 0u;
+        const float u1 = fAddF(N(vf[0][1]), N(s.q), f1);
+        pushMacStatus(c, 0u | macBits(f1, 4u), 0u | f1, stk);
+        const uint32_t la = ((static_cast<uint32_t>(static_cast<int32_t>(vi[2] + (19))) * 16u) & 0x3FF0u);
+        const float l0 = ldf(m, la + 0);
+        const float l1 = ldf(m, la + 4);
+        const float l3 = ldf(m, la + 12);
+        vf[1][0] = l0; c.vfReady[1][0] = c.cyc + 4;
+        vf[1][1] = l1; c.vfReady[1][1] = c.cyc + 4;
+        vf[1][3] = l3; c.vfReady[1][3] = c.cyc + 4;
+        vf[17][1] = u1; c.vfReady[17][1] = c.cyc + 4;
+        c.bkValid = false;
+        ++c.cyc;
+    }
+    return 0x600;
+}
+
+static uint32_t vu1prog_3_0600(VU1NativeCtx &c)
+{
+    using namespace vu1n;
+    VU1State &s = *c.st;
+    float (*vf)[4] = s.vf;
+    int32_t *vi = s.vi;
+    uint8_t *m = c.mem;
+    (void)m;
+    (void)vf;
+    (void)vi;
+    // 0600: 000002FF 01F25841
+    {
+        stall(c, c.viReady[11]);
+        const uint32_t la = ((static_cast<uint32_t>(static_cast<int32_t>(vi[11] + (65))) * 16u) & 0x3FF0u);
+        const float l0 = ldf(m, la + 0);
+        const float l1 = ldf(m, la + 4);
+        const float l2 = ldf(m, la + 8);
+        const float l3 = ldf(m, la + 12);
+        vf[18][0] = l0; c.vfReady[18][0] = c.cyc + 4;
+        vf[18][1] = l1; c.vfReady[18][1] = c.cyc + 4;
+        vf[18][2] = l2; c.vfReady[18][2] = c.cyc + 4;
+        vf[18][3] = l3; c.vfReady[18][3] = c.cyc + 4;
+        c.bkValid = false;
+        ++c.cyc;
+    }
+    // 0608: 002090C7 01D35842
+    {
+        stall(c, c.vfReady[18][3]);
+        uint32_t stk = 0u;
+        uint32_t f3 = 0u;
+        const float u3 = fSubF(N(vf[18][3]), N(vf[0][3]), f3);
+        pushMacStatus(c, 0u | macBits(f3, 1u), 0u | f3, stk);
+        const uint32_t la = ((static_cast<uint32_t>(static_cast<int32_t>(vi[11] + (66))) * 16u) & 0x3FF0u);
+        const float l0 = ldf(m, la + 0);
+        const float l1 = ldf(m, la + 4);
+        const float l2 = ldf(m, la + 8);
+        vf[19][0] = l0; c.vfReady[19][0] = c.cyc + 4;
+        vf[19][1] = l1; c.vfReady[19][1] = c.cyc + 4;
+        vf[19][2] = l2; c.vfReady[19][2] = c.cyc + 4;
+        vf[3][3] = u3; c.vfReady[3][3] = c.cyc + 4;
+        c.bkValid = false;
+        ++c.cyc;
+    }
+    // 0610: 000002FF 8000033C
+    {
+        c.bkValid = false;
+        ++c.cyc;
+    }
+    // 0618: 000002FF 01D05801
+    {
+        const uint32_t la = ((static_cast<uint32_t>(static_cast<int32_t>(vi[11] + (1))) * 16u) & 0x3FF0u);
+        const float l0 = ldf(m, la + 0);
+        const float l1 = ldf(m, la + 4);
+        const float l2 = ldf(m, la + 8);
+        vf[16][0] = l0; c.vfReady[16][0] = c.cyc + 4;
+        vf[16][1] = l1; c.vfReady[16][1] = c.cyc + 4;
+        vf[16][2] = l2; c.vfReady[16][2] = c.cyc + 4;
+        c.bkValid = false;
+        ++c.cyc;
+    }
+    // 0620: 000002FF 01C75800
+    {
+        const uint32_t la = ((static_cast<uint32_t>(static_cast<int32_t>(vi[11] + (0))) * 16u) & 0x3FF0u);
+        const float l0 = ldf(m, la + 0);
+        const float l1 = ldf(m, la + 4);
+        const float l2 = ldf(m, la + 8);
+        vf[7][0] = l0; c.vfReady[7][0] = c.cyc + 4;
+        vf[7][1] = l1; c.vfReady[7][1] = c.cyc + 4;
+        vf[7][2] = l2; c.vfReady[7][2] = c.cyc + 4;
+        c.bkValid = false;
+        ++c.cyc;
+    }
+    // 0628: 002019FD 34011800
+    {
+        stall(c, c.viReady[3]);
+        commitClip(c);
+        const float u3 = std::fabs(N(vf[3][3]));
+        const int32_t nvi = static_cast<int32_t>(s.mac & static_cast<uint32_t>(static_cast<uint16_t>(vi[3])));
+        c.bkValid = false;
+        vi[1] = nvi; c.viReady[1] = c.cyc + 1;
+        ++c.cyc;
+    }
+    bool taken = false;
+    // 0630: 000002FF 50011877
+    {
+        taken = static_cast<int16_t>(brVi(c, 3)) == static_cast<int16_t>(brVi(c, 1));
+        c.bkValid = false;
+        ++c.cyc;
+    }
+    // 0638: 000002FF 100B5801
+    {
+        const int32_t nvi = static_cast<int16_t>(vi[11] + (1));
+        c.bkValid = true; c.bkReg = 11; c.bkVal = vi[11];
+        vi[11] = nvi; c.viReady[11] = c.cyc + 1;
+        ++c.cyc;
+    }
+    if (c.cyc >= c.budgetEnd)
+        return handoffRet(c, (taken ? 0x9F0u : 0x640u));
+    return (taken ? 0x9F0u : 0x640u);
+}
+
+static uint32_t vu1prog_3_0640(VU1NativeCtx &c)
+{
+    using namespace vu1n;
+    VU1State &s = *c.st;
+    float (*vf)[4] = s.vf;
+    int32_t *vi = s.vi;
+    uint8_t *m = c.mem;
+    (void)m;
+    (void)vf;
+    (void)vi;
+    // 0640: 010003AB 8060943E
+    {
+        stall(c, c.vfReady[18][3]);
+        const float u0 = vmax(N(vf[0][0]), N(vf[0][0]));
+        s.r = 0x3F800000u | (fbits(vf[18][3]) & 0x007FFFFFu);
+        vf[14][0] = u0; c.vfReady[14][0] = c.cyc + 4;
+        c.bkValid = false;
+        ++c.cyc;
+    }
+    // 0648: 000002FF 100C5000
+    {
+        stall(c, c.viReady[10]);
+        const int32_t nvi = static_cast<int16_t>(vi[10] + (0));
+        c.bkValid = true; c.bkReg = 12; c.bkVal = vi[12];
+        vi[12] = nvi; c.viReady[12] = c.cyc + 1;
+        ++c.cyc;
+    }
+    return 0x650;
+}
+
+static uint32_t vu1prog_3_0650(VU1NativeCtx &c)
+{
+    using namespace vu1n;
+    VU1State &s = *c.st;
+    float (*vf)[4] = s.vf;
+    int32_t *vi = s.vi;
+    uint8_t *m = c.mem;
+    (void)m;
+    (void)vf;
+    (void)vi;
+    // 0650: 000002FF 8051043C
+    {
+        rnext(s);
+        const float l2 = bitsf(s.r);
+        vf[17][2] = l2; c.vfReady[17][2] = c.cyc + 4;
+        c.bkValid = false;
+        ++c.cyc;
+    }
+    // 0658: 000002FF 8023043C
+    {
+        rnext(s);
+        const float l3 = bitsf(s.r);
+        vf[3][3] = l3; c.vfReady[3][3] = c.cyc + 4;
+        c.bkValid = false;
+        ++c.cyc;
+    }
+    // 0660: 000002FF 8111043C
+    {
+        rnext(s);
+        const float l0 = bitsf(s.r);
+        vf[17][0] = l0; c.vfReady[17][0] = c.cyc + 4;
+        c.bkValid = false;
+        ++c.cyc;
+    }
+    // 0668: 002E0104 8096043C
+    {
+        stall(c, c.vfReady[14][0]);
+        uint32_t stk = 0u;
+        uint32_t f3 = 0u;
+        const float u3 = fSubF(N(vf[0][3]), N(vf[14][0]), f3);
+        pushMacStatus(c, 0u | macBits(f3, 1u), 0u | f3, stk);
+        rnext(s);
+        const float l1 = bitsf(s.r);
+        vf[22][1] = l1; c.vfReady[22][1] = c.cyc + 4;
+        vf[4][3] = u3; c.vfReady[4][3] = c.cyc + 4;
+        c.bkValid = false;
+        ++c.cyc;
+    }
+    // 0670: 000002FF 804E043C
+    {
+        rnext(s);
+        const float l2 = bitsf(s.r);
+        vf[14][2] = l2; c.vfReady[14][2] = c.cyc + 4;
+        c.bkValid = false;
+        ++c.cyc;
+    }
+    // 0678: 000002FF 810F043C
+    {
+        rnext(s);
+        const float l0 = bitsf(s.r);
+        vf[15][0] = l0; c.vfReady[15][0] = c.cyc + 4;
+        c.bkValid = false;
+        ++c.cyc;
+    }
+    // 0680: 000002FF 808F043C
+    {
+        rnext(s);
+        const float l1 = bitsf(s.r);
+        vf[15][1] = l1; c.vfReady[15][1] = c.cyc + 4;
+        c.bkValid = false;
+        ++c.cyc;
+    }
+    // 0688: 01C491BF 8048043C
+    {
+        stall(c, c.vfReady[18][0]);
+        stall(c, c.vfReady[18][1]);
+        stall(c, c.vfReady[18][2]);
+        uint32_t stk = 0u;
+        uint32_t f0 = 0u;
+        const float u0 = fMulF(N(vf[18][0]), N(vf[4][3]), f0);
+        uint32_t f1 = 0u;
+        const float u1 = fMulF(N(vf[18][1]), N(vf[4][3]), f1);
+        uint32_t f2 = 0u;
+        const float u2 = fMulF(N(vf[18][2]), N(vf[4][3]), f2);
+        pushMacStatus(c, 0u | macBits(f0, 8u) | macBits(f1, 4u) | macBits(f2, 2u), 0u | f0 | f1 | f2, stk);
+        rnext(s);
+        const float l2 = bitsf(s.r);
+        vf[8][2] = l2; c.vfReady[8][2] = c.cyc + 4;
+        s.acc[0] = u0; c.accReady[0] = c.cyc + 1u;
+        s.acc[1] = u1; c.accReady[1] = c.cyc + 1u;
+        s.acc[2] = u2; c.accReady[2] = c.cyc + 1u;
+        c.bkValid = false;
+        ++c.cyc;
+    }
+    // 0690: 01CE9D48 01F71001
+    {
+        stall(c, c.vfReady[19][0]);
+        stall(c, c.vfReady[19][1]);
+        stall(c, c.vfReady[19][2]);
+        stall(c, c.viReady[2]);
+        uint32_t stk = 0u;
+        uint32_t f0 = 0u;
+        const float u0 = fMaddF(N(s.acc[0]), N(vf[19][0]), N(vf[14][0]), f0, stk);
+        uint32_t f1 = 0u;
+        const float u1 = fMaddF(N(s.acc[1]), N(vf[19][1]), N(vf[14][0]), f1, stk);
+        uint32_t f2 = 0u;
+        const float u2 = fMaddF(N(s.acc[2]), N(vf[19][2]), N(vf[14][0]), f2, stk);
+        pushMacStatus(c, 0u | macBits(f0, 8u) | macBits(f1, 4u) | macBits(f2, 2u), 0u | f0 | f1 | f2, stk);
+        const uint32_t la = ((static_cast<uint32_t>(static_cast<int32_t>(vi[2] + (1))) * 16u) & 0x3FF0u);
+        const float l0 = ldf(m, la + 0);
+        const float l1 = ldf(m, la + 4);
+        const float l2 = ldf(m, la + 8);
+        const float l3 = ldf(m, la + 12);
+        vf[23][0] = l0; c.vfReady[23][0] = c.cyc + 4;
+        vf[23][1] = l1; c.vfReady[23][1] = c.cyc + 4;
+        vf[23][2] = l2; c.vfReady[23][2] = c.cyc + 4;
+        vf[23][3] = l3; c.vfReady[23][3] = c.cyc + 4;
+        vf[21][0] = u0; c.vfReady[21][0] = c.cyc + 4;
+        vf[21][1] = u1; c.vfReady[21][1] = c.cyc + 4;
+        vf[21][2] = u2; c.vfReady[21][2] = c.cyc + 4;
+        c.bkValid = false;
+        ++c.cyc;
+    }
+    // 0698: 01C439BF 8024043C
+    {
+        stall(c, c.vfReady[7][0]);
+        stall(c, c.vfReady[7][1]);
+        stall(c, c.vfReady[7][2]);
+        uint32_t stk = 0u;
+        uint32_t f0 = 0u;
+        const float u0 = fMulF(N(vf[7][0]), N(vf[4][3]), f0);
+        uint32_t f1 = 0u;
+        const float u1 = fMulF(N(vf[7][1]), N(vf[4][3]), f1);
+        uint32_t f2 = 0u;
+        const float u2 = fMulF(N(vf[7][2]), N(vf[4][3]), f2);
+        pushMacStatus(c, 0u | macBits(f0, 8u) | macBits(f1, 4u) | macBits(f2, 2u), 0u | f0 | f1 | f2, stk);
+        rnext(s);
+        const float l3 = bitsf(s.r);
+        vf[4][3] = l3; c.vfReady[4][3] = c.cyc + 4;
+        s.acc[0] = u0; c.accReady[0] = c.cyc + 1u;
+        s.acc[1] = u1; c.accReady[1] = c.cyc + 1u;
+        s.acc[2] = u2; c.accReady[2] = c.cyc + 1u;
+        c.bkValid = false;
+        ++c.cyc;
+    }
+    // 06A0: 01CE8508 8000033C
+    {
+        stall(c, c.vfReady[16][0]);
+        stall(c, c.vfReady[16][1]);
+        stall(c, c.vfReady[16][2]);
+        uint32_t stk = 0u;
+        uint32_t f0 = 0u;
+        const float u0 = fMaddF(N(s.acc[0]), N(vf[16][0]), N(vf[14][0]), f0, stk);
+        uint32_t f1 = 0u;
+        const float u1 = fMaddF(N(s.acc[1]), N(vf[16][1]), N(vf[14][0]), f1, stk);
+        uint32_t f2 = 0u;
+        const float u2 = fMaddF(N(s.acc[2]), N(vf[16][2]), N(vf[14][0]), f2, stk);
+        pushMacStatus(c, 0u | macBits(f0, 8u) | macBits(f1, 4u) | macBits(f2, 2u), 0u | f0 | f1 | f2, stk);
+        vf[20][0] = u0; c.vfReady[20][0] = c.cyc + 4;
+        vf[20][1] = u1; c.vfReady[20][1] = c.cyc + 4;
+        vf[20][2] = u2; c.vfReady[20][2] = c.cyc + 4;
+        c.bkValid = false;
+        ++c.cyc;
+    }
+    // 06A8: 0097003F 8000033C
+    {
+        stall(c, c.vfReady[23][3]);
+        uint32_t stk = 0u;
+        uint32_t f1 = 0u;
+        const float u1 = fAddF(N(vf[0][1]), N(vf[23][3]), f1);
+        pushMacStatus(c, 0u | macBits(f1, 4u), 0u | f1, stk);
+        s.acc[1] = u1; c.accReady[1] = c.cyc + 1u;
+        c.bkValid = false;
+        ++c.cyc;
+    }
+    // 06B0: 0084BB4B 8000033C
+    {
+        stall(c, c.vfReady[4][3]);
+        uint32_t stk = 0u;
+        uint32_t f1 = 0u;
+        const float u1 = fMaddF(N(s.acc[1]), N(vf[23][1]), N(vf[4][3]), f1, stk);
+        pushMacStatus(c, 0u | macBits(f1, 4u), 0u | f1, stk);
+        vf[13][1] = u1; c.vfReady[13][1] = c.cyc + 4;
+        c.bkValid = false;
+        ++c.cyc;
+    }
+    // 06B8: 01C3A2BC 8000033C
+    {
+        stall(c, c.vfReady[20][0]);
+        stall(c, c.vfReady[20][1]);
+        stall(c, c.vfReady[20][2]);
+        stall(c, c.vfReady[3][0]);
+        stall(c, c.vfReady[3][1]);
+        stall(c, c.vfReady[3][2]);
+        uint32_t stk = 0u;
+        uint32_t f0 = 0u;
+        const float u0 = fAddF(N(vf[20][0]), N(vf[3][0]), f0);
+        uint32_t f1 = 0u;
+        const float u1 = fAddF(N(vf[20][1]), N(vf[3][1]), f1);
+        uint32_t f2 = 0u;
+        const float u2 = fAddF(N(vf[20][2]), N(vf[3][2]), f2);
+        pushMacStatus(c, 0u | macBits(f0, 8u) | macBits(f1, 4u) | macBits(f2, 2u), 0u | f0 | f1 | f2, stk);
+        s.acc[0] = u0; c.accReady[0] = c.cyc + 1u;
+        s.acc[1] = u1; c.accReady[1] = c.cyc + 1u;
+        s.acc[2] = u2; c.accReady[2] = c.cyc + 1u;
+        c.bkValid = false;
+        ++c.cyc;
+    }
+    // 06C0: 01D030BF 8000033C
+    {
+        stall(c, c.vfReady[16][3]);
+        stall(c, c.vfReady[6][0]);
+        stall(c, c.vfReady[6][1]);
+        stall(c, c.vfReady[6][2]);
+        uint32_t stk = 0u;
+        uint32_t f0 = 0u;
+        const float u0 = fMaddF(N(s.acc[0]), N(vf[6][0]), N(vf[16][3]), f0, stk);
+        uint32_t f1 = 0u;
+        const float u1 = fMaddF(N(s.acc[1]), N(vf[6][1]), N(vf[16][3]), f1, stk);
+        uint32_t f2 = 0u;
+        const float u2 = fMaddF(N(s.acc[2]), N(vf[6][2]), N(vf[16][3]), f2, stk);
+        pushMacStatus(c, 0u | macBits(f0, 8u) | macBits(f1, 4u) | macBits(f2, 2u), 0u | f0 | f1 | f2, stk);
+        s.acc[0] = u0; c.accReady[0] = c.cyc + 1u;
+        s.acc[1] = u1; c.accReady[1] = c.cyc + 1u;
+        s.acc[2] = u2; c.accReady[2] = c.cyc + 1u;
+        c.bkValid = false;
+        ++c.cyc;
+    }
+    // 06C8: 01D120BE 8000033C
+    {
+        stall(c, c.vfReady[4][0]);
+        stall(c, c.vfReady[4][1]);
+        stall(c, c.vfReady[4][2]);
+        uint32_t stk = 0u;
+        uint32_t f0 = 0u;
+        const float u0 = fMaddF(N(s.acc[0]), N(vf[4][0]), N(vf[17][2]), f0, stk);
+        uint32_t f1 = 0u;
+        const float u1 = fMaddF(N(s.acc[1]), N(vf[4][1]), N(vf[17][2]), f1, stk);
+        uint32_t f2 = 0u;
+        const float u2 = fMaddF(N(s.acc[2]), N(vf[4][2]), N(vf[17][2]), f2, stk);
+        pushMacStatus(c, 0u | macBits(f0, 8u) | macBits(f1, 4u) | macBits(f2, 2u), 0u | f0 | f1 | f2, stk);
+        s.acc[0] = u0; c.accReady[0] = c.cyc + 1u;
+        s.acc[1] = u1; c.accReady[1] = c.cyc + 1u;
+        s.acc[2] = u2; c.accReady[2] = c.cyc + 1u;
+        c.bkValid = false;
+        ++c.cyc;
+    }
+    // 06D0: 002D8005 8000033C
+    {
+        uint32_t stk = 0u;
+        uint32_t f3 = 0u;
+        const float u3 = fSubF(N(vf[16][3]), N(vf[13][1]), f3);
+        pushMacStatus(c, 0u | macBits(f3, 1u), 0u | f3, stk);
+        c.bkValid = false;
+        ++c.cyc;
+    }
+    // 06D8: 01C32D0B 01F81012
+    {
+        stall(c, c.vfReady[5][0]);
+        stall(c, c.vfReady[5][1]);
+        stall(c, c.vfReady[5][2]);
+        uint32_t stk = 0u;
+        uint32_t f0 = 0u;
+        const float u0 = fMaddF(N(s.acc[0]), N(vf[5][0]), N(vf[3][3]), f0, stk);
+        uint32_t f1 = 0u;
+        const float u1 = fMaddF(N(s.acc[1]), N(vf[5][1]), N(vf[3][3]), f1, stk);
+        uint32_t f2 = 0u;
+        const float u2 = fMaddF(N(s.acc[2]), N(vf[5][2]), N(vf[3][3]), f2, stk);
+        pushMacStatus(c, 0u | macBits(f0, 8u) | macBits(f1, 4u) | macBits(f2, 2u), 0u | f0 | f1 | f2, stk);
+        const uint32_t la = ((static_cast<uint32_t>(static_cast<int32_t>(vi[2] + (18))) * 16u) & 0x3FF0u);
+        const float l0 = ldf(m, la + 0);
+        const float l1 = ldf(m, la + 4);
+        const float l2 = ldf(m, la + 8);
+        const float l3 = ldf(m, la + 12);
+        vf[24][0] = l0; c.vfReady[24][0] = c.cyc + 4;
+        vf[24][1] = l1; c.vfReady[24][1] = c.cyc + 4;
+        vf[24][2] = l2; c.vfReady[24][2] = c.cyc + 4;
+        vf[24][3] = l3; c.vfReady[24][3] = c.cyc + 4;
+        vf[20][0] = u0; c.vfReady[20][0] = c.cyc + 4;
+        vf[20][1] = u1; c.vfReady[20][1] = c.cyc + 4;
+        vf[20][2] = u2; c.vfReady[20][2] = c.cyc + 4;
+        c.bkValid = false;
+        ++c.cyc;
+    }
+    // 06E0: 01C9AABC 01F9100F
+    {
+        stall(c, c.vfReady[9][0]);
+        stall(c, c.vfReady[9][1]);
+        stall(c, c.vfReady[9][2]);
+        uint32_t stk = 0u;
+        uint32_t f0 = 0u;
+        const float u0 = fAddF(N(vf[21][0]), N(vf[9][0]), f0);
+        uint32_t f1 = 0u;
+        const float u1 = fAddF(N(vf[21][1]), N(vf[9][1]), f1);
+        uint32_t f2 = 0u;
+        const float u2 = fAddF(N(vf[21][2]), N(vf[9][2]), f2);
+        pushMacStatus(c, 0u | macBits(f0, 8u) | macBits(f1, 4u) | macBits(f2, 2u), 0u | f0 | f1 | f2, stk);
+        const uint32_t la = ((static_cast<uint32_t>(static_cast<int32_t>(vi[2] + (15))) * 16u) & 0x3FF0u);
+        const float l0 = ldf(m, la + 0);
+        const float l1 = ldf(m, la + 4);
+        const float l2 = ldf(m, la + 8);
+        const float l3 = ldf(m, la + 12);
+        vf[25][0] = l0; c.vfReady[25][0] = c.cyc + 4;
+        vf[25][1] = l1; c.vfReady[25][1] = c.cyc + 4;
+        vf[25][2] = l2; c.vfReady[25][2] = c.cyc + 4;
+        vf[25][3] = l3; c.vfReady[25][3] = c.cyc + 4;
+        s.acc[0] = u0; c.accReady[0] = c.cyc + 1u;
+        s.acc[1] = u1; c.accReady[1] = c.cyc + 1u;
+        s.acc[2] = u2; c.accReady[2] = c.cyc + 1u;
+        c.bkValid = false;
+        ++c.cyc;
+    }
+    // 06E8: 01D150BC 01FA1010
+    {
+        stall(c, c.vfReady[10][0]);
+        stall(c, c.vfReady[10][1]);
+        stall(c, c.vfReady[10][2]);
+        uint32_t stk = 0u;
+        uint32_t f0 = 0u;
+        const float u0 = fMaddF(N(s.acc[0]), N(vf[10][0]), N(vf[17][0]), f0, stk);
+        uint32_t f1 = 0u;
+        const float u1 = fMaddF(N(s.acc[1]), N(vf[10][1]), N(vf[17][0]), f1, stk);
+        uint32_t f2 = 0u;
+        const float u2 = fMaddF(N(s.acc[2]), N(vf[10][2]), N(vf[17][0]), f2, stk);
+        pushMacStatus(c, 0u | macBits(f0, 8u) | macBits(f1, 4u) | macBits(f2, 2u), 0u | f0 | f1 | f2, stk);
+        const uint32_t la = ((static_cast<uint32_t>(static_cast<int32_t>(vi[2] + (16))) * 16u) & 0x3FF0u);
+        const float l0 = ldf(m, la + 0);
+        const float l1 = ldf(m, la + 4);
+        const float l2 = ldf(m, la + 8);
+        const float l3 = ldf(m, la + 12);
+        vf[26][0] = l0; c.vfReady[26][0] = c.cyc + 4;
+        vf[26][1] = l1; c.vfReady[26][1] = c.cyc + 4;
+        vf[26][2] = l2; c.vfReady[26][2] = c.cyc + 4;
+        vf[26][3] = l3; c.vfReady[26][3] = c.cyc + 4;
+        s.acc[0] = u0; c.accReady[0] = c.cyc + 1u;
+        s.acc[1] = u1; c.accReady[1] = c.cyc + 1u;
+        s.acc[2] = u2; c.accReady[2] = c.cyc + 1u;
+        c.bkValid = false;
+        ++c.cyc;
+    }
+    // 06F0: 01D658BD 34011800
+    {
+        stall(c, c.vfReady[11][0]);
+        stall(c, c.vfReady[11][1]);
+        stall(c, c.vfReady[11][2]);
+        stall(c, c.viReady[3]);
+        commitClip(c);
+        uint32_t stk = 0u;
+        uint32_t f0 = 0u;
+        const float u0 = fMaddF(N(s.acc[0]), N(vf[11][0]), N(vf[22][1]), f0, stk);
+        uint32_t f1 = 0u;
+        const float u1 = fMaddF(N(s.acc[1]), N(vf[11][1]), N(vf[22][1]), f1, stk);
+        uint32_t f2 = 0u;
+        const float u2 = fMaddF(N(s.acc[2]), N(vf[11][2]), N(vf[22][1]), f2, stk);
+        pushMacStatus(c, 0u | macBits(f0, 8u) | macBits(f1, 4u) | macBits(f2, 2u), 0u | f0 | f1 | f2, stk);
+        const int32_t nvi = static_cast<int32_t>(s.mac & static_cast<uint32_t>(static_cast<uint16_t>(vi[3])));
+        s.acc[0] = u0; c.accReady[0] = c.cyc + 1u;
+        s.acc[1] = u1; c.accReady[1] = c.cyc + 1u;
+        s.acc[2] = u2; c.accReady[2] = c.cyc + 1u;
+        c.bkValid = false;
+        vi[1] = nvi; c.viReady[1] = c.cyc + 1;
+        ++c.cyc;
+    }
+    // 06F8: 01CE654A 01F61011
+    {
+        stall(c, c.vfReady[12][0]);
+        stall(c, c.vfReady[12][1]);
+        stall(c, c.vfReady[12][2]);
+        uint32_t stk = 0u;
+        uint32_t f0 = 0u;
+        const float u0 = fMaddF(N(s.acc[0]), N(vf[12][0]), N(vf[14][2]), f0, stk);
+        uint32_t f1 = 0u;
+        const float u1 = fMaddF(N(s.acc[1]), N(vf[12][1]), N(vf[14][2]), f1, stk);
+        uint32_t f2 = 0u;
+        const float u2 = fMaddF(N(s.acc[2]), N(vf[12][2]), N(vf[14][2]), f2, stk);
+        pushMacStatus(c, 0u | macBits(f0, 8u) | macBits(f1, 4u) | macBits(f2, 2u), 0u | f0 | f1 | f2, stk);
+        const uint32_t la = ((static_cast<uint32_t>(static_cast<int32_t>(vi[2] + (17))) * 16u) & 0x3FF0u);
+        const float l0 = ldf(m, la + 0);
+        const float l1 = ldf(m, la + 4);
+        const float l2 = ldf(m, la + 8);
+        const float l3 = ldf(m, la + 12);
+        vf[22][0] = l0; c.vfReady[22][0] = c.cyc + 4;
+        vf[22][1] = l1; c.vfReady[22][1] = c.cyc + 4;
+        vf[22][2] = l2; c.vfReady[22][2] = c.cyc + 4;
+        vf[22][3] = l3; c.vfReady[22][3] = c.cyc + 4;
+        vf[21][0] = u0; c.vfReady[21][0] = c.cyc + 4;
+        vf[21][1] = u1; c.vfReady[21][1] = c.cyc + 4;
+        vf[21][2] = u2; c.vfReady[21][2] = c.cyc + 4;
+        c.bkValid = false;
+        ++c.cyc;
+    }
+    // 0700: 01E0C9BF 01D91006
+    {
+        uint32_t stk = 0u;
+        uint32_t f0 = 0u;
+        const float u0 = fMulF(N(vf[25][0]), N(vf[0][3]), f0);
+        uint32_t f1 = 0u;
+        const float u1 = fMulF(N(vf[25][1]), N(vf[0][3]), f1);
+        uint32_t f2 = 0u;
+        const float u2 = fMulF(N(vf[25][2]), N(vf[0][3]), f2);
+        uint32_t f3 = 0u;
+        const float u3 = fMulF(N(vf[25][3]), N(vf[0][3]), f3);
+        pushMacStatus(c, 0u | macBits(f0, 8u) | macBits(f1, 4u) | macBits(f2, 2u) | macBits(f3, 1u), 0u | f0 | f1 | f2 | f3, stk);
+        const uint32_t la = ((static_cast<uint32_t>(static_cast<int32_t>(vi[2] + (6))) * 16u) & 0x3FF0u);
+        const float l0 = ldf(m, la + 0);
+        const float l1 = ldf(m, la + 4);
+        const float l2 = ldf(m, la + 8);
+        vf[25][0] = l0; c.vfReady[25][0] = c.cyc + 4;
+        vf[25][1] = l1; c.vfReady[25][1] = c.cyc + 4;
+        vf[25][2] = l2; c.vfReady[25][2] = c.cyc + 4;
+        s.acc[0] = u0; c.accReady[0] = c.cyc + 1u;
+        s.acc[1] = u1; c.accReady[1] = c.cyc + 1u;
+        s.acc[2] = u2; c.accReady[2] = c.cyc + 1u;
+        s.acc[3] = u3; c.accReady[3] = c.cyc + 1u;
+        c.bkValid = false;
+        ++c.cyc;
+    }
+    // 0708: 01EFD0BC 8000033C
+    {
+        uint32_t stk = 0u;
+        uint32_t f0 = 0u;
+        const float u0 = fMaddF(N(s.acc[0]), N(vf[26][0]), N(vf[15][0]), f0, stk);
+        uint32_t f1 = 0u;
+        const float u1 = fMaddF(N(s.acc[1]), N(vf[26][1]), N(vf[15][0]), f1, stk);
+        uint32_t f2 = 0u;
+        const float u2 = fMaddF(N(s.acc[2]), N(vf[26][2]), N(vf[15][0]), f2, stk);
+        uint32_t f3 = 0u;
+        const float u3 = fMaddF(N(s.acc[3]), N(vf[26][3]), N(vf[15][0]), f3, stk);
+        pushMacStatus(c, 0u | macBits(f0, 8u) | macBits(f1, 4u) | macBits(f2, 2u) | macBits(f3, 1u), 0u | f0 | f1 | f2 | f3, stk);
+        s.acc[0] = u0; c.accReady[0] = c.cyc + 1u;
+        s.acc[1] = u1; c.accReady[1] = c.cyc + 1u;
+        s.acc[2] = u2; c.accReady[2] = c.cyc + 1u;
+        s.acc[3] = u3; c.accReady[3] = c.cyc + 1u;
+        c.bkValid = false;
+        ++c.cyc;
+    }
+    // 0710: 01F0C0BF 8000033C
+    {
+        uint32_t stk = 0u;
+        uint32_t f0 = 0u;
+        const float u0 = fMaddF(N(s.acc[0]), N(vf[24][0]), N(vf[16][3]), f0, stk);
+        uint32_t f1 = 0u;
+        const float u1 = fMaddF(N(s.acc[1]), N(vf[24][1]), N(vf[16][3]), f1, stk);
+        uint32_t f2 = 0u;
+        const float u2 = fMaddF(N(s.acc[2]), N(vf[24][2]), N(vf[16][3]), f2, stk);
+        uint32_t f3 = 0u;
+        const float u3 = fMaddF(N(s.acc[3]), N(vf[24][3]), N(vf[16][3]), f3, stk);
+        pushMacStatus(c, 0u | macBits(f0, 8u) | macBits(f1, 4u) | macBits(f2, 2u) | macBits(f3, 1u), 0u | f0 | f1 | f2 | f3, stk);
+        s.acc[0] = u0; c.accReady[0] = c.cyc + 1u;
+        s.acc[1] = u1; c.accReady[1] = c.cyc + 1u;
+        s.acc[2] = u2; c.accReady[2] = c.cyc + 1u;
+        s.acc[3] = u3; c.accReady[3] = c.cyc + 1u;
+        c.bkValid = false;
+        ++c.cyc;
+    }
+    bool taken = false;
+    // 0718: 01EFB589 50010048
+    {
+        uint32_t stk = 0u;
+        uint32_t f0 = 0u;
+        const float u0 = fMaddF(N(s.acc[0]), N(vf[22][0]), N(vf[15][1]), f0, stk);
+        uint32_t f1 = 0u;
+        const float u1 = fMaddF(N(s.acc[1]), N(vf[22][1]), N(vf[15][1]), f1, stk);
+        uint32_t f2 = 0u;
+        const float u2 = fMaddF(N(s.acc[2]), N(vf[22][2]), N(vf[15][1]), f2, stk);
+        uint32_t f3 = 0u;
+        const float u3 = fMaddF(N(s.acc[3]), N(vf[22][3]), N(vf[15][1]), f3, stk);
+        pushMacStatus(c, 0u | macBits(f0, 8u) | macBits(f1, 4u) | macBits(f2, 2u) | macBits(f3, 1u), 0u | f0 | f1 | f2 | f3, stk);
+        taken = static_cast<int16_t>(brVi(c, 0)) == static_cast<int16_t>(brVi(c, 1));
+        vf[22][0] = u0; c.vfReady[22][0] = c.cyc + 4;
+        vf[22][1] = u1; c.vfReady[22][1] = c.cyc + 4;
+        vf[22][2] = u2; c.vfReady[22][2] = c.cyc + 4;
+        vf[22][3] = u3; c.vfReady[22][3] = c.cyc + 4;
+        c.bkValid = false;
+        ++c.cyc;
+    }
+    // 0720: 01D5CD6C 8000033C
+    {
+        uint32_t stk = 0u;
+        uint32_t f0 = 0u;
+        const float u0 = fSubF(N(vf[25][0]), N(vf[21][0]), f0);
+        uint32_t f1 = 0u;
+        const float u1 = fSubF(N(vf[25][1]), N(vf[21][1]), f1);
+        uint32_t f2 = 0u;
+        const float u2 = fSubF(N(vf[25][2]), N(vf[21][2]), f2);
+        pushMacStatus(c, 0u | macBits(f0, 8u) | macBits(f1, 4u) | macBits(f2, 2u), 0u | f0 | f1 | f2, stk);
+        vf[21][0] = u0; c.vfReady[21][0] = c.cyc + 4;
+        vf[21][1] = u1; c.vfReady[21][1] = c.cyc + 4;
+        vf[21][2] = u2; c.vfReady[21][2] = c.cyc + 4;
+        c.bkValid = false;
+        ++c.cyc;
+    }
+    if (c.cyc >= c.budgetEnd)
+        return handoffRet(c, (taken ? 0x960u : 0x728u));
+    return (taken ? 0x960u : 0x728u);
+}
+
+static uint32_t vu1prog_3_0728(VU1NativeCtx &c)
+{
+    using namespace vu1n;
+    VU1State &s = *c.st;
+    float (*vf)[4] = s.vf;
+    int32_t *vi = s.vi;
+    uint8_t *m = c.mem;
+    (void)m;
+    (void)vf;
+    (void)vi;
+    // 0728: 0020012B 01181002
+    {
+        stall(c, c.viReady[2]);
+        const float u3 = vmax(N(vf[0][3]), N(vf[0][3]));
+        const uint32_t la = ((static_cast<uint32_t>(static_cast<int32_t>(vi[2] + (2))) * 16u) & 0x3FF0u);
+        const float l0 = ldf(m, la + 0);
+        vf[24][0] = l0; c.vfReady[24][0] = c.cyc + 4;
+        vf[4][3] = u3; c.vfReady[4][3] = c.cyc + 4;
+        c.bkValid = false;
+        ++c.cyc;
+    }
+    // 0730: 003080EB 80ED03BC
+    {
+        stall(c, c.vfReady[13][1]);
+        stall(c, c.vfReady[16][3]);
+        if (c.qPending) stall(c, c.qReady);
+        const float u3 = vmax(N(vf[16][3]), N(vf[16][3]));
+        divq(c, N(vf[0][3]), N(vf[13][1]));
+        vf[3][3] = u3; c.vfReady[3][3] = c.cyc + 4;
+        c.bkValid = false;
+        ++c.cyc;
+    }
+    // 0738: 0110C61B 8000033C
+    {
+        stall(c, c.vfReady[24][0]);
+        uint32_t stk = 0u;
+        uint32_t f0 = 0u;
+        const float u0 = fMulF(N(vf[24][0]), N(vf[16][3]), f0);
+        pushMacStatus(c, 0u | macBits(f0, 8u), 0u | f0, stk);
+        vf[24][0] = u0; c.vfReady[24][0] = c.cyc + 4;
+        c.bkValid = false;
+        ++c.cyc;
+    }
+    // 0740: 0100C61C 800003BF
+    {
+        stall(c, c.vfReady[24][0]);
+        if (c.qPending) stall(c, c.qReady);
+        commitQ(c);
+        uint32_t stk = 0u;
+        uint32_t f0 = 0u;
+        const float u0 = fMulF(N(vf[24][0]), N(s.q), f0);
+        pushMacStatus(c, 0u | macBits(f0, 8u), 0u | f0, stk);
+        vf[24][0] = u0; c.vfReady[24][0] = c.cyc + 4;
+        c.bkValid = false;
+        ++c.cyc;
+    }
+    // 0748: 000002FF 8000033C
+    {
+        c.bkValid = false;
+        ++c.cyc;
+    }
+    // 0750: 000002FF 8000033C
+    {
+        c.bkValid = false;
+        ++c.cyc;
+    }
+    // 0758: 01C0B650 8000033C
+    {
+        stall(c, c.vfReady[22][0]);
+        stall(c, c.vfReady[22][1]);
+        stall(c, c.vfReady[22][2]);
+        const float u0 = vmax(N(vf[22][0]), N(vf[0][0]));
+        const float u1 = vmax(N(vf[22][1]), N(vf[0][0]));
+        const float u2 = vmax(N(vf[22][2]), N(vf[0][0]));
+        vf[25][0] = u0; c.vfReady[25][0] = c.cyc + 4;
+        vf[25][1] = u1; c.vfReady[25][1] = c.cyc + 4;
+        vf[25][2] = u2; c.vfReady[25][2] = c.cyc + 4;
+        c.bkValid = false;
+        ++c.cyc;
+    }
+    // 0760: 0117C03E 8000033C
+    {
+        stall(c, c.vfReady[23][2]);
+        uint32_t stk = 0u;
+        uint32_t f0 = 0u;
+        const float u0 = fAddF(N(vf[24][0]), N(vf[23][2]), f0);
+        pushMacStatus(c, 0u | macBits(f0, 8u), 0u | f0, stk);
+        s.acc[0] = u0; c.accReady[0] = c.cyc + 1u;
+        c.bkValid = false;
+        ++c.cyc;
+    }
+    // 0768: 0108BD8A 01980006
+    {
+        stall(c, c.vfReady[23][0]);
+        stall(c, c.vfReady[8][2]);
+        uint32_t stk = 0u;
+        uint32_t f0 = 0u;
+        const float u0 = fMaddF(N(s.acc[0]), N(vf[23][0]), N(vf[8][2]), f0, stk);
+        pushMacStatus(c, 0u | macBits(f0, 8u), 0u | f0, stk);
+        const uint32_t la = ((static_cast<uint32_t>(static_cast<int32_t>(vi[0] + (6))) * 16u) & 0x3FF0u);
+        const float l0 = ldf(m, la + 0);
+        const float l1 = ldf(m, la + 4);
+        vf[24][0] = l0; c.vfReady[24][0] = c.cyc + 4;
+        vf[24][1] = l1; c.vfReady[24][1] = c.cyc + 4;
+        vf[22][0] = u0; c.vfReady[22][0] = c.cyc + 4;
+        c.bkValid = false;
+        ++c.cyc;
+    }
+    // 0770: 0196C598 01980004
+    {
+        stall(c, c.vfReady[22][0]);
+        stall(c, c.vfReady[24][0]);
+        stall(c, c.vfReady[24][1]);
+        uint32_t stk = 0u;
+        uint32_t f0 = 0u;
+        const float u0 = fMulF(N(vf[24][0]), N(vf[22][0]), f0);
+        uint32_t f1 = 0u;
+        const float u1 = fMulF(N(vf[24][1]), N(vf[22][0]), f1);
+        pushMacStatus(c, 0u | macBits(f0, 8u) | macBits(f1, 4u), 0u | f0 | f1, stk);
+        const uint32_t la = ((static_cast<uint32_t>(static_cast<int32_t>(vi[0] + (4))) * 16u) & 0x3FF0u);
+        const float l0 = ldf(m, la + 0);
+        const float l1 = ldf(m, la + 4);
+        vf[24][0] = l0; c.vfReady[24][0] = c.cyc + 4;
+        vf[24][1] = l1; c.vfReady[24][1] = c.cyc + 4;
+        vf[22][0] = u0; c.vfReady[22][0] = c.cyc + 4;
+        vf[22][1] = u1; c.vfReady[22][1] = c.cyc + 4;
+        c.bkValid = false;
+        ++c.cyc;
+    }
+    // 0778: 000002FF 8000033C
+    {
+        c.bkValid = false;
+        ++c.cyc;
+    }
+    // 0780: 8060062C 437F0000
+    {
+        uint32_t stk = 0u;
+        uint32_t f2 = 0u;
+        const float u2 = fSubF(N(vf[0][2]), N(vf[0][2]), f2);
+        uint32_t f3 = 0u;
+        const float u3 = fSubF(N(vf[0][3]), N(vf[0][3]), f3);
+        pushMacStatus(c, 0u | macBits(f2, 2u) | macBits(f3, 1u), 0u | f2 | f3, stk);
+        s.i = N(bitsf(0x437F0000u));
+        vf[24][2] = u2; c.vfReady[24][2] = c.cyc + 4;
+        vf[24][3] = u3; c.vfReady[24][3] = c.cyc + 4;
+        c.bkValid = false;
+        ++c.cyc;
+    }
+    // 0788: 01C0CE5F 8000033C
+    {
+        const float u0 = vmin(N(vf[25][0]), N(s.i));
+        const float u1 = vmin(N(vf[25][1]), N(s.i));
+        const float u2 = vmin(N(vf[25][2]), N(s.i));
+        vf[25][0] = u0; c.vfReady[25][0] = c.cyc + 4;
+        vf[25][1] = u1; c.vfReady[25][1] = c.cyc + 4;
+        vf[25][2] = u2; c.vfReady[25][2] = c.cyc + 4;
+        c.bkValid = false;
+        ++c.cyc;
+    }
+    // 0790: 0198B62A 088D1000
+    {
+        uint32_t stk = 0u;
+        uint32_t f0 = 0u;
+        const float u0 = fMulF(N(vf[22][0]), N(vf[24][0]), f0);
+        uint32_t f1 = 0u;
+        const float u1 = fMulF(N(vf[22][1]), N(vf[24][1]), f1);
+        pushMacStatus(c, 0u | macBits(f0, 8u) | macBits(f1, 4u), 0u | f0 | f1, stk);
+        const int32_t nvi = static_cast<int32_t>(static_cast<int16_t>(ldu(m, ((static_cast<uint32_t>(static_cast<int32_t>(vi[2] + (0))) * 16u) & 0x3FF0u) + 4) & 0xFFFFu));
+        vf[24][0] = u0; c.vfReady[24][0] = c.cyc + 4;
+        vf[24][1] = u1; c.vfReady[24][1] = c.cyc + 4;
+        c.bkValid = false;
+        vi[13] = nvi; c.viReady[13] = c.cyc + 4;
+        ++c.cyc;
+    }
+    return 0x798;
+}
+
+static uint32_t vu1prog_3_0798(VU1NativeCtx &c)
+{
+    using namespace vu1n;
+    VU1State &s = *c.st;
+    float (*vf)[4] = s.vf;
+    int32_t *vi = s.vi;
+    uint8_t *m = c.mem;
+    (void)m;
+    (void)vf;
+    (void)vi;
+    // 0798: 800002FF 402CCCCD
+    {
+        s.i = N(bitsf(0x402CCCCDu));
+        c.bkValid = false;
+        ++c.cyc;
+    }
+    // 07A0: 0020195F 01D71006
+    {
+        stall(c, c.vfReady[3][3]);
+        stall(c, c.viReady[2]);
+        const float u3 = vmin(N(vf[3][3]), N(s.i));
+        const uint32_t la = ((static_cast<uint32_t>(static_cast<int32_t>(vi[2] + (6))) * 16u) & 0x3FF0u);
+        const float l0 = ldf(m, la + 0);
+        const float l1 = ldf(m, la + 4);
+        const float l2 = ldf(m, la + 8);
+        vf[23][0] = l0; c.vfReady[23][0] = c.cyc + 4;
+        vf[23][1] = l1; c.vfReady[23][1] = c.cyc + 4;
+        vf[23][2] = l2; c.vfReady[23][2] = c.cyc + 4;
+        vf[5][3] = u3; c.vfReady[5][3] = c.cyc + 4;
+        c.bkValid = false;
+        ++c.cyc;
+    }
+    // 07A8: 01C3BDDB 01FC0001
+    {
+        stall(c, c.vfReady[23][0]);
+        stall(c, c.vfReady[23][1]);
+        stall(c, c.vfReady[23][2]);
+        uint32_t stk = 0u;
+        uint32_t f0 = 0u;
+        const float u0 = fMulF(N(vf[23][0]), N(vf[3][3]), f0);
+        uint32_t f1 = 0u;
+        const float u1 = fMulF(N(vf[23][1]), N(vf[3][3]), f1);
+        uint32_t f2 = 0u;
+        const float u2 = fMulF(N(vf[23][2]), N(vf[3][3]), f2);
+        pushMacStatus(c, 0u | macBits(f0, 8u) | macBits(f1, 4u) | macBits(f2, 2u), 0u | f0 | f1 | f2, stk);
+        const uint32_t la = ((static_cast<uint32_t>(static_cast<int32_t>(vi[0] + (1))) * 16u) & 0x3FF0u);
+        const float l0 = ldf(m, la + 0);
+        const float l1 = ldf(m, la + 4);
+        const float l2 = ldf(m, la + 8);
+        const float l3 = ldf(m, la + 12);
+        vf[28][0] = l0; c.vfReady[28][0] = c.cyc + 4;
+        vf[28][1] = l1; c.vfReady[28][1] = c.cyc + 4;
+        vf[28][2] = l2; c.vfReady[28][2] = c.cyc + 4;
+        vf[28][3] = l3; c.vfReady[28][3] = c.cyc + 4;
+        vf[23][0] = u0; c.vfReady[23][0] = c.cyc + 4;
+        vf[23][1] = u1; c.vfReady[23][1] = c.cyc + 4;
+        vf[23][2] = u2; c.vfReady[23][2] = c.cyc + 4;
+        c.bkValid = false;
+        ++c.cyc;
+    }
+    // 07B0: 002529AA 01FB0002
+    {
+        stall(c, c.vfReady[5][3]);
+        uint32_t stk = 0u;
+        uint32_t f3 = 0u;
+        const float u3 = fMulF(N(vf[5][3]), N(vf[5][3]), f3);
+        pushMacStatus(c, 0u | macBits(f3, 1u), 0u | f3, stk);
+        const uint32_t la = ((static_cast<uint32_t>(static_cast<int32_t>(vi[0] + (2))) * 16u) & 0x3FF0u);
+        const float l0 = ldf(m, la + 0);
+        const float l1 = ldf(m, la + 4);
+        const float l2 = ldf(m, la + 8);
+        const float l3 = ldf(m, la + 12);
+        vf[27][0] = l0; c.vfReady[27][0] = c.cyc + 4;
+        vf[27][1] = l1; c.vfReady[27][1] = c.cyc + 4;
+        vf[27][2] = l2; c.vfReady[27][2] = c.cyc + 4;
+        vf[27][3] = l3; c.vfReady[27][3] = c.cyc + 4;
+        vf[6][3] = u3; c.vfReady[6][3] = c.cyc + 4;
+        c.bkValid = false;
+        ++c.cyc;
+    }
+    // 07B8: 000002FF 8000033C
+    {
+        c.bkValid = false;
+        ++c.cyc;
+    }
+    // 07C0: 002D29BC 01FA0003
+    {
+        stall(c, c.vfReady[13][0]);
+        uint32_t stk = 0u;
+        uint32_t f3 = 0u;
+        const float u3 = fMulF(N(vf[5][3]), N(vf[13][0]), f3);
+        pushMacStatus(c, 0u | macBits(f3, 1u), 0u | f3, stk);
+        const uint32_t la = ((static_cast<uint32_t>(static_cast<int32_t>(vi[0] + (3))) * 16u) & 0x3FF0u);
+        const float l0 = ldf(m, la + 0);
+        const float l1 = ldf(m, la + 4);
+        const float l2 = ldf(m, la + 8);
+        const float l3 = ldf(m, la + 12);
+        vf[26][0] = l0; c.vfReady[26][0] = c.cyc + 4;
+        vf[26][1] = l1; c.vfReady[26][1] = c.cyc + 4;
+        vf[26][2] = l2; c.vfReady[26][2] = c.cyc + 4;
+        vf[26][3] = l3; c.vfReady[26][3] = c.cyc + 4;
+        s.acc[3] = u3; c.accReady[3] = c.cyc + 1u;
+        c.bkValid = false;
+        ++c.cyc;
+    }
+    // 07C8: 01D4BDE8 8000033C
+    {
+        stall(c, c.vfReady[20][0]);
+        stall(c, c.vfReady[20][1]);
+        stall(c, c.vfReady[20][2]);
+        uint32_t stk = 0u;
+        uint32_t f0 = 0u;
+        const float u0 = fAddF(N(vf[23][0]), N(vf[20][0]), f0);
+        uint32_t f1 = 0u;
+        const float u1 = fAddF(N(vf[23][1]), N(vf[20][1]), f1);
+        uint32_t f2 = 0u;
+        const float u2 = fAddF(N(vf[23][2]), N(vf[20][2]), f2);
+        pushMacStatus(c, 0u | macBits(f0, 8u) | macBits(f1, 4u) | macBits(f2, 2u), 0u | f0 | f1 | f2, stk);
+        vf[23][0] = u0; c.vfReady[23][0] = c.cyc + 4;
+        vf[23][1] = u1; c.vfReady[23][1] = c.cyc + 4;
+        vf[23][2] = u2; c.vfReady[23][2] = c.cyc + 4;
+        c.bkValid = false;
+        ++c.cyc;
+    }
+    // 07D0: 002E3149 8000033C
+    {
+        stall(c, c.vfReady[14][1]);
+        uint32_t stk = 0u;
+        uint32_t f3 = 0u;
+        const float u3 = fMaddF(N(s.acc[3]), N(vf[6][3]), N(vf[14][1]), f3, stk);
+        pushMacStatus(c, 0u | macBits(f3, 1u), 0u | f3, stk);
+        vf[5][3] = u3; c.vfReady[5][3] = c.cyc + 4;
+        c.bkValid = false;
+        ++c.cyc;
+    }
+    // 07D8: 01C0B9BF 8000033C
+    {
+        stall(c, c.vfReady[23][0]);
+        stall(c, c.vfReady[23][1]);
+        stall(c, c.vfReady[23][2]);
+        uint32_t stk = 0u;
+        uint32_t f0 = 0u;
+        const float u0 = fMulF(N(vf[23][0]), N(vf[0][3]), f0);
+        uint32_t f1 = 0u;
+        const float u1 = fMulF(N(vf[23][1]), N(vf[0][3]), f1);
+        uint32_t f2 = 0u;
+        const float u2 = fMulF(N(vf[23][2]), N(vf[0][3]), f2);
+        pushMacStatus(c, 0u | macBits(f0, 8u) | macBits(f1, 4u) | macBits(f2, 2u), 0u | f0 | f1 | f2, stk);
+        s.acc[0] = u0; c.accReady[0] = c.cyc + 1u;
+        s.acc[1] = u1; c.accReady[1] = c.cyc + 1u;
+        s.acc[2] = u2; c.accReady[2] = c.cyc + 1u;
+        c.bkValid = false;
+        ++c.cyc;
+    }
+    // 07E0: 01C5ADCB 01FD0000
+    {
+        stall(c, c.vfReady[21][0]);
+        stall(c, c.vfReady[21][1]);
+        stall(c, c.vfReady[21][2]);
+        stall(c, c.vfReady[5][3]);
+        uint32_t stk = 0u;
+        uint32_t f0 = 0u;
+        const float u0 = fMaddF(N(s.acc[0]), N(vf[21][0]), N(vf[5][3]), f0, stk);
+        uint32_t f1 = 0u;
+        const float u1 = fMaddF(N(s.acc[1]), N(vf[21][1]), N(vf[5][3]), f1, stk);
+        uint32_t f2 = 0u;
+        const float u2 = fMaddF(N(s.acc[2]), N(vf[21][2]), N(vf[5][3]), f2, stk);
+        pushMacStatus(c, 0u | macBits(f0, 8u) | macBits(f1, 4u) | macBits(f2, 2u), 0u | f0 | f1 | f2, stk);
+        const uint32_t la = ((static_cast<uint32_t>(static_cast<int32_t>(vi[0] + (0))) * 16u) & 0x3FF0u);
+        const float l0 = ldf(m, la + 0);
+        const float l1 = ldf(m, la + 4);
+        const float l2 = ldf(m, la + 8);
+        const float l3 = ldf(m, la + 12);
+        vf[29][0] = l0; c.vfReady[29][0] = c.cyc + 4;
+        vf[29][1] = l1; c.vfReady[29][1] = c.cyc + 4;
+        vf[29][2] = l2; c.vfReady[29][2] = c.cyc + 4;
+        vf[29][3] = l3; c.vfReady[29][3] = c.cyc + 4;
+        vf[23][0] = u0; c.vfReady[23][0] = c.cyc + 4;
+        vf[23][1] = u1; c.vfReady[23][1] = c.cyc + 4;
+        vf[23][2] = u2; c.vfReady[23][2] = c.cyc + 4;
+        c.bkValid = false;
+        ++c.cyc;
+    }
+    // 07E8: 01F7E9BC 8000033C
+    {
+        stall(c, c.vfReady[23][0]);
+        stall(c, c.vfReady[29][0]);
+        stall(c, c.vfReady[29][1]);
+        stall(c, c.vfReady[29][2]);
+        stall(c, c.vfReady[29][3]);
+        uint32_t stk = 0u;
+        uint32_t f0 = 0u;
+        const float u0 = fMulF(N(vf[29][0]), N(vf[23][0]), f0);
+        uint32_t f1 = 0u;
+        const float u1 = fMulF(N(vf[29][1]), N(vf[23][0]), f1);
+        uint32_t f2 = 0u;
+        const float u2 = fMulF(N(vf[29][2]), N(vf[23][0]), f2);
+        uint32_t f3 = 0u;
+        const float u3 = fMulF(N(vf[29][3]), N(vf[23][0]), f3);
+        pushMacStatus(c, 0u | macBits(f0, 8u) | macBits(f1, 4u) | macBits(f2, 2u) | macBits(f3, 1u), 0u | f0 | f1 | f2 | f3, stk);
+        s.acc[0] = u0; c.accReady[0] = c.cyc + 1u;
+        s.acc[1] = u1; c.accReady[1] = c.cyc + 1u;
+        s.acc[2] = u2; c.accReady[2] = c.cyc + 1u;
+        s.acc[3] = u3; c.accReady[3] = c.cyc + 1u;
+        c.bkValid = false;
+        ++c.cyc;
+    }
+    // 07F0: 01F7E0BD 8000033C
+    {
+        stall(c, c.vfReady[23][1]);
+        uint32_t stk = 0u;
+        uint32_t f0 = 0u;
+        const float u0 = fMaddF(N(s.acc[0]), N(vf[28][0]), N(vf[23][1]), f0, stk);
+        uint32_t f1 = 0u;
+        const float u1 = fMaddF(N(s.acc[1]), N(vf[28][1]), N(vf[23][1]), f1, stk);
+        uint32_t f2 = 0u;
+        const float u2 = fMaddF(N(s.acc[2]), N(vf[28][2]), N(vf[23][1]), f2, stk);
+        uint32_t f3 = 0u;
+        const float u3 = fMaddF(N(s.acc[3]), N(vf[28][3]), N(vf[23][1]), f3, stk);
+        pushMacStatus(c, 0u | macBits(f0, 8u) | macBits(f1, 4u) | macBits(f2, 2u) | macBits(f3, 1u), 0u | f0 | f1 | f2 | f3, stk);
+        s.acc[0] = u0; c.accReady[0] = c.cyc + 1u;
+        s.acc[1] = u1; c.accReady[1] = c.cyc + 1u;
+        s.acc[2] = u2; c.accReady[2] = c.cyc + 1u;
+        s.acc[3] = u3; c.accReady[3] = c.cyc + 1u;
+        c.bkValid = false;
+        ++c.cyc;
+    }
+    // 07F8: 01F7D8BE 8000033C
+    {
+        stall(c, c.vfReady[23][2]);
+        uint32_t stk = 0u;
+        uint32_t f0 = 0u;
+        const float u0 = fMaddF(N(s.acc[0]), N(vf[27][0]), N(vf[23][2]), f0, stk);
+        uint32_t f1 = 0u;
+        const float u1 = fMaddF(N(s.acc[1]), N(vf[27][1]), N(vf[23][2]), f1, stk);
+        uint32_t f2 = 0u;
+        const float u2 = fMaddF(N(s.acc[2]), N(vf[27][2]), N(vf[23][2]), f2, stk);
+        uint32_t f3 = 0u;
+        const float u3 = fMaddF(N(s.acc[3]), N(vf[27][3]), N(vf[23][2]), f3, stk);
+        pushMacStatus(c, 0u | macBits(f0, 8u) | macBits(f1, 4u) | macBits(f2, 2u) | macBits(f3, 1u), 0u | f0 | f1 | f2 | f3, stk);
+        s.acc[0] = u0; c.accReady[0] = c.cyc + 1u;
+        s.acc[1] = u1; c.accReady[1] = c.cyc + 1u;
+        s.acc[2] = u2; c.accReady[2] = c.cyc + 1u;
+        s.acc[3] = u3; c.accReady[3] = c.cyc + 1u;
+        c.bkValid = false;
+        ++c.cyc;
+    }
+    // 0800: 01E0D5CB 8000033C
+    {
+        uint32_t stk = 0u;
+        uint32_t f0 = 0u;
+        const float u0 = fMaddF(N(s.acc[0]), N(vf[26][0]), N(vf[0][3]), f0, stk);
+        uint32_t f1 = 0u;
+        const float u1 = fMaddF(N(s.acc[1]), N(vf[26][1]), N(vf[0][3]), f1, stk);
+        uint32_t f2 = 0u;
+        const float u2 = fMaddF(N(s.acc[2]), N(vf[26][2]), N(vf[0][3]), f2, stk);
+        uint32_t f3 = 0u;
+        const float u3 = fMaddF(N(s.acc[3]), N(vf[26][3]), N(vf[0][3]), f3, stk);
+        pushMacStatus(c, 0u | macBits(f0, 8u) | macBits(f1, 4u) | macBits(f2, 2u) | macBits(f3, 1u), 0u | f0 | f1 | f2 | f3, stk);
+        vf[23][0] = u0; c.vfReady[23][0] = c.cyc + 4;
+        vf[23][1] = u1; c.vfReady[23][1] = c.cyc + 4;
+        vf[23][2] = u2; c.vfReady[23][2] = c.cyc + 4;
+        vf[23][3] = u3; c.vfReady[23][3] = c.cyc + 4;
+        c.bkValid = false;
+        ++c.cyc;
+    }
+    // 0808: 01D7B9FF 8000033C
+    {
+        stall(c, c.vfReady[23][0]);
+        stall(c, c.vfReady[23][1]);
+        stall(c, c.vfReady[23][2]);
+        stall(c, c.vfReady[23][3]);
+        queueClip(c, clipBits(vf[23], vf[23][3]));
+        c.bkValid = false;
+        ++c.cyc;
+    }
+    // 0810: 000002FF 8000033C
+    {
+        c.bkValid = false;
+        ++c.cyc;
+    }
+    // 0818: 000002FF 8000033C
+    {
+        c.bkValid = false;
+        ++c.cyc;
+    }
+    // 0820: 000002FF 8000033C
+    {
+        c.bkValid = false;
+        ++c.cyc;
+    }
+    // 0828: 000002FF 2400003F
+    {
+        commitClip(c);
+        const int32_t nvi = ((s.clip & 0x3Fu) != 0u) ? 1 : 0;
+        c.bkValid = false;
+        vi[1] = nvi; c.viReady[1] = c.cyc + 1;
+        ++c.cyc;
+    }
+    bool taken = false;
+    // 0830: 0024B66A 5201001D
+    {
+        stall(c, c.vfReady[22][3]);
+        stall(c, c.vfReady[4][3]);
+        uint32_t stk = 0u;
+        uint32_t f3 = 0u;
+        const float u3 = fMulF(N(vf[22][3]), N(vf[4][3]), f3);
+        pushMacStatus(c, 0u | macBits(f3, 1u), 0u | f3, stk);
+        taken = static_cast<int16_t>(brVi(c, 0)) != static_cast<int16_t>(brVi(c, 1));
+        vf[25][3] = u3; c.vfReady[25][3] = c.cyc + 4;
+        c.bkValid = false;
+        ++c.cyc;
+    }
+    // 0838: 00282104 8000033C
+    {
+        stall(c, c.vfReady[8][0]);
+        uint32_t stk = 0u;
+        uint32_t f3 = 0u;
+        const float u3 = fSubF(N(vf[4][3]), N(vf[8][0]), f3);
+        pushMacStatus(c, 0u | macBits(f3, 1u), 0u | f3, stk);
+        vf[4][3] = u3; c.vfReady[4][3] = c.cyc + 4;
+        c.bkValid = false;
+        ++c.cyc;
+    }
+    if (c.cyc >= c.budgetEnd)
+        return handoffRet(c, (taken ? 0x920u : 0x840u));
+    return (taken ? 0x920u : 0x840u);
+}
+
+static uint32_t vu1prog_3_0840(VU1NativeCtx &c)
+{
+    using namespace vu1n;
+    VU1State &s = *c.st;
+    float (*vf)[4] = s.vf;
+    int32_t *vi = s.vi;
+    uint8_t *m = c.mem;
+    (void)m;
+    (void)vf;
+    (void)vi;
+    // 0840: 000002FF 81F703BC
+    {
+        stall(c, c.vfReady[23][3]);
+        if (c.qPending) stall(c, c.qReady);
+        divq(c, N(vf[0][3]), N(vf[23][3]));
+        c.bkValid = false;
+        ++c.cyc;
+    }
+    // 0848: 000002FF 8000033C
+    {
+        c.bkValid = false;
+        ++c.cyc;
+    }
+    // 0850: 000002FF 8000033C
+    {
+        c.bkValid = false;
+        ++c.cyc;
+    }
+    // 0858: 01FCC97C 01FA0005
+    {
+        stall(c, c.vfReady[25][0]);
+        stall(c, c.vfReady[25][1]);
+        stall(c, c.vfReady[25][2]);
+        stall(c, c.vfReady[25][3]);
+        const float u0 = bitsf(static_cast<uint32_t>(floatToInt(N(vf[25][0]), 1.0f)));
+        const float u1 = bitsf(static_cast<uint32_t>(floatToInt(N(vf[25][1]), 1.0f)));
+        const float u2 = bitsf(static_cast<uint32_t>(floatToInt(N(vf[25][2]), 1.0f)));
+        const float u3 = bitsf(static_cast<uint32_t>(floatToInt(N(vf[25][3]), 1.0f)));
+        const uint32_t la = ((static_cast<uint32_t>(static_cast<int32_t>(vi[0] + (5))) * 16u) & 0x3FF0u);
+        const float l0 = ldf(m, la + 0);
+        const float l1 = ldf(m, la + 4);
+        const float l2 = ldf(m, la + 8);
+        const float l3 = ldf(m, la + 12);
+        vf[26][0] = l0; c.vfReady[26][0] = c.cyc + 4;
+        vf[26][1] = l1; c.vfReady[26][1] = c.cyc + 4;
+        vf[26][2] = l2; c.vfReady[26][2] = c.cyc + 4;
+        vf[26][3] = l3; c.vfReady[26][3] = c.cyc + 4;
+        vf[28][0] = u0; c.vfReady[28][0] = c.cyc + 4;
+        vf[28][1] = u1; c.vfReady[28][1] = c.cyc + 4;
+        vf[28][2] = u2; c.vfReady[28][2] = c.cyc + 4;
+        vf[28][3] = u3; c.vfReady[28][3] = c.cyc + 4;
+        c.bkValid = false;
+        ++c.cyc;
+    }
+    // 0860: 01E0C71C 03E6E001
+    {
+        stall(c, c.vfReady[24][0]);
+        stall(c, c.vfReady[24][1]);
+        stall(c, c.vfReady[24][2]);
+        stall(c, c.vfReady[24][3]);
+        stall(c, c.vfReady[28][0]);
+        stall(c, c.vfReady[28][1]);
+        stall(c, c.vfReady[28][2]);
+        stall(c, c.vfReady[28][3]);
+        stall(c, c.viReady[6]);
+        commitQ(c);
+        uint32_t stk = 0u;
+        uint32_t f0 = 0u;
+        const float u0 = fMulF(N(vf[24][0]), N(s.q), f0);
+        uint32_t f1 = 0u;
+        const float u1 = fMulF(N(vf[24][1]), N(s.q), f1);
+        uint32_t f2 = 0u;
+        const float u2 = fMulF(N(vf[24][2]), N(s.q), f2);
+        uint32_t f3 = 0u;
+        const float u3 = fMulF(N(vf[24][3]), N(s.q), f3);
+        pushMacStatus(c, 0u | macBits(f0, 8u) | macBits(f1, 4u) | macBits(f2, 2u) | macBits(f3, 1u), 0u | f0 | f1 | f2 | f3, stk);
+        { const uint32_t w[4] = {fbits(vf[28][0]), fbits(vf[28][1]), fbits(vf[28][2]), fbits(vf[28][3])}; storeQ(c, ((static_cast<uint32_t>(static_cast<int32_t>(vi[6] + (1))) * 16u) & 0x3FF0u), w, 15); }
+        vf[28][0] = u0; c.vfReady[28][0] = c.cyc + 4;
+        vf[28][1] = u1; c.vfReady[28][1] = c.cyc + 4;
+        vf[28][2] = u2; c.vfReady[28][2] = c.cyc + 4;
+        vf[28][3] = u3; c.vfReady[28][3] = c.cyc + 4;
+        c.bkValid = false;
+        ++c.cyc;
+    }
+    // 0868: 000002FF 8000033C
+    {
+        c.bkValid = false;
+        ++c.cyc;
+    }
+    // 0870: 01E0D1BF 03E60800
+    {
+        stall(c, c.vfReady[1][0]);
+        stall(c, c.vfReady[1][1]);
+        stall(c, c.vfReady[1][2]);
+        stall(c, c.vfReady[1][3]);
+        stall(c, c.vfReady[26][0]);
+        stall(c, c.vfReady[26][1]);
+        stall(c, c.vfReady[26][2]);
+        stall(c, c.vfReady[26][3]);
+        uint32_t stk = 0u;
+        uint32_t f0 = 0u;
+        const float u0 = fMulF(N(vf[26][0]), N(vf[0][3]), f0);
+        uint32_t f1 = 0u;
+        const float u1 = fMulF(N(vf[26][1]), N(vf[0][3]), f1);
+        uint32_t f2 = 0u;
+        const float u2 = fMulF(N(vf[26][2]), N(vf[0][3]), f2);
+        uint32_t f3 = 0u;
+        const float u3 = fMulF(N(vf[26][3]), N(vf[0][3]), f3);
+        pushMacStatus(c, 0u | macBits(f0, 8u) | macBits(f1, 4u) | macBits(f2, 2u) | macBits(f3, 1u), 0u | f0 | f1 | f2 | f3, stk);
+        { const uint32_t w[4] = {fbits(vf[1][0]), fbits(vf[1][1]), fbits(vf[1][2]), fbits(vf[1][3])}; storeQ(c, ((static_cast<uint32_t>(static_cast<int32_t>(vi[6] + (0))) * 16u) & 0x3FF0u), w, 15); }
+        s.acc[0] = u0; c.accReady[0] = c.cyc + 1u;
+        s.acc[1] = u1; c.accReady[1] = c.cyc + 1u;
+        s.acc[2] = u2; c.accReady[2] = c.cyc + 1u;
+        s.acc[3] = u3; c.accReady[3] = c.cyc + 1u;
+        c.bkValid = false;
+        ++c.cyc;
+    }
+    // 0878: 01C0BDDC 01FB0004
+    {
+        stall(c, c.vfReady[23][0]);
+        stall(c, c.vfReady[23][1]);
+        stall(c, c.vfReady[23][2]);
+        commitQ(c);
+        uint32_t stk = 0u;
+        uint32_t f0 = 0u;
+        const float u0 = fMulF(N(vf[23][0]), N(s.q), f0);
+        uint32_t f1 = 0u;
+        const float u1 = fMulF(N(vf[23][1]), N(s.q), f1);
+        uint32_t f2 = 0u;
+        const float u2 = fMulF(N(vf[23][2]), N(s.q), f2);
+        pushMacStatus(c, 0u | macBits(f0, 8u) | macBits(f1, 4u) | macBits(f2, 2u), 0u | f0 | f1 | f2, stk);
+        const uint32_t la = ((static_cast<uint32_t>(static_cast<int32_t>(vi[0] + (4))) * 16u) & 0x3FF0u);
+        const float l0 = ldf(m, la + 0);
+        const float l1 = ldf(m, la + 4);
+        const float l2 = ldf(m, la + 8);
+        const float l3 = ldf(m, la + 12);
+        vf[27][0] = l0; c.vfReady[27][0] = c.cyc + 4;
+        vf[27][1] = l1; c.vfReady[27][1] = c.cyc + 4;
+        vf[27][2] = l2; c.vfReady[27][2] = c.cyc + 4;
+        vf[27][3] = l3; c.vfReady[27][3] = c.cyc + 4;
+        vf[23][0] = u0; c.vfReady[23][0] = c.cyc + 4;
+        vf[23][1] = u1; c.vfReady[23][1] = c.cyc + 4;
+        vf[23][2] = u2; c.vfReady[23][2] = c.cyc + 4;
+        c.bkValid = false;
+        ++c.cyc;
+    }
+    // 0880: 01FAE1FD 10073801
+    {
+        stall(c, c.viReady[7]);
+        const float u0 = std::fabs(N(vf[28][0]));
+        const float u1 = std::fabs(N(vf[28][1]));
+        const float u2 = std::fabs(N(vf[28][2]));
+        const float u3 = std::fabs(N(vf[28][3]));
+        const int32_t nvi = static_cast<int16_t>(vi[7] + (1));
+        vf[26][0] = u0; c.vfReady[26][0] = c.cyc + 4;
+        vf[26][1] = u1; c.vfReady[26][1] = c.cyc + 4;
+        vf[26][2] = u2; c.vfReady[26][2] = c.cyc + 4;
+        vf[26][3] = u3; c.vfReady[26][3] = c.cyc + 4;
+        c.bkValid = true; c.bkReg = 7; c.bkVal = vi[7];
+        vi[7] = nvi; c.viReady[7] = c.cyc + 1;
+        ++c.cyc;
+    }
+    // 0888: 81FBBDE9 42800000
+    {
+        stall(c, c.vfReady[23][0]);
+        stall(c, c.vfReady[23][1]);
+        stall(c, c.vfReady[23][2]);
+        stall(c, c.vfReady[27][0]);
+        stall(c, c.vfReady[27][1]);
+        stall(c, c.vfReady[27][2]);
+        stall(c, c.vfReady[27][3]);
+        uint32_t stk = 0u;
+        uint32_t f0 = 0u;
+        const float u0 = fMaddF(N(s.acc[0]), N(vf[23][0]), N(vf[27][0]), f0, stk);
+        uint32_t f1 = 0u;
+        const float u1 = fMaddF(N(s.acc[1]), N(vf[23][1]), N(vf[27][1]), f1, stk);
+        uint32_t f2 = 0u;
+        const float u2 = fMaddF(N(s.acc[2]), N(vf[23][2]), N(vf[27][2]), f2, stk);
+        uint32_t f3 = 0u;
+        const float u3 = fMaddF(N(s.acc[3]), N(vf[23][3]), N(vf[27][3]), f3, stk);
+        pushMacStatus(c, 0u | macBits(f0, 8u) | macBits(f1, 4u) | macBits(f2, 2u) | macBits(f3, 1u), 0u | f0 | f1 | f2 | f3, stk);
+        s.i = N(bitsf(0x42800000u));
+        vf[23][0] = u0; c.vfReady[23][0] = c.cyc + 4;
+        vf[23][1] = u1; c.vfReady[23][1] = c.cyc + 4;
+        vf[23][2] = u2; c.vfReady[23][2] = c.cyc + 4;
+        vf[23][3] = u3; c.vfReady[23][3] = c.cyc + 4;
+        c.bkValid = false;
+        ++c.cyc;
+    }
+    // 0890: 0180D69F 8000033C
+    {
+        stall(c, c.vfReady[26][0]);
+        stall(c, c.vfReady[26][1]);
+        const float u0 = vmin(N(vf[26][0]), N(s.i));
+        const float u1 = vmin(N(vf[26][1]), N(s.i));
+        vf[26][0] = u0; c.vfReady[26][0] = c.cyc + 4;
+        vf[26][1] = u1; c.vfReady[26][1] = c.cyc + 4;
+        c.bkValid = false;
+        ++c.cyc;
+    }
+    // 0898: 01FABEEC 8000033C
+    {
+        stall(c, c.vfReady[23][0]);
+        stall(c, c.vfReady[23][1]);
+        stall(c, c.vfReady[23][2]);
+        stall(c, c.vfReady[23][3]);
+        stall(c, c.vfReady[26][0]);
+        stall(c, c.vfReady[26][1]);
+        stall(c, c.vfReady[26][2]);
+        stall(c, c.vfReady[26][3]);
+        uint32_t stk = 0u;
+        uint32_t f0 = 0u;
+        const float u0 = fSubF(N(vf[23][0]), N(vf[26][0]), f0);
+        uint32_t f1 = 0u;
+        const float u1 = fSubF(N(vf[23][1]), N(vf[26][1]), f1);
+        uint32_t f2 = 0u;
+        const float u2 = fSubF(N(vf[23][2]), N(vf[26][2]), f2);
+        uint32_t f3 = 0u;
+        const float u3 = fSubF(N(vf[23][3]), N(vf[26][3]), f3);
+        pushMacStatus(c, 0u | macBits(f0, 8u) | macBits(f1, 4u) | macBits(f2, 2u) | macBits(f3, 1u), 0u | f0 | f1 | f2 | f3, stk);
+        vf[27][0] = u0; c.vfReady[27][0] = c.cyc + 4;
+        vf[27][1] = u1; c.vfReady[27][1] = c.cyc + 4;
+        vf[27][2] = u2; c.vfReady[27][2] = c.cyc + 4;
+        vf[27][3] = u3; c.vfReady[27][3] = c.cyc + 4;
+        c.bkValid = false;
+        ++c.cyc;
+    }
+    // 08A0: 000002FF 8000033C
+    {
+        c.bkValid = false;
+        ++c.cyc;
+    }
+    // 08A8: 01FABDE8 8000033C
+    {
+        uint32_t stk = 0u;
+        uint32_t f0 = 0u;
+        const float u0 = fAddF(N(vf[23][0]), N(vf[26][0]), f0);
+        uint32_t f1 = 0u;
+        const float u1 = fAddF(N(vf[23][1]), N(vf[26][1]), f1);
+        uint32_t f2 = 0u;
+        const float u2 = fAddF(N(vf[23][2]), N(vf[26][2]), f2);
+        uint32_t f3 = 0u;
+        const float u3 = fAddF(N(vf[23][3]), N(vf[26][3]), f3);
+        pushMacStatus(c, 0u | macBits(f0, 8u) | macBits(f1, 4u) | macBits(f2, 2u) | macBits(f3, 1u), 0u | f0 | f1 | f2 | f3, stk);
+        vf[23][0] = u0; c.vfReady[23][0] = c.cyc + 4;
+        vf[23][1] = u1; c.vfReady[23][1] = c.cyc + 4;
+        vf[23][2] = u2; c.vfReady[23][2] = c.cyc + 4;
+        vf[23][3] = u3; c.vfReady[23][3] = c.cyc + 4;
+        c.bkValid = false;
+        ++c.cyc;
+    }
+    // 08B0: 01FAD97D 10063005
+    {
+        stall(c, c.vfReady[27][0]);
+        stall(c, c.vfReady[27][1]);
+        stall(c, c.vfReady[27][2]);
+        stall(c, c.vfReady[27][3]);
+        const float u0 = bitsf(static_cast<uint32_t>(floatToInt(N(vf[27][0]), 16.0f)));
+        const float u1 = bitsf(static_cast<uint32_t>(floatToInt(N(vf[27][1]), 16.0f)));
+        const float u2 = bitsf(static_cast<uint32_t>(floatToInt(N(vf[27][2]), 16.0f)));
+        const float u3 = bitsf(static_cast<uint32_t>(floatToInt(N(vf[27][3]), 16.0f)));
+        const int32_t nvi = static_cast<int16_t>(vi[6] + (5));
+        vf[26][0] = u0; c.vfReady[26][0] = c.cyc + 4;
+        vf[26][1] = u1; c.vfReady[26][1] = c.cyc + 4;
+        vf[26][2] = u2; c.vfReady[26][2] = c.cyc + 4;
+        vf[26][3] = u3; c.vfReady[26][3] = c.cyc + 4;
+        c.bkValid = true; c.bkReg = 6; c.bkVal = vi[6];
+        vi[6] = nvi; c.viReady[6] = c.cyc + 1;
+        ++c.cyc;
+    }
+    // 08B8: 01F7B97D 03E617FE
+    {
+        stall(c, c.vfReady[23][0]);
+        stall(c, c.vfReady[23][1]);
+        stall(c, c.vfReady[23][2]);
+        stall(c, c.vfReady[23][3]);
+        stall(c, c.vfReady[2][0]);
+        stall(c, c.vfReady[2][1]);
+        stall(c, c.vfReady[2][2]);
+        stall(c, c.vfReady[2][3]);
+        const float u0 = bitsf(static_cast<uint32_t>(floatToInt(N(vf[23][0]), 16.0f)));
+        const float u1 = bitsf(static_cast<uint32_t>(floatToInt(N(vf[23][1]), 16.0f)));
+        const float u2 = bitsf(static_cast<uint32_t>(floatToInt(N(vf[23][2]), 16.0f)));
+        const float u3 = bitsf(static_cast<uint32_t>(floatToInt(N(vf[23][3]), 16.0f)));
+        { const uint32_t w[4] = {fbits(vf[2][0]), fbits(vf[2][1]), fbits(vf[2][2]), fbits(vf[2][3])}; storeQ(c, ((static_cast<uint32_t>(static_cast<int32_t>(vi[6] + (-2))) * 16u) & 0x3FF0u), w, 15); }
+        vf[23][0] = u0; c.vfReady[23][0] = c.cyc + 4;
+        vf[23][1] = u1; c.vfReady[23][1] = c.cyc + 4;
+        vf[23][2] = u2; c.vfReady[23][2] = c.cyc + 4;
+        vf[23][3] = u3; c.vfReady[23][3] = c.cyc + 4;
+        c.bkValid = false;
+        ++c.cyc;
+    }
+    // 08C0: 000002FF 03E6D7FF
+    {
+        stall(c, c.vfReady[26][0]);
+        stall(c, c.vfReady[26][1]);
+        stall(c, c.vfReady[26][2]);
+        stall(c, c.vfReady[26][3]);
+        { const uint32_t w[4] = {fbits(vf[26][0]), fbits(vf[26][1]), fbits(vf[26][2]), fbits(vf[26][3])}; storeQ(c, ((static_cast<uint32_t>(static_cast<int32_t>(vi[6] + (-1))) * 16u) & 0x3FF0u), w, 15); }
+        c.bkValid = false;
+        ++c.cyc;
+    }
+    bool taken = false;
+    // 08C8: 000002FF 5207400A
+    {
+        stall(c, c.viReady[8]);
+        taken = static_cast<int16_t>(brVi(c, 8)) != static_cast<int16_t>(brVi(c, 7));
+        c.bkValid = false;
+        ++c.cyc;
+    }
+    // 08D0: 000002FF 03E6BFFD
+    {
+        stall(c, c.vfReady[23][0]);
+        stall(c, c.vfReady[23][1]);
+        stall(c, c.vfReady[23][2]);
+        stall(c, c.vfReady[23][3]);
+        { const uint32_t w[4] = {fbits(vf[23][0]), fbits(vf[23][1]), fbits(vf[23][2]), fbits(vf[23][3])}; storeQ(c, ((static_cast<uint32_t>(static_cast<int32_t>(vi[6] + (-3))) * 16u) & 0x3FF0u), w, 15); }
+        c.bkValid = false;
+        ++c.cyc;
+    }
+    if (c.cyc >= c.budgetEnd)
+        return handoffRet(c, (taken ? 0x920u : 0x8D8u));
+    return (taken ? 0x920u : 0x8D8u);
+}
+
+static uint32_t vu1prog_3_08D8(VU1NativeCtx &c)
+{
+    using namespace vu1n;
+    VU1State &s = *c.st;
+    float (*vf)[4] = s.vf;
+    int32_t *vi = s.vi;
+    uint8_t *m = c.mem;
+    (void)m;
+    (void)vf;
+    (void)vi;
+    // 08D8: 000002FF 11063800
+    {
+        stall(c, c.viReady[7]);
+        const int32_t nvi = static_cast<int16_t>(vi[7] + (16384));
+        c.bkValid = true; c.bkReg = 6; c.bkVal = vi[6];
+        vi[6] = nvi; c.viReady[6] = c.cyc + 1;
+        ++c.cyc;
+    }
+    // 08E0: 000002FF 10072000
+    {
+        stall(c, c.viReady[4]);
+        const int32_t nvi = static_cast<int16_t>(vi[4] + (0));
+        c.bkValid = true; c.bkReg = 7; c.bkVal = vi[7];
+        vi[7] = nvi; c.viReady[7] = c.cyc + 1;
+        ++c.cyc;
+    }
+    // 08E8: 000002FF 11063000
+    {
+        const int32_t nvi = static_cast<int16_t>(vi[6] + (16384));
+        c.bkValid = true; c.bkReg = 6; c.bkVal = vi[6];
+        vi[6] = nvi; c.viReady[6] = c.cyc + 1;
+        ++c.cyc;
+    }
+    // 08F0: 000002FF 0B062000
+    {
+        { const uint32_t v = static_cast<uint32_t>(static_cast<uint16_t>(vi[6] & 0xFFFF)); const uint32_t w[4] = {v, v, v, v}; storeQ(c, ((static_cast<uint32_t>(static_cast<int32_t>(vi[4] + (0))) * 16u) & 0x3FF0u), w, 8); }
+        c.bkValid = false;
+        ++c.cyc;
+    }
+    // 08F8: 000002FF 800026FC
+    {
+        xgWaitIdle(c);
+        xgStart(c, static_cast<uint32_t>(static_cast<uint16_t>(vi[4])));
+        c.bkValid = false;
+        ++c.cyc;
+    }
+    // 0900: 000002FF 10042800
+    {
+        stall(c, c.viReady[5]);
+        const int32_t nvi = static_cast<int16_t>(vi[5] + (0));
+        c.bkValid = true; c.bkReg = 4; c.bkVal = vi[4];
+        vi[4] = nvi; c.viReady[4] = c.cyc + 1;
+        ++c.cyc;
+    }
+    // 0908: 000002FF 10062801
+    {
+        const int32_t nvi = static_cast<int16_t>(vi[5] + (1));
+        c.bkValid = true; c.bkReg = 6; c.bkVal = vi[6];
+        vi[6] = nvi; c.viReady[6] = c.cyc + 1;
+        ++c.cyc;
+    }
+    // 0910: 000002FF 10053800
+    {
+        const int32_t nvi = static_cast<int16_t>(vi[7] + (0));
+        c.bkValid = true; c.bkReg = 5; c.bkVal = vi[5];
+        vi[5] = nvi; c.viReady[5] = c.cyc + 1;
+        ++c.cyc;
+    }
+    // 0918: 000002FF 10070000
+    {
+        const int32_t nvi = static_cast<int16_t>(vi[0] + (0));
+        c.bkValid = true; c.bkReg = 7; c.bkVal = vi[7];
+        vi[7] = nvi; c.viReady[7] = c.cyc + 1;
+        ++c.cyc;
+    }
+    return 0x920;
+}
+
+static uint32_t vu1prog_3_0920(VU1NativeCtx &c)
+{
+    using namespace vu1n;
+    VU1State &s = *c.st;
+    float (*vf)[4] = s.vf;
+    int32_t *vi = s.vi;
+    uint8_t *m = c.mem;
+    (void)m;
+    (void)vf;
+    (void)vi;
+    // 0920: 002818C5 8000033C
+    {
+        stall(c, c.vfReady[3][3]);
+        stall(c, c.vfReady[8][1]);
+        uint32_t stk = 0u;
+        uint32_t f3 = 0u;
+        const float u3 = fSubF(N(vf[3][3]), N(vf[8][1]), f3);
+        pushMacStatus(c, 0u | macBits(f3, 1u), 0u | f3, stk);
+        vf[3][3] = u3; c.vfReady[3][3] = c.cyc + 4;
+        c.bkValid = false;
+        ++c.cyc;
+    }
+    // 0928: 002019FD 34011800
+    {
+        stall(c, c.vfReady[3][3]);
+        stall(c, c.viReady[3]);
+        commitClip(c);
+        const float u3 = std::fabs(N(vf[3][3]));
+        const int32_t nvi = static_cast<int32_t>(s.mac & static_cast<uint32_t>(static_cast<uint16_t>(vi[3])));
+        c.bkValid = false;
+        vi[1] = nvi; c.viReady[1] = c.cyc + 1;
+        ++c.cyc;
+    }
+    bool taken = false;
+    // 0930: 000002FF 50011805
+    {
+        taken = static_cast<int16_t>(brVi(c, 3)) == static_cast<int16_t>(brVi(c, 1));
+        c.bkValid = false;
+        ++c.cyc;
+    }
+    // 0938: 000002FF 8000033C
+    {
+        c.bkValid = false;
+        ++c.cyc;
+    }
+    if (c.cyc >= c.budgetEnd)
+        return handoffRet(c, (taken ? 0x960u : 0x940u));
+    return (taken ? 0x960u : 0x940u);
+}
+
+static uint32_t vu1prog_3_0940(VU1NativeCtx &c)
+{
+    using namespace vu1n;
+    VU1State &s = *c.st;
+    float (*vf)[4] = s.vf;
+    int32_t *vi = s.vi;
+    uint8_t *m = c.mem;
+    (void)m;
+    (void)vf;
+    (void)vi;
+    // 0940: 000002FF 120D6801
+    {
+        stall(c, c.viReady[13]);
+        const int32_t nvi = static_cast<int16_t>(vi[13] - (1));
+        c.bkValid = true; c.bkReg = 13; c.bkVal = vi[13];
+        vi[13] = nvi; c.viReady[13] = c.cyc + 1;
+        ++c.cyc;
+    }
+    // 0948: 000002FF 8000033C
+    {
+        c.bkValid = false;
+        ++c.cyc;
+    }
+    bool taken = false;
+    // 0950: 000002FF 5A006FC8
+    {
+        taken = static_cast<int16_t>(brVi(c, 13)) > 0;
+        c.bkValid = false;
+        ++c.cyc;
+    }
+    // 0958: 000002FF 8000033C
+    {
+        c.bkValid = false;
+        ++c.cyc;
+    }
+    if (c.cyc >= c.budgetEnd)
+        return handoffRet(c, (taken ? 0x798u : 0x960u));
+    return (taken ? 0x798u : 0x960u);
+}
+
+static uint32_t vu1prog_3_0960(VU1NativeCtx &c)
+{
+    using namespace vu1n;
+    VU1State &s = *c.st;
+    float (*vf)[4] = s.vf;
+    int32_t *vi = s.vi;
+    uint8_t *m = c.mem;
+    (void)m;
+    (void)vf;
+    (void)vi;
+    // 0960: 00278403 120C6001
+    {
+        stall(c, c.vfReady[16][3]);
+        stall(c, c.vfReady[7][3]);
+        stall(c, c.viReady[12]);
+        uint32_t stk = 0u;
+        uint32_t f3 = 0u;
+        const float u3 = fAddF(N(vf[16][3]), N(vf[7][3]), f3);
+        pushMacStatus(c, 0u | macBits(f3, 1u), 0u | f3, stk);
+        const int32_t nvi = static_cast<int16_t>(vi[12] - (1));
+        vf[16][3] = u3; c.vfReady[16][3] = c.cyc + 4;
+        c.bkValid = true; c.bkReg = 12; c.bkVal = vi[12];
+        vi[12] = nvi; c.viReady[12] = c.cyc + 1;
+        ++c.cyc;
+    }
+    // 0968: 000002FF 8000033C
+    {
+        c.bkValid = false;
+        ++c.cyc;
+    }
+    bool taken = false;
+    // 0970: 01117381 5A00679B
+    {
+        stall(c, c.vfReady[14][0]);
+        stall(c, c.vfReady[17][1]);
+        uint32_t stk = 0u;
+        uint32_t f0 = 0u;
+        const float u0 = fAddF(N(vf[14][0]), N(vf[17][1]), f0);
+        pushMacStatus(c, 0u | macBits(f0, 8u), 0u | f0, stk);
+        taken = static_cast<int16_t>(brVi(c, 12)) > 0;
+        vf[14][0] = u0; c.vfReady[14][0] = c.cyc + 4;
+        c.bkValid = false;
+        ++c.cyc;
+    }
+    // 0978: 000002FF 8000033C
+    {
+        c.bkValid = false;
+        ++c.cyc;
+    }
+    if (c.cyc >= c.budgetEnd)
+        return handoffRet(c, (taken ? 0x650u : 0x980u));
+    return (taken ? 0x650u : 0x980u);
+}
+
+static uint32_t vu1prog_3_0980(VU1NativeCtx &c)
+{
+    using namespace vu1n;
+    VU1State &s = *c.st;
+    float (*vf)[4] = s.vf;
+    int32_t *vi = s.vi;
+    uint8_t *m = c.mem;
+    (void)m;
+    (void)vf;
+    (void)vi;
+    // 0980: 000002FF 12094801
+    {
+        stall(c, c.viReady[9]);
+        const int32_t nvi = static_cast<int16_t>(vi[9] - (1));
+        c.bkValid = true; c.bkReg = 9; c.bkVal = vi[9];
+        vi[9] = nvi; c.viReady[9] = c.cyc + 1;
+        ++c.cyc;
+    }
+    // 0988: 000002FF 8000033C
+    {
+        c.bkValid = false;
+        ++c.cyc;
+    }
+    bool taken = false;
+    // 0990: 000002FF 5E004F8D
+    {
+        taken = static_cast<int16_t>(brVi(c, 9)) >= 0;
+        c.bkValid = false;
+        ++c.cyc;
+    }
+    // 0998: 000002FF 8000033C
+    {
+        c.bkValid = false;
+        ++c.cyc;
+    }
+    if (c.cyc >= c.budgetEnd)
+        return handoffRet(c, (taken ? 0x600u : 0x9A0u));
+    return (taken ? 0x600u : 0x9A0u);
+}
+
+static uint32_t vu1prog_3_09A0(VU1NativeCtx &c)
+{
+    using namespace vu1n;
+    VU1State &s = *c.st;
+    float (*vf)[4] = s.vf;
+    int32_t *vi = s.vi;
+    uint8_t *m = c.mem;
+    (void)m;
+    (void)vf;
+    (void)vi;
+    bool taken = false;
+    // 09A0: 000002FF 50070007
+    {
+        stall(c, c.viReady[7]);
+        taken = static_cast<int16_t>(brVi(c, 0)) == static_cast<int16_t>(brVi(c, 7));
+        c.bkValid = false;
+        ++c.cyc;
+    }
+    // 09A8: 000002FF 8000033C
+    {
+        c.bkValid = false;
+        ++c.cyc;
+    }
+    if (c.cyc >= c.budgetEnd)
+        return handoffRet(c, (taken ? 0x9E0u : 0x9B0u));
+    return (taken ? 0x9E0u : 0x9B0u);
+}
+
+static uint32_t vu1prog_3_09B0(VU1NativeCtx &c)
+{
+    using namespace vu1n;
+    VU1State &s = *c.st;
+    float (*vf)[4] = s.vf;
+    int32_t *vi = s.vi;
+    uint8_t *m = c.mem;
+    (void)m;
+    (void)vf;
+    (void)vi;
+    // 09B0: 000002FF 11013800
+    {
+        stall(c, c.viReady[7]);
+        const int32_t nvi = static_cast<int16_t>(vi[7] + (16384));
+        c.bkValid = true; c.bkReg = 1; c.bkVal = vi[1];
+        vi[1] = nvi; c.viReady[1] = c.cyc + 1;
+        ++c.cyc;
+    }
+    // 09B8: 000002FF 11010800
+    {
+        const int32_t nvi = static_cast<int16_t>(vi[1] + (16384));
+        c.bkValid = true; c.bkReg = 1; c.bkVal = vi[1];
+        vi[1] = nvi; c.viReady[1] = c.cyc + 1;
+        ++c.cyc;
+    }
+    // 09C0: 000002FF 0B012000
+    {
+        stall(c, c.viReady[4]);
+        { const uint32_t v = static_cast<uint32_t>(static_cast<uint16_t>(vi[1] & 0xFFFF)); const uint32_t w[4] = {v, v, v, v}; storeQ(c, ((static_cast<uint32_t>(static_cast<int32_t>(vi[4] + (0))) * 16u) & 0x3FF0u), w, 8); }
+        c.bkValid = false;
+        ++c.cyc;
+    }
+    // 09C8: 000002FF 800026FC
+    {
+        xgWaitIdle(c);
+        xgStart(c, static_cast<uint32_t>(static_cast<uint16_t>(vi[4])));
+        c.bkValid = false;
+        ++c.cyc;
+    }
+    // 09D0: 400002FF 8000033C
+    {
+        c.bkValid = false;
+        ++c.cyc;
+    }
+    // 09D8: 000002FF 8000033C
+    {
+        c.bkValid = false;
+        ++c.cyc;
+    }
+    s.pc = 0x9E0;
+    finish(c);
+    return kEnded;
+}
+
+static uint32_t vu1prog_3_09E0(VU1NativeCtx &c)
+{
+    using namespace vu1n;
+    VU1State &s = *c.st;
+    float (*vf)[4] = s.vf;
+    int32_t *vi = s.vi;
+    uint8_t *m = c.mem;
+    (void)m;
+    (void)vf;
+    (void)vi;
+    // 09E0: 400002FF 8000033C
+    {
+        c.bkValid = false;
+        ++c.cyc;
+    }
+    // 09E8: 000002FF 8000033C
+    {
+        c.bkValid = false;
+        ++c.cyc;
+    }
+    s.pc = 0x9F0;
+    finish(c);
+    return kEnded;
+}
+
+static uint32_t vu1prog_3_09F0(VU1NativeCtx &c)
+{
+    using namespace vu1n;
+    VU1State &s = *c.st;
+    float (*vf)[4] = s.vf;
+    int32_t *vi = s.vi;
+    uint8_t *m = c.mem;
+    (void)m;
+    (void)vf;
+    (void)vi;
+    // 09F0: 002081BF 400007F1
+    {
+        stall(c, c.vfReady[16][3]);
+        uint32_t stk = 0u;
+        uint32_t f3 = 0u;
+        const float u3 = fMulF(N(vf[16][3]), N(vf[0][3]), f3);
+        pushMacStatus(c, 0u | macBits(f3, 1u), 0u | f3, stk);
+        s.acc[3] = u3; c.accReady[3] = c.cyc + 1u;
+        c.bkValid = false;
+        ++c.cyc;
+    }
+    // 09F8: 002F3C0A 8000033C
+    {
+        stall(c, c.vfReady[15][2]);
+        stall(c, c.vfReady[7][3]);
+        uint32_t stk = 0u;
+        uint32_t f3 = 0u;
+        const float u3 = fMaddF(N(s.acc[3]), N(vf[7][3]), N(vf[15][2]), f3, stk);
+        pushMacStatus(c, 0u | macBits(f3, 1u), 0u | f3, stk);
+        vf[16][3] = u3; c.vfReady[16][3] = c.cyc + 4;
+        c.bkValid = false;
+        ++c.cyc;
+    }
+    if (c.cyc >= c.budgetEnd)
+        return handoffRet(c, 0x980u);
+    return 0x980u;
+}
+
+static uint32_t vu1prog_3_0A00(VU1NativeCtx &c)
+{
+    using namespace vu1n;
+    VU1State &s = *c.st;
+    float (*vf)[4] = s.vf;
+    int32_t *vi = s.vi;
+    uint8_t *m = c.mem;
+    (void)m;
+    (void)vf;
+    (void)vi;
+    // 0A00: 000002FF 22000000
+    {
+        fcset(c, 0x0u);
+        c.bkValid = false;
+        ++c.cyc;
+    }
+    // 0A08: 000002FF 800206BC
+    {
+        const int32_t nvi = static_cast<int32_t>(s.top & 0x3FFu);
+        c.bkValid = false;
+        vi[2] = nvi; c.viReady[2] = c.cyc + 1;
+        ++c.cyc;
+    }
+    // 0A10: 000002FF 1004013B
+    {
+        const int32_t nvi = static_cast<int16_t>(vi[0] + (315));
+        c.bkValid = true; c.bkReg = 4; c.bkVal = vi[4];
+        vi[4] = nvi; c.viReady[4] = c.cyc + 1;
+        ++c.cyc;
+    }
+    // 0A18: 000002FF 01C91007
+    {
+        const uint32_t la = ((static_cast<uint32_t>(static_cast<int32_t>(vi[2] + (7))) * 16u) & 0x3FF0u);
+        const float l0 = ldf(m, la + 0);
+        const float l1 = ldf(m, la + 4);
+        const float l2 = ldf(m, la + 8);
+        vf[9][0] = l0; c.vfReady[9][0] = c.cyc + 4;
+        vf[9][1] = l1; c.vfReady[9][1] = c.cyc + 4;
+        vf[9][2] = l2; c.vfReady[9][2] = c.cyc + 4;
+        c.bkValid = false;
+        ++c.cyc;
+    }
+    // 0A20: 000002FF 01CA1008
+    {
+        const uint32_t la = ((static_cast<uint32_t>(static_cast<int32_t>(vi[2] + (8))) * 16u) & 0x3FF0u);
+        const float l0 = ldf(m, la + 0);
+        const float l1 = ldf(m, la + 4);
+        const float l2 = ldf(m, la + 8);
+        vf[10][0] = l0; c.vfReady[10][0] = c.cyc + 4;
+        vf[10][1] = l1; c.vfReady[10][1] = c.cyc + 4;
+        vf[10][2] = l2; c.vfReady[10][2] = c.cyc + 4;
+        c.bkValid = false;
+        ++c.cyc;
+    }
+    // 0A28: 000002FF 01CB1009
+    {
+        const uint32_t la = ((static_cast<uint32_t>(static_cast<int32_t>(vi[2] + (9))) * 16u) & 0x3FF0u);
+        const float l0 = ldf(m, la + 0);
+        const float l1 = ldf(m, la + 4);
+        const float l2 = ldf(m, la + 8);
+        vf[11][0] = l0; c.vfReady[11][0] = c.cyc + 4;
+        vf[11][1] = l1; c.vfReady[11][1] = c.cyc + 4;
+        vf[11][2] = l2; c.vfReady[11][2] = c.cyc + 4;
+        c.bkValid = false;
+        ++c.cyc;
+    }
+    // 0A30: 800002FF BF3AE148
+    {
+        s.i = N(bitsf(0xBF3AE148u));
+        c.bkValid = false;
+        ++c.cyc;
+    }
+    // 0A38: 000002FF 01CC100A
+    {
+        const uint32_t la = ((static_cast<uint32_t>(static_cast<int32_t>(vi[2] + (10))) * 16u) & 0x3FF0u);
+        const float l0 = ldf(m, la + 0);
+        const float l1 = ldf(m, la + 4);
+        const float l2 = ldf(m, la + 8);
+        vf[12][0] = l0; c.vfReady[12][0] = c.cyc + 4;
+        vf[12][1] = l1; c.vfReady[12][1] = c.cyc + 4;
+        vf[12][2] = l2; c.vfReady[12][2] = c.cyc + 4;
+        c.bkValid = false;
+        ++c.cyc;
+    }
+    // 0A40: 81000362 3DE76C8B
+    {
+        uint32_t stk = 0u;
+        uint32_t f0 = 0u;
+        const float u0 = fAddF(N(vf[0][0]), N(s.i), f0);
+        pushMacStatus(c, 0u | macBits(f0, 8u), 0u | f0, stk);
+        s.i = N(bitsf(0x3DE76C8Bu));
+        vf[13][0] = u0; c.vfReady[13][0] = c.cyc + 4;
+        c.bkValid = false;
+        ++c.cyc;
+    }
+    // 0A48: 000002FF 09091015
+    {
+        const int32_t nvi = static_cast<int32_t>(static_cast<int16_t>(ldu(m, ((static_cast<uint32_t>(static_cast<int32_t>(vi[2] + (21))) * 16u) & 0x3FF0u) + 0) & 0xFFFFu));
+        c.bkValid = false;
+        vi[9] = nvi; c.viReady[9] = c.cyc + 4;
+        ++c.cyc;
+    }
+    // 0A50: 000002FF 004F1015
+    {
+        const uint32_t la = ((static_cast<uint32_t>(static_cast<int32_t>(vi[2] + (21))) * 16u) & 0x3FF0u);
+        const float l2 = ldf(m, la + 8);
+        vf[15][2] = l2; c.vfReady[15][2] = c.cyc + 4;
+        c.bkValid = false;
+        ++c.cyc;
+    }
+    // 0A58: 000002FF 088A1015
+    {
+        const int32_t nvi = static_cast<int32_t>(static_cast<int16_t>(ldu(m, ((static_cast<uint32_t>(static_cast<int32_t>(vi[2] + (21))) * 16u) & 0x3FF0u) + 4) & 0xFFFFu));
+        c.bkValid = false;
+        vi[10] = nvi; c.viReady[10] = c.cyc + 4;
+        ++c.cyc;
+    }
+    // 0A60: 000002FF 00301015
+    {
+        const uint32_t la = ((static_cast<uint32_t>(static_cast<int32_t>(vi[2] + (21))) * 16u) & 0x3FF0u);
+        const float l3 = ldf(m, la + 12);
+        vf[16][3] = l3; c.vfReady[16][3] = c.cyc + 4;
+        c.bkValid = false;
+        ++c.cyc;
+    }
+    // 0A68: 000002FF 100B1016
+    {
+        const int32_t nvi = static_cast<int16_t>(vi[2] + (22));
+        c.bkValid = true; c.bkReg = 11; c.bkVal = vi[11];
+        vi[11] = nvi; c.viReady[11] = c.cyc + 1;
+        ++c.cyc;
+    }
+    // 0A70: 000002FF 816F03BC
+    {
+        if (c.qPending) stall(c, c.qReady);
+        divq(c, N(vf[0][3]), N(vf[15][2]));
+        c.bkValid = false;
+        ++c.cyc;
+    }
+    // 0A78: 000002FF 01881003
+    {
+        const uint32_t la = ((static_cast<uint32_t>(static_cast<int32_t>(vi[2] + (3))) * 16u) & 0x3FF0u);
+        const float l0 = ldf(m, la + 0);
+        const float l1 = ldf(m, la + 4);
+        vf[8][0] = l0; c.vfReady[8][0] = c.cyc + 4;
+        vf[8][1] = l1; c.vfReady[8][1] = c.cyc + 4;
+        c.bkValid = false;
+        ++c.cyc;
+    }
+    // 0A80: 000002FF 00271000
+    {
+        const uint32_t la = ((static_cast<uint32_t>(static_cast<int32_t>(vi[2] + (0))) * 16u) & 0x3FF0u);
+        const float l3 = ldf(m, la + 12);
+        vf[7][3] = l3; c.vfReady[7][3] = c.cyc + 4;
+        c.bkValid = false;
+        ++c.cyc;
+    }
+    // 0A88: 000002FF 01C6100E
+    {
+        const uint32_t la = ((static_cast<uint32_t>(static_cast<int32_t>(vi[2] + (14))) * 16u) & 0x3FF0u);
+        const float l0 = ldf(m, la + 0);
+        const float l1 = ldf(m, la + 4);
+        const float l2 = ldf(m, la + 8);
+        vf[6][0] = l0; c.vfReady[6][0] = c.cyc + 4;
+        vf[6][1] = l1; c.vfReady[6][1] = c.cyc + 4;
+        vf[6][2] = l2; c.vfReady[6][2] = c.cyc + 4;
+        c.bkValid = false;
+        ++c.cyc;
+    }
+    // 0A90: 000002FF 01C5100D
+    {
+        const uint32_t la = ((static_cast<uint32_t>(static_cast<int32_t>(vi[2] + (13))) * 16u) & 0x3FF0u);
+        const float l0 = ldf(m, la + 0);
+        const float l1 = ldf(m, la + 4);
+        const float l2 = ldf(m, la + 8);
+        vf[5][0] = l0; c.vfReady[5][0] = c.cyc + 4;
+        vf[5][1] = l1; c.vfReady[5][1] = c.cyc + 4;
+        vf[5][2] = l2; c.vfReady[5][2] = c.cyc + 4;
+        c.bkValid = false;
+        ++c.cyc;
+    }
+    // 0A98: 000002FF 01C4100C
+    {
+        const uint32_t la = ((static_cast<uint32_t>(static_cast<int32_t>(vi[2] + (12))) * 16u) & 0x3FF0u);
+        const float l0 = ldf(m, la + 0);
+        const float l1 = ldf(m, la + 4);
+        const float l2 = ldf(m, la + 8);
+        vf[4][0] = l0; c.vfReady[4][0] = c.cyc + 4;
+        vf[4][1] = l1; c.vfReady[4][1] = c.cyc + 4;
+        vf[4][2] = l2; c.vfReady[4][2] = c.cyc + 4;
+        c.bkValid = false;
+        ++c.cyc;
+    }
+    // 0AA0: 000002FF 01C3100B
+    {
+        const uint32_t la = ((static_cast<uint32_t>(static_cast<int32_t>(vi[2] + (11))) * 16u) & 0x3FF0u);
+        const float l0 = ldf(m, la + 0);
+        const float l1 = ldf(m, la + 4);
+        const float l2 = ldf(m, la + 8);
+        vf[3][0] = l0; c.vfReady[3][0] = c.cyc + 4;
+        vf[3][1] = l1; c.vfReady[3][1] = c.cyc + 4;
+        vf[3][2] = l2; c.vfReady[3][2] = c.cyc + 4;
+        c.bkValid = false;
+        ++c.cyc;
+    }
+    // 0AA8: 000002FF 10080046
+    {
+        const int32_t nvi = static_cast<int16_t>(vi[0] + (70));
+        c.bkValid = true; c.bkReg = 8; c.bkVal = vi[8];
+        vi[8] = nvi; c.viReady[8] = c.cyc + 1;
+        ++c.cyc;
+    }
+    // 0AB0: 000002FF 10070000
+    {
+        const int32_t nvi = static_cast<int16_t>(vi[0] + (0));
+        c.bkValid = true; c.bkReg = 7; c.bkVal = vi[7];
+        vi[7] = nvi; c.viReady[7] = c.cyc + 1;
+        ++c.cyc;
+    }
+    // 0AB8: 000002FF 10062001
+    {
+        const int32_t nvi = static_cast<int16_t>(vi[4] + (1));
+        c.bkValid = true; c.bkReg = 6; c.bkVal = vi[6];
+        vi[6] = nvi; c.viReady[6] = c.cyc + 1;
+        ++c.cyc;
+    }
+    // 0AC0: 000002FF 1005029A
+    {
+        const int32_t nvi = static_cast<int16_t>(vi[0] + (666));
+        c.bkValid = true; c.bkReg = 5; c.bkVal = vi[5];
+        vi[5] = nvi; c.viReady[5] = c.cyc + 1;
+        ++c.cyc;
+    }
+    // 0AC8: 000002FF 10030010
+    {
+        const int32_t nvi = static_cast<int16_t>(vi[0] + (16));
+        c.bkValid = true; c.bkReg = 3; c.bkVal = vi[3];
+        vi[3] = nvi; c.viReady[3] = c.cyc + 1;
+        ++c.cyc;
+    }
+    // 0AD0: 000002FF 8042033D
+    {
+        const float l2 = vf[0][3];
+        vf[2][2] = l2; c.vfReady[2][2] = c.cyc + 4;
+        c.bkValid = false;
+        ++c.cyc;
+    }
+    // 0AD8: 000002FF 01A21014
+    {
+        const uint32_t la = ((static_cast<uint32_t>(static_cast<int32_t>(vi[2] + (20))) * 16u) & 0x3FF0u);
+        const float l0 = ldf(m, la + 0);
+        const float l1 = ldf(m, la + 4);
+        const float l3 = ldf(m, la + 12);
+        vf[2][0] = l0; c.vfReady[2][0] = c.cyc + 4;
+        vf[2][1] = l1; c.vfReady[2][1] = c.cyc + 4;
+        vf[2][3] = l3; c.vfReady[2][3] = c.cyc + 4;
+        c.bkValid = false;
+        ++c.cyc;
+    }
+    // 0AE0: 008003A2 8041033D
+    {
+        uint32_t stk = 0u;
+        uint32_t f1 = 0u;
+        const float u1 = fAddF(N(vf[0][1]), N(s.i), f1);
+        pushMacStatus(c, 0u | macBits(f1, 4u), 0u | f1, stk);
+        const float l2 = vf[0][3];
+        vf[1][2] = l2; c.vfReady[1][2] = c.cyc + 4;
+        vf[14][1] = u1; c.vfReady[14][1] = c.cyc + 4;
+        c.bkValid = false;
+        ++c.cyc;
+    }
+    // 0AE8: 00800460 01A11013
+    {
+        commitQ(c);
+        uint32_t stk = 0u;
+        uint32_t f1 = 0u;
+        const float u1 = fAddF(N(vf[0][1]), N(s.q), f1);
+        pushMacStatus(c, 0u | macBits(f1, 4u), 0u | f1, stk);
+        const uint32_t la = ((static_cast<uint32_t>(static_cast<int32_t>(vi[2] + (19))) * 16u) & 0x3FF0u);
+        const float l0 = ldf(m, la + 0);
+        const float l1 = ldf(m, la + 4);
+        const float l3 = ldf(m, la + 12);
+        vf[1][0] = l0; c.vfReady[1][0] = c.cyc + 4;
+        vf[1][1] = l1; c.vfReady[1][1] = c.cyc + 4;
+        vf[1][3] = l3; c.vfReady[1][3] = c.cyc + 4;
+        vf[17][1] = u1; c.vfReady[17][1] = c.cyc + 4;
+        c.bkValid = false;
+        ++c.cyc;
+    }
+    return 0xAF0;
+}
+
+static uint32_t vu1prog_3_0AF0(VU1NativeCtx &c)
+{
+    using namespace vu1n;
+    VU1State &s = *c.st;
+    float (*vf)[4] = s.vf;
+    int32_t *vi = s.vi;
+    uint8_t *m = c.mem;
+    (void)m;
+    (void)vf;
+    (void)vi;
+    // 0AF0: 000002FF 01F2582C
+    {
+        stall(c, c.viReady[11]);
+        const uint32_t la = ((static_cast<uint32_t>(static_cast<int32_t>(vi[11] + (44))) * 16u) & 0x3FF0u);
+        const float l0 = ldf(m, la + 0);
+        const float l1 = ldf(m, la + 4);
+        const float l2 = ldf(m, la + 8);
+        const float l3 = ldf(m, la + 12);
+        vf[18][0] = l0; c.vfReady[18][0] = c.cyc + 4;
+        vf[18][1] = l1; c.vfReady[18][1] = c.cyc + 4;
+        vf[18][2] = l2; c.vfReady[18][2] = c.cyc + 4;
+        vf[18][3] = l3; c.vfReady[18][3] = c.cyc + 4;
+        c.bkValid = false;
+        ++c.cyc;
+    }
+    // 0AF8: 000002FF 8000033C
+    {
+        c.bkValid = false;
+        ++c.cyc;
+    }
+    // 0B00: 000002FF 8000033C
+    {
+        c.bkValid = false;
+        ++c.cyc;
+    }
+    // 0B08: 000002FF 01F45858
+    {
+        const uint32_t la = ((static_cast<uint32_t>(static_cast<int32_t>(vi[11] + (88))) * 16u) & 0x3FF0u);
+        const float l0 = ldf(m, la + 0);
+        const float l1 = ldf(m, la + 4);
+        const float l2 = ldf(m, la + 8);
+        const float l3 = ldf(m, la + 12);
+        vf[20][0] = l0; c.vfReady[20][0] = c.cyc + 4;
+        vf[20][1] = l1; c.vfReady[20][1] = c.cyc + 4;
+        vf[20][2] = l2; c.vfReady[20][2] = c.cyc + 4;
+        vf[20][3] = l3; c.vfReady[20][3] = c.cyc + 4;
+        c.bkValid = false;
+        ++c.cyc;
+    }
+    // 0B10: 002090C7 01F55859
+    {
+        uint32_t stk = 0u;
+        uint32_t f3 = 0u;
+        const float u3 = fSubF(N(vf[18][3]), N(vf[0][3]), f3);
+        pushMacStatus(c, 0u | macBits(f3, 1u), 0u | f3, stk);
+        const uint32_t la = ((static_cast<uint32_t>(static_cast<int32_t>(vi[11] + (89))) * 16u) & 0x3FF0u);
+        const float l0 = ldf(m, la + 0);
+        const float l1 = ldf(m, la + 4);
+        const float l2 = ldf(m, la + 8);
+        const float l3 = ldf(m, la + 12);
+        vf[21][0] = l0; c.vfReady[21][0] = c.cyc + 4;
+        vf[21][1] = l1; c.vfReady[21][1] = c.cyc + 4;
+        vf[21][2] = l2; c.vfReady[21][2] = c.cyc + 4;
+        vf[21][3] = l3; c.vfReady[21][3] = c.cyc + 4;
+        vf[3][3] = u3; c.vfReady[3][3] = c.cyc + 4;
+        c.bkValid = false;
+        ++c.cyc;
+    }
+    // 0B18: 000002FF 01D3582D
+    {
+        const uint32_t la = ((static_cast<uint32_t>(static_cast<int32_t>(vi[11] + (45))) * 16u) & 0x3FF0u);
+        const float l0 = ldf(m, la + 0);
+        const float l1 = ldf(m, la + 4);
+        const float l2 = ldf(m, la + 8);
+        vf[19][0] = l0; c.vfReady[19][0] = c.cyc + 4;
+        vf[19][1] = l1; c.vfReady[19][1] = c.cyc + 4;
+        vf[19][2] = l2; c.vfReady[19][2] = c.cyc + 4;
+        c.bkValid = false;
+        ++c.cyc;
+    }
+    // 0B20: 000002FF 01D05801
+    {
+        const uint32_t la = ((static_cast<uint32_t>(static_cast<int32_t>(vi[11] + (1))) * 16u) & 0x3FF0u);
+        const float l0 = ldf(m, la + 0);
+        const float l1 = ldf(m, la + 4);
+        const float l2 = ldf(m, la + 8);
+        vf[16][0] = l0; c.vfReady[16][0] = c.cyc + 4;
+        vf[16][1] = l1; c.vfReady[16][1] = c.cyc + 4;
+        vf[16][2] = l2; c.vfReady[16][2] = c.cyc + 4;
+        c.bkValid = false;
+        ++c.cyc;
+    }
+    // 0B28: 000002FF 01C75800
+    {
+        const uint32_t la = ((static_cast<uint32_t>(static_cast<int32_t>(vi[11] + (0))) * 16u) & 0x3FF0u);
+        const float l0 = ldf(m, la + 0);
+        const float l1 = ldf(m, la + 4);
+        const float l2 = ldf(m, la + 8);
+        vf[7][0] = l0; c.vfReady[7][0] = c.cyc + 4;
+        vf[7][1] = l1; c.vfReady[7][1] = c.cyc + 4;
+        vf[7][2] = l2; c.vfReady[7][2] = c.cyc + 4;
+        c.bkValid = false;
+        ++c.cyc;
+    }
+    // 0B30: 002019FD 34011800
+    {
+        stall(c, c.viReady[3]);
+        commitClip(c);
+        const float u3 = std::fabs(N(vf[3][3]));
+        const int32_t nvi = static_cast<int32_t>(s.mac & static_cast<uint32_t>(static_cast<uint16_t>(vi[3])));
+        c.bkValid = false;
+        vi[1] = nvi; c.viReady[1] = c.cyc + 1;
+        ++c.cyc;
+    }
+    bool taken = false;
+    // 0B38: 01F4A13C 50011878
+    {
+        const float u0 = static_cast<float>(static_cast<int32_t>(fbits(vf[20][0])));
+        const float u1 = static_cast<float>(static_cast<int32_t>(fbits(vf[20][1])));
+        const float u2 = static_cast<float>(static_cast<int32_t>(fbits(vf[20][2])));
+        const float u3 = static_cast<float>(static_cast<int32_t>(fbits(vf[20][3])));
+        taken = static_cast<int16_t>(brVi(c, 3)) == static_cast<int16_t>(brVi(c, 1));
+        vf[20][0] = u0; c.vfReady[20][0] = c.cyc + 4;
+        vf[20][1] = u1; c.vfReady[20][1] = c.cyc + 4;
+        vf[20][2] = u2; c.vfReady[20][2] = c.cyc + 4;
+        vf[20][3] = u3; c.vfReady[20][3] = c.cyc + 4;
+        c.bkValid = false;
+        ++c.cyc;
+    }
+    // 0B40: 01F5A93C 100B5801
+    {
+        const float u0 = static_cast<float>(static_cast<int32_t>(fbits(vf[21][0])));
+        const float u1 = static_cast<float>(static_cast<int32_t>(fbits(vf[21][1])));
+        const float u2 = static_cast<float>(static_cast<int32_t>(fbits(vf[21][2])));
+        const float u3 = static_cast<float>(static_cast<int32_t>(fbits(vf[21][3])));
+        const int32_t nvi = static_cast<int16_t>(vi[11] + (1));
+        vf[21][0] = u0; c.vfReady[21][0] = c.cyc + 4;
+        vf[21][1] = u1; c.vfReady[21][1] = c.cyc + 4;
+        vf[21][2] = u2; c.vfReady[21][2] = c.cyc + 4;
+        vf[21][3] = u3; c.vfReady[21][3] = c.cyc + 4;
+        c.bkValid = true; c.bkReg = 11; c.bkVal = vi[11];
+        vi[11] = nvi; c.viReady[11] = c.cyc + 1;
+        ++c.cyc;
+    }
+    if (c.cyc >= c.budgetEnd)
+        return handoffRet(c, (taken ? 0xF00u : 0xB48u));
+    return (taken ? 0xF00u : 0xB48u);
+}
+
+static uint32_t vu1prog_3_0B48(VU1NativeCtx &c)
+{
+    using namespace vu1n;
+    VU1State &s = *c.st;
+    float (*vf)[4] = s.vf;
+    int32_t *vi = s.vi;
+    uint8_t *m = c.mem;
+    (void)m;
+    (void)vf;
+    (void)vi;
+    // 0B48: 010003AB 8060943E
+    {
+        stall(c, c.vfReady[18][3]);
+        const float u0 = vmax(N(vf[0][0]), N(vf[0][0]));
+        s.r = 0x3F800000u | (fbits(vf[18][3]) & 0x007FFFFFu);
+        vf[14][0] = u0; c.vfReady[14][0] = c.cyc + 4;
+        c.bkValid = false;
+        ++c.cyc;
+    }
+    // 0B50: 000002FF 100C5000
+    {
+        stall(c, c.viReady[10]);
+        const int32_t nvi = static_cast<int16_t>(vi[10] + (0));
+        c.bkValid = true; c.bkReg = 12; c.bkVal = vi[12];
+        vi[12] = nvi; c.viReady[12] = c.cyc + 1;
+        ++c.cyc;
+    }
+    return 0xB58;
+}
+
+static uint32_t vu1prog_3_0B58(VU1NativeCtx &c)
+{
+    using namespace vu1n;
+    VU1State &s = *c.st;
+    float (*vf)[4] = s.vf;
+    int32_t *vi = s.vi;
+    uint8_t *m = c.mem;
+    (void)m;
+    (void)vf;
+    (void)vi;
+    // 0B58: 000002FF 8000033C
+    {
+        c.bkValid = false;
+        ++c.cyc;
+    }
+    // 0B60: 000002FF 804E043C
+    {
+        rnext(s);
+        const float l2 = bitsf(s.r);
+        vf[14][2] = l2; c.vfReady[14][2] = c.cyc + 4;
+        c.bkValid = false;
+        ++c.cyc;
+    }
+    // 0B68: 002E0104 8023043C
+    {
+        stall(c, c.vfReady[14][0]);
+        uint32_t stk = 0u;
+        uint32_t f3 = 0u;
+        const float u3 = fSubF(N(vf[0][3]), N(vf[14][0]), f3);
+        pushMacStatus(c, 0u | macBits(f3, 1u), 0u | f3, stk);
+        rnext(s);
+        const float l3 = bitsf(s.r);
+        vf[3][3] = l3; c.vfReady[3][3] = c.cyc + 4;
+        vf[4][3] = u3; c.vfReady[4][3] = c.cyc + 4;
+        c.bkValid = false;
+        ++c.cyc;
+    }
+    // 0B70: 000002FF 8117043C
+    {
+        rnext(s);
+        const float l0 = bitsf(s.r);
+        vf[23][0] = l0; c.vfReady[23][0] = c.cyc + 4;
+        c.bkValid = false;
+        ++c.cyc;
+    }
+    // 0B78: 000002FF 8097043C
+    {
+        rnext(s);
+        const float l1 = bitsf(s.r);
+        vf[23][1] = l1; c.vfReady[23][1] = c.cyc + 4;
+        c.bkValid = false;
+        ++c.cyc;
+    }
+    // 0B80: 000002FF 804D043C
+    {
+        rnext(s);
+        const float l2 = bitsf(s.r);
+        vf[13][2] = l2; c.vfReady[13][2] = c.cyc + 4;
+        c.bkValid = false;
+        ++c.cyc;
+    }
+    // 0B88: 01E4A1BF 810F043C
+    {
+        stall(c, c.vfReady[20][0]);
+        stall(c, c.vfReady[20][1]);
+        stall(c, c.vfReady[20][2]);
+        stall(c, c.vfReady[20][3]);
+        uint32_t stk = 0u;
+        uint32_t f0 = 0u;
+        const float u0 = fMulF(N(vf[20][0]), N(vf[4][3]), f0);
+        uint32_t f1 = 0u;
+        const float u1 = fMulF(N(vf[20][1]), N(vf[4][3]), f1);
+        uint32_t f2 = 0u;
+        const float u2 = fMulF(N(vf[20][2]), N(vf[4][3]), f2);
+        uint32_t f3 = 0u;
+        const float u3 = fMulF(N(vf[20][3]), N(vf[4][3]), f3);
+        pushMacStatus(c, 0u | macBits(f0, 8u) | macBits(f1, 4u) | macBits(f2, 2u) | macBits(f3, 1u), 0u | f0 | f1 | f2 | f3, stk);
+        rnext(s);
+        const float l0 = bitsf(s.r);
+        vf[15][0] = l0; c.vfReady[15][0] = c.cyc + 4;
+        s.acc[0] = u0; c.accReady[0] = c.cyc + 1u;
+        s.acc[1] = u1; c.accReady[1] = c.cyc + 1u;
+        s.acc[2] = u2; c.accReady[2] = c.cyc + 1u;
+        s.acc[3] = u3; c.accReady[3] = c.cyc + 1u;
+        c.bkValid = false;
+        ++c.cyc;
+    }
+    // 0B90: 01EEAE48 808D043C
+    {
+        stall(c, c.vfReady[21][0]);
+        stall(c, c.vfReady[21][1]);
+        stall(c, c.vfReady[21][2]);
+        stall(c, c.vfReady[21][3]);
+        uint32_t stk = 0u;
+        uint32_t f0 = 0u;
+        const float u0 = fMaddF(N(s.acc[0]), N(vf[21][0]), N(vf[14][0]), f0, stk);
+        uint32_t f1 = 0u;
+        const float u1 = fMaddF(N(s.acc[1]), N(vf[21][1]), N(vf[14][0]), f1, stk);
+        uint32_t f2 = 0u;
+        const float u2 = fMaddF(N(s.acc[2]), N(vf[21][2]), N(vf[14][0]), f2, stk);
+        uint32_t f3 = 0u;
+        const float u3 = fMaddF(N(s.acc[3]), N(vf[21][3]), N(vf[14][0]), f3, stk);
+        pushMacStatus(c, 0u | macBits(f0, 8u) | macBits(f1, 4u) | macBits(f2, 2u) | macBits(f3, 1u), 0u | f0 | f1 | f2 | f3, stk);
+        rnext(s);
+        const float l1 = bitsf(s.r);
+        vf[13][1] = l1; c.vfReady[13][1] = c.cyc + 4;
+        vf[25][0] = u0; c.vfReady[25][0] = c.cyc + 4;
+        vf[25][1] = u1; c.vfReady[25][1] = c.cyc + 4;
+        vf[25][2] = u2; c.vfReady[25][2] = c.cyc + 4;
+        vf[25][3] = u3; c.vfReady[25][3] = c.cyc + 4;
+        c.bkValid = false;
+        ++c.cyc;
+    }
+    // 0B98: 01C491BF 8048043C
+    {
+        stall(c, c.vfReady[18][0]);
+        stall(c, c.vfReady[18][1]);
+        stall(c, c.vfReady[18][2]);
+        uint32_t stk = 0u;
+        uint32_t f0 = 0u;
+        const float u0 = fMulF(N(vf[18][0]), N(vf[4][3]), f0);
+        uint32_t f1 = 0u;
+        const float u1 = fMulF(N(vf[18][1]), N(vf[4][3]), f1);
+        uint32_t f2 = 0u;
+        const float u2 = fMulF(N(vf[18][2]), N(vf[4][3]), f2);
+        pushMacStatus(c, 0u | macBits(f0, 8u) | macBits(f1, 4u) | macBits(f2, 2u), 0u | f0 | f1 | f2, stk);
+        rnext(s);
+        const float l2 = bitsf(s.r);
+        vf[8][2] = l2; c.vfReady[8][2] = c.cyc + 4;
+        s.acc[0] = u0; c.accReady[0] = c.cyc + 1u;
+        s.acc[1] = u1; c.accReady[1] = c.cyc + 1u;
+        s.acc[2] = u2; c.accReady[2] = c.cyc + 1u;
+        c.bkValid = false;
+        ++c.cyc;
+    }
+    // 0BA0: 81CE9E88 3B808081
+    {
+        stall(c, c.vfReady[19][0]);
+        stall(c, c.vfReady[19][1]);
+        stall(c, c.vfReady[19][2]);
+        uint32_t stk = 0u;
+        uint32_t f0 = 0u;
+        const float u0 = fMaddF(N(s.acc[0]), N(vf[19][0]), N(vf[14][0]), f0, stk);
+        uint32_t f1 = 0u;
+        const float u1 = fMaddF(N(s.acc[1]), N(vf[19][1]), N(vf[14][0]), f1, stk);
+        uint32_t f2 = 0u;
+        const float u2 = fMaddF(N(s.acc[2]), N(vf[19][2]), N(vf[14][0]), f2, stk);
+        pushMacStatus(c, 0u | macBits(f0, 8u) | macBits(f1, 4u) | macBits(f2, 2u), 0u | f0 | f1 | f2, stk);
+        s.i = N(bitsf(0x3B808081u));
+        vf[26][0] = u0; c.vfReady[26][0] = c.cyc + 4;
+        vf[26][1] = u1; c.vfReady[26][1] = c.cyc + 4;
+        vf[26][2] = u2; c.vfReady[26][2] = c.cyc + 4;
+        c.bkValid = false;
+        ++c.cyc;
+    }
+    // 0BA8: 01C439BF 8024043C
+    {
+        stall(c, c.vfReady[7][0]);
+        stall(c, c.vfReady[7][1]);
+        stall(c, c.vfReady[7][2]);
+        uint32_t stk = 0u;
+        uint32_t f0 = 0u;
+        const float u0 = fMulF(N(vf[7][0]), N(vf[4][3]), f0);
+        uint32_t f1 = 0u;
+        const float u1 = fMulF(N(vf[7][1]), N(vf[4][3]), f1);
+        uint32_t f2 = 0u;
+        const float u2 = fMulF(N(vf[7][2]), N(vf[4][3]), f2);
+        pushMacStatus(c, 0u | macBits(f0, 8u) | macBits(f1, 4u) | macBits(f2, 2u), 0u | f0 | f1 | f2, stk);
+        rnext(s);
+        const float l3 = bitsf(s.r);
+        vf[4][3] = l3; c.vfReady[4][3] = c.cyc + 4;
+        s.acc[0] = u0; c.accReady[0] = c.cyc + 1u;
+        s.acc[1] = u1; c.accReady[1] = c.cyc + 1u;
+        s.acc[2] = u2; c.accReady[2] = c.cyc + 1u;
+        c.bkValid = false;
+        ++c.cyc;
+    }
+    // 0BB0: 81E0CE5E 43000000
+    {
+        uint32_t stk = 0u;
+        uint32_t f0 = 0u;
+        const float u0 = fMulF(N(vf[25][0]), N(s.i), f0);
+        uint32_t f1 = 0u;
+        const float u1 = fMulF(N(vf[25][1]), N(s.i), f1);
+        uint32_t f2 = 0u;
+        const float u2 = fMulF(N(vf[25][2]), N(s.i), f2);
+        uint32_t f3 = 0u;
+        const float u3 = fMulF(N(vf[25][3]), N(s.i), f3);
+        pushMacStatus(c, 0u | macBits(f0, 8u) | macBits(f1, 4u) | macBits(f2, 2u) | macBits(f3, 1u), 0u | f0 | f1 | f2 | f3, stk);
+        s.i = N(bitsf(0x43000000u));
+        vf[25][0] = u0; c.vfReady[25][0] = c.cyc + 4;
+        vf[25][1] = u1; c.vfReady[25][1] = c.cyc + 4;
+        vf[25][2] = u2; c.vfReady[25][2] = c.cyc + 4;
+        vf[25][3] = u3; c.vfReady[25][3] = c.cyc + 4;
+        c.bkValid = false;
+        ++c.cyc;
+    }
+    // 0BB8: 01CE8608 8000033C
+    {
+        stall(c, c.vfReady[16][0]);
+        stall(c, c.vfReady[16][1]);
+        stall(c, c.vfReady[16][2]);
+        uint32_t stk = 0u;
+        uint32_t f0 = 0u;
+        const float u0 = fMaddF(N(s.acc[0]), N(vf[16][0]), N(vf[14][0]), f0, stk);
+        uint32_t f1 = 0u;
+        const float u1 = fMaddF(N(s.acc[1]), N(vf[16][1]), N(vf[14][0]), f1, stk);
+        uint32_t f2 = 0u;
+        const float u2 = fMaddF(N(s.acc[2]), N(vf[16][2]), N(vf[14][0]), f2, stk);
+        pushMacStatus(c, 0u | macBits(f0, 8u) | macBits(f1, 4u) | macBits(f2, 2u), 0u | f0 | f1 | f2, stk);
+        vf[24][0] = u0; c.vfReady[24][0] = c.cyc + 4;
+        vf[24][1] = u1; c.vfReady[24][1] = c.cyc + 4;
+        vf[24][2] = u2; c.vfReady[24][2] = c.cyc + 4;
+        c.bkValid = false;
+        ++c.cyc;
+    }
+    // 0BC0: 01C9D2BC 01FC100F
+    {
+        stall(c, c.vfReady[9][0]);
+        stall(c, c.vfReady[9][1]);
+        stall(c, c.vfReady[9][2]);
+        stall(c, c.viReady[2]);
+        uint32_t stk = 0u;
+        uint32_t f0 = 0u;
+        const float u0 = fAddF(N(vf[26][0]), N(vf[9][0]), f0);
+        uint32_t f1 = 0u;
+        const float u1 = fAddF(N(vf[26][1]), N(vf[9][1]), f1);
+        uint32_t f2 = 0u;
+        const float u2 = fAddF(N(vf[26][2]), N(vf[9][2]), f2);
+        pushMacStatus(c, 0u | macBits(f0, 8u) | macBits(f1, 4u) | macBits(f2, 2u), 0u | f0 | f1 | f2, stk);
+        const uint32_t la = ((static_cast<uint32_t>(static_cast<int32_t>(vi[2] + (15))) * 16u) & 0x3FF0u);
+        const float l0 = ldf(m, la + 0);
+        const float l1 = ldf(m, la + 4);
+        const float l2 = ldf(m, la + 8);
+        const float l3 = ldf(m, la + 12);
+        vf[28][0] = l0; c.vfReady[28][0] = c.cyc + 4;
+        vf[28][1] = l1; c.vfReady[28][1] = c.cyc + 4;
+        vf[28][2] = l2; c.vfReady[28][2] = c.cyc + 4;
+        vf[28][3] = l3; c.vfReady[28][3] = c.cyc + 4;
+        s.acc[0] = u0; c.accReady[0] = c.cyc + 1u;
+        s.acc[1] = u1; c.accReady[1] = c.cyc + 1u;
+        s.acc[2] = u2; c.accReady[2] = c.cyc + 1u;
+        c.bkValid = false;
+        ++c.cyc;
+    }
+    // 0BC8: 01D750BC 01FB1010
+    {
+        stall(c, c.vfReady[10][0]);
+        stall(c, c.vfReady[10][1]);
+        stall(c, c.vfReady[10][2]);
+        uint32_t stk = 0u;
+        uint32_t f0 = 0u;
+        const float u0 = fMaddF(N(s.acc[0]), N(vf[10][0]), N(vf[23][0]), f0, stk);
+        uint32_t f1 = 0u;
+        const float u1 = fMaddF(N(s.acc[1]), N(vf[10][1]), N(vf[23][0]), f1, stk);
+        uint32_t f2 = 0u;
+        const float u2 = fMaddF(N(s.acc[2]), N(vf[10][2]), N(vf[23][0]), f2, stk);
+        pushMacStatus(c, 0u | macBits(f0, 8u) | macBits(f1, 4u) | macBits(f2, 2u), 0u | f0 | f1 | f2, stk);
+        const uint32_t la = ((static_cast<uint32_t>(static_cast<int32_t>(vi[2] + (16))) * 16u) & 0x3FF0u);
+        const float l0 = ldf(m, la + 0);
+        const float l1 = ldf(m, la + 4);
+        const float l2 = ldf(m, la + 8);
+        const float l3 = ldf(m, la + 12);
+        vf[27][0] = l0; c.vfReady[27][0] = c.cyc + 4;
+        vf[27][1] = l1; c.vfReady[27][1] = c.cyc + 4;
+        vf[27][2] = l2; c.vfReady[27][2] = c.cyc + 4;
+        vf[27][3] = l3; c.vfReady[27][3] = c.cyc + 4;
+        s.acc[0] = u0; c.accReady[0] = c.cyc + 1u;
+        s.acc[1] = u1; c.accReady[1] = c.cyc + 1u;
+        s.acc[2] = u2; c.accReady[2] = c.cyc + 1u;
+        c.bkValid = false;
+        ++c.cyc;
+    }
+    // 0BD0: 01D758BD 01F61012
+    {
+        stall(c, c.vfReady[11][0]);
+        stall(c, c.vfReady[11][1]);
+        stall(c, c.vfReady[11][2]);
+        uint32_t stk = 0u;
+        uint32_t f0 = 0u;
+        const float u0 = fMaddF(N(s.acc[0]), N(vf[11][0]), N(vf[23][1]), f0, stk);
+        uint32_t f1 = 0u;
+        const float u1 = fMaddF(N(s.acc[1]), N(vf[11][1]), N(vf[23][1]), f1, stk);
+        uint32_t f2 = 0u;
+        const float u2 = fMaddF(N(s.acc[2]), N(vf[11][2]), N(vf[23][1]), f2, stk);
+        pushMacStatus(c, 0u | macBits(f0, 8u) | macBits(f1, 4u) | macBits(f2, 2u), 0u | f0 | f1 | f2, stk);
+        const uint32_t la = ((static_cast<uint32_t>(static_cast<int32_t>(vi[2] + (18))) * 16u) & 0x3FF0u);
+        const float l0 = ldf(m, la + 0);
+        const float l1 = ldf(m, la + 4);
+        const float l2 = ldf(m, la + 8);
+        const float l3 = ldf(m, la + 12);
+        vf[22][0] = l0; c.vfReady[22][0] = c.cyc + 4;
+        vf[22][1] = l1; c.vfReady[22][1] = c.cyc + 4;
+        vf[22][2] = l2; c.vfReady[22][2] = c.cyc + 4;
+        vf[22][3] = l3; c.vfReady[22][3] = c.cyc + 4;
+        s.acc[0] = u0; c.accReady[0] = c.cyc + 1u;
+        s.acc[1] = u1; c.accReady[1] = c.cyc + 1u;
+        s.acc[2] = u2; c.accReady[2] = c.cyc + 1u;
+        c.bkValid = false;
+        ++c.cyc;
+    }
+    // 0BD8: 01CD65CA 01FA1011
+    {
+        stall(c, c.vfReady[12][0]);
+        stall(c, c.vfReady[12][1]);
+        stall(c, c.vfReady[12][2]);
+        uint32_t stk = 0u;
+        uint32_t f0 = 0u;
+        const float u0 = fMaddF(N(s.acc[0]), N(vf[12][0]), N(vf[13][2]), f0, stk);
+        uint32_t f1 = 0u;
+        const float u1 = fMaddF(N(s.acc[1]), N(vf[12][1]), N(vf[13][2]), f1, stk);
+        uint32_t f2 = 0u;
+        const float u2 = fMaddF(N(s.acc[2]), N(vf[12][2]), N(vf[13][2]), f2, stk);
+        pushMacStatus(c, 0u | macBits(f0, 8u) | macBits(f1, 4u) | macBits(f2, 2u), 0u | f0 | f1 | f2, stk);
+        const uint32_t la = ((static_cast<uint32_t>(static_cast<int32_t>(vi[2] + (17))) * 16u) & 0x3FF0u);
+        const float l0 = ldf(m, la + 0);
+        const float l1 = ldf(m, la + 4);
+        const float l2 = ldf(m, la + 8);
+        const float l3 = ldf(m, la + 12);
+        vf[26][0] = l0; c.vfReady[26][0] = c.cyc + 4;
+        vf[26][1] = l1; c.vfReady[26][1] = c.cyc + 4;
+        vf[26][2] = l2; c.vfReady[26][2] = c.cyc + 4;
+        vf[26][3] = l3; c.vfReady[26][3] = c.cyc + 4;
+        vf[23][0] = u0; c.vfReady[23][0] = c.cyc + 4;
+        vf[23][1] = u1; c.vfReady[23][1] = c.cyc + 4;
+        vf[23][2] = u2; c.vfReady[23][2] = c.cyc + 4;
+        c.bkValid = false;
+        ++c.cyc;
+    }
+    // 0BE0: 01F9E2BE 01F91001
+    {
+        uint32_t stk = 0u;
+        uint32_t f0 = 0u;
+        const float u0 = fMulF(N(vf[28][0]), N(vf[25][0]), f0);
+        uint32_t f1 = 0u;
+        const float u1 = fMulF(N(vf[28][1]), N(vf[25][1]), f1);
+        uint32_t f2 = 0u;
+        const float u2 = fMulF(N(vf[28][2]), N(vf[25][2]), f2);
+        uint32_t f3 = 0u;
+        const float u3 = fMulF(N(vf[28][3]), N(vf[25][3]), f3);
+        pushMacStatus(c, 0u | macBits(f0, 8u) | macBits(f1, 4u) | macBits(f2, 2u) | macBits(f3, 1u), 0u | f0 | f1 | f2 | f3, stk);
+        const uint32_t la = ((static_cast<uint32_t>(static_cast<int32_t>(vi[2] + (1))) * 16u) & 0x3FF0u);
+        const float l0 = ldf(m, la + 0);
+        const float l1 = ldf(m, la + 4);
+        const float l2 = ldf(m, la + 8);
+        const float l3 = ldf(m, la + 12);
+        vf[25][0] = l0; c.vfReady[25][0] = c.cyc + 4;
+        vf[25][1] = l1; c.vfReady[25][1] = c.cyc + 4;
+        vf[25][2] = l2; c.vfReady[25][2] = c.cyc + 4;
+        vf[25][3] = l3; c.vfReady[25][3] = c.cyc + 4;
+        s.acc[0] = u0; c.accReady[0] = c.cyc + 1u;
+        s.acc[1] = u1; c.accReady[1] = c.cyc + 1u;
+        s.acc[2] = u2; c.accReady[2] = c.cyc + 1u;
+        s.acc[3] = u3; c.accReady[3] = c.cyc + 1u;
+        c.bkValid = false;
+        ++c.cyc;
+    }
+    // 0BE8: 01EFD8BC 8000033C
+    {
+        uint32_t stk = 0u;
+        uint32_t f0 = 0u;
+        const float u0 = fMaddF(N(s.acc[0]), N(vf[27][0]), N(vf[15][0]), f0, stk);
+        uint32_t f1 = 0u;
+        const float u1 = fMaddF(N(s.acc[1]), N(vf[27][1]), N(vf[15][0]), f1, stk);
+        uint32_t f2 = 0u;
+        const float u2 = fMaddF(N(s.acc[2]), N(vf[27][2]), N(vf[15][0]), f2, stk);
+        uint32_t f3 = 0u;
+        const float u3 = fMaddF(N(s.acc[3]), N(vf[27][3]), N(vf[15][0]), f3, stk);
+        pushMacStatus(c, 0u | macBits(f0, 8u) | macBits(f1, 4u) | macBits(f2, 2u) | macBits(f3, 1u), 0u | f0 | f1 | f2 | f3, stk);
+        s.acc[0] = u0; c.accReady[0] = c.cyc + 1u;
+        s.acc[1] = u1; c.accReady[1] = c.cyc + 1u;
+        s.acc[2] = u2; c.accReady[2] = c.cyc + 1u;
+        s.acc[3] = u3; c.accReady[3] = c.cyc + 1u;
+        c.bkValid = false;
+        ++c.cyc;
+    }
+    // 0BF0: 01F0B0BF 8000033C
+    {
+        stall(c, c.vfReady[16][3]);
+        uint32_t stk = 0u;
+        uint32_t f0 = 0u;
+        const float u0 = fMaddF(N(s.acc[0]), N(vf[22][0]), N(vf[16][3]), f0, stk);
+        uint32_t f1 = 0u;
+        const float u1 = fMaddF(N(s.acc[1]), N(vf[22][1]), N(vf[16][3]), f1, stk);
+        uint32_t f2 = 0u;
+        const float u2 = fMaddF(N(s.acc[2]), N(vf[22][2]), N(vf[16][3]), f2, stk);
+        uint32_t f3 = 0u;
+        const float u3 = fMaddF(N(s.acc[3]), N(vf[22][3]), N(vf[16][3]), f3, stk);
+        pushMacStatus(c, 0u | macBits(f0, 8u) | macBits(f1, 4u) | macBits(f2, 2u) | macBits(f3, 1u), 0u | f0 | f1 | f2 | f3, stk);
+        s.acc[0] = u0; c.accReady[0] = c.cyc + 1u;
+        s.acc[1] = u1; c.accReady[1] = c.cyc + 1u;
+        s.acc[2] = u2; c.accReady[2] = c.cyc + 1u;
+        s.acc[3] = u3; c.accReady[3] = c.cyc + 1u;
+        c.bkValid = false;
+        ++c.cyc;
+    }
+    // 0BF8: 01EDD689 8000033C
+    {
+        uint32_t stk = 0u;
+        uint32_t f0 = 0u;
+        const float u0 = fMaddF(N(s.acc[0]), N(vf[26][0]), N(vf[13][1]), f0, stk);
+        uint32_t f1 = 0u;
+        const float u1 = fMaddF(N(s.acc[1]), N(vf[26][1]), N(vf[13][1]), f1, stk);
+        uint32_t f2 = 0u;
+        const float u2 = fMaddF(N(s.acc[2]), N(vf[26][2]), N(vf[13][1]), f2, stk);
+        uint32_t f3 = 0u;
+        const float u3 = fMaddF(N(s.acc[3]), N(vf[26][3]), N(vf[13][1]), f3, stk);
+        pushMacStatus(c, 0u | macBits(f0, 8u) | macBits(f1, 4u) | macBits(f2, 2u) | macBits(f3, 1u), 0u | f0 | f1 | f2 | f3, stk);
+        vf[26][0] = u0; c.vfReady[26][0] = c.cyc + 4;
+        vf[26][1] = u1; c.vfReady[26][1] = c.cyc + 4;
+        vf[26][2] = u2; c.vfReady[26][2] = c.cyc + 4;
+        vf[26][3] = u3; c.vfReady[26][3] = c.cyc + 4;
+        c.bkValid = false;
+        ++c.cyc;
+    }
+    // 0C00: 0099003F 8000033C
+    {
+        uint32_t stk = 0u;
+        uint32_t f1 = 0u;
+        const float u1 = fAddF(N(vf[0][1]), N(vf[25][3]), f1);
+        pushMacStatus(c, 0u | macBits(f1, 4u), 0u | f1, stk);
+        s.acc[1] = u1; c.accReady[1] = c.cyc + 1u;
+        c.bkValid = false;
+        ++c.cyc;
+    }
+    // 0C08: 0084CB4B 8000033C
+    {
+        uint32_t stk = 0u;
+        uint32_t f1 = 0u;
+        const float u1 = fMaddF(N(s.acc[1]), N(vf[25][1]), N(vf[4][3]), f1, stk);
+        pushMacStatus(c, 0u | macBits(f1, 4u), 0u | f1, stk);
+        vf[13][1] = u1; c.vfReady[13][1] = c.cyc + 4;
+        c.bkValid = false;
+        ++c.cyc;
+    }
+    // 0C10: 01C0D69F 8000033C
+    {
+        stall(c, c.vfReady[26][0]);
+        stall(c, c.vfReady[26][1]);
+        stall(c, c.vfReady[26][2]);
+        const float u0 = vmin(N(vf[26][0]), N(s.i));
+        const float u1 = vmin(N(vf[26][1]), N(s.i));
+        const float u2 = vmin(N(vf[26][2]), N(s.i));
+        vf[26][0] = u0; c.vfReady[26][0] = c.cyc + 4;
+        vf[26][1] = u1; c.vfReady[26][1] = c.cyc + 4;
+        vf[26][2] = u2; c.vfReady[26][2] = c.cyc + 4;
+        c.bkValid = false;
+        ++c.cyc;
+    }
+    // 0C18: 002D8005 8000033C
+    {
+        stall(c, c.vfReady[13][1]);
+        uint32_t stk = 0u;
+        uint32_t f3 = 0u;
+        const float u3 = fSubF(N(vf[16][3]), N(vf[13][1]), f3);
+        pushMacStatus(c, 0u | macBits(f3, 1u), 0u | f3, stk);
+        c.bkValid = false;
+        ++c.cyc;
+    }
+    // 0C20: 01C3C2BC 8000033C
+    {
+        stall(c, c.vfReady[3][0]);
+        stall(c, c.vfReady[3][1]);
+        stall(c, c.vfReady[3][2]);
+        uint32_t stk = 0u;
+        uint32_t f0 = 0u;
+        const float u0 = fAddF(N(vf[24][0]), N(vf[3][0]), f0);
+        uint32_t f1 = 0u;
+        const float u1 = fAddF(N(vf[24][1]), N(vf[3][1]), f1);
+        uint32_t f2 = 0u;
+        const float u2 = fAddF(N(vf[24][2]), N(vf[3][2]), f2);
+        pushMacStatus(c, 0u | macBits(f0, 8u) | macBits(f1, 4u) | macBits(f2, 2u), 0u | f0 | f1 | f2, stk);
+        s.acc[0] = u0; c.accReady[0] = c.cyc + 1u;
+        s.acc[1] = u1; c.accReady[1] = c.cyc + 1u;
+        s.acc[2] = u2; c.accReady[2] = c.cyc + 1u;
+        c.bkValid = false;
+        ++c.cyc;
+    }
+    // 0C28: 01D030BF 01DB1006
+    {
+        stall(c, c.vfReady[6][0]);
+        stall(c, c.vfReady[6][1]);
+        stall(c, c.vfReady[6][2]);
+        uint32_t stk = 0u;
+        uint32_t f0 = 0u;
+        const float u0 = fMaddF(N(s.acc[0]), N(vf[6][0]), N(vf[16][3]), f0, stk);
+        uint32_t f1 = 0u;
+        const float u1 = fMaddF(N(s.acc[1]), N(vf[6][1]), N(vf[16][3]), f1, stk);
+        uint32_t f2 = 0u;
+        const float u2 = fMaddF(N(s.acc[2]), N(vf[6][2]), N(vf[16][3]), f2, stk);
+        pushMacStatus(c, 0u | macBits(f0, 8u) | macBits(f1, 4u) | macBits(f2, 2u), 0u | f0 | f1 | f2, stk);
+        const uint32_t la = ((static_cast<uint32_t>(static_cast<int32_t>(vi[2] + (6))) * 16u) & 0x3FF0u);
+        const float l0 = ldf(m, la + 0);
+        const float l1 = ldf(m, la + 4);
+        const float l2 = ldf(m, la + 8);
+        vf[27][0] = l0; c.vfReady[27][0] = c.cyc + 4;
+        vf[27][1] = l1; c.vfReady[27][1] = c.cyc + 4;
+        vf[27][2] = l2; c.vfReady[27][2] = c.cyc + 4;
+        s.acc[0] = u0; c.accReady[0] = c.cyc + 1u;
+        s.acc[1] = u1; c.accReady[1] = c.cyc + 1u;
+        s.acc[2] = u2; c.accReady[2] = c.cyc + 1u;
+        c.bkValid = false;
+        ++c.cyc;
+    }
+    // 0C30: 01E0D610 8000033C
+    {
+        const float u0 = vmax(N(vf[26][0]), N(vf[0][0]));
+        const float u1 = vmax(N(vf[26][1]), N(vf[0][0]));
+        const float u2 = vmax(N(vf[26][2]), N(vf[0][0]));
+        const float u3 = vmax(N(vf[26][3]), N(vf[0][0]));
+        vf[24][0] = u0; c.vfReady[24][0] = c.cyc + 4;
+        vf[24][1] = u1; c.vfReady[24][1] = c.cyc + 4;
+        vf[24][2] = u2; c.vfReady[24][2] = c.cyc + 4;
+        vf[24][3] = u3; c.vfReady[24][3] = c.cyc + 4;
+        c.bkValid = false;
+        ++c.cyc;
+    }
+    // 0C38: 01CE20BE 34011800
+    {
+        stall(c, c.vfReady[4][0]);
+        stall(c, c.vfReady[4][1]);
+        stall(c, c.vfReady[4][2]);
+        stall(c, c.viReady[3]);
+        commitClip(c);
+        uint32_t stk = 0u;
+        uint32_t f0 = 0u;
+        const float u0 = fMaddF(N(s.acc[0]), N(vf[4][0]), N(vf[14][2]), f0, stk);
+        uint32_t f1 = 0u;
+        const float u1 = fMaddF(N(s.acc[1]), N(vf[4][1]), N(vf[14][2]), f1, stk);
+        uint32_t f2 = 0u;
+        const float u2 = fMaddF(N(s.acc[2]), N(vf[4][2]), N(vf[14][2]), f2, stk);
+        pushMacStatus(c, 0u | macBits(f0, 8u) | macBits(f1, 4u) | macBits(f2, 2u), 0u | f0 | f1 | f2, stk);
+        const int32_t nvi = static_cast<int32_t>(s.mac & static_cast<uint32_t>(static_cast<uint16_t>(vi[3])));
+        s.acc[0] = u0; c.accReady[0] = c.cyc + 1u;
+        s.acc[1] = u1; c.accReady[1] = c.cyc + 1u;
+        s.acc[2] = u2; c.accReady[2] = c.cyc + 1u;
+        c.bkValid = false;
+        vi[1] = nvi; c.viReady[1] = c.cyc + 1;
+        ++c.cyc;
+    }
+    bool taken = false;
+    // 0C40: 01C32D8B 50010045
+    {
+        stall(c, c.vfReady[5][0]);
+        stall(c, c.vfReady[5][1]);
+        stall(c, c.vfReady[5][2]);
+        uint32_t stk = 0u;
+        uint32_t f0 = 0u;
+        const float u0 = fMaddF(N(s.acc[0]), N(vf[5][0]), N(vf[3][3]), f0, stk);
+        uint32_t f1 = 0u;
+        const float u1 = fMaddF(N(s.acc[1]), N(vf[5][1]), N(vf[3][3]), f1, stk);
+        uint32_t f2 = 0u;
+        const float u2 = fMaddF(N(s.acc[2]), N(vf[5][2]), N(vf[3][3]), f2, stk);
+        pushMacStatus(c, 0u | macBits(f0, 8u) | macBits(f1, 4u) | macBits(f2, 2u), 0u | f0 | f1 | f2, stk);
+        taken = static_cast<int16_t>(brVi(c, 0)) == static_cast<int16_t>(brVi(c, 1));
+        vf[22][0] = u0; c.vfReady[22][0] = c.cyc + 4;
+        vf[22][1] = u1; c.vfReady[22][1] = c.cyc + 4;
+        vf[22][2] = u2; c.vfReady[22][2] = c.cyc + 4;
+        c.bkValid = false;
+        ++c.cyc;
+    }
+    // 0C48: 01D7DDEC 8000033C
+    {
+        uint32_t stk = 0u;
+        uint32_t f0 = 0u;
+        const float u0 = fSubF(N(vf[27][0]), N(vf[23][0]), f0);
+        uint32_t f1 = 0u;
+        const float u1 = fSubF(N(vf[27][1]), N(vf[23][1]), f1);
+        uint32_t f2 = 0u;
+        const float u2 = fSubF(N(vf[27][2]), N(vf[23][2]), f2);
+        pushMacStatus(c, 0u | macBits(f0, 8u) | macBits(f1, 4u) | macBits(f2, 2u), 0u | f0 | f1 | f2, stk);
+        vf[23][0] = u0; c.vfReady[23][0] = c.cyc + 4;
+        vf[23][1] = u1; c.vfReady[23][1] = c.cyc + 4;
+        vf[23][2] = u2; c.vfReady[23][2] = c.cyc + 4;
+        c.bkValid = false;
+        ++c.cyc;
+    }
+    if (c.cyc >= c.budgetEnd)
+        return handoffRet(c, (taken ? 0xE70u : 0xC50u));
+    return (taken ? 0xE70u : 0xC50u);
+}
+
+static uint32_t vu1prog_3_0C50(VU1NativeCtx &c)
+{
+    using namespace vu1n;
+    VU1State &s = *c.st;
+    float (*vf)[4] = s.vf;
+    int32_t *vi = s.vi;
+    uint8_t *m = c.mem;
+    (void)m;
+    (void)vf;
+    (void)vi;
+    // 0C50: 01C0C6D0 011A1002
+    {
+        stall(c, c.vfReady[24][0]);
+        stall(c, c.vfReady[24][1]);
+        stall(c, c.vfReady[24][2]);
+        stall(c, c.viReady[2]);
+        const float u0 = vmax(N(vf[24][0]), N(vf[0][0]));
+        const float u1 = vmax(N(vf[24][1]), N(vf[0][0]));
+        const float u2 = vmax(N(vf[24][2]), N(vf[0][0]));
+        const uint32_t la = ((static_cast<uint32_t>(static_cast<int32_t>(vi[2] + (2))) * 16u) & 0x3FF0u);
+        const float l0 = ldf(m, la + 0);
+        vf[26][0] = l0; c.vfReady[26][0] = c.cyc + 4;
+        vf[27][0] = u0; c.vfReady[27][0] = c.cyc + 4;
+        vf[27][1] = u1; c.vfReady[27][1] = c.cyc + 4;
+        vf[27][2] = u2; c.vfReady[27][2] = c.cyc + 4;
+        c.bkValid = false;
+        ++c.cyc;
+    }
+    // 0C58: 0020012B 80ED03BC
+    {
+        stall(c, c.vfReady[13][1]);
+        if (c.qPending) stall(c, c.qReady);
+        const float u3 = vmax(N(vf[0][3]), N(vf[0][3]));
+        divq(c, N(vf[0][3]), N(vf[13][1]));
+        vf[4][3] = u3; c.vfReady[4][3] = c.cyc + 4;
+        c.bkValid = false;
+        ++c.cyc;
+    }
+    // 0C60: 0110D69B 8000033C
+    {
+        stall(c, c.vfReady[16][3]);
+        stall(c, c.vfReady[26][0]);
+        uint32_t stk = 0u;
+        uint32_t f0 = 0u;
+        const float u0 = fMulF(N(vf[26][0]), N(vf[16][3]), f0);
+        pushMacStatus(c, 0u | macBits(f0, 8u), 0u | f0, stk);
+        vf[26][0] = u0; c.vfReady[26][0] = c.cyc + 4;
+        c.bkValid = false;
+        ++c.cyc;
+    }
+    // 0C68: 0100D69C 800003BF
+    {
+        stall(c, c.vfReady[26][0]);
+        if (c.qPending) stall(c, c.qReady);
+        commitQ(c);
+        uint32_t stk = 0u;
+        uint32_t f0 = 0u;
+        const float u0 = fMulF(N(vf[26][0]), N(s.q), f0);
+        pushMacStatus(c, 0u | macBits(f0, 8u), 0u | f0, stk);
+        vf[26][0] = u0; c.vfReady[26][0] = c.cyc + 4;
+        c.bkValid = false;
+        ++c.cyc;
+    }
+    // 0C70: 0119D03E 8000033C
+    {
+        stall(c, c.vfReady[25][2]);
+        stall(c, c.vfReady[26][0]);
+        uint32_t stk = 0u;
+        uint32_t f0 = 0u;
+        const float u0 = fAddF(N(vf[26][0]), N(vf[25][2]), f0);
+        pushMacStatus(c, 0u | macBits(f0, 8u), 0u | f0, stk);
+        s.acc[0] = u0; c.accReady[0] = c.cyc + 1u;
+        c.bkValid = false;
+        ++c.cyc;
+    }
+    // 0C78: 0108CE4A 019A0006
+    {
+        stall(c, c.vfReady[25][0]);
+        stall(c, c.vfReady[8][2]);
+        uint32_t stk = 0u;
+        uint32_t f0 = 0u;
+        const float u0 = fMaddF(N(s.acc[0]), N(vf[25][0]), N(vf[8][2]), f0, stk);
+        pushMacStatus(c, 0u | macBits(f0, 8u), 0u | f0, stk);
+        const uint32_t la = ((static_cast<uint32_t>(static_cast<int32_t>(vi[0] + (6))) * 16u) & 0x3FF0u);
+        const float l0 = ldf(m, la + 0);
+        const float l1 = ldf(m, la + 4);
+        vf[26][0] = l0; c.vfReady[26][0] = c.cyc + 4;
+        vf[26][1] = l1; c.vfReady[26][1] = c.cyc + 4;
+        vf[25][0] = u0; c.vfReady[25][0] = c.cyc + 4;
+        c.bkValid = false;
+        ++c.cyc;
+    }
+    // 0C80: 0199D658 019A0004
+    {
+        stall(c, c.vfReady[25][0]);
+        stall(c, c.vfReady[26][0]);
+        stall(c, c.vfReady[26][1]);
+        uint32_t stk = 0u;
+        uint32_t f0 = 0u;
+        const float u0 = fMulF(N(vf[26][0]), N(vf[25][0]), f0);
+        uint32_t f1 = 0u;
+        const float u1 = fMulF(N(vf[26][1]), N(vf[25][0]), f1);
+        pushMacStatus(c, 0u | macBits(f0, 8u) | macBits(f1, 4u), 0u | f0 | f1, stk);
+        const uint32_t la = ((static_cast<uint32_t>(static_cast<int32_t>(vi[0] + (4))) * 16u) & 0x3FF0u);
+        const float l0 = ldf(m, la + 0);
+        const float l1 = ldf(m, la + 4);
+        vf[26][0] = l0; c.vfReady[26][0] = c.cyc + 4;
+        vf[26][1] = l1; c.vfReady[26][1] = c.cyc + 4;
+        vf[25][0] = u0; c.vfReady[25][0] = c.cyc + 4;
+        vf[25][1] = u1; c.vfReady[25][1] = c.cyc + 4;
+        c.bkValid = false;
+        ++c.cyc;
+    }
+    // 0C88: 003080EB 8000033C
+    {
+        const float u3 = vmax(N(vf[16][3]), N(vf[16][3]));
+        vf[3][3] = u3; c.vfReady[3][3] = c.cyc + 4;
+        c.bkValid = false;
+        ++c.cyc;
+    }
+    // 0C90: 806006AC 437F0000
+    {
+        uint32_t stk = 0u;
+        uint32_t f2 = 0u;
+        const float u2 = fSubF(N(vf[0][2]), N(vf[0][2]), f2);
+        uint32_t f3 = 0u;
+        const float u3 = fSubF(N(vf[0][3]), N(vf[0][3]), f3);
+        pushMacStatus(c, 0u | macBits(f2, 2u) | macBits(f3, 1u), 0u | f2 | f3, stk);
+        s.i = N(bitsf(0x437F0000u));
+        vf[26][2] = u2; c.vfReady[26][2] = c.cyc + 4;
+        vf[26][3] = u3; c.vfReady[26][3] = c.cyc + 4;
+        c.bkValid = false;
+        ++c.cyc;
+    }
+    // 0C98: 01C0DEDF 8000033C
+    {
+        const float u0 = vmin(N(vf[27][0]), N(s.i));
+        const float u1 = vmin(N(vf[27][1]), N(s.i));
+        const float u2 = vmin(N(vf[27][2]), N(s.i));
+        vf[27][0] = u0; c.vfReady[27][0] = c.cyc + 4;
+        vf[27][1] = u1; c.vfReady[27][1] = c.cyc + 4;
+        vf[27][2] = u2; c.vfReady[27][2] = c.cyc + 4;
+        c.bkValid = false;
+        ++c.cyc;
+    }
+    // 0CA0: 019ACEAA 088D1000
+    {
+        uint32_t stk = 0u;
+        uint32_t f0 = 0u;
+        const float u0 = fMulF(N(vf[25][0]), N(vf[26][0]), f0);
+        uint32_t f1 = 0u;
+        const float u1 = fMulF(N(vf[25][1]), N(vf[26][1]), f1);
+        pushMacStatus(c, 0u | macBits(f0, 8u) | macBits(f1, 4u), 0u | f0 | f1, stk);
+        const int32_t nvi = static_cast<int32_t>(static_cast<int16_t>(ldu(m, ((static_cast<uint32_t>(static_cast<int32_t>(vi[2] + (0))) * 16u) & 0x3FF0u) + 4) & 0xFFFFu));
+        vf[26][0] = u0; c.vfReady[26][0] = c.cyc + 4;
+        vf[26][1] = u1; c.vfReady[26][1] = c.cyc + 4;
+        c.bkValid = false;
+        vi[13] = nvi; c.viReady[13] = c.cyc + 4;
+        ++c.cyc;
+    }
+    return 0xCA8;
+}
+
+static uint32_t vu1prog_3_0CA8(VU1NativeCtx &c)
+{
+    using namespace vu1n;
+    VU1State &s = *c.st;
+    float (*vf)[4] = s.vf;
+    int32_t *vi = s.vi;
+    uint8_t *m = c.mem;
+    (void)m;
+    (void)vf;
+    (void)vi;
+    // 0CA8: 800002FF 402CCCCD
+    {
+        s.i = N(bitsf(0x402CCCCDu));
+        c.bkValid = false;
+        ++c.cyc;
+    }
+    // 0CB0: 0020195F 01D91006
+    {
+        stall(c, c.vfReady[3][3]);
+        stall(c, c.viReady[2]);
+        const float u3 = vmin(N(vf[3][3]), N(s.i));
+        const uint32_t la = ((static_cast<uint32_t>(static_cast<int32_t>(vi[2] + (6))) * 16u) & 0x3FF0u);
+        const float l0 = ldf(m, la + 0);
+        const float l1 = ldf(m, la + 4);
+        const float l2 = ldf(m, la + 8);
+        vf[25][0] = l0; c.vfReady[25][0] = c.cyc + 4;
+        vf[25][1] = l1; c.vfReady[25][1] = c.cyc + 4;
+        vf[25][2] = l2; c.vfReady[25][2] = c.cyc + 4;
+        vf[5][3] = u3; c.vfReady[5][3] = c.cyc + 4;
+        c.bkValid = false;
+        ++c.cyc;
+    }
+    // 0CB8: 01C3CE5B 01FE0001
+    {
+        stall(c, c.vfReady[25][0]);
+        stall(c, c.vfReady[25][1]);
+        stall(c, c.vfReady[25][2]);
+        uint32_t stk = 0u;
+        uint32_t f0 = 0u;
+        const float u0 = fMulF(N(vf[25][0]), N(vf[3][3]), f0);
+        uint32_t f1 = 0u;
+        const float u1 = fMulF(N(vf[25][1]), N(vf[3][3]), f1);
+        uint32_t f2 = 0u;
+        const float u2 = fMulF(N(vf[25][2]), N(vf[3][3]), f2);
+        pushMacStatus(c, 0u | macBits(f0, 8u) | macBits(f1, 4u) | macBits(f2, 2u), 0u | f0 | f1 | f2, stk);
+        const uint32_t la = ((static_cast<uint32_t>(static_cast<int32_t>(vi[0] + (1))) * 16u) & 0x3FF0u);
+        const float l0 = ldf(m, la + 0);
+        const float l1 = ldf(m, la + 4);
+        const float l2 = ldf(m, la + 8);
+        const float l3 = ldf(m, la + 12);
+        vf[30][0] = l0; c.vfReady[30][0] = c.cyc + 4;
+        vf[30][1] = l1; c.vfReady[30][1] = c.cyc + 4;
+        vf[30][2] = l2; c.vfReady[30][2] = c.cyc + 4;
+        vf[30][3] = l3; c.vfReady[30][3] = c.cyc + 4;
+        vf[25][0] = u0; c.vfReady[25][0] = c.cyc + 4;
+        vf[25][1] = u1; c.vfReady[25][1] = c.cyc + 4;
+        vf[25][2] = u2; c.vfReady[25][2] = c.cyc + 4;
+        c.bkValid = false;
+        ++c.cyc;
+    }
+    // 0CC0: 002529AA 01FD0002
+    {
+        stall(c, c.vfReady[5][3]);
+        uint32_t stk = 0u;
+        uint32_t f3 = 0u;
+        const float u3 = fMulF(N(vf[5][3]), N(vf[5][3]), f3);
+        pushMacStatus(c, 0u | macBits(f3, 1u), 0u | f3, stk);
+        const uint32_t la = ((static_cast<uint32_t>(static_cast<int32_t>(vi[0] + (2))) * 16u) & 0x3FF0u);
+        const float l0 = ldf(m, la + 0);
+        const float l1 = ldf(m, la + 4);
+        const float l2 = ldf(m, la + 8);
+        const float l3 = ldf(m, la + 12);
+        vf[29][0] = l0; c.vfReady[29][0] = c.cyc + 4;
+        vf[29][1] = l1; c.vfReady[29][1] = c.cyc + 4;
+        vf[29][2] = l2; c.vfReady[29][2] = c.cyc + 4;
+        vf[29][3] = l3; c.vfReady[29][3] = c.cyc + 4;
+        vf[6][3] = u3; c.vfReady[6][3] = c.cyc + 4;
+        c.bkValid = false;
+        ++c.cyc;
+    }
+    // 0CC8: 000002FF 8000033C
+    {
+        c.bkValid = false;
+        ++c.cyc;
+    }
+    // 0CD0: 002D29BC 01FC0003
+    {
+        stall(c, c.vfReady[13][0]);
+        uint32_t stk = 0u;
+        uint32_t f3 = 0u;
+        const float u3 = fMulF(N(vf[5][3]), N(vf[13][0]), f3);
+        pushMacStatus(c, 0u | macBits(f3, 1u), 0u | f3, stk);
+        const uint32_t la = ((static_cast<uint32_t>(static_cast<int32_t>(vi[0] + (3))) * 16u) & 0x3FF0u);
+        const float l0 = ldf(m, la + 0);
+        const float l1 = ldf(m, la + 4);
+        const float l2 = ldf(m, la + 8);
+        const float l3 = ldf(m, la + 12);
+        vf[28][0] = l0; c.vfReady[28][0] = c.cyc + 4;
+        vf[28][1] = l1; c.vfReady[28][1] = c.cyc + 4;
+        vf[28][2] = l2; c.vfReady[28][2] = c.cyc + 4;
+        vf[28][3] = l3; c.vfReady[28][3] = c.cyc + 4;
+        s.acc[3] = u3; c.accReady[3] = c.cyc + 1u;
+        c.bkValid = false;
+        ++c.cyc;
+    }
+    // 0CD8: 01D6CE68 8000033C
+    {
+        stall(c, c.vfReady[22][0]);
+        stall(c, c.vfReady[22][1]);
+        stall(c, c.vfReady[22][2]);
+        uint32_t stk = 0u;
+        uint32_t f0 = 0u;
+        const float u0 = fAddF(N(vf[25][0]), N(vf[22][0]), f0);
+        uint32_t f1 = 0u;
+        const float u1 = fAddF(N(vf[25][1]), N(vf[22][1]), f1);
+        uint32_t f2 = 0u;
+        const float u2 = fAddF(N(vf[25][2]), N(vf[22][2]), f2);
+        pushMacStatus(c, 0u | macBits(f0, 8u) | macBits(f1, 4u) | macBits(f2, 2u), 0u | f0 | f1 | f2, stk);
+        vf[25][0] = u0; c.vfReady[25][0] = c.cyc + 4;
+        vf[25][1] = u1; c.vfReady[25][1] = c.cyc + 4;
+        vf[25][2] = u2; c.vfReady[25][2] = c.cyc + 4;
+        c.bkValid = false;
+        ++c.cyc;
+    }
+    // 0CE0: 002E3149 8000033C
+    {
+        stall(c, c.vfReady[14][1]);
+        uint32_t stk = 0u;
+        uint32_t f3 = 0u;
+        const float u3 = fMaddF(N(s.acc[3]), N(vf[6][3]), N(vf[14][1]), f3, stk);
+        pushMacStatus(c, 0u | macBits(f3, 1u), 0u | f3, stk);
+        vf[5][3] = u3; c.vfReady[5][3] = c.cyc + 4;
+        c.bkValid = false;
+        ++c.cyc;
+    }
+    // 0CE8: 01C0C9BF 8000033C
+    {
+        stall(c, c.vfReady[25][0]);
+        stall(c, c.vfReady[25][1]);
+        stall(c, c.vfReady[25][2]);
+        uint32_t stk = 0u;
+        uint32_t f0 = 0u;
+        const float u0 = fMulF(N(vf[25][0]), N(vf[0][3]), f0);
+        uint32_t f1 = 0u;
+        const float u1 = fMulF(N(vf[25][1]), N(vf[0][3]), f1);
+        uint32_t f2 = 0u;
+        const float u2 = fMulF(N(vf[25][2]), N(vf[0][3]), f2);
+        pushMacStatus(c, 0u | macBits(f0, 8u) | macBits(f1, 4u) | macBits(f2, 2u), 0u | f0 | f1 | f2, stk);
+        s.acc[0] = u0; c.accReady[0] = c.cyc + 1u;
+        s.acc[1] = u1; c.accReady[1] = c.cyc + 1u;
+        s.acc[2] = u2; c.accReady[2] = c.cyc + 1u;
+        c.bkValid = false;
+        ++c.cyc;
+    }
+    // 0CF0: 01C5BE4B 01FF0000
+    {
+        stall(c, c.vfReady[23][0]);
+        stall(c, c.vfReady[23][1]);
+        stall(c, c.vfReady[23][2]);
+        stall(c, c.vfReady[5][3]);
+        uint32_t stk = 0u;
+        uint32_t f0 = 0u;
+        const float u0 = fMaddF(N(s.acc[0]), N(vf[23][0]), N(vf[5][3]), f0, stk);
+        uint32_t f1 = 0u;
+        const float u1 = fMaddF(N(s.acc[1]), N(vf[23][1]), N(vf[5][3]), f1, stk);
+        uint32_t f2 = 0u;
+        const float u2 = fMaddF(N(s.acc[2]), N(vf[23][2]), N(vf[5][3]), f2, stk);
+        pushMacStatus(c, 0u | macBits(f0, 8u) | macBits(f1, 4u) | macBits(f2, 2u), 0u | f0 | f1 | f2, stk);
+        const uint32_t la = ((static_cast<uint32_t>(static_cast<int32_t>(vi[0] + (0))) * 16u) & 0x3FF0u);
+        const float l0 = ldf(m, la + 0);
+        const float l1 = ldf(m, la + 4);
+        const float l2 = ldf(m, la + 8);
+        const float l3 = ldf(m, la + 12);
+        vf[31][0] = l0; c.vfReady[31][0] = c.cyc + 4;
+        vf[31][1] = l1; c.vfReady[31][1] = c.cyc + 4;
+        vf[31][2] = l2; c.vfReady[31][2] = c.cyc + 4;
+        vf[31][3] = l3; c.vfReady[31][3] = c.cyc + 4;
+        vf[25][0] = u0; c.vfReady[25][0] = c.cyc + 4;
+        vf[25][1] = u1; c.vfReady[25][1] = c.cyc + 4;
+        vf[25][2] = u2; c.vfReady[25][2] = c.cyc + 4;
+        c.bkValid = false;
+        ++c.cyc;
+    }
+    // 0CF8: 01F9F9BC 8000033C
+    {
+        stall(c, c.vfReady[25][0]);
+        stall(c, c.vfReady[31][0]);
+        stall(c, c.vfReady[31][1]);
+        stall(c, c.vfReady[31][2]);
+        stall(c, c.vfReady[31][3]);
+        uint32_t stk = 0u;
+        uint32_t f0 = 0u;
+        const float u0 = fMulF(N(vf[31][0]), N(vf[25][0]), f0);
+        uint32_t f1 = 0u;
+        const float u1 = fMulF(N(vf[31][1]), N(vf[25][0]), f1);
+        uint32_t f2 = 0u;
+        const float u2 = fMulF(N(vf[31][2]), N(vf[25][0]), f2);
+        uint32_t f3 = 0u;
+        const float u3 = fMulF(N(vf[31][3]), N(vf[25][0]), f3);
+        pushMacStatus(c, 0u | macBits(f0, 8u) | macBits(f1, 4u) | macBits(f2, 2u) | macBits(f3, 1u), 0u | f0 | f1 | f2 | f3, stk);
+        s.acc[0] = u0; c.accReady[0] = c.cyc + 1u;
+        s.acc[1] = u1; c.accReady[1] = c.cyc + 1u;
+        s.acc[2] = u2; c.accReady[2] = c.cyc + 1u;
+        s.acc[3] = u3; c.accReady[3] = c.cyc + 1u;
+        c.bkValid = false;
+        ++c.cyc;
+    }
+    // 0D00: 01F9F0BD 8000033C
+    {
+        stall(c, c.vfReady[25][1]);
+        uint32_t stk = 0u;
+        uint32_t f0 = 0u;
+        const float u0 = fMaddF(N(s.acc[0]), N(vf[30][0]), N(vf[25][1]), f0, stk);
+        uint32_t f1 = 0u;
+        const float u1 = fMaddF(N(s.acc[1]), N(vf[30][1]), N(vf[25][1]), f1, stk);
+        uint32_t f2 = 0u;
+        const float u2 = fMaddF(N(s.acc[2]), N(vf[30][2]), N(vf[25][1]), f2, stk);
+        uint32_t f3 = 0u;
+        const float u3 = fMaddF(N(s.acc[3]), N(vf[30][3]), N(vf[25][1]), f3, stk);
+        pushMacStatus(c, 0u | macBits(f0, 8u) | macBits(f1, 4u) | macBits(f2, 2u) | macBits(f3, 1u), 0u | f0 | f1 | f2 | f3, stk);
+        s.acc[0] = u0; c.accReady[0] = c.cyc + 1u;
+        s.acc[1] = u1; c.accReady[1] = c.cyc + 1u;
+        s.acc[2] = u2; c.accReady[2] = c.cyc + 1u;
+        s.acc[3] = u3; c.accReady[3] = c.cyc + 1u;
+        c.bkValid = false;
+        ++c.cyc;
+    }
+    // 0D08: 01F9E8BE 8000033C
+    {
+        stall(c, c.vfReady[25][2]);
+        uint32_t stk = 0u;
+        uint32_t f0 = 0u;
+        const float u0 = fMaddF(N(s.acc[0]), N(vf[29][0]), N(vf[25][2]), f0, stk);
+        uint32_t f1 = 0u;
+        const float u1 = fMaddF(N(s.acc[1]), N(vf[29][1]), N(vf[25][2]), f1, stk);
+        uint32_t f2 = 0u;
+        const float u2 = fMaddF(N(s.acc[2]), N(vf[29][2]), N(vf[25][2]), f2, stk);
+        uint32_t f3 = 0u;
+        const float u3 = fMaddF(N(s.acc[3]), N(vf[29][3]), N(vf[25][2]), f3, stk);
+        pushMacStatus(c, 0u | macBits(f0, 8u) | macBits(f1, 4u) | macBits(f2, 2u) | macBits(f3, 1u), 0u | f0 | f1 | f2 | f3, stk);
+        s.acc[0] = u0; c.accReady[0] = c.cyc + 1u;
+        s.acc[1] = u1; c.accReady[1] = c.cyc + 1u;
+        s.acc[2] = u2; c.accReady[2] = c.cyc + 1u;
+        s.acc[3] = u3; c.accReady[3] = c.cyc + 1u;
+        c.bkValid = false;
+        ++c.cyc;
+    }
+    // 0D10: 01E0E64B 8000033C
+    {
+        uint32_t stk = 0u;
+        uint32_t f0 = 0u;
+        const float u0 = fMaddF(N(s.acc[0]), N(vf[28][0]), N(vf[0][3]), f0, stk);
+        uint32_t f1 = 0u;
+        const float u1 = fMaddF(N(s.acc[1]), N(vf[28][1]), N(vf[0][3]), f1, stk);
+        uint32_t f2 = 0u;
+        const float u2 = fMaddF(N(s.acc[2]), N(vf[28][2]), N(vf[0][3]), f2, stk);
+        uint32_t f3 = 0u;
+        const float u3 = fMaddF(N(s.acc[3]), N(vf[28][3]), N(vf[0][3]), f3, stk);
+        pushMacStatus(c, 0u | macBits(f0, 8u) | macBits(f1, 4u) | macBits(f2, 2u) | macBits(f3, 1u), 0u | f0 | f1 | f2 | f3, stk);
+        vf[25][0] = u0; c.vfReady[25][0] = c.cyc + 4;
+        vf[25][1] = u1; c.vfReady[25][1] = c.cyc + 4;
+        vf[25][2] = u2; c.vfReady[25][2] = c.cyc + 4;
+        vf[25][3] = u3; c.vfReady[25][3] = c.cyc + 4;
+        c.bkValid = false;
+        ++c.cyc;
+    }
+    // 0D18: 01D9C9FF 8000033C
+    {
+        stall(c, c.vfReady[25][0]);
+        stall(c, c.vfReady[25][1]);
+        stall(c, c.vfReady[25][2]);
+        stall(c, c.vfReady[25][3]);
+        queueClip(c, clipBits(vf[25], vf[25][3]));
+        c.bkValid = false;
+        ++c.cyc;
+    }
+    // 0D20: 000002FF 8000033C
+    {
+        c.bkValid = false;
+        ++c.cyc;
+    }
+    // 0D28: 000002FF 8000033C
+    {
+        c.bkValid = false;
+        ++c.cyc;
+    }
+    // 0D30: 000002FF 8000033C
+    {
+        c.bkValid = false;
+        ++c.cyc;
+    }
+    // 0D38: 000002FF 2400003F
+    {
+        commitClip(c);
+        const int32_t nvi = ((s.clip & 0x3Fu) != 0u) ? 1 : 0;
+        c.bkValid = false;
+        vi[1] = nvi; c.viReady[1] = c.cyc + 1;
+        ++c.cyc;
+    }
+    bool taken = false;
+    // 0D40: 0024C6EA 5201001D
+    {
+        stall(c, c.vfReady[24][3]);
+        stall(c, c.vfReady[4][3]);
+        uint32_t stk = 0u;
+        uint32_t f3 = 0u;
+        const float u3 = fMulF(N(vf[24][3]), N(vf[4][3]), f3);
+        pushMacStatus(c, 0u | macBits(f3, 1u), 0u | f3, stk);
+        taken = static_cast<int16_t>(brVi(c, 0)) != static_cast<int16_t>(brVi(c, 1));
+        vf[27][3] = u3; c.vfReady[27][3] = c.cyc + 4;
+        c.bkValid = false;
+        ++c.cyc;
+    }
+    // 0D48: 00282104 8000033C
+    {
+        stall(c, c.vfReady[8][0]);
+        uint32_t stk = 0u;
+        uint32_t f3 = 0u;
+        const float u3 = fSubF(N(vf[4][3]), N(vf[8][0]), f3);
+        pushMacStatus(c, 0u | macBits(f3, 1u), 0u | f3, stk);
+        vf[4][3] = u3; c.vfReady[4][3] = c.cyc + 4;
+        c.bkValid = false;
+        ++c.cyc;
+    }
+    if (c.cyc >= c.budgetEnd)
+        return handoffRet(c, (taken ? 0xE30u : 0xD50u));
+    return (taken ? 0xE30u : 0xD50u);
+}
+
+static uint32_t vu1prog_3_0D50(VU1NativeCtx &c)
+{
+    using namespace vu1n;
+    VU1State &s = *c.st;
+    float (*vf)[4] = s.vf;
+    int32_t *vi = s.vi;
+    uint8_t *m = c.mem;
+    (void)m;
+    (void)vf;
+    (void)vi;
+    // 0D50: 000002FF 81F903BC
+    {
+        stall(c, c.vfReady[25][3]);
+        if (c.qPending) stall(c, c.qReady);
+        divq(c, N(vf[0][3]), N(vf[25][3]));
+        c.bkValid = false;
+        ++c.cyc;
+    }
+    // 0D58: 000002FF 8000033C
+    {
+        c.bkValid = false;
+        ++c.cyc;
+    }
+    // 0D60: 000002FF 8000033C
+    {
+        c.bkValid = false;
+        ++c.cyc;
+    }
+    // 0D68: 01FED97C 01FC0005
+    {
+        stall(c, c.vfReady[27][0]);
+        stall(c, c.vfReady[27][1]);
+        stall(c, c.vfReady[27][2]);
+        stall(c, c.vfReady[27][3]);
+        const float u0 = bitsf(static_cast<uint32_t>(floatToInt(N(vf[27][0]), 1.0f)));
+        const float u1 = bitsf(static_cast<uint32_t>(floatToInt(N(vf[27][1]), 1.0f)));
+        const float u2 = bitsf(static_cast<uint32_t>(floatToInt(N(vf[27][2]), 1.0f)));
+        const float u3 = bitsf(static_cast<uint32_t>(floatToInt(N(vf[27][3]), 1.0f)));
+        const uint32_t la = ((static_cast<uint32_t>(static_cast<int32_t>(vi[0] + (5))) * 16u) & 0x3FF0u);
+        const float l0 = ldf(m, la + 0);
+        const float l1 = ldf(m, la + 4);
+        const float l2 = ldf(m, la + 8);
+        const float l3 = ldf(m, la + 12);
+        vf[28][0] = l0; c.vfReady[28][0] = c.cyc + 4;
+        vf[28][1] = l1; c.vfReady[28][1] = c.cyc + 4;
+        vf[28][2] = l2; c.vfReady[28][2] = c.cyc + 4;
+        vf[28][3] = l3; c.vfReady[28][3] = c.cyc + 4;
+        vf[30][0] = u0; c.vfReady[30][0] = c.cyc + 4;
+        vf[30][1] = u1; c.vfReady[30][1] = c.cyc + 4;
+        vf[30][2] = u2; c.vfReady[30][2] = c.cyc + 4;
+        vf[30][3] = u3; c.vfReady[30][3] = c.cyc + 4;
+        c.bkValid = false;
+        ++c.cyc;
+    }
+    // 0D70: 01E0D79C 03E6F001
+    {
+        stall(c, c.vfReady[26][0]);
+        stall(c, c.vfReady[26][1]);
+        stall(c, c.vfReady[26][2]);
+        stall(c, c.vfReady[26][3]);
+        stall(c, c.vfReady[30][0]);
+        stall(c, c.vfReady[30][1]);
+        stall(c, c.vfReady[30][2]);
+        stall(c, c.vfReady[30][3]);
+        stall(c, c.viReady[6]);
+        commitQ(c);
+        uint32_t stk = 0u;
+        uint32_t f0 = 0u;
+        const float u0 = fMulF(N(vf[26][0]), N(s.q), f0);
+        uint32_t f1 = 0u;
+        const float u1 = fMulF(N(vf[26][1]), N(s.q), f1);
+        uint32_t f2 = 0u;
+        const float u2 = fMulF(N(vf[26][2]), N(s.q), f2);
+        uint32_t f3 = 0u;
+        const float u3 = fMulF(N(vf[26][3]), N(s.q), f3);
+        pushMacStatus(c, 0u | macBits(f0, 8u) | macBits(f1, 4u) | macBits(f2, 2u) | macBits(f3, 1u), 0u | f0 | f1 | f2 | f3, stk);
+        { const uint32_t w[4] = {fbits(vf[30][0]), fbits(vf[30][1]), fbits(vf[30][2]), fbits(vf[30][3])}; storeQ(c, ((static_cast<uint32_t>(static_cast<int32_t>(vi[6] + (1))) * 16u) & 0x3FF0u), w, 15); }
+        vf[30][0] = u0; c.vfReady[30][0] = c.cyc + 4;
+        vf[30][1] = u1; c.vfReady[30][1] = c.cyc + 4;
+        vf[30][2] = u2; c.vfReady[30][2] = c.cyc + 4;
+        vf[30][3] = u3; c.vfReady[30][3] = c.cyc + 4;
+        c.bkValid = false;
+        ++c.cyc;
+    }
+    // 0D78: 000002FF 8000033C
+    {
+        c.bkValid = false;
+        ++c.cyc;
+    }
+    // 0D80: 01E0E1BF 03E60800
+    {
+        stall(c, c.vfReady[1][0]);
+        stall(c, c.vfReady[1][1]);
+        stall(c, c.vfReady[1][2]);
+        stall(c, c.vfReady[1][3]);
+        stall(c, c.vfReady[28][0]);
+        stall(c, c.vfReady[28][1]);
+        stall(c, c.vfReady[28][2]);
+        stall(c, c.vfReady[28][3]);
+        uint32_t stk = 0u;
+        uint32_t f0 = 0u;
+        const float u0 = fMulF(N(vf[28][0]), N(vf[0][3]), f0);
+        uint32_t f1 = 0u;
+        const float u1 = fMulF(N(vf[28][1]), N(vf[0][3]), f1);
+        uint32_t f2 = 0u;
+        const float u2 = fMulF(N(vf[28][2]), N(vf[0][3]), f2);
+        uint32_t f3 = 0u;
+        const float u3 = fMulF(N(vf[28][3]), N(vf[0][3]), f3);
+        pushMacStatus(c, 0u | macBits(f0, 8u) | macBits(f1, 4u) | macBits(f2, 2u) | macBits(f3, 1u), 0u | f0 | f1 | f2 | f3, stk);
+        { const uint32_t w[4] = {fbits(vf[1][0]), fbits(vf[1][1]), fbits(vf[1][2]), fbits(vf[1][3])}; storeQ(c, ((static_cast<uint32_t>(static_cast<int32_t>(vi[6] + (0))) * 16u) & 0x3FF0u), w, 15); }
+        s.acc[0] = u0; c.accReady[0] = c.cyc + 1u;
+        s.acc[1] = u1; c.accReady[1] = c.cyc + 1u;
+        s.acc[2] = u2; c.accReady[2] = c.cyc + 1u;
+        s.acc[3] = u3; c.accReady[3] = c.cyc + 1u;
+        c.bkValid = false;
+        ++c.cyc;
+    }
+    // 0D88: 01C0CE5C 01FD0004
+    {
+        stall(c, c.vfReady[25][0]);
+        stall(c, c.vfReady[25][1]);
+        stall(c, c.vfReady[25][2]);
+        commitQ(c);
+        uint32_t stk = 0u;
+        uint32_t f0 = 0u;
+        const float u0 = fMulF(N(vf[25][0]), N(s.q), f0);
+        uint32_t f1 = 0u;
+        const float u1 = fMulF(N(vf[25][1]), N(s.q), f1);
+        uint32_t f2 = 0u;
+        const float u2 = fMulF(N(vf[25][2]), N(s.q), f2);
+        pushMacStatus(c, 0u | macBits(f0, 8u) | macBits(f1, 4u) | macBits(f2, 2u), 0u | f0 | f1 | f2, stk);
+        const uint32_t la = ((static_cast<uint32_t>(static_cast<int32_t>(vi[0] + (4))) * 16u) & 0x3FF0u);
+        const float l0 = ldf(m, la + 0);
+        const float l1 = ldf(m, la + 4);
+        const float l2 = ldf(m, la + 8);
+        const float l3 = ldf(m, la + 12);
+        vf[29][0] = l0; c.vfReady[29][0] = c.cyc + 4;
+        vf[29][1] = l1; c.vfReady[29][1] = c.cyc + 4;
+        vf[29][2] = l2; c.vfReady[29][2] = c.cyc + 4;
+        vf[29][3] = l3; c.vfReady[29][3] = c.cyc + 4;
+        vf[25][0] = u0; c.vfReady[25][0] = c.cyc + 4;
+        vf[25][1] = u1; c.vfReady[25][1] = c.cyc + 4;
+        vf[25][2] = u2; c.vfReady[25][2] = c.cyc + 4;
+        c.bkValid = false;
+        ++c.cyc;
+    }
+    // 0D90: 01FCF1FD 10073801
+    {
+        stall(c, c.viReady[7]);
+        const float u0 = std::fabs(N(vf[30][0]));
+        const float u1 = std::fabs(N(vf[30][1]));
+        const float u2 = std::fabs(N(vf[30][2]));
+        const float u3 = std::fabs(N(vf[30][3]));
+        const int32_t nvi = static_cast<int16_t>(vi[7] + (1));
+        vf[28][0] = u0; c.vfReady[28][0] = c.cyc + 4;
+        vf[28][1] = u1; c.vfReady[28][1] = c.cyc + 4;
+        vf[28][2] = u2; c.vfReady[28][2] = c.cyc + 4;
+        vf[28][3] = u3; c.vfReady[28][3] = c.cyc + 4;
+        c.bkValid = true; c.bkReg = 7; c.bkVal = vi[7];
+        vi[7] = nvi; c.viReady[7] = c.cyc + 1;
+        ++c.cyc;
+    }
+    // 0D98: 81FDCE69 43000000
+    {
+        stall(c, c.vfReady[25][0]);
+        stall(c, c.vfReady[25][1]);
+        stall(c, c.vfReady[25][2]);
+        stall(c, c.vfReady[29][0]);
+        stall(c, c.vfReady[29][1]);
+        stall(c, c.vfReady[29][2]);
+        stall(c, c.vfReady[29][3]);
+        uint32_t stk = 0u;
+        uint32_t f0 = 0u;
+        const float u0 = fMaddF(N(s.acc[0]), N(vf[25][0]), N(vf[29][0]), f0, stk);
+        uint32_t f1 = 0u;
+        const float u1 = fMaddF(N(s.acc[1]), N(vf[25][1]), N(vf[29][1]), f1, stk);
+        uint32_t f2 = 0u;
+        const float u2 = fMaddF(N(s.acc[2]), N(vf[25][2]), N(vf[29][2]), f2, stk);
+        uint32_t f3 = 0u;
+        const float u3 = fMaddF(N(s.acc[3]), N(vf[25][3]), N(vf[29][3]), f3, stk);
+        pushMacStatus(c, 0u | macBits(f0, 8u) | macBits(f1, 4u) | macBits(f2, 2u) | macBits(f3, 1u), 0u | f0 | f1 | f2 | f3, stk);
+        s.i = N(bitsf(0x43000000u));
+        vf[25][0] = u0; c.vfReady[25][0] = c.cyc + 4;
+        vf[25][1] = u1; c.vfReady[25][1] = c.cyc + 4;
+        vf[25][2] = u2; c.vfReady[25][2] = c.cyc + 4;
+        vf[25][3] = u3; c.vfReady[25][3] = c.cyc + 4;
+        c.bkValid = false;
+        ++c.cyc;
+    }
+    // 0DA0: 0180E71F 8000033C
+    {
+        stall(c, c.vfReady[28][0]);
+        stall(c, c.vfReady[28][1]);
+        const float u0 = vmin(N(vf[28][0]), N(s.i));
+        const float u1 = vmin(N(vf[28][1]), N(s.i));
+        vf[28][0] = u0; c.vfReady[28][0] = c.cyc + 4;
+        vf[28][1] = u1; c.vfReady[28][1] = c.cyc + 4;
+        c.bkValid = false;
+        ++c.cyc;
+    }
+    // 0DA8: 01FCCF6C 8000033C
+    {
+        stall(c, c.vfReady[25][0]);
+        stall(c, c.vfReady[25][1]);
+        stall(c, c.vfReady[25][2]);
+        stall(c, c.vfReady[25][3]);
+        stall(c, c.vfReady[28][0]);
+        stall(c, c.vfReady[28][1]);
+        stall(c, c.vfReady[28][2]);
+        stall(c, c.vfReady[28][3]);
+        uint32_t stk = 0u;
+        uint32_t f0 = 0u;
+        const float u0 = fSubF(N(vf[25][0]), N(vf[28][0]), f0);
+        uint32_t f1 = 0u;
+        const float u1 = fSubF(N(vf[25][1]), N(vf[28][1]), f1);
+        uint32_t f2 = 0u;
+        const float u2 = fSubF(N(vf[25][2]), N(vf[28][2]), f2);
+        uint32_t f3 = 0u;
+        const float u3 = fSubF(N(vf[25][3]), N(vf[28][3]), f3);
+        pushMacStatus(c, 0u | macBits(f0, 8u) | macBits(f1, 4u) | macBits(f2, 2u) | macBits(f3, 1u), 0u | f0 | f1 | f2 | f3, stk);
+        vf[29][0] = u0; c.vfReady[29][0] = c.cyc + 4;
+        vf[29][1] = u1; c.vfReady[29][1] = c.cyc + 4;
+        vf[29][2] = u2; c.vfReady[29][2] = c.cyc + 4;
+        vf[29][3] = u3; c.vfReady[29][3] = c.cyc + 4;
+        c.bkValid = false;
+        ++c.cyc;
+    }
+    // 0DB0: 000002FF 8000033C
+    {
+        c.bkValid = false;
+        ++c.cyc;
+    }
+    // 0DB8: 01FCCE68 8000033C
+    {
+        uint32_t stk = 0u;
+        uint32_t f0 = 0u;
+        const float u0 = fAddF(N(vf[25][0]), N(vf[28][0]), f0);
+        uint32_t f1 = 0u;
+        const float u1 = fAddF(N(vf[25][1]), N(vf[28][1]), f1);
+        uint32_t f2 = 0u;
+        const float u2 = fAddF(N(vf[25][2]), N(vf[28][2]), f2);
+        uint32_t f3 = 0u;
+        const float u3 = fAddF(N(vf[25][3]), N(vf[28][3]), f3);
+        pushMacStatus(c, 0u | macBits(f0, 8u) | macBits(f1, 4u) | macBits(f2, 2u) | macBits(f3, 1u), 0u | f0 | f1 | f2 | f3, stk);
+        vf[25][0] = u0; c.vfReady[25][0] = c.cyc + 4;
+        vf[25][1] = u1; c.vfReady[25][1] = c.cyc + 4;
+        vf[25][2] = u2; c.vfReady[25][2] = c.cyc + 4;
+        vf[25][3] = u3; c.vfReady[25][3] = c.cyc + 4;
+        c.bkValid = false;
+        ++c.cyc;
+    }
+    // 0DC0: 01FCE97D 10063005
+    {
+        stall(c, c.vfReady[29][0]);
+        stall(c, c.vfReady[29][1]);
+        stall(c, c.vfReady[29][2]);
+        stall(c, c.vfReady[29][3]);
+        const float u0 = bitsf(static_cast<uint32_t>(floatToInt(N(vf[29][0]), 16.0f)));
+        const float u1 = bitsf(static_cast<uint32_t>(floatToInt(N(vf[29][1]), 16.0f)));
+        const float u2 = bitsf(static_cast<uint32_t>(floatToInt(N(vf[29][2]), 16.0f)));
+        const float u3 = bitsf(static_cast<uint32_t>(floatToInt(N(vf[29][3]), 16.0f)));
+        const int32_t nvi = static_cast<int16_t>(vi[6] + (5));
+        vf[28][0] = u0; c.vfReady[28][0] = c.cyc + 4;
+        vf[28][1] = u1; c.vfReady[28][1] = c.cyc + 4;
+        vf[28][2] = u2; c.vfReady[28][2] = c.cyc + 4;
+        vf[28][3] = u3; c.vfReady[28][3] = c.cyc + 4;
+        c.bkValid = true; c.bkReg = 6; c.bkVal = vi[6];
+        vi[6] = nvi; c.viReady[6] = c.cyc + 1;
+        ++c.cyc;
+    }
+    // 0DC8: 01F9C97D 03E617FE
+    {
+        stall(c, c.vfReady[25][0]);
+        stall(c, c.vfReady[25][1]);
+        stall(c, c.vfReady[25][2]);
+        stall(c, c.vfReady[25][3]);
+        stall(c, c.vfReady[2][0]);
+        stall(c, c.vfReady[2][1]);
+        stall(c, c.vfReady[2][2]);
+        stall(c, c.vfReady[2][3]);
+        const float u0 = bitsf(static_cast<uint32_t>(floatToInt(N(vf[25][0]), 16.0f)));
+        const float u1 = bitsf(static_cast<uint32_t>(floatToInt(N(vf[25][1]), 16.0f)));
+        const float u2 = bitsf(static_cast<uint32_t>(floatToInt(N(vf[25][2]), 16.0f)));
+        const float u3 = bitsf(static_cast<uint32_t>(floatToInt(N(vf[25][3]), 16.0f)));
+        { const uint32_t w[4] = {fbits(vf[2][0]), fbits(vf[2][1]), fbits(vf[2][2]), fbits(vf[2][3])}; storeQ(c, ((static_cast<uint32_t>(static_cast<int32_t>(vi[6] + (-2))) * 16u) & 0x3FF0u), w, 15); }
+        vf[25][0] = u0; c.vfReady[25][0] = c.cyc + 4;
+        vf[25][1] = u1; c.vfReady[25][1] = c.cyc + 4;
+        vf[25][2] = u2; c.vfReady[25][2] = c.cyc + 4;
+        vf[25][3] = u3; c.vfReady[25][3] = c.cyc + 4;
+        c.bkValid = false;
+        ++c.cyc;
+    }
+    // 0DD0: 000002FF 03E6E7FF
+    {
+        stall(c, c.vfReady[28][0]);
+        stall(c, c.vfReady[28][1]);
+        stall(c, c.vfReady[28][2]);
+        stall(c, c.vfReady[28][3]);
+        { const uint32_t w[4] = {fbits(vf[28][0]), fbits(vf[28][1]), fbits(vf[28][2]), fbits(vf[28][3])}; storeQ(c, ((static_cast<uint32_t>(static_cast<int32_t>(vi[6] + (-1))) * 16u) & 0x3FF0u), w, 15); }
+        c.bkValid = false;
+        ++c.cyc;
+    }
+    bool taken = false;
+    // 0DD8: 000002FF 5207400A
+    {
+        stall(c, c.viReady[8]);
+        taken = static_cast<int16_t>(brVi(c, 8)) != static_cast<int16_t>(brVi(c, 7));
+        c.bkValid = false;
+        ++c.cyc;
+    }
+    // 0DE0: 000002FF 03E6CFFD
+    {
+        stall(c, c.vfReady[25][0]);
+        stall(c, c.vfReady[25][1]);
+        stall(c, c.vfReady[25][2]);
+        stall(c, c.vfReady[25][3]);
+        { const uint32_t w[4] = {fbits(vf[25][0]), fbits(vf[25][1]), fbits(vf[25][2]), fbits(vf[25][3])}; storeQ(c, ((static_cast<uint32_t>(static_cast<int32_t>(vi[6] + (-3))) * 16u) & 0x3FF0u), w, 15); }
+        c.bkValid = false;
+        ++c.cyc;
+    }
+    if (c.cyc >= c.budgetEnd)
+        return handoffRet(c, (taken ? 0xE30u : 0xDE8u));
+    return (taken ? 0xE30u : 0xDE8u);
+}
+
+static uint32_t vu1prog_3_0DE8(VU1NativeCtx &c)
+{
+    using namespace vu1n;
+    VU1State &s = *c.st;
+    float (*vf)[4] = s.vf;
+    int32_t *vi = s.vi;
+    uint8_t *m = c.mem;
+    (void)m;
+    (void)vf;
+    (void)vi;
+    // 0DE8: 000002FF 11063800
+    {
+        stall(c, c.viReady[7]);
+        const int32_t nvi = static_cast<int16_t>(vi[7] + (16384));
+        c.bkValid = true; c.bkReg = 6; c.bkVal = vi[6];
+        vi[6] = nvi; c.viReady[6] = c.cyc + 1;
+        ++c.cyc;
+    }
+    // 0DF0: 000002FF 10072000
+    {
+        stall(c, c.viReady[4]);
+        const int32_t nvi = static_cast<int16_t>(vi[4] + (0));
+        c.bkValid = true; c.bkReg = 7; c.bkVal = vi[7];
+        vi[7] = nvi; c.viReady[7] = c.cyc + 1;
+        ++c.cyc;
+    }
+    // 0DF8: 000002FF 11063000
+    {
+        const int32_t nvi = static_cast<int16_t>(vi[6] + (16384));
+        c.bkValid = true; c.bkReg = 6; c.bkVal = vi[6];
+        vi[6] = nvi; c.viReady[6] = c.cyc + 1;
+        ++c.cyc;
+    }
+    // 0E00: 000002FF 0B062000
+    {
+        { const uint32_t v = static_cast<uint32_t>(static_cast<uint16_t>(vi[6] & 0xFFFF)); const uint32_t w[4] = {v, v, v, v}; storeQ(c, ((static_cast<uint32_t>(static_cast<int32_t>(vi[4] + (0))) * 16u) & 0x3FF0u), w, 8); }
+        c.bkValid = false;
+        ++c.cyc;
+    }
+    // 0E08: 000002FF 800026FC
+    {
+        xgWaitIdle(c);
+        xgStart(c, static_cast<uint32_t>(static_cast<uint16_t>(vi[4])));
+        c.bkValid = false;
+        ++c.cyc;
+    }
+    // 0E10: 000002FF 10042800
+    {
+        stall(c, c.viReady[5]);
+        const int32_t nvi = static_cast<int16_t>(vi[5] + (0));
+        c.bkValid = true; c.bkReg = 4; c.bkVal = vi[4];
+        vi[4] = nvi; c.viReady[4] = c.cyc + 1;
+        ++c.cyc;
+    }
+    // 0E18: 000002FF 10062801
+    {
+        const int32_t nvi = static_cast<int16_t>(vi[5] + (1));
+        c.bkValid = true; c.bkReg = 6; c.bkVal = vi[6];
+        vi[6] = nvi; c.viReady[6] = c.cyc + 1;
+        ++c.cyc;
+    }
+    // 0E20: 000002FF 10053800
+    {
+        const int32_t nvi = static_cast<int16_t>(vi[7] + (0));
+        c.bkValid = true; c.bkReg = 5; c.bkVal = vi[5];
+        vi[5] = nvi; c.viReady[5] = c.cyc + 1;
+        ++c.cyc;
+    }
+    // 0E28: 000002FF 10070000
+    {
+        const int32_t nvi = static_cast<int16_t>(vi[0] + (0));
+        c.bkValid = true; c.bkReg = 7; c.bkVal = vi[7];
+        vi[7] = nvi; c.viReady[7] = c.cyc + 1;
+        ++c.cyc;
+    }
+    return 0xE30;
+}
+
+static uint32_t vu1prog_3_0E30(VU1NativeCtx &c)
+{
+    using namespace vu1n;
+    VU1State &s = *c.st;
+    float (*vf)[4] = s.vf;
+    int32_t *vi = s.vi;
+    uint8_t *m = c.mem;
+    (void)m;
+    (void)vf;
+    (void)vi;
+    // 0E30: 002818C5 8000033C
+    {
+        stall(c, c.vfReady[3][3]);
+        stall(c, c.vfReady[8][1]);
+        uint32_t stk = 0u;
+        uint32_t f3 = 0u;
+        const float u3 = fSubF(N(vf[3][3]), N(vf[8][1]), f3);
+        pushMacStatus(c, 0u | macBits(f3, 1u), 0u | f3, stk);
+        vf[3][3] = u3; c.vfReady[3][3] = c.cyc + 4;
+        c.bkValid = false;
+        ++c.cyc;
+    }
+    // 0E38: 002019FD 34011800
+    {
+        stall(c, c.vfReady[3][3]);
+        stall(c, c.viReady[3]);
+        commitClip(c);
+        const float u3 = std::fabs(N(vf[3][3]));
+        const int32_t nvi = static_cast<int32_t>(s.mac & static_cast<uint32_t>(static_cast<uint16_t>(vi[3])));
+        c.bkValid = false;
+        vi[1] = nvi; c.viReady[1] = c.cyc + 1;
+        ++c.cyc;
+    }
+    bool taken = false;
+    // 0E40: 000002FF 50011805
+    {
+        taken = static_cast<int16_t>(brVi(c, 3)) == static_cast<int16_t>(brVi(c, 1));
+        c.bkValid = false;
+        ++c.cyc;
+    }
+    // 0E48: 000002FF 8000033C
+    {
+        c.bkValid = false;
+        ++c.cyc;
+    }
+    if (c.cyc >= c.budgetEnd)
+        return handoffRet(c, (taken ? 0xE70u : 0xE50u));
+    return (taken ? 0xE70u : 0xE50u);
+}
+
+static uint32_t vu1prog_3_0E50(VU1NativeCtx &c)
+{
+    using namespace vu1n;
+    VU1State &s = *c.st;
+    float (*vf)[4] = s.vf;
+    int32_t *vi = s.vi;
+    uint8_t *m = c.mem;
+    (void)m;
+    (void)vf;
+    (void)vi;
+    // 0E50: 000002FF 120D6801
+    {
+        stall(c, c.viReady[13]);
+        const int32_t nvi = static_cast<int16_t>(vi[13] - (1));
+        c.bkValid = true; c.bkReg = 13; c.bkVal = vi[13];
+        vi[13] = nvi; c.viReady[13] = c.cyc + 1;
+        ++c.cyc;
+    }
+    // 0E58: 000002FF 8000033C
+    {
+        c.bkValid = false;
+        ++c.cyc;
+    }
+    bool taken = false;
+    // 0E60: 000002FF 5A006FC8
+    {
+        taken = static_cast<int16_t>(brVi(c, 13)) > 0;
+        c.bkValid = false;
+        ++c.cyc;
+    }
+    // 0E68: 000002FF 8000033C
+    {
+        c.bkValid = false;
+        ++c.cyc;
+    }
+    if (c.cyc >= c.budgetEnd)
+        return handoffRet(c, (taken ? 0xCA8u : 0xE70u));
+    return (taken ? 0xCA8u : 0xE70u);
+}
+
+static uint32_t vu1prog_3_0E70(VU1NativeCtx &c)
+{
+    using namespace vu1n;
+    VU1State &s = *c.st;
+    float (*vf)[4] = s.vf;
+    int32_t *vi = s.vi;
+    uint8_t *m = c.mem;
+    (void)m;
+    (void)vf;
+    (void)vi;
+    // 0E70: 00278403 120C6001
+    {
+        stall(c, c.vfReady[16][3]);
+        stall(c, c.vfReady[7][3]);
+        stall(c, c.viReady[12]);
+        uint32_t stk = 0u;
+        uint32_t f3 = 0u;
+        const float u3 = fAddF(N(vf[16][3]), N(vf[7][3]), f3);
+        pushMacStatus(c, 0u | macBits(f3, 1u), 0u | f3, stk);
+        const int32_t nvi = static_cast<int16_t>(vi[12] - (1));
+        vf[16][3] = u3; c.vfReady[16][3] = c.cyc + 4;
+        c.bkValid = true; c.bkReg = 12; c.bkVal = vi[12];
+        vi[12] = nvi; c.viReady[12] = c.cyc + 1;
+        ++c.cyc;
+    }
+    // 0E78: 000002FF 8000033C
+    {
+        c.bkValid = false;
+        ++c.cyc;
+    }
+    bool taken = false;
+    // 0E80: 01117381 5A00679A
+    {
+        stall(c, c.vfReady[14][0]);
+        stall(c, c.vfReady[17][1]);
+        uint32_t stk = 0u;
+        uint32_t f0 = 0u;
+        const float u0 = fAddF(N(vf[14][0]), N(vf[17][1]), f0);
+        pushMacStatus(c, 0u | macBits(f0, 8u), 0u | f0, stk);
+        taken = static_cast<int16_t>(brVi(c, 12)) > 0;
+        vf[14][0] = u0; c.vfReady[14][0] = c.cyc + 4;
+        c.bkValid = false;
+        ++c.cyc;
+    }
+    // 0E88: 000002FF 8000033C
+    {
+        c.bkValid = false;
+        ++c.cyc;
+    }
+    if (c.cyc >= c.budgetEnd)
+        return handoffRet(c, (taken ? 0xB58u : 0xE90u));
+    return (taken ? 0xB58u : 0xE90u);
+}
+
+static uint32_t vu1prog_3_0E90(VU1NativeCtx &c)
+{
+    using namespace vu1n;
+    VU1State &s = *c.st;
+    float (*vf)[4] = s.vf;
+    int32_t *vi = s.vi;
+    uint8_t *m = c.mem;
+    (void)m;
+    (void)vf;
+    (void)vi;
+    // 0E90: 000002FF 12094801
+    {
+        stall(c, c.viReady[9]);
+        const int32_t nvi = static_cast<int16_t>(vi[9] - (1));
+        c.bkValid = true; c.bkReg = 9; c.bkVal = vi[9];
+        vi[9] = nvi; c.viReady[9] = c.cyc + 1;
+        ++c.cyc;
+    }
+    // 0E98: 000002FF 8000033C
+    {
+        c.bkValid = false;
+        ++c.cyc;
+    }
+    bool taken = false;
+    // 0EA0: 000002FF 5E004F89
+    {
+        taken = static_cast<int16_t>(brVi(c, 9)) >= 0;
+        c.bkValid = false;
+        ++c.cyc;
+    }
+    // 0EA8: 000002FF 8000033C
+    {
+        c.bkValid = false;
+        ++c.cyc;
+    }
+    if (c.cyc >= c.budgetEnd)
+        return handoffRet(c, (taken ? 0xAF0u : 0xEB0u));
+    return (taken ? 0xAF0u : 0xEB0u);
+}
+
+static uint32_t vu1prog_3_0EB0(VU1NativeCtx &c)
+{
+    using namespace vu1n;
+    VU1State &s = *c.st;
+    float (*vf)[4] = s.vf;
+    int32_t *vi = s.vi;
+    uint8_t *m = c.mem;
+    (void)m;
+    (void)vf;
+    (void)vi;
+    bool taken = false;
+    // 0EB0: 000002FF 50070007
+    {
+        stall(c, c.viReady[7]);
+        taken = static_cast<int16_t>(brVi(c, 0)) == static_cast<int16_t>(brVi(c, 7));
+        c.bkValid = false;
+        ++c.cyc;
+    }
+    // 0EB8: 000002FF 8000033C
+    {
+        c.bkValid = false;
+        ++c.cyc;
+    }
+    if (c.cyc >= c.budgetEnd)
+        return handoffRet(c, (taken ? 0xEF0u : 0xEC0u));
+    return (taken ? 0xEF0u : 0xEC0u);
+}
+
+static uint32_t vu1prog_3_0EC0(VU1NativeCtx &c)
+{
+    using namespace vu1n;
+    VU1State &s = *c.st;
+    float (*vf)[4] = s.vf;
+    int32_t *vi = s.vi;
+    uint8_t *m = c.mem;
+    (void)m;
+    (void)vf;
+    (void)vi;
+    // 0EC0: 000002FF 11013800
+    {
+        stall(c, c.viReady[7]);
+        const int32_t nvi = static_cast<int16_t>(vi[7] + (16384));
+        c.bkValid = true; c.bkReg = 1; c.bkVal = vi[1];
+        vi[1] = nvi; c.viReady[1] = c.cyc + 1;
+        ++c.cyc;
+    }
+    // 0EC8: 000002FF 11010800
+    {
+        const int32_t nvi = static_cast<int16_t>(vi[1] + (16384));
+        c.bkValid = true; c.bkReg = 1; c.bkVal = vi[1];
+        vi[1] = nvi; c.viReady[1] = c.cyc + 1;
+        ++c.cyc;
+    }
+    // 0ED0: 000002FF 0B012000
+    {
+        stall(c, c.viReady[4]);
+        { const uint32_t v = static_cast<uint32_t>(static_cast<uint16_t>(vi[1] & 0xFFFF)); const uint32_t w[4] = {v, v, v, v}; storeQ(c, ((static_cast<uint32_t>(static_cast<int32_t>(vi[4] + (0))) * 16u) & 0x3FF0u), w, 8); }
+        c.bkValid = false;
+        ++c.cyc;
+    }
+    // 0ED8: 000002FF 800026FC
+    {
+        xgWaitIdle(c);
+        xgStart(c, static_cast<uint32_t>(static_cast<uint16_t>(vi[4])));
+        c.bkValid = false;
+        ++c.cyc;
+    }
+    // 0EE0: 400002FF 8000033C
+    {
+        c.bkValid = false;
+        ++c.cyc;
+    }
+    // 0EE8: 000002FF 8000033C
+    {
+        c.bkValid = false;
+        ++c.cyc;
+    }
+    s.pc = 0xEF0;
+    finish(c);
+    return kEnded;
+}
+
+static uint32_t vu1prog_3_0EF0(VU1NativeCtx &c)
+{
+    using namespace vu1n;
+    VU1State &s = *c.st;
+    float (*vf)[4] = s.vf;
+    int32_t *vi = s.vi;
+    uint8_t *m = c.mem;
+    (void)m;
+    (void)vf;
+    (void)vi;
+    // 0EF0: 400002FF 8000033C
+    {
+        c.bkValid = false;
+        ++c.cyc;
+    }
+    // 0EF8: 000002FF 8000033C
+    {
+        c.bkValid = false;
+        ++c.cyc;
+    }
+    s.pc = 0xF00;
+    finish(c);
+    return kEnded;
+}
+
+static uint32_t vu1prog_3_0F00(VU1NativeCtx &c)
+{
+    using namespace vu1n;
+    VU1State &s = *c.st;
+    float (*vf)[4] = s.vf;
+    int32_t *vi = s.vi;
+    uint8_t *m = c.mem;
+    (void)m;
+    (void)vf;
+    (void)vi;
+    // 0F00: 002081BF 400007F1
+    {
+        stall(c, c.vfReady[16][3]);
+        uint32_t stk = 0u;
+        uint32_t f3 = 0u;
+        const float u3 = fMulF(N(vf[16][3]), N(vf[0][3]), f3);
+        pushMacStatus(c, 0u | macBits(f3, 1u), 0u | f3, stk);
+        s.acc[3] = u3; c.accReady[3] = c.cyc + 1u;
+        c.bkValid = false;
+        ++c.cyc;
+    }
+    // 0F08: 002F3C0A 8000033C
+    {
+        stall(c, c.vfReady[15][2]);
+        stall(c, c.vfReady[7][3]);
+        uint32_t stk = 0u;
+        uint32_t f3 = 0u;
+        const float u3 = fMaddF(N(s.acc[3]), N(vf[7][3]), N(vf[15][2]), f3, stk);
+        pushMacStatus(c, 0u | macBits(f3, 1u), 0u | f3, stk);
+        vf[16][3] = u3; c.vfReady[16][3] = c.cyc + 4;
+        c.bkValid = false;
+        ++c.cyc;
+    }
+    if (c.cyc >= c.budgetEnd)
+        return handoffRet(c, 0xE90u);
+    return 0xE90u;
+}
+
+static uint32_t vu1prog_3_1460(VU1NativeCtx &c)
+{
+    using namespace vu1n;
+    VU1State &s = *c.st;
+    float (*vf)[4] = s.vf;
+    int32_t *vi = s.vi;
+    uint8_t *m = c.mem;
+    (void)m;
+    (void)vf;
+    (void)vi;
+    // 1460: 000002FF 22000000
+    {
+        fcset(c, 0x0u);
+        c.bkValid = false;
+        ++c.cyc;
+    }
+    // 1468: 000002FF 800206BC
+    {
+        const int32_t nvi = static_cast<int32_t>(s.top & 0x3FFu);
+        c.bkValid = false;
+        vi[2] = nvi; c.viReady[2] = c.cyc + 1;
+        ++c.cyc;
+    }
+    // 1470: 000002FF 01E10000
+    {
+        const uint32_t la = ((static_cast<uint32_t>(static_cast<int32_t>(vi[0] + (0))) * 16u) & 0x3FF0u);
+        const float l0 = ldf(m, la + 0);
+        const float l1 = ldf(m, la + 4);
+        const float l2 = ldf(m, la + 8);
+        const float l3 = ldf(m, la + 12);
+        vf[1][0] = l0; c.vfReady[1][0] = c.cyc + 4;
+        vf[1][1] = l1; c.vfReady[1][1] = c.cyc + 4;
+        vf[1][2] = l2; c.vfReady[1][2] = c.cyc + 4;
+        vf[1][3] = l3; c.vfReady[1][3] = c.cyc + 4;
+        c.bkValid = false;
+        ++c.cyc;
+    }
+    // 1478: 000002FF 01C91001
+    {
+        const uint32_t la = ((static_cast<uint32_t>(static_cast<int32_t>(vi[2] + (1))) * 16u) & 0x3FF0u);
+        const float l0 = ldf(m, la + 0);
+        const float l1 = ldf(m, la + 4);
+        const float l2 = ldf(m, la + 8);
+        vf[9][0] = l0; c.vfReady[9][0] = c.cyc + 4;
+        vf[9][1] = l1; c.vfReady[9][1] = c.cyc + 4;
+        vf[9][2] = l2; c.vfReady[9][2] = c.cyc + 4;
+        c.bkValid = false;
+        ++c.cyc;
+    }
+    // 1480: 000002FF 01E20001
+    {
+        const uint32_t la = ((static_cast<uint32_t>(static_cast<int32_t>(vi[0] + (1))) * 16u) & 0x3FF0u);
+        const float l0 = ldf(m, la + 0);
+        const float l1 = ldf(m, la + 4);
+        const float l2 = ldf(m, la + 8);
+        const float l3 = ldf(m, la + 12);
+        vf[2][0] = l0; c.vfReady[2][0] = c.cyc + 4;
+        vf[2][1] = l1; c.vfReady[2][1] = c.cyc + 4;
+        vf[2][2] = l2; c.vfReady[2][2] = c.cyc + 4;
+        vf[2][3] = l3; c.vfReady[2][3] = c.cyc + 4;
+        c.bkValid = false;
+        ++c.cyc;
+    }
+    // 1488: 000002FF 01E30002
+    {
+        const uint32_t la = ((static_cast<uint32_t>(static_cast<int32_t>(vi[0] + (2))) * 16u) & 0x3FF0u);
+        const float l0 = ldf(m, la + 0);
+        const float l1 = ldf(m, la + 4);
+        const float l2 = ldf(m, la + 8);
+        const float l3 = ldf(m, la + 12);
+        vf[3][0] = l0; c.vfReady[3][0] = c.cyc + 4;
+        vf[3][1] = l1; c.vfReady[3][1] = c.cyc + 4;
+        vf[3][2] = l2; c.vfReady[3][2] = c.cyc + 4;
+        vf[3][3] = l3; c.vfReady[3][3] = c.cyc + 4;
+        c.bkValid = false;
+        ++c.cyc;
+    }
+    // 1490: 000002FF 01EA1002
+    {
+        const uint32_t la = ((static_cast<uint32_t>(static_cast<int32_t>(vi[2] + (2))) * 16u) & 0x3FF0u);
+        const float l0 = ldf(m, la + 0);
+        const float l1 = ldf(m, la + 4);
+        const float l2 = ldf(m, la + 8);
+        const float l3 = ldf(m, la + 12);
+        vf[10][0] = l0; c.vfReady[10][0] = c.cyc + 4;
+        vf[10][1] = l1; c.vfReady[10][1] = c.cyc + 4;
+        vf[10][2] = l2; c.vfReady[10][2] = c.cyc + 4;
+        vf[10][3] = l3; c.vfReady[10][3] = c.cyc + 4;
+        c.bkValid = false;
+        ++c.cyc;
+    }
+    // 1498: 000002FF 01E81000
+    {
+        const uint32_t la = ((static_cast<uint32_t>(static_cast<int32_t>(vi[2] + (0))) * 16u) & 0x3FF0u);
+        const float l0 = ldf(m, la + 0);
+        const float l1 = ldf(m, la + 4);
+        const float l2 = ldf(m, la + 8);
+        const float l3 = ldf(m, la + 12);
+        vf[8][0] = l0; c.vfReady[8][0] = c.cyc + 4;
+        vf[8][1] = l1; c.vfReady[8][1] = c.cyc + 4;
+        vf[8][2] = l2; c.vfReady[8][2] = c.cyc + 4;
+        vf[8][3] = l3; c.vfReady[8][3] = c.cyc + 4;
+        c.bkValid = false;
+        ++c.cyc;
+    }
+    // 14A0: 000002FF 01E40003
+    {
+        const uint32_t la = ((static_cast<uint32_t>(static_cast<int32_t>(vi[0] + (3))) * 16u) & 0x3FF0u);
+        const float l0 = ldf(m, la + 0);
+        const float l1 = ldf(m, la + 4);
+        const float l2 = ldf(m, la + 8);
+        const float l3 = ldf(m, la + 12);
+        vf[4][0] = l0; c.vfReady[4][0] = c.cyc + 4;
+        vf[4][1] = l1; c.vfReady[4][1] = c.cyc + 4;
+        vf[4][2] = l2; c.vfReady[4][2] = c.cyc + 4;
+        vf[4][3] = l3; c.vfReady[4][3] = c.cyc + 4;
+        c.bkValid = false;
+        ++c.cyc;
+    }
+    // 14A8: 000002FF 81F2033D
+    {
+        const float l0 = vf[0][1];
+        const float l1 = vf[0][2];
+        const float l2 = vf[0][3];
+        const float l3 = vf[0][0];
+        vf[18][0] = l0; c.vfReady[18][0] = c.cyc + 4;
+        vf[18][1] = l1; c.vfReady[18][1] = c.cyc + 4;
+        vf[18][2] = l2; c.vfReady[18][2] = c.cyc + 4;
+        vf[18][3] = l3; c.vfReady[18][3] = c.cyc + 4;
+        c.bkValid = false;
+        ++c.cyc;
+    }
+    // 14B0: 000002FF 806F033D
+    {
+        const float l2 = vf[0][3];
+        const float l3 = vf[0][0];
+        vf[15][2] = l2; c.vfReady[15][2] = c.cyc + 4;
+        vf[15][3] = l3; c.vfReady[15][3] = c.cyc + 4;
+        c.bkValid = false;
+        ++c.cyc;
+    }
+    // 14B8: 818004EB 41400000
+    {
+        const float u0 = vmax(N(vf[0][0]), N(vf[0][0]));
+        const float u1 = vmax(N(vf[0][1]), N(vf[0][1]));
+        s.i = N(bitsf(0x41400000u));
+        vf[19][0] = u0; c.vfReady[19][0] = c.cyc + 4;
+        vf[19][1] = u1; c.vfReady[19][1] = c.cyc + 4;
+        c.bkValid = false;
+        ++c.cyc;
+    }
+    // 14C0: 0100052B 1004013B
+    {
+        const float u0 = vmax(N(vf[0][0]), N(vf[0][0]));
+        const int32_t nvi = static_cast<int16_t>(vi[0] + (315));
+        vf[20][0] = u0; c.vfReady[20][0] = c.cyc + 4;
+        c.bkValid = true; c.bkReg = 4; c.bkVal = vi[4];
+        vi[4] = nvi; c.viReady[4] = c.cyc + 1;
+        ++c.cyc;
+    }
+    // 14C8: 01CA4BA8 01ED1015
+    {
+        uint32_t stk = 0u;
+        uint32_t f0 = 0u;
+        const float u0 = fAddF(N(vf[9][0]), N(vf[10][0]), f0);
+        uint32_t f1 = 0u;
+        const float u1 = fAddF(N(vf[9][1]), N(vf[10][1]), f1);
+        uint32_t f2 = 0u;
+        const float u2 = fAddF(N(vf[9][2]), N(vf[10][2]), f2);
+        pushMacStatus(c, 0u | macBits(f0, 8u) | macBits(f1, 4u) | macBits(f2, 2u), 0u | f0 | f1 | f2, stk);
+        const uint32_t la = ((static_cast<uint32_t>(static_cast<int32_t>(vi[2] + (21))) * 16u) & 0x3FF0u);
+        const float l0 = ldf(m, la + 0);
+        const float l1 = ldf(m, la + 4);
+        const float l2 = ldf(m, la + 8);
+        const float l3 = ldf(m, la + 12);
+        vf[13][0] = l0; c.vfReady[13][0] = c.cyc + 4;
+        vf[13][1] = l1; c.vfReady[13][1] = c.cyc + 4;
+        vf[13][2] = l2; c.vfReady[13][2] = c.cyc + 4;
+        vf[13][3] = l3; c.vfReady[13][3] = c.cyc + 4;
+        vf[14][0] = u0; c.vfReady[14][0] = c.cyc + 4;
+        vf[14][1] = u1; c.vfReady[14][1] = c.cyc + 4;
+        vf[14][2] = u2; c.vfReady[14][2] = c.cyc + 4;
+        c.bkValid = false;
+        ++c.cyc;
+    }
+    // 14D0: 01C94468 01CB1003
+    {
+        uint32_t stk = 0u;
+        uint32_t f0 = 0u;
+        const float u0 = fAddF(N(vf[8][0]), N(vf[9][0]), f0);
+        uint32_t f1 = 0u;
+        const float u1 = fAddF(N(vf[8][1]), N(vf[9][1]), f1);
+        uint32_t f2 = 0u;
+        const float u2 = fAddF(N(vf[8][2]), N(vf[9][2]), f2);
+        pushMacStatus(c, 0u | macBits(f0, 8u) | macBits(f1, 4u) | macBits(f2, 2u), 0u | f0 | f1 | f2, stk);
+        const uint32_t la = ((static_cast<uint32_t>(static_cast<int32_t>(vi[2] + (3))) * 16u) & 0x3FF0u);
+        const float l0 = ldf(m, la + 0);
+        const float l1 = ldf(m, la + 4);
+        const float l2 = ldf(m, la + 8);
+        vf[11][0] = l0; c.vfReady[11][0] = c.cyc + 4;
+        vf[11][1] = l1; c.vfReady[11][1] = c.cyc + 4;
+        vf[11][2] = l2; c.vfReady[11][2] = c.cyc + 4;
+        vf[17][0] = u0; c.vfReady[17][0] = c.cyc + 4;
+        vf[17][1] = u1; c.vfReady[17][1] = c.cyc + 4;
+        vf[17][2] = u2; c.vfReady[17][2] = c.cyc + 4;
+        c.bkValid = false;
+        ++c.cyc;
+    }
+    // 14D8: 010A4DC3 01D01010
+    {
+        uint32_t stk = 0u;
+        uint32_t f0 = 0u;
+        const float u0 = fAddF(N(vf[9][0]), N(vf[10][3]), f0);
+        pushMacStatus(c, 0u | macBits(f0, 8u), 0u | f0, stk);
+        const uint32_t la = ((static_cast<uint32_t>(static_cast<int32_t>(vi[2] + (16))) * 16u) & 0x3FF0u);
+        const float l0 = ldf(m, la + 0);
+        const float l1 = ldf(m, la + 4);
+        const float l2 = ldf(m, la + 8);
+        vf[16][0] = l0; c.vfReady[16][0] = c.cyc + 4;
+        vf[16][1] = l1; c.vfReady[16][1] = c.cyc + 4;
+        vf[16][2] = l2; c.vfReady[16][2] = c.cyc + 4;
+        vf[23][0] = u0; c.vfReady[23][0] = c.cyc + 4;
+        c.bkValid = false;
+        ++c.cyc;
+    }
+    // 14E0: 01F209BC 808F7B3D
+    {
+        stall(c, c.vfReady[15][0]);
+        stall(c, c.vfReady[15][1]);
+        uint32_t stk = 0u;
+        uint32_t f0 = 0u;
+        const float u0 = fMulF(N(vf[1][0]), N(vf[18][0]), f0);
+        uint32_t f1 = 0u;
+        const float u1 = fMulF(N(vf[1][1]), N(vf[18][0]), f1);
+        uint32_t f2 = 0u;
+        const float u2 = fMulF(N(vf[1][2]), N(vf[18][0]), f2);
+        uint32_t f3 = 0u;
+        const float u3 = fMulF(N(vf[1][3]), N(vf[18][0]), f3);
+        pushMacStatus(c, 0u | macBits(f0, 8u) | macBits(f1, 4u) | macBits(f2, 2u) | macBits(f3, 1u), 0u | f0 | f1 | f2 | f3, stk);
+        const float l1 = vf[15][2];
+        vf[15][1] = l1; c.vfReady[15][1] = c.cyc + 4;
+        s.acc[0] = u0; c.accReady[0] = c.cyc + 1u;
+        s.acc[1] = u1; c.accReady[1] = c.cyc + 1u;
+        s.acc[2] = u2; c.accReady[2] = c.cyc + 1u;
+        s.acc[3] = u3; c.accReady[3] = c.cyc + 1u;
+        c.bkValid = false;
+        ++c.cyc;
+    }
+    // 14E8: 01F210BD 01C61011
+    {
+        uint32_t stk = 0u;
+        uint32_t f0 = 0u;
+        const float u0 = fMaddF(N(s.acc[0]), N(vf[2][0]), N(vf[18][1]), f0, stk);
+        uint32_t f1 = 0u;
+        const float u1 = fMaddF(N(s.acc[1]), N(vf[2][1]), N(vf[18][1]), f1, stk);
+        uint32_t f2 = 0u;
+        const float u2 = fMaddF(N(s.acc[2]), N(vf[2][2]), N(vf[18][1]), f2, stk);
+        uint32_t f3 = 0u;
+        const float u3 = fMaddF(N(s.acc[3]), N(vf[2][3]), N(vf[18][1]), f3, stk);
+        pushMacStatus(c, 0u | macBits(f0, 8u) | macBits(f1, 4u) | macBits(f2, 2u) | macBits(f3, 1u), 0u | f0 | f1 | f2 | f3, stk);
+        const uint32_t la = ((static_cast<uint32_t>(static_cast<int32_t>(vi[2] + (17))) * 16u) & 0x3FF0u);
+        const float l0 = ldf(m, la + 0);
+        const float l1 = ldf(m, la + 4);
+        const float l2 = ldf(m, la + 8);
+        vf[6][0] = l0; c.vfReady[6][0] = c.cyc + 4;
+        vf[6][1] = l1; c.vfReady[6][1] = c.cyc + 4;
+        vf[6][2] = l2; c.vfReady[6][2] = c.cyc + 4;
+        s.acc[0] = u0; c.accReady[0] = c.cyc + 1u;
+        s.acc[1] = u1; c.accReady[1] = c.cyc + 1u;
+        s.acc[2] = u2; c.accReady[2] = c.cyc + 1u;
+        s.acc[3] = u3; c.accReady[3] = c.cyc + 1u;
+        c.bkValid = false;
+        ++c.cyc;
+    }
+    // 14F0: 01F218BE 01CC1012
+    {
+        uint32_t stk = 0u;
+        uint32_t f0 = 0u;
+        const float u0 = fMaddF(N(s.acc[0]), N(vf[3][0]), N(vf[18][2]), f0, stk);
+        uint32_t f1 = 0u;
+        const float u1 = fMaddF(N(s.acc[1]), N(vf[3][1]), N(vf[18][2]), f1, stk);
+        uint32_t f2 = 0u;
+        const float u2 = fMaddF(N(s.acc[2]), N(vf[3][2]), N(vf[18][2]), f2, stk);
+        uint32_t f3 = 0u;
+        const float u3 = fMaddF(N(s.acc[3]), N(vf[3][3]), N(vf[18][2]), f3, stk);
+        pushMacStatus(c, 0u | macBits(f0, 8u) | macBits(f1, 4u) | macBits(f2, 2u) | macBits(f3, 1u), 0u | f0 | f1 | f2 | f3, stk);
+        const uint32_t la = ((static_cast<uint32_t>(static_cast<int32_t>(vi[2] + (18))) * 16u) & 0x3FF0u);
+        const float l0 = ldf(m, la + 0);
+        const float l1 = ldf(m, la + 4);
+        const float l2 = ldf(m, la + 8);
+        vf[12][0] = l0; c.vfReady[12][0] = c.cyc + 4;
+        vf[12][1] = l1; c.vfReady[12][1] = c.cyc + 4;
+        vf[12][2] = l2; c.vfReady[12][2] = c.cyc + 4;
+        s.acc[0] = u0; c.accReady[0] = c.cyc + 1u;
+        s.acc[1] = u1; c.accReady[1] = c.cyc + 1u;
+        s.acc[2] = u2; c.accReady[2] = c.cyc + 1u;
+        s.acc[3] = u3; c.accReady[3] = c.cyc + 1u;
+        c.bkValid = false;
+        ++c.cyc;
+    }
+    // 14F8: 01F2248B 01C71012
+    {
+        uint32_t stk = 0u;
+        uint32_t f0 = 0u;
+        const float u0 = fMaddF(N(s.acc[0]), N(vf[4][0]), N(vf[18][3]), f0, stk);
+        uint32_t f1 = 0u;
+        const float u1 = fMaddF(N(s.acc[1]), N(vf[4][1]), N(vf[18][3]), f1, stk);
+        uint32_t f2 = 0u;
+        const float u2 = fMaddF(N(s.acc[2]), N(vf[4][2]), N(vf[18][3]), f2, stk);
+        uint32_t f3 = 0u;
+        const float u3 = fMaddF(N(s.acc[3]), N(vf[4][3]), N(vf[18][3]), f3, stk);
+        pushMacStatus(c, 0u | macBits(f0, 8u) | macBits(f1, 4u) | macBits(f2, 2u) | macBits(f3, 1u), 0u | f0 | f1 | f2 | f3, stk);
+        const uint32_t la = ((static_cast<uint32_t>(static_cast<int32_t>(vi[2] + (18))) * 16u) & 0x3FF0u);
+        const float l0 = ldf(m, la + 0);
+        const float l1 = ldf(m, la + 4);
+        const float l2 = ldf(m, la + 8);
+        vf[7][0] = l0; c.vfReady[7][0] = c.cyc + 4;
+        vf[7][1] = l1; c.vfReady[7][1] = c.cyc + 4;
+        vf[7][2] = l2; c.vfReady[7][2] = c.cyc + 4;
+        vf[18][0] = u0; c.vfReady[18][0] = c.cyc + 4;
+        vf[18][1] = u1; c.vfReady[18][1] = c.cyc + 4;
+        vf[18][2] = u2; c.vfReady[18][2] = c.cyc + 4;
+        vf[18][3] = u3; c.vfReady[18][3] = c.cyc + 4;
+        c.bkValid = false;
+        ++c.cyc;
+    }
+    // 1500: 8020045E 3FC00000
+    {
+        uint32_t stk = 0u;
+        uint32_t f3 = 0u;
+        const float u3 = fMulF(N(vf[0][3]), N(s.i), f3);
+        pushMacStatus(c, 0u | macBits(f3, 1u), 0u | f3, stk);
+        s.i = N(bitsf(0x3FC00000u));
+        vf[17][3] = u3; c.vfReady[17][3] = c.cyc + 4;
+        c.bkValid = false;
+        ++c.cyc;
+    }
+    // 1508: 008955C1 806A6BFC
+    {
+        uint32_t stk = 0u;
+        uint32_t f1 = 0u;
+        const float u1 = fAddF(N(vf[10][1]), N(vf[9][1]), f1);
+        pushMacStatus(c, 0u | macBits(f1, 4u), 0u | f1, stk);
+        const int32_t nvi = static_cast<int32_t>(static_cast<int16_t>(fbits(vf[13][3]) & 0xFFFFu));
+        vf[23][1] = u1; c.vfReady[23][1] = c.cyc + 4;
+        c.bkValid = true; c.bkReg = 10; c.bkVal = vi[10];
+        vi[10] = nvi; c.viReady[10] = c.cyc + 1;
+        ++c.cyc;
+    }
+    // 1510: 00485DC3 10090046
+    {
+        uint32_t stk = 0u;
+        uint32_t f2 = 0u;
+        const float u2 = fAddF(N(vf[11][2]), N(vf[8][3]), f2);
+        pushMacStatus(c, 0u | macBits(f2, 2u), 0u | f2, stk);
+        const int32_t nvi = static_cast<int16_t>(vi[0] + (70));
+        vf[23][2] = u2; c.vfReady[23][2] = c.cyc + 4;
+        c.bkValid = true; c.bkReg = 9; c.bkVal = vi[9];
+        vi[9] = nvi; c.viReady[9] = c.cyc + 1;
+        ++c.cyc;
+    }
+    // 1518: 01D281BC 10080000
+    {
+        uint32_t stk = 0u;
+        uint32_t f0 = 0u;
+        const float u0 = fMulF(N(vf[16][0]), N(vf[18][0]), f0);
+        uint32_t f1 = 0u;
+        const float u1 = fMulF(N(vf[16][1]), N(vf[18][0]), f1);
+        uint32_t f2 = 0u;
+        const float u2 = fMulF(N(vf[16][2]), N(vf[18][0]), f2);
+        pushMacStatus(c, 0u | macBits(f0, 8u) | macBits(f1, 4u) | macBits(f2, 2u), 0u | f0 | f1 | f2, stk);
+        const int32_t nvi = static_cast<int16_t>(vi[0] + (0));
+        s.acc[0] = u0; c.accReady[0] = c.cyc + 1u;
+        s.acc[1] = u1; c.accReady[1] = c.cyc + 1u;
+        s.acc[2] = u2; c.accReady[2] = c.cyc + 1u;
+        c.bkValid = true; c.bkReg = 8; c.bkVal = vi[8];
+        vi[8] = nvi; c.viReady[8] = c.cyc + 1;
+        ++c.cyc;
+    }
+    // 1520: 8020041E 3F85A5A5
+    {
+        uint32_t stk = 0u;
+        uint32_t f3 = 0u;
+        const float u3 = fMulF(N(vf[0][3]), N(s.i), f3);
+        pushMacStatus(c, 0u | macBits(f3, 1u), 0u | f3, stk);
+        s.i = N(bitsf(0x3F85A5A5u));
+        vf[16][3] = u3; c.vfReady[16][3] = c.cyc + 4;
+        c.bkValid = false;
+        ++c.cyc;
+    }
+    // 1528: 01C08C22 10070000
+    {
+        uint32_t stk = 0u;
+        uint32_t f0 = 0u;
+        const float u0 = fAddF(N(vf[17][0]), N(s.i), f0);
+        uint32_t f1 = 0u;
+        const float u1 = fAddF(N(vf[17][1]), N(s.i), f1);
+        uint32_t f2 = 0u;
+        const float u2 = fAddF(N(vf[17][2]), N(s.i), f2);
+        pushMacStatus(c, 0u | macBits(f0, 8u) | macBits(f1, 4u) | macBits(f2, 2u), 0u | f0 | f1 | f2, stk);
+        const int32_t nvi = static_cast<int16_t>(vi[0] + (0));
+        vf[16][0] = u0; c.vfReady[16][0] = c.cyc + 4;
+        vf[16][1] = u1; c.vfReady[16][1] = c.cyc + 4;
+        vf[16][2] = u2; c.vfReady[16][2] = c.cyc + 4;
+        c.bkValid = true; c.bkReg = 7; c.bkVal = vi[7];
+        vi[7] = nvi; c.viReady[7] = c.cyc + 1;
+        ++c.cyc;
+    }
+    // 1530: 01C07462 10062001
+    {
+        uint32_t stk = 0u;
+        uint32_t f0 = 0u;
+        const float u0 = fAddF(N(vf[14][0]), N(s.i), f0);
+        uint32_t f1 = 0u;
+        const float u1 = fAddF(N(vf[14][1]), N(s.i), f1);
+        uint32_t f2 = 0u;
+        const float u2 = fAddF(N(vf[14][2]), N(s.i), f2);
+        pushMacStatus(c, 0u | macBits(f0, 8u) | macBits(f1, 4u) | macBits(f2, 2u), 0u | f0 | f1 | f2, stk);
+        const int32_t nvi = static_cast<int16_t>(vi[4] + (1));
+        vf[17][0] = u0; c.vfReady[17][0] = c.cyc + 4;
+        vf[17][1] = u1; c.vfReady[17][1] = c.cyc + 4;
+        vf[17][2] = u2; c.vfReady[17][2] = c.cyc + 4;
+        c.bkValid = true; c.bkReg = 6; c.bkVal = vi[6];
+        vi[6] = nvi; c.viReady[6] = c.cyc + 1;
+        ++c.cyc;
+    }
+    // 1538: 01D230BD 1005029A
+    {
+        uint32_t stk = 0u;
+        uint32_t f0 = 0u;
+        const float u0 = fMaddF(N(s.acc[0]), N(vf[6][0]), N(vf[18][1]), f0, stk);
+        uint32_t f1 = 0u;
+        const float u1 = fMaddF(N(s.acc[1]), N(vf[6][1]), N(vf[18][1]), f1, stk);
+        uint32_t f2 = 0u;
+        const float u2 = fMaddF(N(s.acc[2]), N(vf[6][2]), N(vf[18][1]), f2, stk);
+        pushMacStatus(c, 0u | macBits(f0, 8u) | macBits(f1, 4u) | macBits(f2, 2u), 0u | f0 | f1 | f2, stk);
+        const int32_t nvi = static_cast<int16_t>(vi[0] + (666));
+        s.acc[0] = u0; c.accReady[0] = c.cyc + 1u;
+        s.acc[1] = u1; c.accReady[1] = c.cyc + 1u;
+        s.acc[2] = u2; c.accReady[2] = c.cyc + 1u;
+        c.bkValid = true; c.bkReg = 5; c.bkVal = vi[5];
+        vi[5] = nvi; c.viReady[5] = c.cyc + 1;
+        ++c.cyc;
+    }
+    // 1540: 01D260BE 10030010
+    {
+        uint32_t stk = 0u;
+        uint32_t f0 = 0u;
+        const float u0 = fMaddF(N(s.acc[0]), N(vf[12][0]), N(vf[18][2]), f0, stk);
+        uint32_t f1 = 0u;
+        const float u1 = fMaddF(N(s.acc[1]), N(vf[12][1]), N(vf[18][2]), f1, stk);
+        uint32_t f2 = 0u;
+        const float u2 = fMaddF(N(s.acc[2]), N(vf[12][2]), N(vf[18][2]), f2, stk);
+        pushMacStatus(c, 0u | macBits(f0, 8u) | macBits(f1, 4u) | macBits(f2, 2u), 0u | f0 | f1 | f2, stk);
+        const int32_t nvi = static_cast<int16_t>(vi[0] + (16));
+        s.acc[0] = u0; c.accReady[0] = c.cyc + 1u;
+        s.acc[1] = u1; c.accReady[1] = c.cyc + 1u;
+        s.acc[2] = u2; c.accReady[2] = c.cyc + 1u;
+        c.bkValid = true; c.bkReg = 3; c.bkVal = vi[3];
+        vi[3] = nvi; c.viReady[3] = c.cyc + 1;
+        ++c.cyc;
+    }
+    // 1548: 005084C1 810F7B3D
+    {
+        uint32_t stk = 0u;
+        uint32_t f2 = 0u;
+        const float u2 = fAddF(N(vf[16][2]), N(vf[16][1]), f2);
+        pushMacStatus(c, 0u | macBits(f2, 2u), 0u | f2, stk);
+        const float l0 = vf[15][1];
+        vf[15][0] = l0; c.vfReady[15][0] = c.cyc + 4;
+        vf[19][2] = u2; c.vfReady[19][2] = c.cyc + 4;
+        c.bkValid = false;
+        ++c.cyc;
+    }
+    // 1550: 00518C41 81EE033D
+    {
+        uint32_t stk = 0u;
+        uint32_t f2 = 0u;
+        const float u2 = fAddF(N(vf[17][2]), N(vf[17][1]), f2);
+        pushMacStatus(c, 0u | macBits(f2, 2u), 0u | f2, stk);
+        const float l0 = vf[0][1];
+        const float l1 = vf[0][2];
+        const float l2 = vf[0][3];
+        const float l3 = vf[0][0];
+        vf[14][0] = l0; c.vfReady[14][0] = c.cyc + 4;
+        vf[14][1] = l1; c.vfReady[14][1] = c.cyc + 4;
+        vf[14][2] = l2; c.vfReady[14][2] = c.cyc + 4;
+        vf[14][3] = l3; c.vfReady[14][3] = c.cyc + 4;
+        vf[17][2] = u2; c.vfReady[17][2] = c.cyc + 4;
+        c.bkValid = false;
+        ++c.cyc;
+    }
+    // 1558: 01D23C8B 01CC1014
+    {
+        uint32_t stk = 0u;
+        uint32_t f0 = 0u;
+        const float u0 = fMaddF(N(s.acc[0]), N(vf[7][0]), N(vf[18][3]), f0, stk);
+        uint32_t f1 = 0u;
+        const float u1 = fMaddF(N(s.acc[1]), N(vf[7][1]), N(vf[18][3]), f1, stk);
+        uint32_t f2 = 0u;
+        const float u2 = fMaddF(N(s.acc[2]), N(vf[7][2]), N(vf[18][3]), f2, stk);
+        pushMacStatus(c, 0u | macBits(f0, 8u) | macBits(f1, 4u) | macBits(f2, 2u), 0u | f0 | f1 | f2, stk);
+        const uint32_t la = ((static_cast<uint32_t>(static_cast<int32_t>(vi[2] + (20))) * 16u) & 0x3FF0u);
+        const float l0 = ldf(m, la + 0);
+        const float l1 = ldf(m, la + 4);
+        const float l2 = ldf(m, la + 8);
+        vf[12][0] = l0; c.vfReady[12][0] = c.cyc + 4;
+        vf[12][1] = l1; c.vfReady[12][1] = c.cyc + 4;
+        vf[12][2] = l2; c.vfReady[12][2] = c.cyc + 4;
+        vf[18][0] = u0; c.vfReady[18][0] = c.cyc + 4;
+        vf[18][1] = u1; c.vfReady[18][1] = c.cyc + 4;
+        vf[18][2] = u2; c.vfReady[18][2] = c.cyc + 4;
+        c.bkValid = false;
+        ++c.cyc;
+    }
+    // 1560: 01C0BDE2 01E70005
+    {
+        uint32_t stk = 0u;
+        uint32_t f0 = 0u;
+        const float u0 = fAddF(N(vf[23][0]), N(s.i), f0);
+        uint32_t f1 = 0u;
+        const float u1 = fAddF(N(vf[23][1]), N(s.i), f1);
+        uint32_t f2 = 0u;
+        const float u2 = fAddF(N(vf[23][2]), N(s.i), f2);
+        pushMacStatus(c, 0u | macBits(f0, 8u) | macBits(f1, 4u) | macBits(f2, 2u), 0u | f0 | f1 | f2, stk);
+        const uint32_t la = ((static_cast<uint32_t>(static_cast<int32_t>(vi[0] + (5))) * 16u) & 0x3FF0u);
+        const float l0 = ldf(m, la + 0);
+        const float l1 = ldf(m, la + 4);
+        const float l2 = ldf(m, la + 8);
+        const float l3 = ldf(m, la + 12);
+        vf[7][0] = l0; c.vfReady[7][0] = c.cyc + 4;
+        vf[7][1] = l1; c.vfReady[7][1] = c.cyc + 4;
+        vf[7][2] = l2; c.vfReady[7][2] = c.cyc + 4;
+        vf[7][3] = l3; c.vfReady[7][3] = c.cyc + 4;
+        vf[23][0] = u0; c.vfReady[23][0] = c.cyc + 4;
+        vf[23][1] = u1; c.vfReady[23][1] = c.cyc + 4;
+        vf[23][2] = u2; c.vfReady[23][2] = c.cyc + 4;
+        c.bkValid = false;
+        ++c.cyc;
+    }
+    // 1568: 00509D40 01E60004
+    {
+        uint32_t stk = 0u;
+        uint32_t f2 = 0u;
+        const float u2 = fAddF(N(vf[19][2]), N(vf[16][0]), f2);
+        pushMacStatus(c, 0u | macBits(f2, 2u), 0u | f2, stk);
+        const uint32_t la = ((static_cast<uint32_t>(static_cast<int32_t>(vi[0] + (4))) * 16u) & 0x3FF0u);
+        const float l0 = ldf(m, la + 0);
+        const float l1 = ldf(m, la + 4);
+        const float l2 = ldf(m, la + 8);
+        const float l3 = ldf(m, la + 12);
+        vf[6][0] = l0; c.vfReady[6][0] = c.cyc + 4;
+        vf[6][1] = l1; c.vfReady[6][1] = c.cyc + 4;
+        vf[6][2] = l2; c.vfReady[6][2] = c.cyc + 4;
+        vf[6][3] = l3; c.vfReady[6][3] = c.cyc + 4;
+        vf[21][2] = u2; c.vfReady[21][2] = c.cyc + 4;
+        c.bkValid = false;
+        ++c.cyc;
+    }
+    // 1570: 00518D80 01850006
+    {
+        uint32_t stk = 0u;
+        uint32_t f2 = 0u;
+        const float u2 = fAddF(N(vf[17][2]), N(vf[17][0]), f2);
+        pushMacStatus(c, 0u | macBits(f2, 2u), 0u | f2, stk);
+        const uint32_t la = ((static_cast<uint32_t>(static_cast<int32_t>(vi[0] + (6))) * 16u) & 0x3FF0u);
+        const float l0 = ldf(m, la + 0);
+        const float l1 = ldf(m, la + 4);
+        vf[5][0] = l0; c.vfReady[5][0] = c.cyc + 4;
+        vf[5][1] = l1; c.vfReady[5][1] = c.cyc + 4;
+        vf[22][2] = u2; c.vfReady[22][2] = c.cyc + 4;
+        c.bkValid = false;
+        ++c.cyc;
+    }
+    return 0x1578;
+}
+
+static uint32_t vu1prog_3_1578(VU1NativeCtx &c)
+{
+    using namespace vu1n;
+    VU1State &s = *c.st;
+    float (*vf)[4] = s.vf;
+    int32_t *vi = s.vi;
+    uint8_t *m = c.mem;
+    (void)m;
+    (void)vf;
+    (void)vi;
+    // 1578: 000002FF 8000033C
+    {
+        c.bkValid = false;
+        ++c.cyc;
+    }
+    // 1580: 0053BDC0 8000033C
+    {
+        stall(c, c.vfReady[19][0]);
+        stall(c, c.vfReady[23][2]);
+        uint32_t stk = 0u;
+        uint32_t f2 = 0u;
+        const float u2 = fAddF(N(vf[23][2]), N(vf[19][0]), f2);
+        pushMacStatus(c, 0u | macBits(f2, 2u), 0u | f2, stk);
+        vf[23][2] = u2; c.vfReady[23][2] = c.cyc + 4;
+        c.bkValid = false;
+        ++c.cyc;
+    }
+    // 1588: 0113BDC1 8000033C
+    {
+        stall(c, c.vfReady[19][1]);
+        stall(c, c.vfReady[23][0]);
+        uint32_t stk = 0u;
+        uint32_t f0 = 0u;
+        const float u0 = fAddF(N(vf[23][0]), N(vf[19][1]), f0);
+        pushMacStatus(c, 0u | macBits(f0, 8u), 0u | f0, stk);
+        vf[23][0] = u0; c.vfReady[23][0] = c.cyc + 4;
+        c.bkValid = false;
+        ++c.cyc;
+    }
+    // 1590: 0096BDC2 8000033C
+    {
+        stall(c, c.vfReady[22][2]);
+        stall(c, c.vfReady[23][1]);
+        uint32_t stk = 0u;
+        uint32_t f1 = 0u;
+        const float u1 = fAddF(N(vf[23][1]), N(vf[22][2]), f1);
+        pushMacStatus(c, 0u | macBits(f1, 4u), 0u | f1, stk);
+        vf[23][1] = u1; c.vfReady[23][1] = c.cyc + 4;
+        c.bkValid = false;
+        ++c.cyc;
+    }
+    // 1598: 0054B940 8000033C
+    {
+        stall(c, c.vfReady[20][0]);
+        stall(c, c.vfReady[23][2]);
+        uint32_t stk = 0u;
+        uint32_t f2 = 0u;
+        const float u2 = fAddF(N(vf[23][2]), N(vf[20][0]), f2);
+        pushMacStatus(c, 0u | macBits(f2, 2u), 0u | f2, stk);
+        vf[5][2] = u2; c.vfReady[5][2] = c.cyc + 4;
+        c.bkValid = false;
+        ++c.cyc;
+    }
+    // 15A0: 0117BDC1 8000033C
+    {
+        stall(c, c.vfReady[23][0]);
+        stall(c, c.vfReady[23][1]);
+        uint32_t stk = 0u;
+        uint32_t f0 = 0u;
+        const float u0 = fAddF(N(vf[23][0]), N(vf[23][1]), f0);
+        pushMacStatus(c, 0u | macBits(f0, 8u), 0u | f0, stk);
+        vf[23][0] = u0; c.vfReady[23][0] = c.cyc + 4;
+        c.bkValid = false;
+        ++c.cyc;
+    }
+    // 15A8: 0097BDC2 80402C3E
+    {
+        stall(c, c.vfReady[5][2]);
+        uint32_t stk = 0u;
+        uint32_t f1 = 0u;
+        const float u1 = fAddF(N(vf[23][1]), N(vf[23][2]), f1);
+        pushMacStatus(c, 0u | macBits(f1, 4u), 0u | f1, stk);
+        s.r = 0x3F800000u | (fbits(vf[5][2]) & 0x007FFFFFu);
+        vf[23][1] = u1; c.vfReady[23][1] = c.cyc + 4;
+        c.bkValid = false;
+        ++c.cyc;
+    }
+    // 15B0: 000002FF 8057043C
+    {
+        rnext(s);
+        const float l2 = bitsf(s.r);
+        vf[23][2] = l2; c.vfReady[23][2] = c.cyc + 4;
+        c.bkValid = false;
+        ++c.cyc;
+    }
+    // 15B8: 000002FF 8000BC3E
+    {
+        stall(c, c.vfReady[23][0]);
+        s.r = 0x3F800000u | (fbits(vf[23][0]) & 0x007FFFFFu);
+        c.bkValid = false;
+        ++c.cyc;
+    }
+    // 15C0: 0056A942 8117043C
+    {
+        stall(c, c.vfReady[21][2]);
+        uint32_t stk = 0u;
+        uint32_t f2 = 0u;
+        const float u2 = fAddF(N(vf[21][2]), N(vf[22][2]), f2);
+        pushMacStatus(c, 0u | macBits(f2, 2u), 0u | f2, stk);
+        rnext(s);
+        const float l0 = bitsf(s.r);
+        vf[23][0] = l0; c.vfReady[23][0] = c.cyc + 4;
+        vf[5][2] = u2; c.vfReady[5][2] = c.cyc + 4;
+        c.bkValid = false;
+        ++c.cyc;
+    }
+    // 15C8: 000002FF 8020BC3E
+    {
+        s.r = 0x3F800000u | (fbits(vf[23][1]) & 0x007FFFFFu);
+        c.bkValid = false;
+        ++c.cyc;
+    }
+    // 15D0: 000002FF 8097043C
+    {
+        rnext(s);
+        const float l1 = bitsf(s.r);
+        vf[23][1] = l1; c.vfReady[23][1] = c.cyc + 4;
+        c.bkValid = false;
+        ++c.cyc;
+    }
+    // 15D8: 0045B402 80402C3E
+    {
+        stall(c, c.vfReady[5][2]);
+        uint32_t stk = 0u;
+        uint32_t f2 = 0u;
+        const float u2 = fAddF(N(vf[22][2]), N(vf[5][2]), f2);
+        pushMacStatus(c, 0u | macBits(f2, 2u), 0u | f2, stk);
+        s.r = 0x3F800000u | (fbits(vf[5][2]) & 0x007FFFFFu);
+        vf[16][2] = u2; c.vfReady[16][2] = c.cyc + 4;
+        c.bkValid = false;
+        ++c.cyc;
+    }
+    // 15E0: 000002FF 81D1043C
+    {
+        rnext(s);
+        const float l0 = bitsf(s.r);
+        const float l1 = bitsf(s.r);
+        const float l2 = bitsf(s.r);
+        vf[17][0] = l0; c.vfReady[17][0] = c.cyc + 4;
+        vf[17][1] = l1; c.vfReady[17][1] = c.cyc + 4;
+        vf[17][2] = l2; c.vfReady[17][2] = c.cyc + 4;
+        c.bkValid = false;
+        ++c.cyc;
+    }
+    // 15E8: 01D0BDC7 8000033C
+    {
+        stall(c, c.vfReady[16][3]);
+        stall(c, c.vfReady[23][1]);
+        uint32_t stk = 0u;
+        uint32_t f0 = 0u;
+        const float u0 = fSubF(N(vf[23][0]), N(vf[16][3]), f0);
+        uint32_t f1 = 0u;
+        const float u1 = fSubF(N(vf[23][1]), N(vf[16][3]), f1);
+        uint32_t f2 = 0u;
+        const float u2 = fSubF(N(vf[23][2]), N(vf[16][3]), f2);
+        pushMacStatus(c, 0u | macBits(f0, 8u) | macBits(f1, 4u) | macBits(f2, 2u), 0u | f0 | f1 | f2, stk);
+        vf[23][0] = u0; c.vfReady[23][0] = c.cyc + 4;
+        vf[23][1] = u1; c.vfReady[23][1] = c.cyc + 4;
+        vf[23][2] = u2; c.vfReady[23][2] = c.cyc + 4;
+        c.bkValid = false;
+        ++c.cyc;
+    }
+    // 15F0: 000002FF 8040843E
+    {
+        stall(c, c.vfReady[16][2]);
+        s.r = 0x3F800000u | (fbits(vf[16][2]) & 0x007FFFFFu);
+        c.bkValid = false;
+        ++c.cyc;
+    }
+    // 15F8: 01C08D47 81D0043C
+    {
+        stall(c, c.vfReady[17][0]);
+        stall(c, c.vfReady[17][1]);
+        stall(c, c.vfReady[17][2]);
+        uint32_t stk = 0u;
+        uint32_t f0 = 0u;
+        const float u0 = fSubF(N(vf[17][0]), N(vf[0][3]), f0);
+        uint32_t f1 = 0u;
+        const float u1 = fSubF(N(vf[17][1]), N(vf[0][3]), f1);
+        uint32_t f2 = 0u;
+        const float u2 = fSubF(N(vf[17][2]), N(vf[0][3]), f2);
+        pushMacStatus(c, 0u | macBits(f0, 8u) | macBits(f1, 4u) | macBits(f2, 2u), 0u | f0 | f1 | f2, stk);
+        rnext(s);
+        const float l0 = bitsf(s.r);
+        const float l1 = bitsf(s.r);
+        const float l2 = bitsf(s.r);
+        vf[16][0] = l0; c.vfReady[16][0] = c.cyc + 4;
+        vf[16][1] = l1; c.vfReady[16][1] = c.cyc + 4;
+        vf[16][2] = l2; c.vfReady[16][2] = c.cyc + 4;
+        vf[21][0] = u0; c.vfReady[21][0] = c.cyc + 4;
+        vf[21][1] = u1; c.vfReady[21][1] = c.cyc + 4;
+        vf[21][2] = u2; c.vfReady[21][2] = c.cyc + 4;
+        c.bkValid = false;
+        ++c.cyc;
+    }
+    // 1600: 01D2BC6A 8000033C
+    {
+        stall(c, c.vfReady[18][0]);
+        stall(c, c.vfReady[18][1]);
+        stall(c, c.vfReady[18][2]);
+        stall(c, c.vfReady[23][0]);
+        stall(c, c.vfReady[23][1]);
+        stall(c, c.vfReady[23][2]);
+        uint32_t stk = 0u;
+        uint32_t f0 = 0u;
+        const float u0 = fMulF(N(vf[23][0]), N(vf[18][0]), f0);
+        uint32_t f1 = 0u;
+        const float u1 = fMulF(N(vf[23][1]), N(vf[18][1]), f1);
+        uint32_t f2 = 0u;
+        const float u2 = fMulF(N(vf[23][2]), N(vf[18][2]), f2);
+        pushMacStatus(c, 0u | macBits(f0, 8u) | macBits(f1, 4u) | macBits(f2, 2u), 0u | f0 | f1 | f2, stk);
+        vf[17][0] = u0; c.vfReady[17][0] = c.cyc + 4;
+        vf[17][1] = u1; c.vfReady[17][1] = c.cyc + 4;
+        vf[17][2] = u2; c.vfReady[17][2] = c.cyc + 4;
+        c.bkValid = false;
+        ++c.cyc;
+    }
+    // 1608: 01C08587 8000033C
+    {
+        stall(c, c.vfReady[16][0]);
+        stall(c, c.vfReady[16][1]);
+        stall(c, c.vfReady[16][2]);
+        uint32_t stk = 0u;
+        uint32_t f0 = 0u;
+        const float u0 = fSubF(N(vf[16][0]), N(vf[0][3]), f0);
+        uint32_t f1 = 0u;
+        const float u1 = fSubF(N(vf[16][1]), N(vf[0][3]), f1);
+        uint32_t f2 = 0u;
+        const float u2 = fSubF(N(vf[16][2]), N(vf[0][3]), f2);
+        pushMacStatus(c, 0u | macBits(f0, 8u) | macBits(f1, 4u) | macBits(f2, 2u), 0u | f0 | f1 | f2, stk);
+        vf[22][0] = u0; c.vfReady[22][0] = c.cyc + 4;
+        vf[22][1] = u1; c.vfReady[22][1] = c.cyc + 4;
+        vf[22][2] = u2; c.vfReady[22][2] = c.cyc + 4;
+        c.bkValid = false;
+        ++c.cyc;
+    }
+    // 1610: 0195ACDA 80288B3D
+    {
+        stall(c, c.vfReady[17][0]);
+        stall(c, c.vfReady[17][1]);
+        stall(c, c.vfReady[17][2]);
+        stall(c, c.vfReady[17][3]);
+        stall(c, c.vfReady[21][0]);
+        stall(c, c.vfReady[21][1]);
+        stall(c, c.vfReady[21][2]);
+        uint32_t stk = 0u;
+        uint32_t f0 = 0u;
+        const float u0 = fMulF(N(vf[21][0]), N(vf[21][2]), f0);
+        uint32_t f1 = 0u;
+        const float u1 = fMulF(N(vf[21][1]), N(vf[21][2]), f1);
+        pushMacStatus(c, 0u | macBits(f0, 8u) | macBits(f1, 4u), 0u | f0 | f1, stk);
+        const float l3 = vf[17][0];
+        vf[8][3] = l3; c.vfReady[8][3] = c.cyc + 4;
+        vf[19][0] = u0; c.vfReady[19][0] = c.cyc + 4;
+        vf[19][1] = u1; c.vfReady[19][1] = c.cyc + 4;
+        c.bkValid = false;
+        ++c.cyc;
+    }
+    // 1618: 0196B41A 8000033C
+    {
+        stall(c, c.vfReady[22][0]);
+        stall(c, c.vfReady[22][1]);
+        stall(c, c.vfReady[22][2]);
+        uint32_t stk = 0u;
+        uint32_t f0 = 0u;
+        const float u0 = fMulF(N(vf[22][0]), N(vf[22][2]), f0);
+        uint32_t f1 = 0u;
+        const float u1 = fMulF(N(vf[22][1]), N(vf[22][2]), f1);
+        pushMacStatus(c, 0u | macBits(f0, 8u) | macBits(f1, 4u), 0u | f0 | f1, stk);
+        vf[16][0] = u0; c.vfReady[16][0] = c.cyc + 4;
+        vf[16][1] = u1; c.vfReady[16][1] = c.cyc + 4;
+        c.bkValid = false;
+        ++c.cyc;
+    }
+    // 1620: 00314201 8000033C
+    {
+        stall(c, c.vfReady[8][3]);
+        uint32_t stk = 0u;
+        uint32_t f3 = 0u;
+        const float u3 = fAddF(N(vf[8][3]), N(vf[17][1]), f3);
+        pushMacStatus(c, 0u | macBits(f3, 1u), 0u | f3, stk);
+        vf[8][3] = u3; c.vfReady[8][3] = c.cyc + 4;
+        c.bkValid = false;
+        ++c.cyc;
+    }
+    // 1628: 0116851A 8000033C
+    {
+        stall(c, c.vfReady[16][0]);
+        uint32_t stk = 0u;
+        uint32_t f0 = 0u;
+        const float u0 = fMulF(N(vf[16][0]), N(vf[22][2]), f0);
+        pushMacStatus(c, 0u | macBits(f0, 8u), 0u | f0, stk);
+        vf[20][0] = u0; c.vfReady[20][0] = c.cyc + 4;
+        c.bkValid = false;
+        ++c.cyc;
+    }
+    // 1630: 00314142 8000033C
+    {
+        stall(c, c.vfReady[8][3]);
+        uint32_t stk = 0u;
+        uint32_t f3 = 0u;
+        const float u3 = fAddF(N(vf[8][3]), N(vf[17][2]), f3);
+        pushMacStatus(c, 0u | macBits(f3, 1u), 0u | f3, stk);
+        vf[5][3] = u3; c.vfReady[5][3] = c.cyc + 4;
+        c.bkValid = false;
+        ++c.cyc;
+    }
+    // 1638: 00202806 8000033C
+    {
+        stall(c, c.vfReady[5][3]);
+        uint32_t stk = 0u;
+        uint32_t f3 = 0u;
+        const float u3 = fSubF(N(vf[5][3]), N(vf[0][2]), f3);
+        pushMacStatus(c, 0u | macBits(f3, 1u), 0u | f3, stk);
+        c.bkValid = false;
+        ++c.cyc;
+    }
+    // 1640: 000002FF 8000033C
+    {
+        c.bkValid = false;
+        ++c.cyc;
+    }
+    // 1648: 000002FF 8000033C
+    {
+        c.bkValid = false;
+        ++c.cyc;
+    }
+    // 1650: 000002FF 8000033C
+    {
+        c.bkValid = false;
+        ++c.cyc;
+    }
+    // 1658: 01159CDA 34011800
+    {
+        stall(c, c.viReady[3]);
+        commitClip(c);
+        uint32_t stk = 0u;
+        uint32_t f0 = 0u;
+        const float u0 = fMulF(N(vf[19][0]), N(vf[21][2]), f0);
+        pushMacStatus(c, 0u | macBits(f0, 8u), 0u | f0, stk);
+        const int32_t nvi = static_cast<int32_t>(s.mac & static_cast<uint32_t>(static_cast<uint16_t>(vi[3])));
+        vf[19][0] = u0; c.vfReady[19][0] = c.cyc + 4;
+        c.bkValid = false;
+        vi[1] = nvi; c.viReady[1] = c.cyc + 1;
+        ++c.cyc;
+    }
+    bool taken = false;
+    // 1660: 000002FF 5201004B
+    {
+        taken = static_cast<int16_t>(brVi(c, 0)) != static_cast<int16_t>(brVi(c, 1));
+        c.bkValid = false;
+        ++c.cyc;
+    }
+    // 1668: 000002FF 8000033C
+    {
+        c.bkValid = false;
+        ++c.cyc;
+    }
+    if (c.cyc >= c.budgetEnd)
+        return handoffRet(c, (taken ? 0x18C0u : 0x1670u));
+    return (taken ? 0x18C0u : 0x1670u);
+}
+
+static uint32_t vu1prog_3_1670(VU1NativeCtx &c)
+{
+    using namespace vu1n;
+    VU1State &s = *c.st;
+    float (*vf)[4] = s.vf;
+    int32_t *vi = s.vi;
+    uint8_t *m = c.mem;
+    (void)m;
+    (void)vf;
+    (void)vi;
+    // 1670: 000002FF 8000033C
+    {
+        c.bkValid = false;
+        ++c.cyc;
+    }
+    // 1678: 01D341BC 01DB1004
+    {
+        stall(c, c.vfReady[19][0]);
+        stall(c, c.vfReady[8][0]);
+        stall(c, c.vfReady[8][1]);
+        stall(c, c.vfReady[8][2]);
+        stall(c, c.viReady[2]);
+        uint32_t stk = 0u;
+        uint32_t f0 = 0u;
+        const float u0 = fMulF(N(vf[8][0]), N(vf[19][0]), f0);
+        uint32_t f1 = 0u;
+        const float u1 = fMulF(N(vf[8][1]), N(vf[19][0]), f1);
+        uint32_t f2 = 0u;
+        const float u2 = fMulF(N(vf[8][2]), N(vf[19][0]), f2);
+        pushMacStatus(c, 0u | macBits(f0, 8u) | macBits(f1, 4u) | macBits(f2, 2u), 0u | f0 | f1 | f2, stk);
+        const uint32_t la = ((static_cast<uint32_t>(static_cast<int32_t>(vi[2] + (4))) * 16u) & 0x3FF0u);
+        const float l0 = ldf(m, la + 0);
+        const float l1 = ldf(m, la + 4);
+        const float l2 = ldf(m, la + 8);
+        vf[27][0] = l0; c.vfReady[27][0] = c.cyc + 4;
+        vf[27][1] = l1; c.vfReady[27][1] = c.cyc + 4;
+        vf[27][2] = l2; c.vfReady[27][2] = c.cyc + 4;
+        s.acc[0] = u0; c.accReady[0] = c.cyc + 1u;
+        s.acc[1] = u1; c.accReady[1] = c.cyc + 1u;
+        s.acc[2] = u2; c.accReady[2] = c.cyc + 1u;
+        c.bkValid = false;
+        ++c.cyc;
+    }
+    // 1680: 01D348BD 01D91005
+    {
+        stall(c, c.vfReady[19][1]);
+        stall(c, c.vfReady[9][0]);
+        stall(c, c.vfReady[9][1]);
+        stall(c, c.vfReady[9][2]);
+        uint32_t stk = 0u;
+        uint32_t f0 = 0u;
+        const float u0 = fMaddF(N(s.acc[0]), N(vf[9][0]), N(vf[19][1]), f0, stk);
+        uint32_t f1 = 0u;
+        const float u1 = fMaddF(N(s.acc[1]), N(vf[9][1]), N(vf[19][1]), f1, stk);
+        uint32_t f2 = 0u;
+        const float u2 = fMaddF(N(s.acc[2]), N(vf[9][2]), N(vf[19][1]), f2, stk);
+        pushMacStatus(c, 0u | macBits(f0, 8u) | macBits(f1, 4u) | macBits(f2, 2u), 0u | f0 | f1 | f2, stk);
+        const uint32_t la = ((static_cast<uint32_t>(static_cast<int32_t>(vi[2] + (5))) * 16u) & 0x3FF0u);
+        const float l0 = ldf(m, la + 0);
+        const float l1 = ldf(m, la + 4);
+        const float l2 = ldf(m, la + 8);
+        vf[25][0] = l0; c.vfReady[25][0] = c.cyc + 4;
+        vf[25][1] = l1; c.vfReady[25][1] = c.cyc + 4;
+        vf[25][2] = l2; c.vfReady[25][2] = c.cyc + 4;
+        s.acc[0] = u0; c.accReady[0] = c.cyc + 1u;
+        s.acc[1] = u1; c.accReady[1] = c.cyc + 1u;
+        s.acc[2] = u2; c.accReady[2] = c.cyc + 1u;
+        c.bkValid = false;
+        ++c.cyc;
+    }
+    // 1688: 01D550BE 01DA1006
+    {
+        stall(c, c.vfReady[10][0]);
+        stall(c, c.vfReady[10][1]);
+        stall(c, c.vfReady[10][2]);
+        stall(c, c.vfReady[21][2]);
+        uint32_t stk = 0u;
+        uint32_t f0 = 0u;
+        const float u0 = fMaddF(N(s.acc[0]), N(vf[10][0]), N(vf[21][2]), f0, stk);
+        uint32_t f1 = 0u;
+        const float u1 = fMaddF(N(s.acc[1]), N(vf[10][1]), N(vf[21][2]), f1, stk);
+        uint32_t f2 = 0u;
+        const float u2 = fMaddF(N(s.acc[2]), N(vf[10][2]), N(vf[21][2]), f2, stk);
+        pushMacStatus(c, 0u | macBits(f0, 8u) | macBits(f1, 4u) | macBits(f2, 2u), 0u | f0 | f1 | f2, stk);
+        const uint32_t la = ((static_cast<uint32_t>(static_cast<int32_t>(vi[2] + (6))) * 16u) & 0x3FF0u);
+        const float l0 = ldf(m, la + 0);
+        const float l1 = ldf(m, la + 4);
+        const float l2 = ldf(m, la + 8);
+        vf[26][0] = l0; c.vfReady[26][0] = c.cyc + 4;
+        vf[26][1] = l1; c.vfReady[26][1] = c.cyc + 4;
+        vf[26][2] = l2; c.vfReady[26][2] = c.cyc + 4;
+        s.acc[0] = u0; c.accReady[0] = c.cyc + 1u;
+        s.acc[1] = u1; c.accReady[1] = c.cyc + 1u;
+        s.acc[2] = u2; c.accReady[2] = c.cyc + 1u;
+        c.bkValid = false;
+        ++c.cyc;
+    }
+    // 1690: 01C05E0B 01D11007
+    {
+        stall(c, c.vfReady[11][0]);
+        stall(c, c.vfReady[11][1]);
+        stall(c, c.vfReady[11][2]);
+        uint32_t stk = 0u;
+        uint32_t f0 = 0u;
+        const float u0 = fMaddF(N(s.acc[0]), N(vf[11][0]), N(vf[0][3]), f0, stk);
+        uint32_t f1 = 0u;
+        const float u1 = fMaddF(N(s.acc[1]), N(vf[11][1]), N(vf[0][3]), f1, stk);
+        uint32_t f2 = 0u;
+        const float u2 = fMaddF(N(s.acc[2]), N(vf[11][2]), N(vf[0][3]), f2, stk);
+        pushMacStatus(c, 0u | macBits(f0, 8u) | macBits(f1, 4u) | macBits(f2, 2u), 0u | f0 | f1 | f2, stk);
+        const uint32_t la = ((static_cast<uint32_t>(static_cast<int32_t>(vi[2] + (7))) * 16u) & 0x3FF0u);
+        const float l0 = ldf(m, la + 0);
+        const float l1 = ldf(m, la + 4);
+        const float l2 = ldf(m, la + 8);
+        vf[17][0] = l0; c.vfReady[17][0] = c.cyc + 4;
+        vf[17][1] = l1; c.vfReady[17][1] = c.cyc + 4;
+        vf[17][2] = l2; c.vfReady[17][2] = c.cyc + 4;
+        vf[24][0] = u0; c.vfReady[24][0] = c.cyc + 4;
+        vf[24][1] = u1; c.vfReady[24][1] = c.cyc + 4;
+        vf[24][2] = u2; c.vfReady[24][2] = c.cyc + 4;
+        c.bkValid = false;
+        ++c.cyc;
+    }
+    // 1698: 01D3D9BC 01DC1008
+    {
+        uint32_t stk = 0u;
+        uint32_t f0 = 0u;
+        const float u0 = fMulF(N(vf[27][0]), N(vf[19][0]), f0);
+        uint32_t f1 = 0u;
+        const float u1 = fMulF(N(vf[27][1]), N(vf[19][0]), f1);
+        uint32_t f2 = 0u;
+        const float u2 = fMulF(N(vf[27][2]), N(vf[19][0]), f2);
+        pushMacStatus(c, 0u | macBits(f0, 8u) | macBits(f1, 4u) | macBits(f2, 2u), 0u | f0 | f1 | f2, stk);
+        const uint32_t la = ((static_cast<uint32_t>(static_cast<int32_t>(vi[2] + (8))) * 16u) & 0x3FF0u);
+        const float l0 = ldf(m, la + 0);
+        const float l1 = ldf(m, la + 4);
+        const float l2 = ldf(m, la + 8);
+        vf[28][0] = l0; c.vfReady[28][0] = c.cyc + 4;
+        vf[28][1] = l1; c.vfReady[28][1] = c.cyc + 4;
+        vf[28][2] = l2; c.vfReady[28][2] = c.cyc + 4;
+        s.acc[0] = u0; c.accReady[0] = c.cyc + 1u;
+        s.acc[1] = u1; c.accReady[1] = c.cyc + 1u;
+        s.acc[2] = u2; c.accReady[2] = c.cyc + 1u;
+        c.bkValid = false;
+        ++c.cyc;
+    }
+    // 16A0: 01D3C8BD 01DB1009
+    {
+        uint32_t stk = 0u;
+        uint32_t f0 = 0u;
+        const float u0 = fMaddF(N(s.acc[0]), N(vf[25][0]), N(vf[19][1]), f0, stk);
+        uint32_t f1 = 0u;
+        const float u1 = fMaddF(N(s.acc[1]), N(vf[25][1]), N(vf[19][1]), f1, stk);
+        uint32_t f2 = 0u;
+        const float u2 = fMaddF(N(s.acc[2]), N(vf[25][2]), N(vf[19][1]), f2, stk);
+        pushMacStatus(c, 0u | macBits(f0, 8u) | macBits(f1, 4u) | macBits(f2, 2u), 0u | f0 | f1 | f2, stk);
+        const uint32_t la = ((static_cast<uint32_t>(static_cast<int32_t>(vi[2] + (9))) * 16u) & 0x3FF0u);
+        const float l0 = ldf(m, la + 0);
+        const float l1 = ldf(m, la + 4);
+        const float l2 = ldf(m, la + 8);
+        vf[27][0] = l0; c.vfReady[27][0] = c.cyc + 4;
+        vf[27][1] = l1; c.vfReady[27][1] = c.cyc + 4;
+        vf[27][2] = l2; c.vfReady[27][2] = c.cyc + 4;
+        s.acc[0] = u0; c.accReady[0] = c.cyc + 1u;
+        s.acc[1] = u1; c.accReady[1] = c.cyc + 1u;
+        s.acc[2] = u2; c.accReady[2] = c.cyc + 1u;
+        c.bkValid = false;
+        ++c.cyc;
+    }
+    // 16A8: 01D5D0BE 01D9100A
+    {
+        uint32_t stk = 0u;
+        uint32_t f0 = 0u;
+        const float u0 = fMaddF(N(s.acc[0]), N(vf[26][0]), N(vf[21][2]), f0, stk);
+        uint32_t f1 = 0u;
+        const float u1 = fMaddF(N(s.acc[1]), N(vf[26][1]), N(vf[21][2]), f1, stk);
+        uint32_t f2 = 0u;
+        const float u2 = fMaddF(N(s.acc[2]), N(vf[26][2]), N(vf[21][2]), f2, stk);
+        pushMacStatus(c, 0u | macBits(f0, 8u) | macBits(f1, 4u) | macBits(f2, 2u), 0u | f0 | f1 | f2, stk);
+        const uint32_t la = ((static_cast<uint32_t>(static_cast<int32_t>(vi[2] + (10))) * 16u) & 0x3FF0u);
+        const float l0 = ldf(m, la + 0);
+        const float l1 = ldf(m, la + 4);
+        const float l2 = ldf(m, la + 8);
+        vf[25][0] = l0; c.vfReady[25][0] = c.cyc + 4;
+        vf[25][1] = l1; c.vfReady[25][1] = c.cyc + 4;
+        vf[25][2] = l2; c.vfReady[25][2] = c.cyc + 4;
+        s.acc[0] = u0; c.accReady[0] = c.cyc + 1u;
+        s.acc[1] = u1; c.accReady[1] = c.cyc + 1u;
+        s.acc[2] = u2; c.accReady[2] = c.cyc + 1u;
+        c.bkValid = false;
+        ++c.cyc;
+    }
+    // 16B0: 01C08C4B 01DA100B
+    {
+        uint32_t stk = 0u;
+        uint32_t f0 = 0u;
+        const float u0 = fMaddF(N(s.acc[0]), N(vf[17][0]), N(vf[0][3]), f0, stk);
+        uint32_t f1 = 0u;
+        const float u1 = fMaddF(N(s.acc[1]), N(vf[17][1]), N(vf[0][3]), f1, stk);
+        uint32_t f2 = 0u;
+        const float u2 = fMaddF(N(s.acc[2]), N(vf[17][2]), N(vf[0][3]), f2, stk);
+        pushMacStatus(c, 0u | macBits(f0, 8u) | macBits(f1, 4u) | macBits(f2, 2u), 0u | f0 | f1 | f2, stk);
+        const uint32_t la = ((static_cast<uint32_t>(static_cast<int32_t>(vi[2] + (11))) * 16u) & 0x3FF0u);
+        const float l0 = ldf(m, la + 0);
+        const float l1 = ldf(m, la + 4);
+        const float l2 = ldf(m, la + 8);
+        vf[26][0] = l0; c.vfReady[26][0] = c.cyc + 4;
+        vf[26][1] = l1; c.vfReady[26][1] = c.cyc + 4;
+        vf[26][2] = l2; c.vfReady[26][2] = c.cyc + 4;
+        vf[17][0] = u0; c.vfReady[17][0] = c.cyc + 4;
+        vf[17][1] = u1; c.vfReady[17][1] = c.cyc + 4;
+        vf[17][2] = u2; c.vfReady[17][2] = c.cyc + 4;
+        c.bkValid = false;
+        ++c.cyc;
+    }
+    // 16B8: 01D3E1BC 01DD100C
+    {
+        uint32_t stk = 0u;
+        uint32_t f0 = 0u;
+        const float u0 = fMulF(N(vf[28][0]), N(vf[19][0]), f0);
+        uint32_t f1 = 0u;
+        const float u1 = fMulF(N(vf[28][1]), N(vf[19][0]), f1);
+        uint32_t f2 = 0u;
+        const float u2 = fMulF(N(vf[28][2]), N(vf[19][0]), f2);
+        pushMacStatus(c, 0u | macBits(f0, 8u) | macBits(f1, 4u) | macBits(f2, 2u), 0u | f0 | f1 | f2, stk);
+        const uint32_t la = ((static_cast<uint32_t>(static_cast<int32_t>(vi[2] + (12))) * 16u) & 0x3FF0u);
+        const float l0 = ldf(m, la + 0);
+        const float l1 = ldf(m, la + 4);
+        const float l2 = ldf(m, la + 8);
+        vf[29][0] = l0; c.vfReady[29][0] = c.cyc + 4;
+        vf[29][1] = l1; c.vfReady[29][1] = c.cyc + 4;
+        vf[29][2] = l2; c.vfReady[29][2] = c.cyc + 4;
+        s.acc[0] = u0; c.accReady[0] = c.cyc + 1u;
+        s.acc[1] = u1; c.accReady[1] = c.cyc + 1u;
+        s.acc[2] = u2; c.accReady[2] = c.cyc + 1u;
+        c.bkValid = false;
+        ++c.cyc;
+    }
+    // 16C0: 01D3D8BD 01DC100D
+    {
+        uint32_t stk = 0u;
+        uint32_t f0 = 0u;
+        const float u0 = fMaddF(N(s.acc[0]), N(vf[27][0]), N(vf[19][1]), f0, stk);
+        uint32_t f1 = 0u;
+        const float u1 = fMaddF(N(s.acc[1]), N(vf[27][1]), N(vf[19][1]), f1, stk);
+        uint32_t f2 = 0u;
+        const float u2 = fMaddF(N(s.acc[2]), N(vf[27][2]), N(vf[19][1]), f2, stk);
+        pushMacStatus(c, 0u | macBits(f0, 8u) | macBits(f1, 4u) | macBits(f2, 2u), 0u | f0 | f1 | f2, stk);
+        const uint32_t la = ((static_cast<uint32_t>(static_cast<int32_t>(vi[2] + (13))) * 16u) & 0x3FF0u);
+        const float l0 = ldf(m, la + 0);
+        const float l1 = ldf(m, la + 4);
+        const float l2 = ldf(m, la + 8);
+        vf[28][0] = l0; c.vfReady[28][0] = c.cyc + 4;
+        vf[28][1] = l1; c.vfReady[28][1] = c.cyc + 4;
+        vf[28][2] = l2; c.vfReady[28][2] = c.cyc + 4;
+        s.acc[0] = u0; c.accReady[0] = c.cyc + 1u;
+        s.acc[1] = u1; c.accReady[1] = c.cyc + 1u;
+        s.acc[2] = u2; c.accReady[2] = c.cyc + 1u;
+        c.bkValid = false;
+        ++c.cyc;
+    }
+    // 16C8: 01D5C8BE 01DB100E
+    {
+        uint32_t stk = 0u;
+        uint32_t f0 = 0u;
+        const float u0 = fMaddF(N(s.acc[0]), N(vf[25][0]), N(vf[21][2]), f0, stk);
+        uint32_t f1 = 0u;
+        const float u1 = fMaddF(N(s.acc[1]), N(vf[25][1]), N(vf[21][2]), f1, stk);
+        uint32_t f2 = 0u;
+        const float u2 = fMaddF(N(s.acc[2]), N(vf[25][2]), N(vf[21][2]), f2, stk);
+        pushMacStatus(c, 0u | macBits(f0, 8u) | macBits(f1, 4u) | macBits(f2, 2u), 0u | f0 | f1 | f2, stk);
+        const uint32_t la = ((static_cast<uint32_t>(static_cast<int32_t>(vi[2] + (14))) * 16u) & 0x3FF0u);
+        const float l0 = ldf(m, la + 0);
+        const float l1 = ldf(m, la + 4);
+        const float l2 = ldf(m, la + 8);
+        vf[27][0] = l0; c.vfReady[27][0] = c.cyc + 4;
+        vf[27][1] = l1; c.vfReady[27][1] = c.cyc + 4;
+        vf[27][2] = l2; c.vfReady[27][2] = c.cyc + 4;
+        s.acc[0] = u0; c.accReady[0] = c.cyc + 1u;
+        s.acc[1] = u1; c.accReady[1] = c.cyc + 1u;
+        s.acc[2] = u2; c.accReady[2] = c.cyc + 1u;
+        c.bkValid = false;
+        ++c.cyc;
+    }
+    // 16D0: 01C0D64B 01DA100F
+    {
+        uint32_t stk = 0u;
+        uint32_t f0 = 0u;
+        const float u0 = fMaddF(N(s.acc[0]), N(vf[26][0]), N(vf[0][3]), f0, stk);
+        uint32_t f1 = 0u;
+        const float u1 = fMaddF(N(s.acc[1]), N(vf[26][1]), N(vf[0][3]), f1, stk);
+        uint32_t f2 = 0u;
+        const float u2 = fMaddF(N(s.acc[2]), N(vf[26][2]), N(vf[0][3]), f2, stk);
+        pushMacStatus(c, 0u | macBits(f0, 8u) | macBits(f1, 4u) | macBits(f2, 2u), 0u | f0 | f1 | f2, stk);
+        const uint32_t la = ((static_cast<uint32_t>(static_cast<int32_t>(vi[2] + (15))) * 16u) & 0x3FF0u);
+        const float l0 = ldf(m, la + 0);
+        const float l1 = ldf(m, la + 4);
+        const float l2 = ldf(m, la + 8);
+        vf[26][0] = l0; c.vfReady[26][0] = c.cyc + 4;
+        vf[26][1] = l1; c.vfReady[26][1] = c.cyc + 4;
+        vf[26][2] = l2; c.vfReady[26][2] = c.cyc + 4;
+        vf[25][0] = u0; c.vfReady[25][0] = c.cyc + 4;
+        vf[25][1] = u1; c.vfReady[25][1] = c.cyc + 4;
+        vf[25][2] = u2; c.vfReady[25][2] = c.cyc + 4;
+        c.bkValid = false;
+        ++c.cyc;
+    }
+    // 16D8: 01D3E9BC 8000033C
+    {
+        uint32_t stk = 0u;
+        uint32_t f0 = 0u;
+        const float u0 = fMulF(N(vf[29][0]), N(vf[19][0]), f0);
+        uint32_t f1 = 0u;
+        const float u1 = fMulF(N(vf[29][1]), N(vf[19][0]), f1);
+        uint32_t f2 = 0u;
+        const float u2 = fMulF(N(vf[29][2]), N(vf[19][0]), f2);
+        pushMacStatus(c, 0u | macBits(f0, 8u) | macBits(f1, 4u) | macBits(f2, 2u), 0u | f0 | f1 | f2, stk);
+        s.acc[0] = u0; c.accReady[0] = c.cyc + 1u;
+        s.acc[1] = u1; c.accReady[1] = c.cyc + 1u;
+        s.acc[2] = u2; c.accReady[2] = c.cyc + 1u;
+        c.bkValid = false;
+        ++c.cyc;
+    }
+    // 16E0: 01D3E0BD 8000033C
+    {
+        uint32_t stk = 0u;
+        uint32_t f0 = 0u;
+        const float u0 = fMaddF(N(s.acc[0]), N(vf[28][0]), N(vf[19][1]), f0, stk);
+        uint32_t f1 = 0u;
+        const float u1 = fMaddF(N(s.acc[1]), N(vf[28][1]), N(vf[19][1]), f1, stk);
+        uint32_t f2 = 0u;
+        const float u2 = fMaddF(N(s.acc[2]), N(vf[28][2]), N(vf[19][1]), f2, stk);
+        pushMacStatus(c, 0u | macBits(f0, 8u) | macBits(f1, 4u) | macBits(f2, 2u), 0u | f0 | f1 | f2, stk);
+        s.acc[0] = u0; c.accReady[0] = c.cyc + 1u;
+        s.acc[1] = u1; c.accReady[1] = c.cyc + 1u;
+        s.acc[2] = u2; c.accReady[2] = c.cyc + 1u;
+        c.bkValid = false;
+        ++c.cyc;
+    }
+    // 16E8: 01D5D8BE 8000033C
+    {
+        uint32_t stk = 0u;
+        uint32_t f0 = 0u;
+        const float u0 = fMaddF(N(s.acc[0]), N(vf[27][0]), N(vf[21][2]), f0, stk);
+        uint32_t f1 = 0u;
+        const float u1 = fMaddF(N(s.acc[1]), N(vf[27][1]), N(vf[21][2]), f1, stk);
+        uint32_t f2 = 0u;
+        const float u2 = fMaddF(N(s.acc[2]), N(vf[27][2]), N(vf[21][2]), f2, stk);
+        pushMacStatus(c, 0u | macBits(f0, 8u) | macBits(f1, 4u) | macBits(f2, 2u), 0u | f0 | f1 | f2, stk);
+        s.acc[0] = u0; c.accReady[0] = c.cyc + 1u;
+        s.acc[1] = u1; c.accReady[1] = c.cyc + 1u;
+        s.acc[2] = u2; c.accReady[2] = c.cyc + 1u;
+        c.bkValid = false;
+        ++c.cyc;
+    }
+    // 16F0: 01C0D68B 8000033C
+    {
+        uint32_t stk = 0u;
+        uint32_t f0 = 0u;
+        const float u0 = fMaddF(N(s.acc[0]), N(vf[26][0]), N(vf[0][3]), f0, stk);
+        uint32_t f1 = 0u;
+        const float u1 = fMaddF(N(s.acc[1]), N(vf[26][1]), N(vf[0][3]), f1, stk);
+        uint32_t f2 = 0u;
+        const float u2 = fMaddF(N(s.acc[2]), N(vf[26][2]), N(vf[0][3]), f2, stk);
+        pushMacStatus(c, 0u | macBits(f0, 8u) | macBits(f1, 4u) | macBits(f2, 2u), 0u | f0 | f1 | f2, stk);
+        vf[26][0] = u0; c.vfReady[26][0] = c.cyc + 4;
+        vf[26][1] = u1; c.vfReady[26][1] = c.cyc + 4;
+        vf[26][2] = u2; c.vfReady[26][2] = c.cyc + 4;
+        c.bkValid = false;
+        ++c.cyc;
+    }
+    // 16F8: 01D4C1BC 8000033C
+    {
+        stall(c, c.vfReady[20][0]);
+        uint32_t stk = 0u;
+        uint32_t f0 = 0u;
+        const float u0 = fMulF(N(vf[24][0]), N(vf[20][0]), f0);
+        uint32_t f1 = 0u;
+        const float u1 = fMulF(N(vf[24][1]), N(vf[20][0]), f1);
+        uint32_t f2 = 0u;
+        const float u2 = fMulF(N(vf[24][2]), N(vf[20][0]), f2);
+        pushMacStatus(c, 0u | macBits(f0, 8u) | macBits(f1, 4u) | macBits(f2, 2u), 0u | f0 | f1 | f2, stk);
+        s.acc[0] = u0; c.accReady[0] = c.cyc + 1u;
+        s.acc[1] = u1; c.accReady[1] = c.cyc + 1u;
+        s.acc[2] = u2; c.accReady[2] = c.cyc + 1u;
+        c.bkValid = false;
+        ++c.cyc;
+    }
+    // 1700: 01D088BD 8000033C
+    {
+        stall(c, c.vfReady[16][1]);
+        uint32_t stk = 0u;
+        uint32_t f0 = 0u;
+        const float u0 = fMaddF(N(s.acc[0]), N(vf[17][0]), N(vf[16][1]), f0, stk);
+        uint32_t f1 = 0u;
+        const float u1 = fMaddF(N(s.acc[1]), N(vf[17][1]), N(vf[16][1]), f1, stk);
+        uint32_t f2 = 0u;
+        const float u2 = fMaddF(N(s.acc[2]), N(vf[17][2]), N(vf[16][1]), f2, stk);
+        pushMacStatus(c, 0u | macBits(f0, 8u) | macBits(f1, 4u) | macBits(f2, 2u), 0u | f0 | f1 | f2, stk);
+        s.acc[0] = u0; c.accReady[0] = c.cyc + 1u;
+        s.acc[1] = u1; c.accReady[1] = c.cyc + 1u;
+        s.acc[2] = u2; c.accReady[2] = c.cyc + 1u;
+        c.bkValid = false;
+        ++c.cyc;
+    }
+    // 1708: 01D6C8BE 8000033C
+    {
+        stall(c, c.vfReady[22][2]);
+        uint32_t stk = 0u;
+        uint32_t f0 = 0u;
+        const float u0 = fMaddF(N(s.acc[0]), N(vf[25][0]), N(vf[22][2]), f0, stk);
+        uint32_t f1 = 0u;
+        const float u1 = fMaddF(N(s.acc[1]), N(vf[25][1]), N(vf[22][2]), f1, stk);
+        uint32_t f2 = 0u;
+        const float u2 = fMaddF(N(s.acc[2]), N(vf[25][2]), N(vf[22][2]), f2, stk);
+        pushMacStatus(c, 0u | macBits(f0, 8u) | macBits(f1, 4u) | macBits(f2, 2u), 0u | f0 | f1 | f2, stk);
+        s.acc[0] = u0; c.accReady[0] = c.cyc + 1u;
+        s.acc[1] = u1; c.accReady[1] = c.cyc + 1u;
+        s.acc[2] = u2; c.accReady[2] = c.cyc + 1u;
+        c.bkValid = false;
+        ++c.cyc;
+    }
+    // 1710: 01C0D60B 8000033C
+    {
+        uint32_t stk = 0u;
+        uint32_t f0 = 0u;
+        const float u0 = fMaddF(N(s.acc[0]), N(vf[26][0]), N(vf[0][3]), f0, stk);
+        uint32_t f1 = 0u;
+        const float u1 = fMaddF(N(s.acc[1]), N(vf[26][1]), N(vf[0][3]), f1, stk);
+        uint32_t f2 = 0u;
+        const float u2 = fMaddF(N(s.acc[2]), N(vf[26][2]), N(vf[0][3]), f2, stk);
+        pushMacStatus(c, 0u | macBits(f0, 8u) | macBits(f1, 4u) | macBits(f2, 2u), 0u | f0 | f1 | f2, stk);
+        vf[24][0] = u0; c.vfReady[24][0] = c.cyc + 4;
+        vf[24][1] = u1; c.vfReady[24][1] = c.cyc + 4;
+        vf[24][2] = u2; c.vfReady[24][2] = c.cyc + 4;
+        c.bkValid = false;
+        ++c.cyc;
+    }
+    // 1718: 0051C603 8000033C
+    {
+        stall(c, c.vfReady[17][3]);
+        stall(c, c.vfReady[24][2]);
+        uint32_t stk = 0u;
+        uint32_t f2 = 0u;
+        const float u2 = fAddF(N(vf[24][2]), N(vf[17][3]), f2);
+        pushMacStatus(c, 0u | macBits(f2, 2u), 0u | f2, stk);
+        vf[24][2] = u2; c.vfReady[24][2] = c.cyc + 4;
+        c.bkValid = false;
+        ++c.cyc;
+    }
+    // 1720: 000002FF 8000033C
+    {
+        c.bkValid = false;
+        ++c.cyc;
+    }
+    // 1728: 01F809BC 8000033C
+    {
+        stall(c, c.vfReady[1][0]);
+        stall(c, c.vfReady[1][1]);
+        stall(c, c.vfReady[1][2]);
+        stall(c, c.vfReady[1][3]);
+        stall(c, c.vfReady[24][0]);
+        uint32_t stk = 0u;
+        uint32_t f0 = 0u;
+        const float u0 = fMulF(N(vf[1][0]), N(vf[24][0]), f0);
+        uint32_t f1 = 0u;
+        const float u1 = fMulF(N(vf[1][1]), N(vf[24][0]), f1);
+        uint32_t f2 = 0u;
+        const float u2 = fMulF(N(vf[1][2]), N(vf[24][0]), f2);
+        uint32_t f3 = 0u;
+        const float u3 = fMulF(N(vf[1][3]), N(vf[24][0]), f3);
+        pushMacStatus(c, 0u | macBits(f0, 8u) | macBits(f1, 4u) | macBits(f2, 2u) | macBits(f3, 1u), 0u | f0 | f1 | f2 | f3, stk);
+        s.acc[0] = u0; c.accReady[0] = c.cyc + 1u;
+        s.acc[1] = u1; c.accReady[1] = c.cyc + 1u;
+        s.acc[2] = u2; c.accReady[2] = c.cyc + 1u;
+        s.acc[3] = u3; c.accReady[3] = c.cyc + 1u;
+        c.bkValid = false;
+        ++c.cyc;
+    }
+    // 1730: 01F810BD 8000033C
+    {
+        stall(c, c.vfReady[2][0]);
+        stall(c, c.vfReady[2][1]);
+        stall(c, c.vfReady[2][2]);
+        stall(c, c.vfReady[2][3]);
+        uint32_t stk = 0u;
+        uint32_t f0 = 0u;
+        const float u0 = fMaddF(N(s.acc[0]), N(vf[2][0]), N(vf[24][1]), f0, stk);
+        uint32_t f1 = 0u;
+        const float u1 = fMaddF(N(s.acc[1]), N(vf[2][1]), N(vf[24][1]), f1, stk);
+        uint32_t f2 = 0u;
+        const float u2 = fMaddF(N(s.acc[2]), N(vf[2][2]), N(vf[24][1]), f2, stk);
+        uint32_t f3 = 0u;
+        const float u3 = fMaddF(N(s.acc[3]), N(vf[2][3]), N(vf[24][1]), f3, stk);
+        pushMacStatus(c, 0u | macBits(f0, 8u) | macBits(f1, 4u) | macBits(f2, 2u) | macBits(f3, 1u), 0u | f0 | f1 | f2 | f3, stk);
+        s.acc[0] = u0; c.accReady[0] = c.cyc + 1u;
+        s.acc[1] = u1; c.accReady[1] = c.cyc + 1u;
+        s.acc[2] = u2; c.accReady[2] = c.cyc + 1u;
+        s.acc[3] = u3; c.accReady[3] = c.cyc + 1u;
+        c.bkValid = false;
+        ++c.cyc;
+    }
+    // 1738: 01F818BE 8000033C
+    {
+        stall(c, c.vfReady[3][0]);
+        stall(c, c.vfReady[3][1]);
+        stall(c, c.vfReady[3][2]);
+        stall(c, c.vfReady[3][3]);
+        uint32_t stk = 0u;
+        uint32_t f0 = 0u;
+        const float u0 = fMaddF(N(s.acc[0]), N(vf[3][0]), N(vf[24][2]), f0, stk);
+        uint32_t f1 = 0u;
+        const float u1 = fMaddF(N(s.acc[1]), N(vf[3][1]), N(vf[24][2]), f1, stk);
+        uint32_t f2 = 0u;
+        const float u2 = fMaddF(N(s.acc[2]), N(vf[3][2]), N(vf[24][2]), f2, stk);
+        uint32_t f3 = 0u;
+        const float u3 = fMaddF(N(s.acc[3]), N(vf[3][3]), N(vf[24][2]), f3, stk);
+        pushMacStatus(c, 0u | macBits(f0, 8u) | macBits(f1, 4u) | macBits(f2, 2u) | macBits(f3, 1u), 0u | f0 | f1 | f2 | f3, stk);
+        s.acc[0] = u0; c.accReady[0] = c.cyc + 1u;
+        s.acc[1] = u1; c.accReady[1] = c.cyc + 1u;
+        s.acc[2] = u2; c.accReady[2] = c.cyc + 1u;
+        s.acc[3] = u3; c.accReady[3] = c.cyc + 1u;
+        c.bkValid = false;
+        ++c.cyc;
+    }
+    // 1740: 01E0260B 8000033C
+    {
+        stall(c, c.vfReady[4][0]);
+        stall(c, c.vfReady[4][1]);
+        stall(c, c.vfReady[4][2]);
+        stall(c, c.vfReady[4][3]);
+        uint32_t stk = 0u;
+        uint32_t f0 = 0u;
+        const float u0 = fMaddF(N(s.acc[0]), N(vf[4][0]), N(vf[0][3]), f0, stk);
+        uint32_t f1 = 0u;
+        const float u1 = fMaddF(N(s.acc[1]), N(vf[4][1]), N(vf[0][3]), f1, stk);
+        uint32_t f2 = 0u;
+        const float u2 = fMaddF(N(s.acc[2]), N(vf[4][2]), N(vf[0][3]), f2, stk);
+        uint32_t f3 = 0u;
+        const float u3 = fMaddF(N(s.acc[3]), N(vf[4][3]), N(vf[0][3]), f3, stk);
+        pushMacStatus(c, 0u | macBits(f0, 8u) | macBits(f1, 4u) | macBits(f2, 2u) | macBits(f3, 1u), 0u | f0 | f1 | f2 | f3, stk);
+        vf[24][0] = u0; c.vfReady[24][0] = c.cyc + 4;
+        vf[24][1] = u1; c.vfReady[24][1] = c.cyc + 4;
+        vf[24][2] = u2; c.vfReady[24][2] = c.cyc + 4;
+        vf[24][3] = u3; c.vfReady[24][3] = c.cyc + 4;
+        c.bkValid = false;
+        ++c.cyc;
+    }
+    // 1748: 01D8C1FF 8000033C
+    {
+        stall(c, c.vfReady[24][0]);
+        stall(c, c.vfReady[24][1]);
+        stall(c, c.vfReady[24][2]);
+        stall(c, c.vfReady[24][3]);
+        queueClip(c, clipBits(vf[24], vf[24][3]));
+        c.bkValid = false;
+        ++c.cyc;
+    }
+    // 1750: 000002FF 8000033C
+    {
+        c.bkValid = false;
+        ++c.cyc;
+    }
+    // 1758: 000002FF 8000033C
+    {
+        c.bkValid = false;
+        ++c.cyc;
+    }
+    // 1760: 000002FF 8000033C
+    {
+        c.bkValid = false;
+        ++c.cyc;
+    }
+    // 1768: 000002FF 2400003F
+    {
+        commitClip(c);
+        const int32_t nvi = ((s.clip & 0x3Fu) != 0u) ? 1 : 0;
+        c.bkValid = false;
+        vi[1] = nvi; c.viReady[1] = c.cyc + 1;
+        ++c.cyc;
+    }
+    bool taken = false;
+    // 1770: 00202A17 52010029
+    {
+        stall(c, c.vfReady[5][3]);
+        const float u3 = vmin(N(vf[5][3]), N(vf[0][3]));
+        taken = static_cast<int16_t>(brVi(c, 0)) != static_cast<int16_t>(brVi(c, 1));
+        vf[8][3] = u3; c.vfReady[8][3] = c.cyc + 4;
+        c.bkValid = false;
+        ++c.cyc;
+    }
+    // 1778: 000002FF 8000033C
+    {
+        c.bkValid = false;
+        ++c.cyc;
+    }
+    if (c.cyc >= c.budgetEnd)
+        return handoffRet(c, (taken ? 0x18C0u : 0x1780u));
+    return (taken ? 0x18C0u : 0x1780u);
+}
+
+static uint32_t vu1prog_3_1780(VU1NativeCtx &c)
+{
+    using namespace vu1n;
+    VU1State &s = *c.st;
+    float (*vf)[4] = s.vf;
+    int32_t *vi = s.vi;
+    uint8_t *m = c.mem;
+    (void)m;
+    (void)vf;
+    (void)vi;
+    // 1780: 018D2E58 81F803BC
+    {
+        stall(c, c.vfReady[13][0]);
+        stall(c, c.vfReady[24][3]);
+        stall(c, c.vfReady[5][0]);
+        stall(c, c.vfReady[5][1]);
+        if (c.qPending) stall(c, c.qReady);
+        uint32_t stk = 0u;
+        uint32_t f0 = 0u;
+        const float u0 = fMulF(N(vf[5][0]), N(vf[13][0]), f0);
+        uint32_t f1 = 0u;
+        const float u1 = fMulF(N(vf[5][1]), N(vf[13][0]), f1);
+        pushMacStatus(c, 0u | macBits(f0, 8u) | macBits(f1, 4u), 0u | f0 | f1, stk);
+        divq(c, N(vf[0][3]), N(vf[24][3]));
+        vf[25][0] = u0; c.vfReady[25][0] = c.cyc + 4;
+        vf[25][1] = u1; c.vfReady[25][1] = c.cyc + 4;
+        c.bkValid = false;
+        ++c.cyc;
+    }
+    // 1788: 000002FF 8000033C
+    {
+        c.bkValid = false;
+        ++c.cyc;
+    }
+    // 1790: 000002FF 8000033C
+    {
+        c.bkValid = false;
+        ++c.cyc;
+    }
+    // 1798: 8060066C 43000000
+    {
+        uint32_t stk = 0u;
+        uint32_t f2 = 0u;
+        const float u2 = fSubF(N(vf[0][2]), N(vf[0][2]), f2);
+        uint32_t f3 = 0u;
+        const float u3 = fSubF(N(vf[0][3]), N(vf[0][3]), f3);
+        pushMacStatus(c, 0u | macBits(f2, 2u) | macBits(f3, 1u), 0u | f2 | f3, stk);
+        s.i = N(bitsf(0x43000000u));
+        vf[25][2] = u2; c.vfReady[25][2] = c.cyc + 4;
+        vf[25][3] = u3; c.vfReady[25][3] = c.cyc + 4;
+        c.bkValid = false;
+        ++c.cyc;
+    }
+    // 17A0: 0186CE6A 81E6737D
+    {
+        stall(c, c.vfReady[14][0]);
+        stall(c, c.vfReady[14][1]);
+        stall(c, c.vfReady[14][2]);
+        stall(c, c.vfReady[14][3]);
+        stall(c, c.vfReady[6][0]);
+        stall(c, c.vfReady[6][1]);
+        stall(c, c.viReady[6]);
+        uint32_t stk = 0u;
+        uint32_t f0 = 0u;
+        const float u0 = fMulF(N(vf[25][0]), N(vf[6][0]), f0);
+        uint32_t f1 = 0u;
+        const float u1 = fMulF(N(vf[25][1]), N(vf[6][1]), f1);
+        pushMacStatus(c, 0u | macBits(f0, 8u) | macBits(f1, 4u), 0u | f0 | f1, stk);
+        { const uint32_t w[4] = {fbits(vf[14][0]), fbits(vf[14][1]), fbits(vf[14][2]), fbits(vf[14][3])}; storeQ(c, ((static_cast<uint32_t>(static_cast<uint16_t>(vi[6])) * 16u) & 0x3FF0u), w, 15); }
+        const int32_t nvi = static_cast<int16_t>(vi[6] + 1);
+        vf[25][0] = u0; c.vfReady[25][0] = c.cyc + 4;
+        vf[25][1] = u1; c.vfReady[25][1] = c.cyc + 4;
+        c.bkValid = true; c.bkReg = 6; c.bkVal = vi[6];
+        vi[6] = nvi; c.viReady[6] = c.cyc + 1;
+        ++c.cyc;
+    }
+    // 17A8: 000002FF 800003BF
+    {
+        if (c.qPending) stall(c, c.qReady);
+        c.bkValid = false;
+        ++c.cyc;
+    }
+    // 17B0: 01E0CE5C 10073801
+    {
+        stall(c, c.vfReady[25][0]);
+        stall(c, c.vfReady[25][1]);
+        stall(c, c.vfReady[25][2]);
+        stall(c, c.vfReady[25][3]);
+        stall(c, c.viReady[7]);
+        commitQ(c);
+        uint32_t stk = 0u;
+        uint32_t f0 = 0u;
+        const float u0 = fMulF(N(vf[25][0]), N(s.q), f0);
+        uint32_t f1 = 0u;
+        const float u1 = fMulF(N(vf[25][1]), N(s.q), f1);
+        uint32_t f2 = 0u;
+        const float u2 = fMulF(N(vf[25][2]), N(s.q), f2);
+        uint32_t f3 = 0u;
+        const float u3 = fMulF(N(vf[25][3]), N(s.q), f3);
+        pushMacStatus(c, 0u | macBits(f0, 8u) | macBits(f1, 4u) | macBits(f2, 2u) | macBits(f3, 1u), 0u | f0 | f1 | f2 | f3, stk);
+        const int32_t nvi = static_cast<int16_t>(vi[7] + (1));
+        vf[25][0] = u0; c.vfReady[25][0] = c.cyc + 4;
+        vf[25][1] = u1; c.vfReady[25][1] = c.cyc + 4;
+        vf[25][2] = u2; c.vfReady[25][2] = c.cyc + 4;
+        vf[25][3] = u3; c.vfReady[25][3] = c.cyc + 4;
+        c.bkValid = true; c.bkReg = 7; c.bkVal = vi[7];
+        vi[7] = nvi; c.viReady[7] = c.cyc + 1;
+        ++c.cyc;
+    }
+    // 17B8: 0199C9FD 8000033C
+    {
+        stall(c, c.vfReady[25][0]);
+        stall(c, c.vfReady[25][1]);
+        const float u0 = std::fabs(N(vf[25][0]));
+        const float u1 = std::fabs(N(vf[25][1]));
+        vf[25][0] = u0; c.vfReady[25][0] = c.cyc + 4;
+        vf[25][1] = u1; c.vfReady[25][1] = c.cyc + 4;
+        c.bkValid = false;
+        ++c.cyc;
+    }
+    // 17C0: 000002FF 8000033C
+    {
+        c.bkValid = false;
+        ++c.cyc;
+    }
+    // 17C8: 0020431E 8000033C
+    {
+        stall(c, c.vfReady[8][3]);
+        uint32_t stk = 0u;
+        uint32_t f3 = 0u;
+        const float u3 = fMulF(N(vf[8][3]), N(s.i), f3);
+        pushMacStatus(c, 0u | macBits(f3, 1u), 0u | f3, stk);
+        vf[12][3] = u3; c.vfReady[12][3] = c.cyc + 4;
+        c.bkValid = false;
+        ++c.cyc;
+    }
+    // 17D0: 01C0C61C 8000033C
+    {
+        stall(c, c.vfReady[24][0]);
+        stall(c, c.vfReady[24][1]);
+        stall(c, c.vfReady[24][2]);
+        commitQ(c);
+        uint32_t stk = 0u;
+        uint32_t f0 = 0u;
+        const float u0 = fMulF(N(vf[24][0]), N(s.q), f0);
+        uint32_t f1 = 0u;
+        const float u1 = fMulF(N(vf[24][1]), N(s.q), f1);
+        uint32_t f2 = 0u;
+        const float u2 = fMulF(N(vf[24][2]), N(s.q), f2);
+        pushMacStatus(c, 0u | macBits(f0, 8u) | macBits(f1, 4u) | macBits(f2, 2u), 0u | f0 | f1 | f2, stk);
+        vf[24][0] = u0; c.vfReady[24][0] = c.cyc + 4;
+        vf[24][1] = u1; c.vfReady[24][1] = c.cyc + 4;
+        vf[24][2] = u2; c.vfReady[24][2] = c.cyc + 4;
+        c.bkValid = false;
+        ++c.cyc;
+    }
+    // 17D8: 018DCE51 8000033C
+    {
+        stall(c, c.vfReady[13][1]);
+        const float u0 = vmax(N(vf[25][0]), N(vf[13][1]));
+        const float u1 = vmax(N(vf[25][1]), N(vf[13][1]));
+        vf[25][0] = u0; c.vfReady[25][0] = c.cyc + 4;
+        vf[25][1] = u1; c.vfReady[25][1] = c.cyc + 4;
+        c.bkValid = false;
+        ++c.cyc;
+    }
+    // 17E0: 01E039BF 8000033C
+    {
+        stall(c, c.vfReady[7][0]);
+        stall(c, c.vfReady[7][1]);
+        stall(c, c.vfReady[7][2]);
+        stall(c, c.vfReady[7][3]);
+        uint32_t stk = 0u;
+        uint32_t f0 = 0u;
+        const float u0 = fMulF(N(vf[7][0]), N(vf[0][3]), f0);
+        uint32_t f1 = 0u;
+        const float u1 = fMulF(N(vf[7][1]), N(vf[0][3]), f1);
+        uint32_t f2 = 0u;
+        const float u2 = fMulF(N(vf[7][2]), N(vf[0][3]), f2);
+        uint32_t f3 = 0u;
+        const float u3 = fMulF(N(vf[7][3]), N(vf[0][3]), f3);
+        pushMacStatus(c, 0u | macBits(f0, 8u) | macBits(f1, 4u) | macBits(f2, 2u) | macBits(f3, 1u), 0u | f0 | f1 | f2 | f3, stk);
+        s.acc[0] = u0; c.accReady[0] = c.cyc + 1u;
+        s.acc[1] = u1; c.accReady[1] = c.cyc + 1u;
+        s.acc[2] = u2; c.accReady[2] = c.cyc + 1u;
+        s.acc[3] = u3; c.accReady[3] = c.cyc + 1u;
+        c.bkValid = false;
+        ++c.cyc;
+    }
+    // 17E8: 01FA617C 8000033C
+    {
+        stall(c, c.vfReady[12][0]);
+        stall(c, c.vfReady[12][1]);
+        stall(c, c.vfReady[12][2]);
+        const float u0 = bitsf(static_cast<uint32_t>(floatToInt(N(vf[12][0]), 1.0f)));
+        const float u1 = bitsf(static_cast<uint32_t>(floatToInt(N(vf[12][1]), 1.0f)));
+        const float u2 = bitsf(static_cast<uint32_t>(floatToInt(N(vf[12][2]), 1.0f)));
+        const float u3 = bitsf(static_cast<uint32_t>(floatToInt(N(vf[12][3]), 1.0f)));
+        vf[26][0] = u0; c.vfReady[26][0] = c.cyc + 4;
+        vf[26][1] = u1; c.vfReady[26][1] = c.cyc + 4;
+        vf[26][2] = u2; c.vfReady[26][2] = c.cyc + 4;
+        vf[26][3] = u3; c.vfReady[26][3] = c.cyc + 4;
+        c.bkValid = false;
+        ++c.cyc;
+    }
+    // 17F0: 01E6C629 8000033C
+    {
+        stall(c, c.vfReady[6][2]);
+        stall(c, c.vfReady[6][3]);
+        uint32_t stk = 0u;
+        uint32_t f0 = 0u;
+        const float u0 = fMaddF(N(s.acc[0]), N(vf[24][0]), N(vf[6][0]), f0, stk);
+        uint32_t f1 = 0u;
+        const float u1 = fMaddF(N(s.acc[1]), N(vf[24][1]), N(vf[6][1]), f1, stk);
+        uint32_t f2 = 0u;
+        const float u2 = fMaddF(N(s.acc[2]), N(vf[24][2]), N(vf[6][2]), f2, stk);
+        uint32_t f3 = 0u;
+        const float u3 = fMaddF(N(s.acc[3]), N(vf[24][3]), N(vf[6][3]), f3, stk);
+        pushMacStatus(c, 0u | macBits(f0, 8u) | macBits(f1, 4u) | macBits(f2, 2u) | macBits(f3, 1u), 0u | f0 | f1 | f2 | f3, stk);
+        vf[24][0] = u0; c.vfReady[24][0] = c.cyc + 4;
+        vf[24][1] = u1; c.vfReady[24][1] = c.cyc + 4;
+        vf[24][2] = u2; c.vfReady[24][2] = c.cyc + 4;
+        vf[24][3] = u3; c.vfReady[24][3] = c.cyc + 4;
+        c.bkValid = false;
+        ++c.cyc;
+    }
+    // 17F8: 018DCE56 8000033C
+    {
+        stall(c, c.vfReady[13][2]);
+        const float u0 = vmin(N(vf[25][0]), N(vf[13][2]));
+        const float u1 = vmin(N(vf[25][1]), N(vf[13][2]));
+        vf[25][0] = u0; c.vfReady[25][0] = c.cyc + 4;
+        vf[25][1] = u1; c.vfReady[25][1] = c.cyc + 4;
+        c.bkValid = false;
+        ++c.cyc;
+    }
+    // 1800: 01F9C6A8 81E6D37D
+    {
+        stall(c, c.vfReady[24][0]);
+        stall(c, c.vfReady[24][1]);
+        stall(c, c.vfReady[24][2]);
+        stall(c, c.vfReady[24][3]);
+        stall(c, c.vfReady[25][0]);
+        stall(c, c.vfReady[25][1]);
+        stall(c, c.vfReady[26][0]);
+        stall(c, c.vfReady[26][1]);
+        stall(c, c.vfReady[26][2]);
+        stall(c, c.vfReady[26][3]);
+        uint32_t stk = 0u;
+        uint32_t f0 = 0u;
+        const float u0 = fAddF(N(vf[24][0]), N(vf[25][0]), f0);
+        uint32_t f1 = 0u;
+        const float u1 = fAddF(N(vf[24][1]), N(vf[25][1]), f1);
+        uint32_t f2 = 0u;
+        const float u2 = fAddF(N(vf[24][2]), N(vf[25][2]), f2);
+        uint32_t f3 = 0u;
+        const float u3 = fAddF(N(vf[24][3]), N(vf[25][3]), f3);
+        pushMacStatus(c, 0u | macBits(f0, 8u) | macBits(f1, 4u) | macBits(f2, 2u) | macBits(f3, 1u), 0u | f0 | f1 | f2 | f3, stk);
+        { const uint32_t w[4] = {fbits(vf[26][0]), fbits(vf[26][1]), fbits(vf[26][2]), fbits(vf[26][3])}; storeQ(c, ((static_cast<uint32_t>(static_cast<uint16_t>(vi[6])) * 16u) & 0x3FF0u), w, 15); }
+        const int32_t nvi = static_cast<int16_t>(vi[6] + 1);
+        vf[26][0] = u0; c.vfReady[26][0] = c.cyc + 4;
+        vf[26][1] = u1; c.vfReady[26][1] = c.cyc + 4;
+        vf[26][2] = u2; c.vfReady[26][2] = c.cyc + 4;
+        vf[26][3] = u3; c.vfReady[26][3] = c.cyc + 4;
+        c.bkValid = true; c.bkReg = 6; c.bkVal = vi[6];
+        vi[6] = nvi; c.viReady[6] = c.cyc + 1;
+        ++c.cyc;
+    }
+    // 1808: 000002FF 8000033C
+    {
+        c.bkValid = false;
+        ++c.cyc;
+    }
+    // 1810: 000002FF 8000033C
+    {
+        c.bkValid = false;
+        ++c.cyc;
+    }
+    // 1818: 01F9C62C 8000033C
+    {
+        uint32_t stk = 0u;
+        uint32_t f0 = 0u;
+        const float u0 = fSubF(N(vf[24][0]), N(vf[25][0]), f0);
+        uint32_t f1 = 0u;
+        const float u1 = fSubF(N(vf[24][1]), N(vf[25][1]), f1);
+        uint32_t f2 = 0u;
+        const float u2 = fSubF(N(vf[24][2]), N(vf[25][2]), f2);
+        uint32_t f3 = 0u;
+        const float u3 = fSubF(N(vf[24][3]), N(vf[25][3]), f3);
+        pushMacStatus(c, 0u | macBits(f0, 8u) | macBits(f1, 4u) | macBits(f2, 2u) | macBits(f3, 1u), 0u | f0 | f1 | f2 | f3, stk);
+        vf[24][0] = u0; c.vfReady[24][0] = c.cyc + 4;
+        vf[24][1] = u1; c.vfReady[24][1] = c.cyc + 4;
+        vf[24][2] = u2; c.vfReady[24][2] = c.cyc + 4;
+        vf[24][3] = u3; c.vfReady[24][3] = c.cyc + 4;
+        c.bkValid = false;
+        ++c.cyc;
+    }
+    // 1820: 01F9D17D 8000033C
+    {
+        const float u0 = bitsf(static_cast<uint32_t>(floatToInt(N(vf[26][0]), 16.0f)));
+        const float u1 = bitsf(static_cast<uint32_t>(floatToInt(N(vf[26][1]), 16.0f)));
+        const float u2 = bitsf(static_cast<uint32_t>(floatToInt(N(vf[26][2]), 16.0f)));
+        const float u3 = bitsf(static_cast<uint32_t>(floatToInt(N(vf[26][3]), 16.0f)));
+        vf[25][0] = u0; c.vfReady[25][0] = c.cyc + 4;
+        vf[25][1] = u1; c.vfReady[25][1] = c.cyc + 4;
+        vf[25][2] = u2; c.vfReady[25][2] = c.cyc + 4;
+        vf[25][3] = u3; c.vfReady[25][3] = c.cyc + 4;
+        c.bkValid = false;
+        ++c.cyc;
+    }
+    // 1828: 01F8C17D 10084001
+    {
+        stall(c, c.vfReady[24][0]);
+        stall(c, c.vfReady[24][1]);
+        stall(c, c.vfReady[24][2]);
+        stall(c, c.vfReady[24][3]);
+        stall(c, c.viReady[8]);
+        const float u0 = bitsf(static_cast<uint32_t>(floatToInt(N(vf[24][0]), 16.0f)));
+        const float u1 = bitsf(static_cast<uint32_t>(floatToInt(N(vf[24][1]), 16.0f)));
+        const float u2 = bitsf(static_cast<uint32_t>(floatToInt(N(vf[24][2]), 16.0f)));
+        const float u3 = bitsf(static_cast<uint32_t>(floatToInt(N(vf[24][3]), 16.0f)));
+        const int32_t nvi = static_cast<int16_t>(vi[8] + (1));
+        vf[24][0] = u0; c.vfReady[24][0] = c.cyc + 4;
+        vf[24][1] = u1; c.vfReady[24][1] = c.cyc + 4;
+        vf[24][2] = u2; c.vfReady[24][2] = c.cyc + 4;
+        vf[24][3] = u3; c.vfReady[24][3] = c.cyc + 4;
+        c.bkValid = true; c.bkReg = 8; c.bkVal = vi[8];
+        vi[8] = nvi; c.viReady[8] = c.cyc + 1;
+        ++c.cyc;
+    }
+    // 1830: 000002FF 81E6CB7D
+    {
+        stall(c, c.vfReady[25][0]);
+        stall(c, c.vfReady[25][1]);
+        stall(c, c.vfReady[25][2]);
+        stall(c, c.vfReady[25][3]);
+        { const uint32_t w[4] = {fbits(vf[25][0]), fbits(vf[25][1]), fbits(vf[25][2]), fbits(vf[25][3])}; storeQ(c, ((static_cast<uint32_t>(static_cast<uint16_t>(vi[6])) * 16u) & 0x3FF0u), w, 15); }
+        const int32_t nvi = static_cast<int16_t>(vi[6] + 1);
+        c.bkValid = true; c.bkReg = 6; c.bkVal = vi[6];
+        vi[6] = nvi; c.viReady[6] = c.cyc + 1;
+        ++c.cyc;
+    }
+    // 1838: 000002FF 81E67B7D
+    {
+        stall(c, c.vfReady[15][0]);
+        stall(c, c.vfReady[15][1]);
+        stall(c, c.vfReady[15][2]);
+        stall(c, c.vfReady[15][3]);
+        { const uint32_t w[4] = {fbits(vf[15][0]), fbits(vf[15][1]), fbits(vf[15][2]), fbits(vf[15][3])}; storeQ(c, ((static_cast<uint32_t>(static_cast<uint16_t>(vi[6])) * 16u) & 0x3FF0u), w, 15); }
+        const int32_t nvi = static_cast<int16_t>(vi[6] + 1);
+        c.bkValid = true; c.bkReg = 6; c.bkVal = vi[6];
+        vi[6] = nvi; c.viReady[6] = c.cyc + 1;
+        ++c.cyc;
+    }
+    bool taken = false;
+    // 1840: 000002FF 50085015
+    {
+        stall(c, c.viReady[10]);
+        taken = static_cast<int16_t>(brVi(c, 10)) == static_cast<int16_t>(brVi(c, 8));
+        c.bkValid = false;
+        ++c.cyc;
+    }
+    // 1848: 000002FF 81E6C37D
+    {
+        { const uint32_t w[4] = {fbits(vf[24][0]), fbits(vf[24][1]), fbits(vf[24][2]), fbits(vf[24][3])}; storeQ(c, ((static_cast<uint32_t>(static_cast<uint16_t>(vi[6])) * 16u) & 0x3FF0u), w, 15); }
+        const int32_t nvi = static_cast<int16_t>(vi[6] + 1);
+        c.bkValid = true; c.bkReg = 6; c.bkVal = vi[6];
+        vi[6] = nvi; c.viReady[6] = c.cyc + 1;
+        ++c.cyc;
+    }
+    if (c.cyc >= c.budgetEnd)
+        return handoffRet(c, (taken ? 0x18F0u : 0x1850u));
+    return (taken ? 0x18F0u : 0x1850u);
+}
+
+static uint32_t vu1prog_3_1850(VU1NativeCtx &c)
+{
+    using namespace vu1n;
+    VU1State &s = *c.st;
+    float (*vf)[4] = s.vf;
+    int32_t *vi = s.vi;
+    uint8_t *m = c.mem;
+    (void)m;
+    (void)vf;
+    (void)vi;
+    bool taken = false;
+    // 1850: 000002FF 50074803
+    {
+        stall(c, c.viReady[7]);
+        stall(c, c.viReady[9]);
+        taken = static_cast<int16_t>(brVi(c, 9)) == static_cast<int16_t>(brVi(c, 7));
+        c.bkValid = false;
+        ++c.cyc;
+    }
+    // 1858: 000002FF 8000033C
+    {
+        c.bkValid = false;
+        ++c.cyc;
+    }
+    if (c.cyc >= c.budgetEnd)
+        return handoffRet(c, (taken ? 0x1870u : 0x1860u));
+    return (taken ? 0x1870u : 0x1860u);
+}
+
+static uint32_t vu1prog_3_1860(VU1NativeCtx &c)
+{
+    using namespace vu1n;
+    VU1State &s = *c.st;
+    float (*vf)[4] = s.vf;
+    int32_t *vi = s.vi;
+    uint8_t *m = c.mem;
+    (void)m;
+    (void)vf;
+    (void)vi;
+    // 1860: 000002FF 400007A2
+    {
+        c.bkValid = false;
+        ++c.cyc;
+    }
+    // 1868: 000002FF 8000033C
+    {
+        c.bkValid = false;
+        ++c.cyc;
+    }
+    if (c.cyc >= c.budgetEnd)
+        return handoffRet(c, 0x1578u);
+    return 0x1578u;
+}
+
+static uint32_t vu1prog_3_1870(VU1NativeCtx &c)
+{
+    using namespace vu1n;
+    VU1State &s = *c.st;
+    float (*vf)[4] = s.vf;
+    int32_t *vi = s.vi;
+    uint8_t *m = c.mem;
+    (void)m;
+    (void)vf;
+    (void)vi;
+    // 1870: 000002FF 11063800
+    {
+        stall(c, c.viReady[7]);
+        const int32_t nvi = static_cast<int16_t>(vi[7] + (16384));
+        c.bkValid = true; c.bkReg = 6; c.bkVal = vi[6];
+        vi[6] = nvi; c.viReady[6] = c.cyc + 1;
+        ++c.cyc;
+    }
+    // 1878: 000002FF 10072000
+    {
+        stall(c, c.viReady[4]);
+        const int32_t nvi = static_cast<int16_t>(vi[4] + (0));
+        c.bkValid = true; c.bkReg = 7; c.bkVal = vi[7];
+        vi[7] = nvi; c.viReady[7] = c.cyc + 1;
+        ++c.cyc;
+    }
+    // 1880: 000002FF 11063000
+    {
+        const int32_t nvi = static_cast<int16_t>(vi[6] + (16384));
+        c.bkValid = true; c.bkReg = 6; c.bkVal = vi[6];
+        vi[6] = nvi; c.viReady[6] = c.cyc + 1;
+        ++c.cyc;
+    }
+    // 1888: 000002FF 0B062000
+    {
+        { const uint32_t v = static_cast<uint32_t>(static_cast<uint16_t>(vi[6] & 0xFFFF)); const uint32_t w[4] = {v, v, v, v}; storeQ(c, ((static_cast<uint32_t>(static_cast<int32_t>(vi[4] + (0))) * 16u) & 0x3FF0u), w, 8); }
+        c.bkValid = false;
+        ++c.cyc;
+    }
+    // 1890: 000002FF 800026FC
+    {
+        xgWaitIdle(c);
+        xgStart(c, static_cast<uint32_t>(static_cast<uint16_t>(vi[4])));
+        c.bkValid = false;
+        ++c.cyc;
+    }
+    // 1898: 000002FF 10042800
+    {
+        stall(c, c.viReady[5]);
+        const int32_t nvi = static_cast<int16_t>(vi[5] + (0));
+        c.bkValid = true; c.bkReg = 4; c.bkVal = vi[4];
+        vi[4] = nvi; c.viReady[4] = c.cyc + 1;
+        ++c.cyc;
+    }
+    // 18A0: 000002FF 10053800
+    {
+        const int32_t nvi = static_cast<int16_t>(vi[7] + (0));
+        c.bkValid = true; c.bkReg = 5; c.bkVal = vi[5];
+        vi[5] = nvi; c.viReady[5] = c.cyc + 1;
+        ++c.cyc;
+    }
+    // 18A8: 000002FF 10070000
+    {
+        const int32_t nvi = static_cast<int16_t>(vi[0] + (0));
+        c.bkValid = true; c.bkReg = 7; c.bkVal = vi[7];
+        vi[7] = nvi; c.viReady[7] = c.cyc + 1;
+        ++c.cyc;
+    }
+    // 18B0: 000002FF 40000798
+    {
+        c.bkValid = false;
+        ++c.cyc;
+    }
+    // 18B8: 000002FF 10062001
+    {
+        const int32_t nvi = static_cast<int16_t>(vi[4] + (1));
+        c.bkValid = true; c.bkReg = 6; c.bkVal = vi[6];
+        vi[6] = nvi; c.viReady[6] = c.cyc + 1;
+        ++c.cyc;
+    }
+    if (c.cyc >= c.budgetEnd)
+        return handoffRet(c, 0x1578u);
+    return 0x1578u;
+}
+
+static uint32_t vu1prog_3_18C0(VU1NativeCtx &c)
+{
+    using namespace vu1n;
+    VU1State &s = *c.st;
+    float (*vf)[4] = s.vf;
+    int32_t *vi = s.vi;
+    uint8_t *m = c.mem;
+    (void)m;
+    (void)vf;
+    (void)vi;
+    // 18C0: 000002FF 10084001
+    {
+        stall(c, c.viReady[8]);
+        const int32_t nvi = static_cast<int16_t>(vi[8] + (1));
+        c.bkValid = true; c.bkReg = 8; c.bkVal = vi[8];
+        vi[8] = nvi; c.viReady[8] = c.cyc + 1;
+        ++c.cyc;
+    }
+    // 18C8: 000002FF 8000033C
+    {
+        c.bkValid = false;
+        ++c.cyc;
+    }
+    bool taken = false;
+    // 18D0: 000002FF 50085003
+    {
+        stall(c, c.viReady[10]);
+        taken = static_cast<int16_t>(brVi(c, 10)) == static_cast<int16_t>(brVi(c, 8));
+        c.bkValid = false;
+        ++c.cyc;
+    }
+    // 18D8: 000002FF 8000033C
+    {
+        c.bkValid = false;
+        ++c.cyc;
+    }
+    if (c.cyc >= c.budgetEnd)
+        return handoffRet(c, (taken ? 0x18F0u : 0x18E0u));
+    return (taken ? 0x18F0u : 0x18E0u);
+}
+
+static uint32_t vu1prog_3_18E0(VU1NativeCtx &c)
+{
+    using namespace vu1n;
+    VU1State &s = *c.st;
+    float (*vf)[4] = s.vf;
+    int32_t *vi = s.vi;
+    uint8_t *m = c.mem;
+    (void)m;
+    (void)vf;
+    (void)vi;
+    // 18E0: 000002FF 40000792
+    {
+        c.bkValid = false;
+        ++c.cyc;
+    }
+    // 18E8: 000002FF 8000033C
+    {
+        c.bkValid = false;
+        ++c.cyc;
+    }
+    if (c.cyc >= c.budgetEnd)
+        return handoffRet(c, 0x1578u);
+    return 0x1578u;
+}
+
+static uint32_t vu1prog_3_18F0(VU1NativeCtx &c)
+{
+    using namespace vu1n;
+    VU1State &s = *c.st;
+    float (*vf)[4] = s.vf;
+    int32_t *vi = s.vi;
+    uint8_t *m = c.mem;
+    (void)m;
+    (void)vf;
+    (void)vi;
+    // 18F0: 000002FF 11013800
+    {
+        stall(c, c.viReady[7]);
+        const int32_t nvi = static_cast<int16_t>(vi[7] + (16384));
+        c.bkValid = true; c.bkReg = 1; c.bkVal = vi[1];
+        vi[1] = nvi; c.viReady[1] = c.cyc + 1;
+        ++c.cyc;
+    }
+    // 18F8: 000002FF 11010800
+    {
+        const int32_t nvi = static_cast<int16_t>(vi[1] + (16384));
+        c.bkValid = true; c.bkReg = 1; c.bkVal = vi[1];
+        vi[1] = nvi; c.viReady[1] = c.cyc + 1;
+        ++c.cyc;
+    }
+    // 1900: 000002FF 0B012000
+    {
+        stall(c, c.viReady[4]);
+        { const uint32_t v = static_cast<uint32_t>(static_cast<uint16_t>(vi[1] & 0xFFFF)); const uint32_t w[4] = {v, v, v, v}; storeQ(c, ((static_cast<uint32_t>(static_cast<int32_t>(vi[4] + (0))) * 16u) & 0x3FF0u), w, 8); }
+        c.bkValid = false;
+        ++c.cyc;
+    }
+    // 1908: 000002FF 800026FC
+    {
+        xgWaitIdle(c);
+        xgStart(c, static_cast<uint32_t>(static_cast<uint16_t>(vi[4])));
+        c.bkValid = false;
+        ++c.cyc;
+    }
+    // 1910: 400002FF 8000033C
+    {
+        c.bkValid = false;
+        ++c.cyc;
+    }
+    // 1918: 000002FF 8000033C
+    {
+        c.bkValid = false;
+        ++c.cyc;
+    }
+    s.pc = 0x1920;
+    finish(c);
+    return kEnded;
+}
+
+static VU1NativeExit vu1prog_3(VU1NativeCtx &c, uint32_t pc)
+{
+    for (;;)
+    {
+        uint32_t next;
+        switch (pc)
+        {
+        case 0x0: next = vu1prog_3_0000(c); break;
+        case 0x160: next = vu1prog_3_0160(c); break;
+        case 0x240: next = vu1prog_3_0240(c); break;
+        case 0x2B0: next = vu1prog_3_02B0(c); break;
+        case 0x348: next = vu1prog_3_0348(c); break;
+        case 0x3F0: next = vu1prog_3_03F0(c); break;
+        case 0x438: next = vu1prog_3_0438(c); break;
+        case 0x458: next = vu1prog_3_0458(c); break;
+        case 0x478: next = vu1prog_3_0478(c); break;
+        case 0x4B0: next = vu1prog_3_04B0(c); break;
+        case 0x4C0: next = vu1prog_3_04C0(c); break;
+        case 0x4D0: next = vu1prog_3_04D0(c); break;
+        case 0x500: next = vu1prog_3_0500(c); break;
+        case 0x510: next = vu1prog_3_0510(c); break;
+        case 0x600: next = vu1prog_3_0600(c); break;
+        case 0x640: next = vu1prog_3_0640(c); break;
+        case 0x650: next = vu1prog_3_0650(c); break;
+        case 0x728: next = vu1prog_3_0728(c); break;
+        case 0x798: next = vu1prog_3_0798(c); break;
+        case 0x840: next = vu1prog_3_0840(c); break;
+        case 0x8D8: next = vu1prog_3_08D8(c); break;
+        case 0x920: next = vu1prog_3_0920(c); break;
+        case 0x940: next = vu1prog_3_0940(c); break;
+        case 0x960: next = vu1prog_3_0960(c); break;
+        case 0x980: next = vu1prog_3_0980(c); break;
+        case 0x9A0: next = vu1prog_3_09A0(c); break;
+        case 0x9B0: next = vu1prog_3_09B0(c); break;
+        case 0x9E0: next = vu1prog_3_09E0(c); break;
+        case 0x9F0: next = vu1prog_3_09F0(c); break;
+        case 0xA00: next = vu1prog_3_0A00(c); break;
+        case 0xAF0: next = vu1prog_3_0AF0(c); break;
+        case 0xB48: next = vu1prog_3_0B48(c); break;
+        case 0xB58: next = vu1prog_3_0B58(c); break;
+        case 0xC50: next = vu1prog_3_0C50(c); break;
+        case 0xCA8: next = vu1prog_3_0CA8(c); break;
+        case 0xD50: next = vu1prog_3_0D50(c); break;
+        case 0xDE8: next = vu1prog_3_0DE8(c); break;
+        case 0xE30: next = vu1prog_3_0E30(c); break;
+        case 0xE50: next = vu1prog_3_0E50(c); break;
+        case 0xE70: next = vu1prog_3_0E70(c); break;
+        case 0xE90: next = vu1prog_3_0E90(c); break;
+        case 0xEB0: next = vu1prog_3_0EB0(c); break;
+        case 0xEC0: next = vu1prog_3_0EC0(c); break;
+        case 0xEF0: next = vu1prog_3_0EF0(c); break;
+        case 0xF00: next = vu1prog_3_0F00(c); break;
+        case 0x1460: next = vu1prog_3_1460(c); break;
+        case 0x1578: next = vu1prog_3_1578(c); break;
+        case 0x1670: next = vu1prog_3_1670(c); break;
+        case 0x1780: next = vu1prog_3_1780(c); break;
+        case 0x1850: next = vu1prog_3_1850(c); break;
+        case 0x1860: next = vu1prog_3_1860(c); break;
+        case 0x1870: next = vu1prog_3_1870(c); break;
+        case 0x18C0: next = vu1prog_3_18C0(c); break;
+        case 0x18E0: next = vu1prog_3_18E0(c); break;
+        case 0x18F0: next = vu1prog_3_18F0(c); break;
+        default: return vu1n::handoff(c, pc);
+        }
+        if (next == kEnded)
+            return VU1NativeExit::Ended;
+        if (next == kHandoff)
+            return VU1NativeExit::Handoff;
+        pc = next;
+    }
+}
+
+const uint16_t vu1prog_3_spans[] = {0x0, 0xF10, 0x1460, 0x1920, 0, 0};
+const uint16_t vu1prog_3_entries[] = {0x0, 0x510, 0xA00, 0x1460, 0xFFFF};
+const VU1NativeImage vu1prog_3_image = {"vu1prog_3", 0xDADB7EE60571920Cull, vu1prog_3_spans, vu1prog_3_entries, vu1prog_3};
+const vu1n::Registrar vu1prog_3_reg(&vu1prog_3_image);
+
+static uint32_t vu1prog_4_0000(VU1NativeCtx &c)
+{
+    using namespace vu1n;
+    VU1State &s = *c.st;
+    float (*vf)[4] = s.vf;
+    int32_t *vi = s.vi;
+    uint8_t *m = c.mem;
     (void)m;
     (void)vf;
     (void)vi;
@@ -31951,15 +40628,13 @@ static uint32_t vu1prog_3_0000(VU1NativeCtx &c)
     return 0x10;
 }
 
-static uint32_t vu1prog_3_0010(VU1NativeCtx &c)
+static uint32_t vu1prog_4_0010(VU1NativeCtx &c)
 {
     using namespace vu1n;
     VU1State &s = *c.st;
     float (*vf)[4] = s.vf;
     int32_t *vi = s.vi;
     uint8_t *m = c.mem;
-    bool upperClipSameCycle = false;
-    (void)upperClipSameCycle;
     (void)m;
     (void)vf;
     (void)vi;
@@ -31979,15 +40654,13 @@ static uint32_t vu1prog_3_0010(VU1NativeCtx &c)
     return 0x20;
 }
 
-static uint32_t vu1prog_3_0020(VU1NativeCtx &c)
+static uint32_t vu1prog_4_0020(VU1NativeCtx &c)
 {
     using namespace vu1n;
     VU1State &s = *c.st;
     float (*vf)[4] = s.vf;
     int32_t *vi = s.vi;
     uint8_t *m = c.mem;
-    bool upperClipSameCycle = false;
-    (void)upperClipSameCycle;
     (void)m;
     (void)vf;
     (void)vi;
@@ -32030,15 +40703,13 @@ static uint32_t vu1prog_3_0020(VU1NativeCtx &c)
     return target;
 }
 
-static uint32_t vu1prog_3_0048(VU1NativeCtx &c)
+static uint32_t vu1prog_4_0048(VU1NativeCtx &c)
 {
     using namespace vu1n;
     VU1State &s = *c.st;
     float (*vf)[4] = s.vf;
     int32_t *vi = s.vi;
     uint8_t *m = c.mem;
-    bool upperClipSameCycle = false;
-    (void)upperClipSameCycle;
     (void)m;
     (void)vf;
     (void)vi;
@@ -32107,15 +40778,13 @@ static uint32_t vu1prog_3_0048(VU1NativeCtx &c)
     return target;
 }
 
-static uint32_t vu1prog_3_0090(VU1NativeCtx &c)
+static uint32_t vu1prog_4_0090(VU1NativeCtx &c)
 {
     using namespace vu1n;
     VU1State &s = *c.st;
     float (*vf)[4] = s.vf;
     int32_t *vi = s.vi;
     uint8_t *m = c.mem;
-    bool upperClipSameCycle = false;
-    (void)upperClipSameCycle;
     (void)m;
     (void)vf;
     (void)vi;
@@ -32184,15 +40853,13 @@ static uint32_t vu1prog_3_0090(VU1NativeCtx &c)
     return target;
 }
 
-static uint32_t vu1prog_3_06B8(VU1NativeCtx &c)
+static uint32_t vu1prog_4_06B8(VU1NativeCtx &c)
 {
     using namespace vu1n;
     VU1State &s = *c.st;
     float (*vf)[4] = s.vf;
     int32_t *vi = s.vi;
     uint8_t *m = c.mem;
-    bool upperClipSameCycle = false;
-    (void)upperClipSameCycle;
     (void)m;
     (void)vf;
     (void)vi;
@@ -32213,15 +40880,13 @@ static uint32_t vu1prog_3_06B8(VU1NativeCtx &c)
     return 0x0u;
 }
 
-static uint32_t vu1prog_3_06C8(VU1NativeCtx &c)
+static uint32_t vu1prog_4_06C8(VU1NativeCtx &c)
 {
     using namespace vu1n;
     VU1State &s = *c.st;
     float (*vf)[4] = s.vf;
     int32_t *vi = s.vi;
     uint8_t *m = c.mem;
-    bool upperClipSameCycle = false;
-    (void)upperClipSameCycle;
     (void)m;
     (void)vf;
     (void)vi;
@@ -32242,15 +40907,13 @@ static uint32_t vu1prog_3_06C8(VU1NativeCtx &c)
     return 0x9B0u;
 }
 
-static uint32_t vu1prog_3_06D8(VU1NativeCtx &c)
+static uint32_t vu1prog_4_06D8(VU1NativeCtx &c)
 {
     using namespace vu1n;
     VU1State &s = *c.st;
     float (*vf)[4] = s.vf;
     int32_t *vi = s.vi;
     uint8_t *m = c.mem;
-    bool upperClipSameCycle = false;
-    (void)upperClipSameCycle;
     (void)m;
     (void)vf;
     (void)vi;
@@ -32271,15 +40934,13 @@ static uint32_t vu1prog_3_06D8(VU1NativeCtx &c)
     return 0xC30u;
 }
 
-static uint32_t vu1prog_3_06E8(VU1NativeCtx &c)
+static uint32_t vu1prog_4_06E8(VU1NativeCtx &c)
 {
     using namespace vu1n;
     VU1State &s = *c.st;
     float (*vf)[4] = s.vf;
     int32_t *vi = s.vi;
     uint8_t *m = c.mem;
-    bool upperClipSameCycle = false;
-    (void)upperClipSameCycle;
     (void)m;
     (void)vf;
     (void)vi;
@@ -32298,15 +40959,13 @@ static uint32_t vu1prog_3_06E8(VU1NativeCtx &c)
     return kEnded;
 }
 
-static uint32_t vu1prog_3_0700(VU1NativeCtx &c)
+static uint32_t vu1prog_4_0700(VU1NativeCtx &c)
 {
     using namespace vu1n;
     VU1State &s = *c.st;
     float (*vf)[4] = s.vf;
     int32_t *vi = s.vi;
     uint8_t *m = c.mem;
-    bool upperClipSameCycle = false;
-    (void)upperClipSameCycle;
     (void)m;
     (void)vf;
     (void)vi;
@@ -32327,15 +40986,13 @@ static uint32_t vu1prog_3_0700(VU1NativeCtx &c)
     return 0x48u;
 }
 
-static uint32_t vu1prog_3_0710(VU1NativeCtx &c)
+static uint32_t vu1prog_4_0710(VU1NativeCtx &c)
 {
     using namespace vu1n;
     VU1State &s = *c.st;
     float (*vf)[4] = s.vf;
     int32_t *vi = s.vi;
     uint8_t *m = c.mem;
-    bool upperClipSameCycle = false;
-    (void)upperClipSameCycle;
     (void)m;
     (void)vf;
     (void)vi;
@@ -32356,15 +41013,13 @@ static uint32_t vu1prog_3_0710(VU1NativeCtx &c)
     return 0x9B0u;
 }
 
-static uint32_t vu1prog_3_0720(VU1NativeCtx &c)
+static uint32_t vu1prog_4_0720(VU1NativeCtx &c)
 {
     using namespace vu1n;
     VU1State &s = *c.st;
     float (*vf)[4] = s.vf;
     int32_t *vi = s.vi;
     uint8_t *m = c.mem;
-    bool upperClipSameCycle = false;
-    (void)upperClipSameCycle;
     (void)m;
     (void)vf;
     (void)vi;
@@ -32385,15 +41040,13 @@ static uint32_t vu1prog_3_0720(VU1NativeCtx &c)
     return 0xC30u;
 }
 
-static uint32_t vu1prog_3_0730(VU1NativeCtx &c)
+static uint32_t vu1prog_4_0730(VU1NativeCtx &c)
 {
     using namespace vu1n;
     VU1State &s = *c.st;
     float (*vf)[4] = s.vf;
     int32_t *vi = s.vi;
     uint8_t *m = c.mem;
-    bool upperClipSameCycle = false;
-    (void)upperClipSameCycle;
     (void)m;
     (void)vf;
     (void)vi;
@@ -32412,15 +41065,13 @@ static uint32_t vu1prog_3_0730(VU1NativeCtx &c)
     return kEnded;
 }
 
-static uint32_t vu1prog_3_0748(VU1NativeCtx &c)
+static uint32_t vu1prog_4_0748(VU1NativeCtx &c)
 {
     using namespace vu1n;
     VU1State &s = *c.st;
     float (*vf)[4] = s.vf;
     int32_t *vi = s.vi;
     uint8_t *m = c.mem;
-    bool upperClipSameCycle = false;
-    (void)upperClipSameCycle;
     (void)m;
     (void)vf;
     (void)vi;
@@ -32441,15 +41092,13 @@ static uint32_t vu1prog_3_0748(VU1NativeCtx &c)
     return 0x90u;
 }
 
-static uint32_t vu1prog_3_0758(VU1NativeCtx &c)
+static uint32_t vu1prog_4_0758(VU1NativeCtx &c)
 {
     using namespace vu1n;
     VU1State &s = *c.st;
     float (*vf)[4] = s.vf;
     int32_t *vi = s.vi;
     uint8_t *m = c.mem;
-    bool upperClipSameCycle = false;
-    (void)upperClipSameCycle;
     (void)m;
     (void)vf;
     (void)vi;
@@ -32470,15 +41119,13 @@ static uint32_t vu1prog_3_0758(VU1NativeCtx &c)
     return 0x9B0u;
 }
 
-static uint32_t vu1prog_3_0768(VU1NativeCtx &c)
+static uint32_t vu1prog_4_0768(VU1NativeCtx &c)
 {
     using namespace vu1n;
     VU1State &s = *c.st;
     float (*vf)[4] = s.vf;
     int32_t *vi = s.vi;
     uint8_t *m = c.mem;
-    bool upperClipSameCycle = false;
-    (void)upperClipSameCycle;
     (void)m;
     (void)vf;
     (void)vi;
@@ -32499,15 +41146,13 @@ static uint32_t vu1prog_3_0768(VU1NativeCtx &c)
     return 0xC30u;
 }
 
-static uint32_t vu1prog_3_0778(VU1NativeCtx &c)
+static uint32_t vu1prog_4_0778(VU1NativeCtx &c)
 {
     using namespace vu1n;
     VU1State &s = *c.st;
     float (*vf)[4] = s.vf;
     int32_t *vi = s.vi;
     uint8_t *m = c.mem;
-    bool upperClipSameCycle = false;
-    (void)upperClipSameCycle;
     (void)m;
     (void)vf;
     (void)vi;
@@ -32526,15 +41171,13 @@ static uint32_t vu1prog_3_0778(VU1NativeCtx &c)
     return kEnded;
 }
 
-static uint32_t vu1prog_3_0790(VU1NativeCtx &c)
+static uint32_t vu1prog_4_0790(VU1NativeCtx &c)
 {
     using namespace vu1n;
     VU1State &s = *c.st;
     float (*vf)[4] = s.vf;
     int32_t *vi = s.vi;
     uint8_t *m = c.mem;
-    bool upperClipSameCycle = false;
-    (void)upperClipSameCycle;
     (void)m;
     (void)vf;
     (void)vi;
@@ -32555,15 +41198,13 @@ static uint32_t vu1prog_3_0790(VU1NativeCtx &c)
     return 0x0u;
 }
 
-static uint32_t vu1prog_3_07A0(VU1NativeCtx &c)
+static uint32_t vu1prog_4_07A0(VU1NativeCtx &c)
 {
     using namespace vu1n;
     VU1State &s = *c.st;
     float (*vf)[4] = s.vf;
     int32_t *vi = s.vi;
     uint8_t *m = c.mem;
-    bool upperClipSameCycle = false;
-    (void)upperClipSameCycle;
     (void)m;
     (void)vf;
     (void)vi;
@@ -32584,15 +41225,13 @@ static uint32_t vu1prog_3_07A0(VU1NativeCtx &c)
     return 0x9B0u;
 }
 
-static uint32_t vu1prog_3_07B0(VU1NativeCtx &c)
+static uint32_t vu1prog_4_07B0(VU1NativeCtx &c)
 {
     using namespace vu1n;
     VU1State &s = *c.st;
     float (*vf)[4] = s.vf;
     int32_t *vi = s.vi;
     uint8_t *m = c.mem;
-    bool upperClipSameCycle = false;
-    (void)upperClipSameCycle;
     (void)m;
     (void)vf;
     (void)vi;
@@ -32613,15 +41252,13 @@ static uint32_t vu1prog_3_07B0(VU1NativeCtx &c)
     return 0xD40u;
 }
 
-static uint32_t vu1prog_3_07C0(VU1NativeCtx &c)
+static uint32_t vu1prog_4_07C0(VU1NativeCtx &c)
 {
     using namespace vu1n;
     VU1State &s = *c.st;
     float (*vf)[4] = s.vf;
     int32_t *vi = s.vi;
     uint8_t *m = c.mem;
-    bool upperClipSameCycle = false;
-    (void)upperClipSameCycle;
     (void)m;
     (void)vf;
     (void)vi;
@@ -32640,15 +41277,13 @@ static uint32_t vu1prog_3_07C0(VU1NativeCtx &c)
     return kEnded;
 }
 
-static uint32_t vu1prog_3_07D8(VU1NativeCtx &c)
+static uint32_t vu1prog_4_07D8(VU1NativeCtx &c)
 {
     using namespace vu1n;
     VU1State &s = *c.st;
     float (*vf)[4] = s.vf;
     int32_t *vi = s.vi;
     uint8_t *m = c.mem;
-    bool upperClipSameCycle = false;
-    (void)upperClipSameCycle;
     (void)m;
     (void)vf;
     (void)vi;
@@ -32669,15 +41304,13 @@ static uint32_t vu1prog_3_07D8(VU1NativeCtx &c)
     return 0x48u;
 }
 
-static uint32_t vu1prog_3_07E8(VU1NativeCtx &c)
+static uint32_t vu1prog_4_07E8(VU1NativeCtx &c)
 {
     using namespace vu1n;
     VU1State &s = *c.st;
     float (*vf)[4] = s.vf;
     int32_t *vi = s.vi;
     uint8_t *m = c.mem;
-    bool upperClipSameCycle = false;
-    (void)upperClipSameCycle;
     (void)m;
     (void)vf;
     (void)vi;
@@ -32698,15 +41331,13 @@ static uint32_t vu1prog_3_07E8(VU1NativeCtx &c)
     return 0x9B0u;
 }
 
-static uint32_t vu1prog_3_07F8(VU1NativeCtx &c)
+static uint32_t vu1prog_4_07F8(VU1NativeCtx &c)
 {
     using namespace vu1n;
     VU1State &s = *c.st;
     float (*vf)[4] = s.vf;
     int32_t *vi = s.vi;
     uint8_t *m = c.mem;
-    bool upperClipSameCycle = false;
-    (void)upperClipSameCycle;
     (void)m;
     (void)vf;
     (void)vi;
@@ -32727,15 +41358,13 @@ static uint32_t vu1prog_3_07F8(VU1NativeCtx &c)
     return 0xD40u;
 }
 
-static uint32_t vu1prog_3_0808(VU1NativeCtx &c)
+static uint32_t vu1prog_4_0808(VU1NativeCtx &c)
 {
     using namespace vu1n;
     VU1State &s = *c.st;
     float (*vf)[4] = s.vf;
     int32_t *vi = s.vi;
     uint8_t *m = c.mem;
-    bool upperClipSameCycle = false;
-    (void)upperClipSameCycle;
     (void)m;
     (void)vf;
     (void)vi;
@@ -32754,15 +41383,13 @@ static uint32_t vu1prog_3_0808(VU1NativeCtx &c)
     return kEnded;
 }
 
-static uint32_t vu1prog_3_0820(VU1NativeCtx &c)
+static uint32_t vu1prog_4_0820(VU1NativeCtx &c)
 {
     using namespace vu1n;
     VU1State &s = *c.st;
     float (*vf)[4] = s.vf;
     int32_t *vi = s.vi;
     uint8_t *m = c.mem;
-    bool upperClipSameCycle = false;
-    (void)upperClipSameCycle;
     (void)m;
     (void)vf;
     (void)vi;
@@ -32783,15 +41410,13 @@ static uint32_t vu1prog_3_0820(VU1NativeCtx &c)
     return 0x90u;
 }
 
-static uint32_t vu1prog_3_0830(VU1NativeCtx &c)
+static uint32_t vu1prog_4_0830(VU1NativeCtx &c)
 {
     using namespace vu1n;
     VU1State &s = *c.st;
     float (*vf)[4] = s.vf;
     int32_t *vi = s.vi;
     uint8_t *m = c.mem;
-    bool upperClipSameCycle = false;
-    (void)upperClipSameCycle;
     (void)m;
     (void)vf;
     (void)vi;
@@ -32812,15 +41437,13 @@ static uint32_t vu1prog_3_0830(VU1NativeCtx &c)
     return 0x9B0u;
 }
 
-static uint32_t vu1prog_3_0840(VU1NativeCtx &c)
+static uint32_t vu1prog_4_0840(VU1NativeCtx &c)
 {
     using namespace vu1n;
     VU1State &s = *c.st;
     float (*vf)[4] = s.vf;
     int32_t *vi = s.vi;
     uint8_t *m = c.mem;
-    bool upperClipSameCycle = false;
-    (void)upperClipSameCycle;
     (void)m;
     (void)vf;
     (void)vi;
@@ -32841,15 +41464,13 @@ static uint32_t vu1prog_3_0840(VU1NativeCtx &c)
     return 0xD40u;
 }
 
-static uint32_t vu1prog_3_0850(VU1NativeCtx &c)
+static uint32_t vu1prog_4_0850(VU1NativeCtx &c)
 {
     using namespace vu1n;
     VU1State &s = *c.st;
     float (*vf)[4] = s.vf;
     int32_t *vi = s.vi;
     uint8_t *m = c.mem;
-    bool upperClipSameCycle = false;
-    (void)upperClipSameCycle;
     (void)m;
     (void)vf;
     (void)vi;
@@ -32868,15 +41489,13 @@ static uint32_t vu1prog_3_0850(VU1NativeCtx &c)
     return kEnded;
 }
 
-static uint32_t vu1prog_3_08D8(VU1NativeCtx &c)
+static uint32_t vu1prog_4_08D8(VU1NativeCtx &c)
 {
     using namespace vu1n;
     VU1State &s = *c.st;
     float (*vf)[4] = s.vf;
     int32_t *vi = s.vi;
     uint8_t *m = c.mem;
-    bool upperClipSameCycle = false;
-    (void)upperClipSameCycle;
     (void)m;
     (void)vf;
     (void)vi;
@@ -32897,15 +41516,13 @@ static uint32_t vu1prog_3_08D8(VU1NativeCtx &c)
     return 0xB60u;
 }
 
-static uint32_t vu1prog_3_08E8(VU1NativeCtx &c)
+static uint32_t vu1prog_4_08E8(VU1NativeCtx &c)
 {
     using namespace vu1n;
     VU1State &s = *c.st;
     float (*vf)[4] = s.vf;
     int32_t *vi = s.vi;
     uint8_t *m = c.mem;
-    bool upperClipSameCycle = false;
-    (void)upperClipSameCycle;
     (void)m;
     (void)vf;
     (void)vi;
@@ -32926,15 +41543,13 @@ static uint32_t vu1prog_3_08E8(VU1NativeCtx &c)
     return 0xC30u;
 }
 
-static uint32_t vu1prog_3_08F8(VU1NativeCtx &c)
+static uint32_t vu1prog_4_08F8(VU1NativeCtx &c)
 {
     using namespace vu1n;
     VU1State &s = *c.st;
     float (*vf)[4] = s.vf;
     int32_t *vi = s.vi;
     uint8_t *m = c.mem;
-    bool upperClipSameCycle = false;
-    (void)upperClipSameCycle;
     (void)m;
     (void)vf;
     (void)vi;
@@ -32953,15 +41568,13 @@ static uint32_t vu1prog_3_08F8(VU1NativeCtx &c)
     return kEnded;
 }
 
-static uint32_t vu1prog_3_0910(VU1NativeCtx &c)
+static uint32_t vu1prog_4_0910(VU1NativeCtx &c)
 {
     using namespace vu1n;
     VU1State &s = *c.st;
     float (*vf)[4] = s.vf;
     int32_t *vi = s.vi;
     uint8_t *m = c.mem;
-    bool upperClipSameCycle = false;
-    (void)upperClipSameCycle;
     (void)m;
     (void)vf;
     (void)vi;
@@ -32982,15 +41595,13 @@ static uint32_t vu1prog_3_0910(VU1NativeCtx &c)
     return 0xB60u;
 }
 
-static uint32_t vu1prog_3_0920(VU1NativeCtx &c)
+static uint32_t vu1prog_4_0920(VU1NativeCtx &c)
 {
     using namespace vu1n;
     VU1State &s = *c.st;
     float (*vf)[4] = s.vf;
     int32_t *vi = s.vi;
     uint8_t *m = c.mem;
-    bool upperClipSameCycle = false;
-    (void)upperClipSameCycle;
     (void)m;
     (void)vf;
     (void)vi;
@@ -33011,15 +41622,13 @@ static uint32_t vu1prog_3_0920(VU1NativeCtx &c)
     return 0xD40u;
 }
 
-static uint32_t vu1prog_3_0930(VU1NativeCtx &c)
+static uint32_t vu1prog_4_0930(VU1NativeCtx &c)
 {
     using namespace vu1n;
     VU1State &s = *c.st;
     float (*vf)[4] = s.vf;
     int32_t *vi = s.vi;
     uint8_t *m = c.mem;
-    bool upperClipSameCycle = false;
-    (void)upperClipSameCycle;
     (void)m;
     (void)vf;
     (void)vi;
@@ -33038,15 +41647,13 @@ static uint32_t vu1prog_3_0930(VU1NativeCtx &c)
     return kEnded;
 }
 
-static uint32_t vu1prog_3_0948(VU1NativeCtx &c)
+static uint32_t vu1prog_4_0948(VU1NativeCtx &c)
 {
     using namespace vu1n;
     VU1State &s = *c.st;
     float (*vf)[4] = s.vf;
     int32_t *vi = s.vi;
     uint8_t *m = c.mem;
-    bool upperClipSameCycle = false;
-    (void)upperClipSameCycle;
     (void)m;
     (void)vf;
     (void)vi;
@@ -33067,15 +41674,13 @@ static uint32_t vu1prog_3_0948(VU1NativeCtx &c)
     return 0xBC8u;
 }
 
-static uint32_t vu1prog_3_0958(VU1NativeCtx &c)
+static uint32_t vu1prog_4_0958(VU1NativeCtx &c)
 {
     using namespace vu1n;
     VU1State &s = *c.st;
     float (*vf)[4] = s.vf;
     int32_t *vi = s.vi;
     uint8_t *m = c.mem;
-    bool upperClipSameCycle = false;
-    (void)upperClipSameCycle;
     (void)m;
     (void)vf;
     (void)vi;
@@ -33096,15 +41701,13 @@ static uint32_t vu1prog_3_0958(VU1NativeCtx &c)
     return 0xC30u;
 }
 
-static uint32_t vu1prog_3_0968(VU1NativeCtx &c)
+static uint32_t vu1prog_4_0968(VU1NativeCtx &c)
 {
     using namespace vu1n;
     VU1State &s = *c.st;
     float (*vf)[4] = s.vf;
     int32_t *vi = s.vi;
     uint8_t *m = c.mem;
-    bool upperClipSameCycle = false;
-    (void)upperClipSameCycle;
     (void)m;
     (void)vf;
     (void)vi;
@@ -33123,15 +41726,13 @@ static uint32_t vu1prog_3_0968(VU1NativeCtx &c)
     return kEnded;
 }
 
-static uint32_t vu1prog_3_0980(VU1NativeCtx &c)
+static uint32_t vu1prog_4_0980(VU1NativeCtx &c)
 {
     using namespace vu1n;
     VU1State &s = *c.st;
     float (*vf)[4] = s.vf;
     int32_t *vi = s.vi;
     uint8_t *m = c.mem;
-    bool upperClipSameCycle = false;
-    (void)upperClipSameCycle;
     (void)m;
     (void)vf;
     (void)vi;
@@ -33152,15 +41753,13 @@ static uint32_t vu1prog_3_0980(VU1NativeCtx &c)
     return 0xBC8u;
 }
 
-static uint32_t vu1prog_3_0990(VU1NativeCtx &c)
+static uint32_t vu1prog_4_0990(VU1NativeCtx &c)
 {
     using namespace vu1n;
     VU1State &s = *c.st;
     float (*vf)[4] = s.vf;
     int32_t *vi = s.vi;
     uint8_t *m = c.mem;
-    bool upperClipSameCycle = false;
-    (void)upperClipSameCycle;
     (void)m;
     (void)vf;
     (void)vi;
@@ -33181,15 +41780,13 @@ static uint32_t vu1prog_3_0990(VU1NativeCtx &c)
     return 0xD40u;
 }
 
-static uint32_t vu1prog_3_09A0(VU1NativeCtx &c)
+static uint32_t vu1prog_4_09A0(VU1NativeCtx &c)
 {
     using namespace vu1n;
     VU1State &s = *c.st;
     float (*vf)[4] = s.vf;
     int32_t *vi = s.vi;
     uint8_t *m = c.mem;
-    bool upperClipSameCycle = false;
-    (void)upperClipSameCycle;
     (void)m;
     (void)vf;
     (void)vi;
@@ -33208,15 +41805,13 @@ static uint32_t vu1prog_3_09A0(VU1NativeCtx &c)
     return kEnded;
 }
 
-static uint32_t vu1prog_3_09B0(VU1NativeCtx &c)
+static uint32_t vu1prog_4_09B0(VU1NativeCtx &c)
 {
     using namespace vu1n;
     VU1State &s = *c.st;
     float (*vf)[4] = s.vf;
     int32_t *vi = s.vi;
     uint8_t *m = c.mem;
-    bool upperClipSameCycle = false;
-    (void)upperClipSameCycle;
     (void)m;
     (void)vf;
     (void)vi;
@@ -33508,15 +42103,13 @@ static uint32_t vu1prog_3_09B0(VU1NativeCtx &c)
     return 0x1368u;
 }
 
-static uint32_t vu1prog_3_0AB8(VU1NativeCtx &c)
+static uint32_t vu1prog_4_0AB8(VU1NativeCtx &c)
 {
     using namespace vu1n;
     VU1State &s = *c.st;
     float (*vf)[4] = s.vf;
     int32_t *vi = s.vi;
     uint8_t *m = c.mem;
-    bool upperClipSameCycle = false;
-    (void)upperClipSameCycle;
     (void)m;
     (void)vf;
     (void)vi;
@@ -33626,15 +42219,13 @@ static uint32_t vu1prog_3_0AB8(VU1NativeCtx &c)
     return 0x1368u;
 }
 
-static uint32_t vu1prog_3_0B28(VU1NativeCtx &c)
+static uint32_t vu1prog_4_0B28(VU1NativeCtx &c)
 {
     using namespace vu1n;
     VU1State &s = *c.st;
     float (*vf)[4] = s.vf;
     int32_t *vi = s.vi;
     uint8_t *m = c.mem;
-    bool upperClipSameCycle = false;
-    (void)upperClipSameCycle;
     (void)m;
     (void)vf;
     (void)vi;
@@ -33685,15 +42276,13 @@ static uint32_t vu1prog_3_0B28(VU1NativeCtx &c)
     return target;
 }
 
-static uint32_t vu1prog_3_0B60(VU1NativeCtx &c)
+static uint32_t vu1prog_4_0B60(VU1NativeCtx &c)
 {
     using namespace vu1n;
     VU1State &s = *c.st;
     float (*vf)[4] = s.vf;
     int32_t *vi = s.vi;
     uint8_t *m = c.mem;
-    bool upperClipSameCycle = false;
-    (void)upperClipSameCycle;
     (void)m;
     (void)vf;
     (void)vi;
@@ -33807,15 +42396,13 @@ static uint32_t vu1prog_3_0B60(VU1NativeCtx &c)
     return 0x1B98u;
 }
 
-static uint32_t vu1prog_3_0BB8(VU1NativeCtx &c)
+static uint32_t vu1prog_4_0BB8(VU1NativeCtx &c)
 {
     using namespace vu1n;
     VU1State &s = *c.st;
     float (*vf)[4] = s.vf;
     int32_t *vi = s.vi;
     uint8_t *m = c.mem;
-    bool upperClipSameCycle = false;
-    (void)upperClipSameCycle;
     (void)m;
     (void)vf;
     (void)vi;
@@ -33837,15 +42424,13 @@ static uint32_t vu1prog_3_0BB8(VU1NativeCtx &c)
     return target;
 }
 
-static uint32_t vu1prog_3_0BC8(VU1NativeCtx &c)
+static uint32_t vu1prog_4_0BC8(VU1NativeCtx &c)
 {
     using namespace vu1n;
     VU1State &s = *c.st;
     float (*vf)[4] = s.vf;
     int32_t *vi = s.vi;
     uint8_t *m = c.mem;
-    bool upperClipSameCycle = false;
-    (void)upperClipSameCycle;
     (void)m;
     (void)vf;
     (void)vi;
@@ -33959,15 +42544,13 @@ static uint32_t vu1prog_3_0BC8(VU1NativeCtx &c)
     return 0x1B98u;
 }
 
-static uint32_t vu1prog_3_0C20(VU1NativeCtx &c)
+static uint32_t vu1prog_4_0C20(VU1NativeCtx &c)
 {
     using namespace vu1n;
     VU1State &s = *c.st;
     float (*vf)[4] = s.vf;
     int32_t *vi = s.vi;
     uint8_t *m = c.mem;
-    bool upperClipSameCycle = false;
-    (void)upperClipSameCycle;
     (void)m;
     (void)vf;
     (void)vi;
@@ -33989,15 +42572,13 @@ static uint32_t vu1prog_3_0C20(VU1NativeCtx &c)
     return target;
 }
 
-static uint32_t vu1prog_3_0C30(VU1NativeCtx &c)
+static uint32_t vu1prog_4_0C30(VU1NativeCtx &c)
 {
     using namespace vu1n;
     VU1State &s = *c.st;
     float (*vf)[4] = s.vf;
     int32_t *vi = s.vi;
     uint8_t *m = c.mem;
-    bool upperClipSameCycle = false;
-    (void)upperClipSameCycle;
     (void)m;
     (void)vf;
     (void)vi;
@@ -34127,15 +42708,13 @@ static uint32_t vu1prog_3_0C30(VU1NativeCtx &c)
     return 0x1AE8u;
 }
 
-static uint32_t vu1prog_3_0CB0(VU1NativeCtx &c)
+static uint32_t vu1prog_4_0CB0(VU1NativeCtx &c)
 {
     using namespace vu1n;
     VU1State &s = *c.st;
     float (*vf)[4] = s.vf;
     int32_t *vi = s.vi;
     uint8_t *m = c.mem;
-    bool upperClipSameCycle = false;
-    (void)upperClipSameCycle;
     (void)m;
     (void)vf;
     (void)vi;
@@ -34225,15 +42804,13 @@ static uint32_t vu1prog_3_0CB0(VU1NativeCtx &c)
     return 0x1AE8u;
 }
 
-static uint32_t vu1prog_3_0D08(VU1NativeCtx &c)
+static uint32_t vu1prog_4_0D08(VU1NativeCtx &c)
 {
     using namespace vu1n;
     VU1State &s = *c.st;
     float (*vf)[4] = s.vf;
     int32_t *vi = s.vi;
     uint8_t *m = c.mem;
-    bool upperClipSameCycle = false;
-    (void)upperClipSameCycle;
     (void)m;
     (void)vf;
     (void)vi;
@@ -34284,15 +42861,13 @@ static uint32_t vu1prog_3_0D08(VU1NativeCtx &c)
     return target;
 }
 
-static uint32_t vu1prog_3_0D40(VU1NativeCtx &c)
+static uint32_t vu1prog_4_0D40(VU1NativeCtx &c)
 {
     using namespace vu1n;
     VU1State &s = *c.st;
     float (*vf)[4] = s.vf;
     int32_t *vi = s.vi;
     uint8_t *m = c.mem;
-    bool upperClipSameCycle = false;
-    (void)upperClipSameCycle;
     (void)m;
     (void)vf;
     (void)vi;
@@ -34538,15 +43113,13 @@ static uint32_t vu1prog_3_0D40(VU1NativeCtx &c)
     return 0x1368u;
 }
 
-static uint32_t vu1prog_3_0E18(VU1NativeCtx &c)
+static uint32_t vu1prog_4_0E18(VU1NativeCtx &c)
 {
     using namespace vu1n;
     VU1State &s = *c.st;
     float (*vf)[4] = s.vf;
     int32_t *vi = s.vi;
     uint8_t *m = c.mem;
-    bool upperClipSameCycle = false;
-    (void)upperClipSameCycle;
     (void)m;
     (void)vf;
     (void)vi;
@@ -34669,15 +43242,13 @@ static uint32_t vu1prog_3_0E18(VU1NativeCtx &c)
     return 0x1368u;
 }
 
-static uint32_t vu1prog_3_0E98(VU1NativeCtx &c)
+static uint32_t vu1prog_4_0E98(VU1NativeCtx &c)
 {
     using namespace vu1n;
     VU1State &s = *c.st;
     float (*vf)[4] = s.vf;
     int32_t *vi = s.vi;
     uint8_t *m = c.mem;
-    bool upperClipSameCycle = false;
-    (void)upperClipSameCycle;
     (void)m;
     (void)vf;
     (void)vi;
@@ -34728,15 +43299,13 @@ static uint32_t vu1prog_3_0E98(VU1NativeCtx &c)
     return target;
 }
 
-static uint32_t vu1prog_3_1368(VU1NativeCtx &c)
+static uint32_t vu1prog_4_1368(VU1NativeCtx &c)
 {
     using namespace vu1n;
     VU1State &s = *c.st;
     float (*vf)[4] = s.vf;
     int32_t *vi = s.vi;
     uint8_t *m = c.mem;
-    bool upperClipSameCycle = false;
-    (void)upperClipSameCycle;
     (void)m;
     (void)vf;
     (void)vi;
@@ -34974,15 +43543,13 @@ static uint32_t vu1prog_3_1368(VU1NativeCtx &c)
     return 0x13F8;
 }
 
-static uint32_t vu1prog_3_13F8(VU1NativeCtx &c)
+static uint32_t vu1prog_4_13F8(VU1NativeCtx &c)
 {
     using namespace vu1n;
     VU1State &s = *c.st;
     float (*vf)[4] = s.vf;
     int32_t *vi = s.vi;
     uint8_t *m = c.mem;
-    bool upperClipSameCycle = false;
-    (void)upperClipSameCycle;
     (void)m;
     (void)vf;
     (void)vi;
@@ -35375,15 +43942,13 @@ static uint32_t vu1prog_3_13F8(VU1NativeCtx &c)
     return 0x14B0;
 }
 
-static uint32_t vu1prog_3_14B0(VU1NativeCtx &c)
+static uint32_t vu1prog_4_14B0(VU1NativeCtx &c)
 {
     using namespace vu1n;
     VU1State &s = *c.st;
     float (*vf)[4] = s.vf;
     int32_t *vi = s.vi;
     uint8_t *m = c.mem;
-    bool upperClipSameCycle = false;
-    (void)upperClipSameCycle;
     (void)m;
     (void)vf;
     (void)vi;
@@ -35595,15 +44160,13 @@ static uint32_t vu1prog_3_14B0(VU1NativeCtx &c)
     return (taken ? 0x1588u : 0x1500u);
 }
 
-static uint32_t vu1prog_3_1500(VU1NativeCtx &c)
+static uint32_t vu1prog_4_1500(VU1NativeCtx &c)
 {
     using namespace vu1n;
     VU1State &s = *c.st;
     float (*vf)[4] = s.vf;
     int32_t *vi = s.vi;
     uint8_t *m = c.mem;
-    bool upperClipSameCycle = false;
-    (void)upperClipSameCycle;
     (void)m;
     (void)vf;
     (void)vi;
@@ -35819,15 +44382,13 @@ static uint32_t vu1prog_3_1500(VU1NativeCtx &c)
     return (taken ? 0x1598u : 0x1550u);
 }
 
-static uint32_t vu1prog_3_1550(VU1NativeCtx &c)
+static uint32_t vu1prog_4_1550(VU1NativeCtx &c)
 {
     using namespace vu1n;
     VU1State &s = *c.st;
     float (*vf)[4] = s.vf;
     int32_t *vi = s.vi;
     uint8_t *m = c.mem;
-    bool upperClipSameCycle = false;
-    (void)upperClipSameCycle;
     (void)m;
     (void)vf;
     (void)vi;
@@ -35862,15 +44423,13 @@ static uint32_t vu1prog_3_1550(VU1NativeCtx &c)
     return (taken ? 0x14B0u : 0x1568u);
 }
 
-static uint32_t vu1prog_3_1568(VU1NativeCtx &c)
+static uint32_t vu1prog_4_1568(VU1NativeCtx &c)
 {
     using namespace vu1n;
     VU1State &s = *c.st;
     float (*vf)[4] = s.vf;
     int32_t *vi = s.vi;
     uint8_t *m = c.mem;
-    bool upperClipSameCycle = false;
-    (void)upperClipSameCycle;
     (void)m;
     (void)vf;
     (void)vi;
@@ -35892,15 +44451,13 @@ static uint32_t vu1prog_3_1568(VU1NativeCtx &c)
     return (taken ? 0x13F8u : 0x1578u);
 }
 
-static uint32_t vu1prog_3_1578(VU1NativeCtx &c)
+static uint32_t vu1prog_4_1578(VU1NativeCtx &c)
 {
     using namespace vu1n;
     VU1State &s = *c.st;
     float (*vf)[4] = s.vf;
     int32_t *vi = s.vi;
     uint8_t *m = c.mem;
-    bool upperClipSameCycle = false;
-    (void)upperClipSameCycle;
     (void)m;
     (void)vf;
     (void)vi;
@@ -35922,15 +44479,13 @@ static uint32_t vu1prog_3_1578(VU1NativeCtx &c)
     return target;
 }
 
-static uint32_t vu1prog_3_1588(VU1NativeCtx &c)
+static uint32_t vu1prog_4_1588(VU1NativeCtx &c)
 {
     using namespace vu1n;
     VU1State &s = *c.st;
     float (*vf)[4] = s.vf;
     int32_t *vi = s.vi;
     uint8_t *m = c.mem;
-    bool upperClipSameCycle = false;
-    (void)upperClipSameCycle;
     (void)m;
     (void)vf;
     (void)vi;
@@ -35951,15 +44506,13 @@ static uint32_t vu1prog_3_1588(VU1NativeCtx &c)
     return 0x17E8u;
 }
 
-static uint32_t vu1prog_3_1598(VU1NativeCtx &c)
+static uint32_t vu1prog_4_1598(VU1NativeCtx &c)
 {
     using namespace vu1n;
     VU1State &s = *c.st;
     float (*vf)[4] = s.vf;
     int32_t *vi = s.vi;
     uint8_t *m = c.mem;
-    bool upperClipSameCycle = false;
-    (void)upperClipSameCycle;
     (void)m;
     (void)vf;
     (void)vi;
@@ -35980,15 +44533,13 @@ static uint32_t vu1prog_3_1598(VU1NativeCtx &c)
     return 0x1968u;
 }
 
-static uint32_t vu1prog_3_17E8(VU1NativeCtx &c)
+static uint32_t vu1prog_4_17E8(VU1NativeCtx &c)
 {
     using namespace vu1n;
     VU1State &s = *c.st;
     float (*vf)[4] = s.vf;
     int32_t *vi = s.vi;
     uint8_t *m = c.mem;
-    bool upperClipSameCycle = false;
-    (void)upperClipSameCycle;
     (void)m;
     (void)vf;
     (void)vi;
@@ -36028,15 +44579,13 @@ static uint32_t vu1prog_3_17E8(VU1NativeCtx &c)
     return (taken ? 0x1958u : 0x1808u);
 }
 
-static uint32_t vu1prog_3_1808(VU1NativeCtx &c)
+static uint32_t vu1prog_4_1808(VU1NativeCtx &c)
 {
     using namespace vu1n;
     VU1State &s = *c.st;
     float (*vf)[4] = s.vf;
     int32_t *vi = s.vi;
     uint8_t *m = c.mem;
-    bool upperClipSameCycle = false;
-    (void)upperClipSameCycle;
     (void)m;
     (void)vf;
     (void)vi;
@@ -36061,15 +44610,13 @@ static uint32_t vu1prog_3_1808(VU1NativeCtx &c)
     return (taken ? 0x1958u : 0x1818u);
 }
 
-static uint32_t vu1prog_3_1818(VU1NativeCtx &c)
+static uint32_t vu1prog_4_1818(VU1NativeCtx &c)
 {
     using namespace vu1n;
     VU1State &s = *c.st;
     float (*vf)[4] = s.vf;
     int32_t *vi = s.vi;
     uint8_t *m = c.mem;
-    bool upperClipSameCycle = false;
-    (void)upperClipSameCycle;
     (void)m;
     (void)vf;
     (void)vi;
@@ -36094,15 +44641,13 @@ static uint32_t vu1prog_3_1818(VU1NativeCtx &c)
     return (taken ? 0x1958u : 0x1828u);
 }
 
-static uint32_t vu1prog_3_1828(VU1NativeCtx &c)
+static uint32_t vu1prog_4_1828(VU1NativeCtx &c)
 {
     using namespace vu1n;
     VU1State &s = *c.st;
     float (*vf)[4] = s.vf;
     int32_t *vi = s.vi;
     uint8_t *m = c.mem;
-    bool upperClipSameCycle = false;
-    (void)upperClipSameCycle;
     (void)m;
     (void)vf;
     (void)vi;
@@ -36127,15 +44672,13 @@ static uint32_t vu1prog_3_1828(VU1NativeCtx &c)
     return (taken ? 0x1958u : 0x1838u);
 }
 
-static uint32_t vu1prog_3_1838(VU1NativeCtx &c)
+static uint32_t vu1prog_4_1838(VU1NativeCtx &c)
 {
     using namespace vu1n;
     VU1State &s = *c.st;
     float (*vf)[4] = s.vf;
     int32_t *vi = s.vi;
     uint8_t *m = c.mem;
-    bool upperClipSameCycle = false;
-    (void)upperClipSameCycle;
     (void)m;
     (void)vf;
     (void)vi;
@@ -36160,15 +44703,13 @@ static uint32_t vu1prog_3_1838(VU1NativeCtx &c)
     return (taken ? 0x1958u : 0x1848u);
 }
 
-static uint32_t vu1prog_3_1848(VU1NativeCtx &c)
+static uint32_t vu1prog_4_1848(VU1NativeCtx &c)
 {
     using namespace vu1n;
     VU1State &s = *c.st;
     float (*vf)[4] = s.vf;
     int32_t *vi = s.vi;
     uint8_t *m = c.mem;
-    bool upperClipSameCycle = false;
-    (void)upperClipSameCycle;
     (void)m;
     (void)vf;
     (void)vi;
@@ -36190,15 +44731,13 @@ static uint32_t vu1prog_3_1848(VU1NativeCtx &c)
     return (taken ? 0x1958u : 0x1858u);
 }
 
-static uint32_t vu1prog_3_1858(VU1NativeCtx &c)
+static uint32_t vu1prog_4_1858(VU1NativeCtx &c)
 {
     using namespace vu1n;
     VU1State &s = *c.st;
     float (*vf)[4] = s.vf;
     int32_t *vi = s.vi;
     uint8_t *m = c.mem;
-    bool upperClipSameCycle = false;
-    (void)upperClipSameCycle;
     (void)m;
     (void)vf;
     (void)vi;
@@ -36586,15 +45125,13 @@ static uint32_t vu1prog_3_1858(VU1NativeCtx &c)
     return 0x1CC8u;
 }
 
-static uint32_t vu1prog_3_1928(VU1NativeCtx &c)
+static uint32_t vu1prog_4_1928(VU1NativeCtx &c)
 {
     using namespace vu1n;
     VU1State &s = *c.st;
     float (*vf)[4] = s.vf;
     int32_t *vi = s.vi;
     uint8_t *m = c.mem;
-    bool upperClipSameCycle = false;
-    (void)upperClipSameCycle;
     (void)m;
     (void)vf;
     (void)vi;
@@ -36656,15 +45193,13 @@ static uint32_t vu1prog_3_1928(VU1NativeCtx &c)
     return 0x1958;
 }
 
-static uint32_t vu1prog_3_1958(VU1NativeCtx &c)
+static uint32_t vu1prog_4_1958(VU1NativeCtx &c)
 {
     using namespace vu1n;
     VU1State &s = *c.st;
     float (*vf)[4] = s.vf;
     int32_t *vi = s.vi;
     uint8_t *m = c.mem;
-    bool upperClipSameCycle = false;
-    (void)upperClipSameCycle;
     (void)m;
     (void)vf;
     (void)vi;
@@ -36686,15 +45221,13 @@ static uint32_t vu1prog_3_1958(VU1NativeCtx &c)
     return target;
 }
 
-static uint32_t vu1prog_3_1968(VU1NativeCtx &c)
+static uint32_t vu1prog_4_1968(VU1NativeCtx &c)
 {
     using namespace vu1n;
     VU1State &s = *c.st;
     float (*vf)[4] = s.vf;
     int32_t *vi = s.vi;
     uint8_t *m = c.mem;
-    bool upperClipSameCycle = false;
-    (void)upperClipSameCycle;
     (void)m;
     (void)vf;
     (void)vi;
@@ -36734,15 +45267,13 @@ static uint32_t vu1prog_3_1968(VU1NativeCtx &c)
     return (taken ? 0x1AD8u : 0x1988u);
 }
 
-static uint32_t vu1prog_3_1988(VU1NativeCtx &c)
+static uint32_t vu1prog_4_1988(VU1NativeCtx &c)
 {
     using namespace vu1n;
     VU1State &s = *c.st;
     float (*vf)[4] = s.vf;
     int32_t *vi = s.vi;
     uint8_t *m = c.mem;
-    bool upperClipSameCycle = false;
-    (void)upperClipSameCycle;
     (void)m;
     (void)vf;
     (void)vi;
@@ -36767,15 +45298,13 @@ static uint32_t vu1prog_3_1988(VU1NativeCtx &c)
     return (taken ? 0x1AD8u : 0x1998u);
 }
 
-static uint32_t vu1prog_3_1998(VU1NativeCtx &c)
+static uint32_t vu1prog_4_1998(VU1NativeCtx &c)
 {
     using namespace vu1n;
     VU1State &s = *c.st;
     float (*vf)[4] = s.vf;
     int32_t *vi = s.vi;
     uint8_t *m = c.mem;
-    bool upperClipSameCycle = false;
-    (void)upperClipSameCycle;
     (void)m;
     (void)vf;
     (void)vi;
@@ -36800,15 +45329,13 @@ static uint32_t vu1prog_3_1998(VU1NativeCtx &c)
     return (taken ? 0x1AD8u : 0x19A8u);
 }
 
-static uint32_t vu1prog_3_19A8(VU1NativeCtx &c)
+static uint32_t vu1prog_4_19A8(VU1NativeCtx &c)
 {
     using namespace vu1n;
     VU1State &s = *c.st;
     float (*vf)[4] = s.vf;
     int32_t *vi = s.vi;
     uint8_t *m = c.mem;
-    bool upperClipSameCycle = false;
-    (void)upperClipSameCycle;
     (void)m;
     (void)vf;
     (void)vi;
@@ -36833,15 +45360,13 @@ static uint32_t vu1prog_3_19A8(VU1NativeCtx &c)
     return (taken ? 0x1AD8u : 0x19B8u);
 }
 
-static uint32_t vu1prog_3_19B8(VU1NativeCtx &c)
+static uint32_t vu1prog_4_19B8(VU1NativeCtx &c)
 {
     using namespace vu1n;
     VU1State &s = *c.st;
     float (*vf)[4] = s.vf;
     int32_t *vi = s.vi;
     uint8_t *m = c.mem;
-    bool upperClipSameCycle = false;
-    (void)upperClipSameCycle;
     (void)m;
     (void)vf;
     (void)vi;
@@ -36866,15 +45391,13 @@ static uint32_t vu1prog_3_19B8(VU1NativeCtx &c)
     return (taken ? 0x1AD8u : 0x19C8u);
 }
 
-static uint32_t vu1prog_3_19C8(VU1NativeCtx &c)
+static uint32_t vu1prog_4_19C8(VU1NativeCtx &c)
 {
     using namespace vu1n;
     VU1State &s = *c.st;
     float (*vf)[4] = s.vf;
     int32_t *vi = s.vi;
     uint8_t *m = c.mem;
-    bool upperClipSameCycle = false;
-    (void)upperClipSameCycle;
     (void)m;
     (void)vf;
     (void)vi;
@@ -36896,15 +45419,13 @@ static uint32_t vu1prog_3_19C8(VU1NativeCtx &c)
     return (taken ? 0x1AD8u : 0x19D8u);
 }
 
-static uint32_t vu1prog_3_19D8(VU1NativeCtx &c)
+static uint32_t vu1prog_4_19D8(VU1NativeCtx &c)
 {
     using namespace vu1n;
     VU1State &s = *c.st;
     float (*vf)[4] = s.vf;
     int32_t *vi = s.vi;
     uint8_t *m = c.mem;
-    bool upperClipSameCycle = false;
-    (void)upperClipSameCycle;
     (void)m;
     (void)vf;
     (void)vi;
@@ -37292,15 +45813,13 @@ static uint32_t vu1prog_3_19D8(VU1NativeCtx &c)
     return 0x1CC8u;
 }
 
-static uint32_t vu1prog_3_1AA8(VU1NativeCtx &c)
+static uint32_t vu1prog_4_1AA8(VU1NativeCtx &c)
 {
     using namespace vu1n;
     VU1State &s = *c.st;
     float (*vf)[4] = s.vf;
     int32_t *vi = s.vi;
     uint8_t *m = c.mem;
-    bool upperClipSameCycle = false;
-    (void)upperClipSameCycle;
     (void)m;
     (void)vf;
     (void)vi;
@@ -37362,15 +45881,13 @@ static uint32_t vu1prog_3_1AA8(VU1NativeCtx &c)
     return 0x1AD8;
 }
 
-static uint32_t vu1prog_3_1AD8(VU1NativeCtx &c)
+static uint32_t vu1prog_4_1AD8(VU1NativeCtx &c)
 {
     using namespace vu1n;
     VU1State &s = *c.st;
     float (*vf)[4] = s.vf;
     int32_t *vi = s.vi;
     uint8_t *m = c.mem;
-    bool upperClipSameCycle = false;
-    (void)upperClipSameCycle;
     (void)m;
     (void)vf;
     (void)vi;
@@ -37392,15 +45909,13 @@ static uint32_t vu1prog_3_1AD8(VU1NativeCtx &c)
     return target;
 }
 
-static uint32_t vu1prog_3_1AE8(VU1NativeCtx &c)
+static uint32_t vu1prog_4_1AE8(VU1NativeCtx &c)
 {
     using namespace vu1n;
     VU1State &s = *c.st;
     float (*vf)[4] = s.vf;
     int32_t *vi = s.vi;
     uint8_t *m = c.mem;
-    bool upperClipSameCycle = false;
-    (void)upperClipSameCycle;
     (void)m;
     (void)vf;
     (void)vi;
@@ -37462,15 +45977,13 @@ static uint32_t vu1prog_3_1AE8(VU1NativeCtx &c)
     return 0x1B10;
 }
 
-static uint32_t vu1prog_3_1B10(VU1NativeCtx &c)
+static uint32_t vu1prog_4_1B10(VU1NativeCtx &c)
 {
     using namespace vu1n;
     VU1State &s = *c.st;
     float (*vf)[4] = s.vf;
     int32_t *vi = s.vi;
     uint8_t *m = c.mem;
-    bool upperClipSameCycle = false;
-    (void)upperClipSameCycle;
     (void)m;
     (void)vf;
     (void)vi;
@@ -37636,15 +46149,13 @@ static uint32_t vu1prog_3_1B10(VU1NativeCtx &c)
     return (taken ? 0x1B10u : 0x1B88u);
 }
 
-static uint32_t vu1prog_3_1B88(VU1NativeCtx &c)
+static uint32_t vu1prog_4_1B88(VU1NativeCtx &c)
 {
     using namespace vu1n;
     VU1State &s = *c.st;
     float (*vf)[4] = s.vf;
     int32_t *vi = s.vi;
     uint8_t *m = c.mem;
-    bool upperClipSameCycle = false;
-    (void)upperClipSameCycle;
     (void)m;
     (void)vf;
     (void)vi;
@@ -37666,15 +46177,13 @@ static uint32_t vu1prog_3_1B88(VU1NativeCtx &c)
     return target;
 }
 
-static uint32_t vu1prog_3_1B98(VU1NativeCtx &c)
+static uint32_t vu1prog_4_1B98(VU1NativeCtx &c)
 {
     using namespace vu1n;
     VU1State &s = *c.st;
     float (*vf)[4] = s.vf;
     int32_t *vi = s.vi;
     uint8_t *m = c.mem;
-    bool upperClipSameCycle = false;
-    (void)upperClipSameCycle;
     (void)m;
     (void)vf;
     (void)vi;
@@ -37873,15 +46382,13 @@ static uint32_t vu1prog_3_1B98(VU1NativeCtx &c)
     return (taken ? 0x1C88u : 0x1C08u);
 }
 
-static uint32_t vu1prog_3_1C08(VU1NativeCtx &c)
+static uint32_t vu1prog_4_1C08(VU1NativeCtx &c)
 {
     using namespace vu1n;
     VU1State &s = *c.st;
     float (*vf)[4] = s.vf;
     int32_t *vi = s.vi;
     uint8_t *m = c.mem;
-    bool upperClipSameCycle = false;
-    (void)upperClipSameCycle;
     (void)m;
     (void)vf;
     (void)vi;
@@ -38111,15 +46618,13 @@ static uint32_t vu1prog_3_1C08(VU1NativeCtx &c)
     return (taken ? 0x1C08u : 0x1C88u);
 }
 
-static uint32_t vu1prog_3_1C88(VU1NativeCtx &c)
+static uint32_t vu1prog_4_1C88(VU1NativeCtx &c)
 {
     using namespace vu1n;
     VU1State &s = *c.st;
     float (*vf)[4] = s.vf;
     int32_t *vi = s.vi;
     uint8_t *m = c.mem;
-    bool upperClipSameCycle = false;
-    (void)upperClipSameCycle;
     (void)m;
     (void)vf;
     (void)vi;
@@ -38212,15 +46717,13 @@ static uint32_t vu1prog_3_1C88(VU1NativeCtx &c)
     return target;
 }
 
-static uint32_t vu1prog_3_1CC8(VU1NativeCtx &c)
+static uint32_t vu1prog_4_1CC8(VU1NativeCtx &c)
 {
     using namespace vu1n;
     VU1State &s = *c.st;
     float (*vf)[4] = s.vf;
     int32_t *vi = s.vi;
     uint8_t *m = c.mem;
-    bool upperClipSameCycle = false;
-    (void)upperClipSameCycle;
     (void)m;
     (void)vf;
     (void)vi;
@@ -38290,15 +46793,13 @@ static uint32_t vu1prog_3_1CC8(VU1NativeCtx &c)
     return 0x1D00;
 }
 
-static uint32_t vu1prog_3_1D00(VU1NativeCtx &c)
+static uint32_t vu1prog_4_1D00(VU1NativeCtx &c)
 {
     using namespace vu1n;
     VU1State &s = *c.st;
     float (*vf)[4] = s.vf;
     int32_t *vi = s.vi;
     uint8_t *m = c.mem;
-    bool upperClipSameCycle = false;
-    (void)upperClipSameCycle;
     (void)m;
     (void)vf;
     (void)vi;
@@ -38419,15 +46920,13 @@ static uint32_t vu1prog_3_1D00(VU1NativeCtx &c)
     return (taken ? 0x1DE0u : 0x1D40u);
 }
 
-static uint32_t vu1prog_3_1D40(VU1NativeCtx &c)
+static uint32_t vu1prog_4_1D40(VU1NativeCtx &c)
 {
     using namespace vu1n;
     VU1State &s = *c.st;
     float (*vf)[4] = s.vf;
     int32_t *vi = s.vi;
     uint8_t *m = c.mem;
-    bool upperClipSameCycle = false;
-    (void)upperClipSameCycle;
     (void)m;
     (void)vf;
     (void)vi;
@@ -38458,15 +46957,13 @@ static uint32_t vu1prog_3_1D40(VU1NativeCtx &c)
     return (taken ? 0x1DC0u : 0x1D50u);
 }
 
-static uint32_t vu1prog_3_1D50(VU1NativeCtx &c)
+static uint32_t vu1prog_4_1D50(VU1NativeCtx &c)
 {
     using namespace vu1n;
     VU1State &s = *c.st;
     float (*vf)[4] = s.vf;
     int32_t *vi = s.vi;
     uint8_t *m = c.mem;
-    bool upperClipSameCycle = false;
-    (void)upperClipSameCycle;
     (void)m;
     (void)vf;
     (void)vi;
@@ -38488,15 +46985,13 @@ static uint32_t vu1prog_3_1D50(VU1NativeCtx &c)
     return (taken ? 0x1D80u : 0x1D60u);
 }
 
-static uint32_t vu1prog_3_1D60(VU1NativeCtx &c)
+static uint32_t vu1prog_4_1D60(VU1NativeCtx &c)
 {
     using namespace vu1n;
     VU1State &s = *c.st;
     float (*vf)[4] = s.vf;
     int32_t *vi = s.vi;
     uint8_t *m = c.mem;
-    bool upperClipSameCycle = false;
-    (void)upperClipSameCycle;
     (void)m;
     (void)vf;
     (void)vi;
@@ -38584,15 +47079,13 @@ static uint32_t vu1prog_3_1D60(VU1NativeCtx &c)
     return 0x1D98u;
 }
 
-static uint32_t vu1prog_3_1D80(VU1NativeCtx &c)
+static uint32_t vu1prog_4_1D80(VU1NativeCtx &c)
 {
     using namespace vu1n;
     VU1State &s = *c.st;
     float (*vf)[4] = s.vf;
     int32_t *vi = s.vi;
     uint8_t *m = c.mem;
-    bool upperClipSameCycle = false;
-    (void)upperClipSameCycle;
     (void)m;
     (void)vf;
     (void)vi;
@@ -38658,15 +47151,13 @@ static uint32_t vu1prog_3_1D80(VU1NativeCtx &c)
     return 0x1D98;
 }
 
-static uint32_t vu1prog_3_1D98(VU1NativeCtx &c)
+static uint32_t vu1prog_4_1D98(VU1NativeCtx &c)
 {
     using namespace vu1n;
     VU1State &s = *c.st;
     float (*vf)[4] = s.vf;
     int32_t *vi = s.vi;
     uint8_t *m = c.mem;
-    bool upperClipSameCycle = false;
-    (void)upperClipSameCycle;
     (void)m;
     (void)vf;
     (void)vi;
@@ -38763,15 +47254,13 @@ static uint32_t vu1prog_3_1D98(VU1NativeCtx &c)
     return 0x1DC0;
 }
 
-static uint32_t vu1prog_3_1DC0(VU1NativeCtx &c)
+static uint32_t vu1prog_4_1DC0(VU1NativeCtx &c)
 {
     using namespace vu1n;
     VU1State &s = *c.st;
     float (*vf)[4] = s.vf;
     int32_t *vi = s.vi;
     uint8_t *m = c.mem;
-    bool upperClipSameCycle = false;
-    (void)upperClipSameCycle;
     (void)m;
     (void)vf;
     (void)vi;
@@ -38823,15 +47312,13 @@ static uint32_t vu1prog_3_1DC0(VU1NativeCtx &c)
     return 0x1DE0;
 }
 
-static uint32_t vu1prog_3_1DE0(VU1NativeCtx &c)
+static uint32_t vu1prog_4_1DE0(VU1NativeCtx &c)
 {
     using namespace vu1n;
     VU1State &s = *c.st;
     float (*vf)[4] = s.vf;
     int32_t *vi = s.vi;
     uint8_t *m = c.mem;
-    bool upperClipSameCycle = false;
-    (void)upperClipSameCycle;
     (void)m;
     (void)vf;
     (void)vi;
@@ -38898,15 +47385,13 @@ static uint32_t vu1prog_3_1DE0(VU1NativeCtx &c)
     return (taken ? 0x1D00u : 0x1E10u);
 }
 
-static uint32_t vu1prog_3_1E10(VU1NativeCtx &c)
+static uint32_t vu1prog_4_1E10(VU1NativeCtx &c)
 {
     using namespace vu1n;
     VU1State &s = *c.st;
     float (*vf)[4] = s.vf;
     int32_t *vi = s.vi;
     uint8_t *m = c.mem;
-    bool upperClipSameCycle = false;
-    (void)upperClipSameCycle;
     (void)m;
     (void)vf;
     (void)vi;
@@ -38995,15 +47480,13 @@ static uint32_t vu1prog_3_1E10(VU1NativeCtx &c)
     return (taken ? 0x2490u : 0x1E50u);
 }
 
-static uint32_t vu1prog_3_1E48(VU1NativeCtx &c)
+static uint32_t vu1prog_4_1E48(VU1NativeCtx &c)
 {
     using namespace vu1n;
     VU1State &s = *c.st;
     float (*vf)[4] = s.vf;
     int32_t *vi = s.vi;
     uint8_t *m = c.mem;
-    bool upperClipSameCycle = false;
-    (void)upperClipSameCycle;
     (void)m;
     (void)vf;
     (void)vi;
@@ -39030,15 +47513,13 @@ static uint32_t vu1prog_3_1E48(VU1NativeCtx &c)
     return 0x1E50;
 }
 
-static uint32_t vu1prog_3_1E50(VU1NativeCtx &c)
+static uint32_t vu1prog_4_1E50(VU1NativeCtx &c)
 {
     using namespace vu1n;
     VU1State &s = *c.st;
     float (*vf)[4] = s.vf;
     int32_t *vi = s.vi;
     uint8_t *m = c.mem;
-    bool upperClipSameCycle = false;
-    (void)upperClipSameCycle;
     (void)m;
     (void)vf;
     (void)vi;
@@ -39144,15 +47625,13 @@ static uint32_t vu1prog_3_1E50(VU1NativeCtx &c)
     return (taken ? 0x1F28u : 0x1E88u);
 }
 
-static uint32_t vu1prog_3_1E88(VU1NativeCtx &c)
+static uint32_t vu1prog_4_1E88(VU1NativeCtx &c)
 {
     using namespace vu1n;
     VU1State &s = *c.st;
     float (*vf)[4] = s.vf;
     int32_t *vi = s.vi;
     uint8_t *m = c.mem;
-    bool upperClipSameCycle = false;
-    (void)upperClipSameCycle;
     (void)m;
     (void)vf;
     (void)vi;
@@ -39183,15 +47662,13 @@ static uint32_t vu1prog_3_1E88(VU1NativeCtx &c)
     return (taken ? 0x1F08u : 0x1E98u);
 }
 
-static uint32_t vu1prog_3_1E98(VU1NativeCtx &c)
+static uint32_t vu1prog_4_1E98(VU1NativeCtx &c)
 {
     using namespace vu1n;
     VU1State &s = *c.st;
     float (*vf)[4] = s.vf;
     int32_t *vi = s.vi;
     uint8_t *m = c.mem;
-    bool upperClipSameCycle = false;
-    (void)upperClipSameCycle;
     (void)m;
     (void)vf;
     (void)vi;
@@ -39213,15 +47690,13 @@ static uint32_t vu1prog_3_1E98(VU1NativeCtx &c)
     return (taken ? 0x1EC8u : 0x1EA8u);
 }
 
-static uint32_t vu1prog_3_1EA8(VU1NativeCtx &c)
+static uint32_t vu1prog_4_1EA8(VU1NativeCtx &c)
 {
     using namespace vu1n;
     VU1State &s = *c.st;
     float (*vf)[4] = s.vf;
     int32_t *vi = s.vi;
     uint8_t *m = c.mem;
-    bool upperClipSameCycle = false;
-    (void)upperClipSameCycle;
     (void)m;
     (void)vf;
     (void)vi;
@@ -39309,15 +47784,13 @@ static uint32_t vu1prog_3_1EA8(VU1NativeCtx &c)
     return 0x1EE0u;
 }
 
-static uint32_t vu1prog_3_1EC8(VU1NativeCtx &c)
+static uint32_t vu1prog_4_1EC8(VU1NativeCtx &c)
 {
     using namespace vu1n;
     VU1State &s = *c.st;
     float (*vf)[4] = s.vf;
     int32_t *vi = s.vi;
     uint8_t *m = c.mem;
-    bool upperClipSameCycle = false;
-    (void)upperClipSameCycle;
     (void)m;
     (void)vf;
     (void)vi;
@@ -39383,15 +47856,13 @@ static uint32_t vu1prog_3_1EC8(VU1NativeCtx &c)
     return 0x1EE0;
 }
 
-static uint32_t vu1prog_3_1EE0(VU1NativeCtx &c)
+static uint32_t vu1prog_4_1EE0(VU1NativeCtx &c)
 {
     using namespace vu1n;
     VU1State &s = *c.st;
     float (*vf)[4] = s.vf;
     int32_t *vi = s.vi;
     uint8_t *m = c.mem;
-    bool upperClipSameCycle = false;
-    (void)upperClipSameCycle;
     (void)m;
     (void)vf;
     (void)vi;
@@ -39488,15 +47959,13 @@ static uint32_t vu1prog_3_1EE0(VU1NativeCtx &c)
     return 0x1F08;
 }
 
-static uint32_t vu1prog_3_1F08(VU1NativeCtx &c)
+static uint32_t vu1prog_4_1F08(VU1NativeCtx &c)
 {
     using namespace vu1n;
     VU1State &s = *c.st;
     float (*vf)[4] = s.vf;
     int32_t *vi = s.vi;
     uint8_t *m = c.mem;
-    bool upperClipSameCycle = false;
-    (void)upperClipSameCycle;
     (void)m;
     (void)vf;
     (void)vi;
@@ -39548,15 +48017,13 @@ static uint32_t vu1prog_3_1F08(VU1NativeCtx &c)
     return 0x1F28;
 }
 
-static uint32_t vu1prog_3_1F28(VU1NativeCtx &c)
+static uint32_t vu1prog_4_1F28(VU1NativeCtx &c)
 {
     using namespace vu1n;
     VU1State &s = *c.st;
     float (*vf)[4] = s.vf;
     int32_t *vi = s.vi;
     uint8_t *m = c.mem;
-    bool upperClipSameCycle = false;
-    (void)upperClipSameCycle;
     (void)m;
     (void)vf;
     (void)vi;
@@ -39623,15 +48090,13 @@ static uint32_t vu1prog_3_1F28(VU1NativeCtx &c)
     return (taken ? 0x1E48u : 0x1F58u);
 }
 
-static uint32_t vu1prog_3_1F58(VU1NativeCtx &c)
+static uint32_t vu1prog_4_1F58(VU1NativeCtx &c)
 {
     using namespace vu1n;
     VU1State &s = *c.st;
     float (*vf)[4] = s.vf;
     int32_t *vi = s.vi;
     uint8_t *m = c.mem;
-    bool upperClipSameCycle = false;
-    (void)upperClipSameCycle;
     (void)m;
     (void)vf;
     (void)vi;
@@ -39720,15 +48185,13 @@ static uint32_t vu1prog_3_1F58(VU1NativeCtx &c)
     return (taken ? 0x2490u : 0x1F98u);
 }
 
-static uint32_t vu1prog_3_1F90(VU1NativeCtx &c)
+static uint32_t vu1prog_4_1F90(VU1NativeCtx &c)
 {
     using namespace vu1n;
     VU1State &s = *c.st;
     float (*vf)[4] = s.vf;
     int32_t *vi = s.vi;
     uint8_t *m = c.mem;
-    bool upperClipSameCycle = false;
-    (void)upperClipSameCycle;
     (void)m;
     (void)vf;
     (void)vi;
@@ -39755,15 +48218,13 @@ static uint32_t vu1prog_3_1F90(VU1NativeCtx &c)
     return 0x1F98;
 }
 
-static uint32_t vu1prog_3_1F98(VU1NativeCtx &c)
+static uint32_t vu1prog_4_1F98(VU1NativeCtx &c)
 {
     using namespace vu1n;
     VU1State &s = *c.st;
     float (*vf)[4] = s.vf;
     int32_t *vi = s.vi;
     uint8_t *m = c.mem;
-    bool upperClipSameCycle = false;
-    (void)upperClipSameCycle;
     (void)m;
     (void)vf;
     (void)vi;
@@ -39869,15 +48330,13 @@ static uint32_t vu1prog_3_1F98(VU1NativeCtx &c)
     return (taken ? 0x2070u : 0x1FD0u);
 }
 
-static uint32_t vu1prog_3_1FD0(VU1NativeCtx &c)
+static uint32_t vu1prog_4_1FD0(VU1NativeCtx &c)
 {
     using namespace vu1n;
     VU1State &s = *c.st;
     float (*vf)[4] = s.vf;
     int32_t *vi = s.vi;
     uint8_t *m = c.mem;
-    bool upperClipSameCycle = false;
-    (void)upperClipSameCycle;
     (void)m;
     (void)vf;
     (void)vi;
@@ -39908,15 +48367,13 @@ static uint32_t vu1prog_3_1FD0(VU1NativeCtx &c)
     return (taken ? 0x2050u : 0x1FE0u);
 }
 
-static uint32_t vu1prog_3_1FE0(VU1NativeCtx &c)
+static uint32_t vu1prog_4_1FE0(VU1NativeCtx &c)
 {
     using namespace vu1n;
     VU1State &s = *c.st;
     float (*vf)[4] = s.vf;
     int32_t *vi = s.vi;
     uint8_t *m = c.mem;
-    bool upperClipSameCycle = false;
-    (void)upperClipSameCycle;
     (void)m;
     (void)vf;
     (void)vi;
@@ -39938,15 +48395,13 @@ static uint32_t vu1prog_3_1FE0(VU1NativeCtx &c)
     return (taken ? 0x2010u : 0x1FF0u);
 }
 
-static uint32_t vu1prog_3_1FF0(VU1NativeCtx &c)
+static uint32_t vu1prog_4_1FF0(VU1NativeCtx &c)
 {
     using namespace vu1n;
     VU1State &s = *c.st;
     float (*vf)[4] = s.vf;
     int32_t *vi = s.vi;
     uint8_t *m = c.mem;
-    bool upperClipSameCycle = false;
-    (void)upperClipSameCycle;
     (void)m;
     (void)vf;
     (void)vi;
@@ -40034,15 +48489,13 @@ static uint32_t vu1prog_3_1FF0(VU1NativeCtx &c)
     return 0x2028u;
 }
 
-static uint32_t vu1prog_3_2010(VU1NativeCtx &c)
+static uint32_t vu1prog_4_2010(VU1NativeCtx &c)
 {
     using namespace vu1n;
     VU1State &s = *c.st;
     float (*vf)[4] = s.vf;
     int32_t *vi = s.vi;
     uint8_t *m = c.mem;
-    bool upperClipSameCycle = false;
-    (void)upperClipSameCycle;
     (void)m;
     (void)vf;
     (void)vi;
@@ -40108,15 +48561,13 @@ static uint32_t vu1prog_3_2010(VU1NativeCtx &c)
     return 0x2028;
 }
 
-static uint32_t vu1prog_3_2028(VU1NativeCtx &c)
+static uint32_t vu1prog_4_2028(VU1NativeCtx &c)
 {
     using namespace vu1n;
     VU1State &s = *c.st;
     float (*vf)[4] = s.vf;
     int32_t *vi = s.vi;
     uint8_t *m = c.mem;
-    bool upperClipSameCycle = false;
-    (void)upperClipSameCycle;
     (void)m;
     (void)vf;
     (void)vi;
@@ -40213,15 +48664,13 @@ static uint32_t vu1prog_3_2028(VU1NativeCtx &c)
     return 0x2050;
 }
 
-static uint32_t vu1prog_3_2050(VU1NativeCtx &c)
+static uint32_t vu1prog_4_2050(VU1NativeCtx &c)
 {
     using namespace vu1n;
     VU1State &s = *c.st;
     float (*vf)[4] = s.vf;
     int32_t *vi = s.vi;
     uint8_t *m = c.mem;
-    bool upperClipSameCycle = false;
-    (void)upperClipSameCycle;
     (void)m;
     (void)vf;
     (void)vi;
@@ -40273,15 +48722,13 @@ static uint32_t vu1prog_3_2050(VU1NativeCtx &c)
     return 0x2070;
 }
 
-static uint32_t vu1prog_3_2070(VU1NativeCtx &c)
+static uint32_t vu1prog_4_2070(VU1NativeCtx &c)
 {
     using namespace vu1n;
     VU1State &s = *c.st;
     float (*vf)[4] = s.vf;
     int32_t *vi = s.vi;
     uint8_t *m = c.mem;
-    bool upperClipSameCycle = false;
-    (void)upperClipSameCycle;
     (void)m;
     (void)vf;
     (void)vi;
@@ -40348,15 +48795,13 @@ static uint32_t vu1prog_3_2070(VU1NativeCtx &c)
     return (taken ? 0x1F90u : 0x20A0u);
 }
 
-static uint32_t vu1prog_3_20A0(VU1NativeCtx &c)
+static uint32_t vu1prog_4_20A0(VU1NativeCtx &c)
 {
     using namespace vu1n;
     VU1State &s = *c.st;
     float (*vf)[4] = s.vf;
     int32_t *vi = s.vi;
     uint8_t *m = c.mem;
-    bool upperClipSameCycle = false;
-    (void)upperClipSameCycle;
     (void)m;
     (void)vf;
     (void)vi;
@@ -40445,15 +48890,13 @@ static uint32_t vu1prog_3_20A0(VU1NativeCtx &c)
     return (taken ? 0x2490u : 0x20E0u);
 }
 
-static uint32_t vu1prog_3_20D8(VU1NativeCtx &c)
+static uint32_t vu1prog_4_20D8(VU1NativeCtx &c)
 {
     using namespace vu1n;
     VU1State &s = *c.st;
     float (*vf)[4] = s.vf;
     int32_t *vi = s.vi;
     uint8_t *m = c.mem;
-    bool upperClipSameCycle = false;
-    (void)upperClipSameCycle;
     (void)m;
     (void)vf;
     (void)vi;
@@ -40480,15 +48923,13 @@ static uint32_t vu1prog_3_20D8(VU1NativeCtx &c)
     return 0x20E0;
 }
 
-static uint32_t vu1prog_3_20E0(VU1NativeCtx &c)
+static uint32_t vu1prog_4_20E0(VU1NativeCtx &c)
 {
     using namespace vu1n;
     VU1State &s = *c.st;
     float (*vf)[4] = s.vf;
     int32_t *vi = s.vi;
     uint8_t *m = c.mem;
-    bool upperClipSameCycle = false;
-    (void)upperClipSameCycle;
     (void)m;
     (void)vf;
     (void)vi;
@@ -40594,15 +49035,13 @@ static uint32_t vu1prog_3_20E0(VU1NativeCtx &c)
     return (taken ? 0x21B8u : 0x2118u);
 }
 
-static uint32_t vu1prog_3_2118(VU1NativeCtx &c)
+static uint32_t vu1prog_4_2118(VU1NativeCtx &c)
 {
     using namespace vu1n;
     VU1State &s = *c.st;
     float (*vf)[4] = s.vf;
     int32_t *vi = s.vi;
     uint8_t *m = c.mem;
-    bool upperClipSameCycle = false;
-    (void)upperClipSameCycle;
     (void)m;
     (void)vf;
     (void)vi;
@@ -40633,15 +49072,13 @@ static uint32_t vu1prog_3_2118(VU1NativeCtx &c)
     return (taken ? 0x2198u : 0x2128u);
 }
 
-static uint32_t vu1prog_3_2128(VU1NativeCtx &c)
+static uint32_t vu1prog_4_2128(VU1NativeCtx &c)
 {
     using namespace vu1n;
     VU1State &s = *c.st;
     float (*vf)[4] = s.vf;
     int32_t *vi = s.vi;
     uint8_t *m = c.mem;
-    bool upperClipSameCycle = false;
-    (void)upperClipSameCycle;
     (void)m;
     (void)vf;
     (void)vi;
@@ -40663,15 +49100,13 @@ static uint32_t vu1prog_3_2128(VU1NativeCtx &c)
     return (taken ? 0x2158u : 0x2138u);
 }
 
-static uint32_t vu1prog_3_2138(VU1NativeCtx &c)
+static uint32_t vu1prog_4_2138(VU1NativeCtx &c)
 {
     using namespace vu1n;
     VU1State &s = *c.st;
     float (*vf)[4] = s.vf;
     int32_t *vi = s.vi;
     uint8_t *m = c.mem;
-    bool upperClipSameCycle = false;
-    (void)upperClipSameCycle;
     (void)m;
     (void)vf;
     (void)vi;
@@ -40759,15 +49194,13 @@ static uint32_t vu1prog_3_2138(VU1NativeCtx &c)
     return 0x2170u;
 }
 
-static uint32_t vu1prog_3_2158(VU1NativeCtx &c)
+static uint32_t vu1prog_4_2158(VU1NativeCtx &c)
 {
     using namespace vu1n;
     VU1State &s = *c.st;
     float (*vf)[4] = s.vf;
     int32_t *vi = s.vi;
     uint8_t *m = c.mem;
-    bool upperClipSameCycle = false;
-    (void)upperClipSameCycle;
     (void)m;
     (void)vf;
     (void)vi;
@@ -40833,15 +49266,13 @@ static uint32_t vu1prog_3_2158(VU1NativeCtx &c)
     return 0x2170;
 }
 
-static uint32_t vu1prog_3_2170(VU1NativeCtx &c)
+static uint32_t vu1prog_4_2170(VU1NativeCtx &c)
 {
     using namespace vu1n;
     VU1State &s = *c.st;
     float (*vf)[4] = s.vf;
     int32_t *vi = s.vi;
     uint8_t *m = c.mem;
-    bool upperClipSameCycle = false;
-    (void)upperClipSameCycle;
     (void)m;
     (void)vf;
     (void)vi;
@@ -40938,15 +49369,13 @@ static uint32_t vu1prog_3_2170(VU1NativeCtx &c)
     return 0x2198;
 }
 
-static uint32_t vu1prog_3_2198(VU1NativeCtx &c)
+static uint32_t vu1prog_4_2198(VU1NativeCtx &c)
 {
     using namespace vu1n;
     VU1State &s = *c.st;
     float (*vf)[4] = s.vf;
     int32_t *vi = s.vi;
     uint8_t *m = c.mem;
-    bool upperClipSameCycle = false;
-    (void)upperClipSameCycle;
     (void)m;
     (void)vf;
     (void)vi;
@@ -40998,15 +49427,13 @@ static uint32_t vu1prog_3_2198(VU1NativeCtx &c)
     return 0x21B8;
 }
 
-static uint32_t vu1prog_3_21B8(VU1NativeCtx &c)
+static uint32_t vu1prog_4_21B8(VU1NativeCtx &c)
 {
     using namespace vu1n;
     VU1State &s = *c.st;
     float (*vf)[4] = s.vf;
     int32_t *vi = s.vi;
     uint8_t *m = c.mem;
-    bool upperClipSameCycle = false;
-    (void)upperClipSameCycle;
     (void)m;
     (void)vf;
     (void)vi;
@@ -41073,15 +49500,13 @@ static uint32_t vu1prog_3_21B8(VU1NativeCtx &c)
     return (taken ? 0x20D8u : 0x21E8u);
 }
 
-static uint32_t vu1prog_3_21E8(VU1NativeCtx &c)
+static uint32_t vu1prog_4_21E8(VU1NativeCtx &c)
 {
     using namespace vu1n;
     VU1State &s = *c.st;
     float (*vf)[4] = s.vf;
     int32_t *vi = s.vi;
     uint8_t *m = c.mem;
-    bool upperClipSameCycle = false;
-    (void)upperClipSameCycle;
     (void)m;
     (void)vf;
     (void)vi;
@@ -41170,15 +49595,13 @@ static uint32_t vu1prog_3_21E8(VU1NativeCtx &c)
     return (taken ? 0x2490u : 0x2228u);
 }
 
-static uint32_t vu1prog_3_2220(VU1NativeCtx &c)
+static uint32_t vu1prog_4_2220(VU1NativeCtx &c)
 {
     using namespace vu1n;
     VU1State &s = *c.st;
     float (*vf)[4] = s.vf;
     int32_t *vi = s.vi;
     uint8_t *m = c.mem;
-    bool upperClipSameCycle = false;
-    (void)upperClipSameCycle;
     (void)m;
     (void)vf;
     (void)vi;
@@ -41205,15 +49628,13 @@ static uint32_t vu1prog_3_2220(VU1NativeCtx &c)
     return 0x2228;
 }
 
-static uint32_t vu1prog_3_2228(VU1NativeCtx &c)
+static uint32_t vu1prog_4_2228(VU1NativeCtx &c)
 {
     using namespace vu1n;
     VU1State &s = *c.st;
     float (*vf)[4] = s.vf;
     int32_t *vi = s.vi;
     uint8_t *m = c.mem;
-    bool upperClipSameCycle = false;
-    (void)upperClipSameCycle;
     (void)m;
     (void)vf;
     (void)vi;
@@ -41319,15 +49740,13 @@ static uint32_t vu1prog_3_2228(VU1NativeCtx &c)
     return (taken ? 0x2300u : 0x2260u);
 }
 
-static uint32_t vu1prog_3_2260(VU1NativeCtx &c)
+static uint32_t vu1prog_4_2260(VU1NativeCtx &c)
 {
     using namespace vu1n;
     VU1State &s = *c.st;
     float (*vf)[4] = s.vf;
     int32_t *vi = s.vi;
     uint8_t *m = c.mem;
-    bool upperClipSameCycle = false;
-    (void)upperClipSameCycle;
     (void)m;
     (void)vf;
     (void)vi;
@@ -41358,15 +49777,13 @@ static uint32_t vu1prog_3_2260(VU1NativeCtx &c)
     return (taken ? 0x22E0u : 0x2270u);
 }
 
-static uint32_t vu1prog_3_2270(VU1NativeCtx &c)
+static uint32_t vu1prog_4_2270(VU1NativeCtx &c)
 {
     using namespace vu1n;
     VU1State &s = *c.st;
     float (*vf)[4] = s.vf;
     int32_t *vi = s.vi;
     uint8_t *m = c.mem;
-    bool upperClipSameCycle = false;
-    (void)upperClipSameCycle;
     (void)m;
     (void)vf;
     (void)vi;
@@ -41388,15 +49805,13 @@ static uint32_t vu1prog_3_2270(VU1NativeCtx &c)
     return (taken ? 0x22A0u : 0x2280u);
 }
 
-static uint32_t vu1prog_3_2280(VU1NativeCtx &c)
+static uint32_t vu1prog_4_2280(VU1NativeCtx &c)
 {
     using namespace vu1n;
     VU1State &s = *c.st;
     float (*vf)[4] = s.vf;
     int32_t *vi = s.vi;
     uint8_t *m = c.mem;
-    bool upperClipSameCycle = false;
-    (void)upperClipSameCycle;
     (void)m;
     (void)vf;
     (void)vi;
@@ -41484,15 +49899,13 @@ static uint32_t vu1prog_3_2280(VU1NativeCtx &c)
     return 0x22B8u;
 }
 
-static uint32_t vu1prog_3_22A0(VU1NativeCtx &c)
+static uint32_t vu1prog_4_22A0(VU1NativeCtx &c)
 {
     using namespace vu1n;
     VU1State &s = *c.st;
     float (*vf)[4] = s.vf;
     int32_t *vi = s.vi;
     uint8_t *m = c.mem;
-    bool upperClipSameCycle = false;
-    (void)upperClipSameCycle;
     (void)m;
     (void)vf;
     (void)vi;
@@ -41558,15 +49971,13 @@ static uint32_t vu1prog_3_22A0(VU1NativeCtx &c)
     return 0x22B8;
 }
 
-static uint32_t vu1prog_3_22B8(VU1NativeCtx &c)
+static uint32_t vu1prog_4_22B8(VU1NativeCtx &c)
 {
     using namespace vu1n;
     VU1State &s = *c.st;
     float (*vf)[4] = s.vf;
     int32_t *vi = s.vi;
     uint8_t *m = c.mem;
-    bool upperClipSameCycle = false;
-    (void)upperClipSameCycle;
     (void)m;
     (void)vf;
     (void)vi;
@@ -41663,15 +50074,13 @@ static uint32_t vu1prog_3_22B8(VU1NativeCtx &c)
     return 0x22E0;
 }
 
-static uint32_t vu1prog_3_22E0(VU1NativeCtx &c)
+static uint32_t vu1prog_4_22E0(VU1NativeCtx &c)
 {
     using namespace vu1n;
     VU1State &s = *c.st;
     float (*vf)[4] = s.vf;
     int32_t *vi = s.vi;
     uint8_t *m = c.mem;
-    bool upperClipSameCycle = false;
-    (void)upperClipSameCycle;
     (void)m;
     (void)vf;
     (void)vi;
@@ -41723,15 +50132,13 @@ static uint32_t vu1prog_3_22E0(VU1NativeCtx &c)
     return 0x2300;
 }
 
-static uint32_t vu1prog_3_2300(VU1NativeCtx &c)
+static uint32_t vu1prog_4_2300(VU1NativeCtx &c)
 {
     using namespace vu1n;
     VU1State &s = *c.st;
     float (*vf)[4] = s.vf;
     int32_t *vi = s.vi;
     uint8_t *m = c.mem;
-    bool upperClipSameCycle = false;
-    (void)upperClipSameCycle;
     (void)m;
     (void)vf;
     (void)vi;
@@ -41798,15 +50205,13 @@ static uint32_t vu1prog_3_2300(VU1NativeCtx &c)
     return (taken ? 0x2220u : 0x2330u);
 }
 
-static uint32_t vu1prog_3_2330(VU1NativeCtx &c)
+static uint32_t vu1prog_4_2330(VU1NativeCtx &c)
 {
     using namespace vu1n;
     VU1State &s = *c.st;
     float (*vf)[4] = s.vf;
     int32_t *vi = s.vi;
     uint8_t *m = c.mem;
-    bool upperClipSameCycle = false;
-    (void)upperClipSameCycle;
     (void)m;
     (void)vf;
     (void)vi;
@@ -41847,15 +50252,13 @@ static uint32_t vu1prog_3_2330(VU1NativeCtx &c)
     return (taken ? 0x2490u : 0x2358u);
 }
 
-static uint32_t vu1prog_3_2358(VU1NativeCtx &c)
+static uint32_t vu1prog_4_2358(VU1NativeCtx &c)
 {
     using namespace vu1n;
     VU1State &s = *c.st;
     float (*vf)[4] = s.vf;
     int32_t *vi = s.vi;
     uint8_t *m = c.mem;
-    bool upperClipSameCycle = false;
-    (void)upperClipSameCycle;
     (void)m;
     (void)vf;
     (void)vi;
@@ -41889,15 +50292,13 @@ static uint32_t vu1prog_3_2358(VU1NativeCtx &c)
     return (taken ? 0x2390u : 0x2378u);
 }
 
-static uint32_t vu1prog_3_2378(VU1NativeCtx &c)
+static uint32_t vu1prog_4_2378(VU1NativeCtx &c)
 {
     using namespace vu1n;
     VU1State &s = *c.st;
     float (*vf)[4] = s.vf;
     int32_t *vi = s.vi;
     uint8_t *m = c.mem;
-    bool upperClipSameCycle = false;
-    (void)upperClipSameCycle;
     (void)m;
     (void)vf;
     (void)vi;
@@ -41924,15 +50325,13 @@ static uint32_t vu1prog_3_2378(VU1NativeCtx &c)
     return 0x23A0u;
 }
 
-static uint32_t vu1prog_3_2390(VU1NativeCtx &c)
+static uint32_t vu1prog_4_2390(VU1NativeCtx &c)
 {
     using namespace vu1n;
     VU1State &s = *c.st;
     float (*vf)[4] = s.vf;
     int32_t *vi = s.vi;
     uint8_t *m = c.mem;
-    bool upperClipSameCycle = false;
-    (void)upperClipSameCycle;
     (void)m;
     (void)vf;
     (void)vi;
@@ -41952,15 +50351,13 @@ static uint32_t vu1prog_3_2390(VU1NativeCtx &c)
     return 0x23A0;
 }
 
-static uint32_t vu1prog_3_23A0(VU1NativeCtx &c)
+static uint32_t vu1prog_4_23A0(VU1NativeCtx &c)
 {
     using namespace vu1n;
     VU1State &s = *c.st;
     float (*vf)[4] = s.vf;
     int32_t *vi = s.vi;
     uint8_t *m = c.mem;
-    bool upperClipSameCycle = false;
-    (void)upperClipSameCycle;
     (void)m;
     (void)vf;
     (void)vi;
@@ -42094,15 +50491,13 @@ static uint32_t vu1prog_3_23A0(VU1NativeCtx &c)
     return 0x23F8;
 }
 
-static uint32_t vu1prog_3_23F8(VU1NativeCtx &c)
+static uint32_t vu1prog_4_23F8(VU1NativeCtx &c)
 {
     using namespace vu1n;
     VU1State &s = *c.st;
     float (*vf)[4] = s.vf;
     int32_t *vi = s.vi;
     uint8_t *m = c.mem;
-    bool upperClipSameCycle = false;
-    (void)upperClipSameCycle;
     (void)m;
     (void)vf;
     (void)vi;
@@ -42296,15 +50691,13 @@ static uint32_t vu1prog_3_23F8(VU1NativeCtx &c)
     return (taken ? 0x23F8u : 0x2450u);
 }
 
-static uint32_t vu1prog_3_2450(VU1NativeCtx &c)
+static uint32_t vu1prog_4_2450(VU1NativeCtx &c)
 {
     using namespace vu1n;
     VU1State &s = *c.st;
     float (*vf)[4] = s.vf;
     int32_t *vi = s.vi;
     uint8_t *m = c.mem;
-    bool upperClipSameCycle = false;
-    (void)upperClipSameCycle;
     (void)m;
     (void)vf;
     (void)vi;
@@ -42362,15 +50755,13 @@ static uint32_t vu1prog_3_2450(VU1NativeCtx &c)
     return 0x2490;
 }
 
-static uint32_t vu1prog_3_2490(VU1NativeCtx &c)
+static uint32_t vu1prog_4_2490(VU1NativeCtx &c)
 {
     using namespace vu1n;
     VU1State &s = *c.st;
     float (*vf)[4] = s.vf;
     int32_t *vi = s.vi;
     uint8_t *m = c.mem;
-    bool upperClipSameCycle = false;
-    (void)upperClipSameCycle;
     (void)m;
     (void)vf;
     (void)vi;
@@ -42392,157 +50783,157 @@ static uint32_t vu1prog_3_2490(VU1NativeCtx &c)
     return target;
 }
 
-static VU1NativeExit vu1prog_3(VU1NativeCtx &c, uint32_t pc)
+static VU1NativeExit vu1prog_4(VU1NativeCtx &c, uint32_t pc)
 {
     for (;;)
     {
         uint32_t next;
         switch (pc)
         {
-        case 0x0: next = vu1prog_3_0000(c); break;
-        case 0x10: next = vu1prog_3_0010(c); break;
-        case 0x20: next = vu1prog_3_0020(c); break;
-        case 0x48: next = vu1prog_3_0048(c); break;
-        case 0x90: next = vu1prog_3_0090(c); break;
-        case 0x6B8: next = vu1prog_3_06B8(c); break;
-        case 0x6C8: next = vu1prog_3_06C8(c); break;
-        case 0x6D8: next = vu1prog_3_06D8(c); break;
-        case 0x6E8: next = vu1prog_3_06E8(c); break;
-        case 0x700: next = vu1prog_3_0700(c); break;
-        case 0x710: next = vu1prog_3_0710(c); break;
-        case 0x720: next = vu1prog_3_0720(c); break;
-        case 0x730: next = vu1prog_3_0730(c); break;
-        case 0x748: next = vu1prog_3_0748(c); break;
-        case 0x758: next = vu1prog_3_0758(c); break;
-        case 0x768: next = vu1prog_3_0768(c); break;
-        case 0x778: next = vu1prog_3_0778(c); break;
-        case 0x790: next = vu1prog_3_0790(c); break;
-        case 0x7A0: next = vu1prog_3_07A0(c); break;
-        case 0x7B0: next = vu1prog_3_07B0(c); break;
-        case 0x7C0: next = vu1prog_3_07C0(c); break;
-        case 0x7D8: next = vu1prog_3_07D8(c); break;
-        case 0x7E8: next = vu1prog_3_07E8(c); break;
-        case 0x7F8: next = vu1prog_3_07F8(c); break;
-        case 0x808: next = vu1prog_3_0808(c); break;
-        case 0x820: next = vu1prog_3_0820(c); break;
-        case 0x830: next = vu1prog_3_0830(c); break;
-        case 0x840: next = vu1prog_3_0840(c); break;
-        case 0x850: next = vu1prog_3_0850(c); break;
-        case 0x8D8: next = vu1prog_3_08D8(c); break;
-        case 0x8E8: next = vu1prog_3_08E8(c); break;
-        case 0x8F8: next = vu1prog_3_08F8(c); break;
-        case 0x910: next = vu1prog_3_0910(c); break;
-        case 0x920: next = vu1prog_3_0920(c); break;
-        case 0x930: next = vu1prog_3_0930(c); break;
-        case 0x948: next = vu1prog_3_0948(c); break;
-        case 0x958: next = vu1prog_3_0958(c); break;
-        case 0x968: next = vu1prog_3_0968(c); break;
-        case 0x980: next = vu1prog_3_0980(c); break;
-        case 0x990: next = vu1prog_3_0990(c); break;
-        case 0x9A0: next = vu1prog_3_09A0(c); break;
-        case 0x9B0: next = vu1prog_3_09B0(c); break;
-        case 0xAB8: next = vu1prog_3_0AB8(c); break;
-        case 0xB28: next = vu1prog_3_0B28(c); break;
-        case 0xB60: next = vu1prog_3_0B60(c); break;
-        case 0xBB8: next = vu1prog_3_0BB8(c); break;
-        case 0xBC8: next = vu1prog_3_0BC8(c); break;
-        case 0xC20: next = vu1prog_3_0C20(c); break;
-        case 0xC30: next = vu1prog_3_0C30(c); break;
-        case 0xCB0: next = vu1prog_3_0CB0(c); break;
-        case 0xD08: next = vu1prog_3_0D08(c); break;
-        case 0xD40: next = vu1prog_3_0D40(c); break;
-        case 0xE18: next = vu1prog_3_0E18(c); break;
-        case 0xE98: next = vu1prog_3_0E98(c); break;
-        case 0x1368: next = vu1prog_3_1368(c); break;
-        case 0x13F8: next = vu1prog_3_13F8(c); break;
-        case 0x14B0: next = vu1prog_3_14B0(c); break;
-        case 0x1500: next = vu1prog_3_1500(c); break;
-        case 0x1550: next = vu1prog_3_1550(c); break;
-        case 0x1568: next = vu1prog_3_1568(c); break;
-        case 0x1578: next = vu1prog_3_1578(c); break;
-        case 0x1588: next = vu1prog_3_1588(c); break;
-        case 0x1598: next = vu1prog_3_1598(c); break;
-        case 0x17E8: next = vu1prog_3_17E8(c); break;
-        case 0x1808: next = vu1prog_3_1808(c); break;
-        case 0x1818: next = vu1prog_3_1818(c); break;
-        case 0x1828: next = vu1prog_3_1828(c); break;
-        case 0x1838: next = vu1prog_3_1838(c); break;
-        case 0x1848: next = vu1prog_3_1848(c); break;
-        case 0x1858: next = vu1prog_3_1858(c); break;
-        case 0x1928: next = vu1prog_3_1928(c); break;
-        case 0x1958: next = vu1prog_3_1958(c); break;
-        case 0x1968: next = vu1prog_3_1968(c); break;
-        case 0x1988: next = vu1prog_3_1988(c); break;
-        case 0x1998: next = vu1prog_3_1998(c); break;
-        case 0x19A8: next = vu1prog_3_19A8(c); break;
-        case 0x19B8: next = vu1prog_3_19B8(c); break;
-        case 0x19C8: next = vu1prog_3_19C8(c); break;
-        case 0x19D8: next = vu1prog_3_19D8(c); break;
-        case 0x1AA8: next = vu1prog_3_1AA8(c); break;
-        case 0x1AD8: next = vu1prog_3_1AD8(c); break;
-        case 0x1AE8: next = vu1prog_3_1AE8(c); break;
-        case 0x1B10: next = vu1prog_3_1B10(c); break;
-        case 0x1B88: next = vu1prog_3_1B88(c); break;
-        case 0x1B98: next = vu1prog_3_1B98(c); break;
-        case 0x1C08: next = vu1prog_3_1C08(c); break;
-        case 0x1C88: next = vu1prog_3_1C88(c); break;
-        case 0x1CC8: next = vu1prog_3_1CC8(c); break;
-        case 0x1D00: next = vu1prog_3_1D00(c); break;
-        case 0x1D40: next = vu1prog_3_1D40(c); break;
-        case 0x1D50: next = vu1prog_3_1D50(c); break;
-        case 0x1D60: next = vu1prog_3_1D60(c); break;
-        case 0x1D80: next = vu1prog_3_1D80(c); break;
-        case 0x1D98: next = vu1prog_3_1D98(c); break;
-        case 0x1DC0: next = vu1prog_3_1DC0(c); break;
-        case 0x1DE0: next = vu1prog_3_1DE0(c); break;
-        case 0x1E10: next = vu1prog_3_1E10(c); break;
-        case 0x1E48: next = vu1prog_3_1E48(c); break;
-        case 0x1E50: next = vu1prog_3_1E50(c); break;
-        case 0x1E88: next = vu1prog_3_1E88(c); break;
-        case 0x1E98: next = vu1prog_3_1E98(c); break;
-        case 0x1EA8: next = vu1prog_3_1EA8(c); break;
-        case 0x1EC8: next = vu1prog_3_1EC8(c); break;
-        case 0x1EE0: next = vu1prog_3_1EE0(c); break;
-        case 0x1F08: next = vu1prog_3_1F08(c); break;
-        case 0x1F28: next = vu1prog_3_1F28(c); break;
-        case 0x1F58: next = vu1prog_3_1F58(c); break;
-        case 0x1F90: next = vu1prog_3_1F90(c); break;
-        case 0x1F98: next = vu1prog_3_1F98(c); break;
-        case 0x1FD0: next = vu1prog_3_1FD0(c); break;
-        case 0x1FE0: next = vu1prog_3_1FE0(c); break;
-        case 0x1FF0: next = vu1prog_3_1FF0(c); break;
-        case 0x2010: next = vu1prog_3_2010(c); break;
-        case 0x2028: next = vu1prog_3_2028(c); break;
-        case 0x2050: next = vu1prog_3_2050(c); break;
-        case 0x2070: next = vu1prog_3_2070(c); break;
-        case 0x20A0: next = vu1prog_3_20A0(c); break;
-        case 0x20D8: next = vu1prog_3_20D8(c); break;
-        case 0x20E0: next = vu1prog_3_20E0(c); break;
-        case 0x2118: next = vu1prog_3_2118(c); break;
-        case 0x2128: next = vu1prog_3_2128(c); break;
-        case 0x2138: next = vu1prog_3_2138(c); break;
-        case 0x2158: next = vu1prog_3_2158(c); break;
-        case 0x2170: next = vu1prog_3_2170(c); break;
-        case 0x2198: next = vu1prog_3_2198(c); break;
-        case 0x21B8: next = vu1prog_3_21B8(c); break;
-        case 0x21E8: next = vu1prog_3_21E8(c); break;
-        case 0x2220: next = vu1prog_3_2220(c); break;
-        case 0x2228: next = vu1prog_3_2228(c); break;
-        case 0x2260: next = vu1prog_3_2260(c); break;
-        case 0x2270: next = vu1prog_3_2270(c); break;
-        case 0x2280: next = vu1prog_3_2280(c); break;
-        case 0x22A0: next = vu1prog_3_22A0(c); break;
-        case 0x22B8: next = vu1prog_3_22B8(c); break;
-        case 0x22E0: next = vu1prog_3_22E0(c); break;
-        case 0x2300: next = vu1prog_3_2300(c); break;
-        case 0x2330: next = vu1prog_3_2330(c); break;
-        case 0x2358: next = vu1prog_3_2358(c); break;
-        case 0x2378: next = vu1prog_3_2378(c); break;
-        case 0x2390: next = vu1prog_3_2390(c); break;
-        case 0x23A0: next = vu1prog_3_23A0(c); break;
-        case 0x23F8: next = vu1prog_3_23F8(c); break;
-        case 0x2450: next = vu1prog_3_2450(c); break;
-        case 0x2490: next = vu1prog_3_2490(c); break;
+        case 0x0: next = vu1prog_4_0000(c); break;
+        case 0x10: next = vu1prog_4_0010(c); break;
+        case 0x20: next = vu1prog_4_0020(c); break;
+        case 0x48: next = vu1prog_4_0048(c); break;
+        case 0x90: next = vu1prog_4_0090(c); break;
+        case 0x6B8: next = vu1prog_4_06B8(c); break;
+        case 0x6C8: next = vu1prog_4_06C8(c); break;
+        case 0x6D8: next = vu1prog_4_06D8(c); break;
+        case 0x6E8: next = vu1prog_4_06E8(c); break;
+        case 0x700: next = vu1prog_4_0700(c); break;
+        case 0x710: next = vu1prog_4_0710(c); break;
+        case 0x720: next = vu1prog_4_0720(c); break;
+        case 0x730: next = vu1prog_4_0730(c); break;
+        case 0x748: next = vu1prog_4_0748(c); break;
+        case 0x758: next = vu1prog_4_0758(c); break;
+        case 0x768: next = vu1prog_4_0768(c); break;
+        case 0x778: next = vu1prog_4_0778(c); break;
+        case 0x790: next = vu1prog_4_0790(c); break;
+        case 0x7A0: next = vu1prog_4_07A0(c); break;
+        case 0x7B0: next = vu1prog_4_07B0(c); break;
+        case 0x7C0: next = vu1prog_4_07C0(c); break;
+        case 0x7D8: next = vu1prog_4_07D8(c); break;
+        case 0x7E8: next = vu1prog_4_07E8(c); break;
+        case 0x7F8: next = vu1prog_4_07F8(c); break;
+        case 0x808: next = vu1prog_4_0808(c); break;
+        case 0x820: next = vu1prog_4_0820(c); break;
+        case 0x830: next = vu1prog_4_0830(c); break;
+        case 0x840: next = vu1prog_4_0840(c); break;
+        case 0x850: next = vu1prog_4_0850(c); break;
+        case 0x8D8: next = vu1prog_4_08D8(c); break;
+        case 0x8E8: next = vu1prog_4_08E8(c); break;
+        case 0x8F8: next = vu1prog_4_08F8(c); break;
+        case 0x910: next = vu1prog_4_0910(c); break;
+        case 0x920: next = vu1prog_4_0920(c); break;
+        case 0x930: next = vu1prog_4_0930(c); break;
+        case 0x948: next = vu1prog_4_0948(c); break;
+        case 0x958: next = vu1prog_4_0958(c); break;
+        case 0x968: next = vu1prog_4_0968(c); break;
+        case 0x980: next = vu1prog_4_0980(c); break;
+        case 0x990: next = vu1prog_4_0990(c); break;
+        case 0x9A0: next = vu1prog_4_09A0(c); break;
+        case 0x9B0: next = vu1prog_4_09B0(c); break;
+        case 0xAB8: next = vu1prog_4_0AB8(c); break;
+        case 0xB28: next = vu1prog_4_0B28(c); break;
+        case 0xB60: next = vu1prog_4_0B60(c); break;
+        case 0xBB8: next = vu1prog_4_0BB8(c); break;
+        case 0xBC8: next = vu1prog_4_0BC8(c); break;
+        case 0xC20: next = vu1prog_4_0C20(c); break;
+        case 0xC30: next = vu1prog_4_0C30(c); break;
+        case 0xCB0: next = vu1prog_4_0CB0(c); break;
+        case 0xD08: next = vu1prog_4_0D08(c); break;
+        case 0xD40: next = vu1prog_4_0D40(c); break;
+        case 0xE18: next = vu1prog_4_0E18(c); break;
+        case 0xE98: next = vu1prog_4_0E98(c); break;
+        case 0x1368: next = vu1prog_4_1368(c); break;
+        case 0x13F8: next = vu1prog_4_13F8(c); break;
+        case 0x14B0: next = vu1prog_4_14B0(c); break;
+        case 0x1500: next = vu1prog_4_1500(c); break;
+        case 0x1550: next = vu1prog_4_1550(c); break;
+        case 0x1568: next = vu1prog_4_1568(c); break;
+        case 0x1578: next = vu1prog_4_1578(c); break;
+        case 0x1588: next = vu1prog_4_1588(c); break;
+        case 0x1598: next = vu1prog_4_1598(c); break;
+        case 0x17E8: next = vu1prog_4_17E8(c); break;
+        case 0x1808: next = vu1prog_4_1808(c); break;
+        case 0x1818: next = vu1prog_4_1818(c); break;
+        case 0x1828: next = vu1prog_4_1828(c); break;
+        case 0x1838: next = vu1prog_4_1838(c); break;
+        case 0x1848: next = vu1prog_4_1848(c); break;
+        case 0x1858: next = vu1prog_4_1858(c); break;
+        case 0x1928: next = vu1prog_4_1928(c); break;
+        case 0x1958: next = vu1prog_4_1958(c); break;
+        case 0x1968: next = vu1prog_4_1968(c); break;
+        case 0x1988: next = vu1prog_4_1988(c); break;
+        case 0x1998: next = vu1prog_4_1998(c); break;
+        case 0x19A8: next = vu1prog_4_19A8(c); break;
+        case 0x19B8: next = vu1prog_4_19B8(c); break;
+        case 0x19C8: next = vu1prog_4_19C8(c); break;
+        case 0x19D8: next = vu1prog_4_19D8(c); break;
+        case 0x1AA8: next = vu1prog_4_1AA8(c); break;
+        case 0x1AD8: next = vu1prog_4_1AD8(c); break;
+        case 0x1AE8: next = vu1prog_4_1AE8(c); break;
+        case 0x1B10: next = vu1prog_4_1B10(c); break;
+        case 0x1B88: next = vu1prog_4_1B88(c); break;
+        case 0x1B98: next = vu1prog_4_1B98(c); break;
+        case 0x1C08: next = vu1prog_4_1C08(c); break;
+        case 0x1C88: next = vu1prog_4_1C88(c); break;
+        case 0x1CC8: next = vu1prog_4_1CC8(c); break;
+        case 0x1D00: next = vu1prog_4_1D00(c); break;
+        case 0x1D40: next = vu1prog_4_1D40(c); break;
+        case 0x1D50: next = vu1prog_4_1D50(c); break;
+        case 0x1D60: next = vu1prog_4_1D60(c); break;
+        case 0x1D80: next = vu1prog_4_1D80(c); break;
+        case 0x1D98: next = vu1prog_4_1D98(c); break;
+        case 0x1DC0: next = vu1prog_4_1DC0(c); break;
+        case 0x1DE0: next = vu1prog_4_1DE0(c); break;
+        case 0x1E10: next = vu1prog_4_1E10(c); break;
+        case 0x1E48: next = vu1prog_4_1E48(c); break;
+        case 0x1E50: next = vu1prog_4_1E50(c); break;
+        case 0x1E88: next = vu1prog_4_1E88(c); break;
+        case 0x1E98: next = vu1prog_4_1E98(c); break;
+        case 0x1EA8: next = vu1prog_4_1EA8(c); break;
+        case 0x1EC8: next = vu1prog_4_1EC8(c); break;
+        case 0x1EE0: next = vu1prog_4_1EE0(c); break;
+        case 0x1F08: next = vu1prog_4_1F08(c); break;
+        case 0x1F28: next = vu1prog_4_1F28(c); break;
+        case 0x1F58: next = vu1prog_4_1F58(c); break;
+        case 0x1F90: next = vu1prog_4_1F90(c); break;
+        case 0x1F98: next = vu1prog_4_1F98(c); break;
+        case 0x1FD0: next = vu1prog_4_1FD0(c); break;
+        case 0x1FE0: next = vu1prog_4_1FE0(c); break;
+        case 0x1FF0: next = vu1prog_4_1FF0(c); break;
+        case 0x2010: next = vu1prog_4_2010(c); break;
+        case 0x2028: next = vu1prog_4_2028(c); break;
+        case 0x2050: next = vu1prog_4_2050(c); break;
+        case 0x2070: next = vu1prog_4_2070(c); break;
+        case 0x20A0: next = vu1prog_4_20A0(c); break;
+        case 0x20D8: next = vu1prog_4_20D8(c); break;
+        case 0x20E0: next = vu1prog_4_20E0(c); break;
+        case 0x2118: next = vu1prog_4_2118(c); break;
+        case 0x2128: next = vu1prog_4_2128(c); break;
+        case 0x2138: next = vu1prog_4_2138(c); break;
+        case 0x2158: next = vu1prog_4_2158(c); break;
+        case 0x2170: next = vu1prog_4_2170(c); break;
+        case 0x2198: next = vu1prog_4_2198(c); break;
+        case 0x21B8: next = vu1prog_4_21B8(c); break;
+        case 0x21E8: next = vu1prog_4_21E8(c); break;
+        case 0x2220: next = vu1prog_4_2220(c); break;
+        case 0x2228: next = vu1prog_4_2228(c); break;
+        case 0x2260: next = vu1prog_4_2260(c); break;
+        case 0x2270: next = vu1prog_4_2270(c); break;
+        case 0x2280: next = vu1prog_4_2280(c); break;
+        case 0x22A0: next = vu1prog_4_22A0(c); break;
+        case 0x22B8: next = vu1prog_4_22B8(c); break;
+        case 0x22E0: next = vu1prog_4_22E0(c); break;
+        case 0x2300: next = vu1prog_4_2300(c); break;
+        case 0x2330: next = vu1prog_4_2330(c); break;
+        case 0x2358: next = vu1prog_4_2358(c); break;
+        case 0x2378: next = vu1prog_4_2378(c); break;
+        case 0x2390: next = vu1prog_4_2390(c); break;
+        case 0x23A0: next = vu1prog_4_23A0(c); break;
+        case 0x23F8: next = vu1prog_4_23F8(c); break;
+        case 0x2450: next = vu1prog_4_2450(c); break;
+        case 0x2490: next = vu1prog_4_2490(c); break;
         default: return vu1n::handoff(c, pc);
         }
         if (next == kEnded)
@@ -42553,20 +50944,18 @@ static VU1NativeExit vu1prog_3(VU1NativeCtx &c, uint32_t pc)
     }
 }
 
-const uint16_t vu1prog_3_spans[] = {0x0, 0xD8, 0x6B8, 0x6F8, 0x700, 0x740, 0x748, 0x788, 0x790, 0x7D0, 0x7D8, 0x818, 0x820, 0x860, 0x8D8, 0x908, 0x910, 0x940, 0x948, 0x978, 0x980, 0xED0, 0x1368, 0x15A8, 0x17E8, 0x24A0, 0, 0};
-const uint16_t vu1prog_3_entries[] = {0x6B8, 0x700, 0x748, 0x790, 0x7D8, 0x820, 0x8D8, 0x910, 0x948, 0x980, 0xFFFF};
-const VU1NativeImage vu1prog_3_image = {"vu1prog_3", 0x817283BDE6A4561Aull, vu1prog_3_spans, vu1prog_3_entries, vu1prog_3};
-const vu1n::Registrar vu1prog_3_reg(&vu1prog_3_image);
+const uint16_t vu1prog_4_spans[] = {0x0, 0xD8, 0x6B8, 0x6F8, 0x700, 0x740, 0x748, 0x788, 0x790, 0x7D0, 0x7D8, 0x818, 0x820, 0x860, 0x8D8, 0x908, 0x910, 0x940, 0x948, 0x978, 0x980, 0xED0, 0x1368, 0x15A8, 0x17E8, 0x24A0, 0, 0};
+const uint16_t vu1prog_4_entries[] = {0x6B8, 0x700, 0x748, 0x790, 0x7D8, 0x820, 0x8D8, 0x910, 0x948, 0x980, 0xFFFF};
+const VU1NativeImage vu1prog_4_image = {"vu1prog_4", 0x817283BDE6A4561Aull, vu1prog_4_spans, vu1prog_4_entries, vu1prog_4};
+const vu1n::Registrar vu1prog_4_reg(&vu1prog_4_image);
 
-static uint32_t vu1prog_4_0000(VU1NativeCtx &c)
+static uint32_t vu1prog_5_0000(VU1NativeCtx &c)
 {
     using namespace vu1n;
     VU1State &s = *c.st;
     float (*vf)[4] = s.vf;
     int32_t *vi = s.vi;
     uint8_t *m = c.mem;
-    bool upperClipSameCycle = false;
-    (void)upperClipSameCycle;
     (void)m;
     (void)vf;
     (void)vi;
@@ -42579,15 +50968,13 @@ static uint32_t vu1prog_4_0000(VU1NativeCtx &c)
     return 0x8;
 }
 
-static uint32_t vu1prog_4_0008(VU1NativeCtx &c)
+static uint32_t vu1prog_5_0008(VU1NativeCtx &c)
 {
     using namespace vu1n;
     VU1State &s = *c.st;
     float (*vf)[4] = s.vf;
     int32_t *vi = s.vi;
     uint8_t *m = c.mem;
-    bool upperClipSameCycle = false;
-    (void)upperClipSameCycle;
     (void)m;
     (void)vf;
     (void)vi;
@@ -42724,15 +51111,13 @@ static uint32_t vu1prog_4_0008(VU1NativeCtx &c)
     return 0x48;
 }
 
-static uint32_t vu1prog_4_0048(VU1NativeCtx &c)
+static uint32_t vu1prog_5_0048(VU1NativeCtx &c)
 {
     using namespace vu1n;
     VU1State &s = *c.st;
     float (*vf)[4] = s.vf;
     int32_t *vi = s.vi;
     uint8_t *m = c.mem;
-    bool upperClipSameCycle = false;
-    (void)upperClipSameCycle;
     (void)m;
     (void)vf;
     (void)vi;
@@ -43794,15 +52179,13 @@ static uint32_t vu1prog_4_0048(VU1NativeCtx &c)
     return (taken ? 0x708u : 0x2D8u);
 }
 
-static uint32_t vu1prog_4_02D8(VU1NativeCtx &c)
+static uint32_t vu1prog_5_02D8(VU1NativeCtx &c)
 {
     using namespace vu1n;
     VU1State &s = *c.st;
     float (*vf)[4] = s.vf;
     int32_t *vi = s.vi;
     uint8_t *m = c.mem;
-    bool upperClipSameCycle = false;
-    (void)upperClipSameCycle;
     (void)m;
     (void)vf;
     (void)vi;
@@ -44383,15 +52766,13 @@ static uint32_t vu1prog_4_02D8(VU1NativeCtx &c)
     return (taken ? 0x558u : 0x418u);
 }
 
-static uint32_t vu1prog_4_0418(VU1NativeCtx &c)
+static uint32_t vu1prog_5_0418(VU1NativeCtx &c)
 {
     using namespace vu1n;
     VU1State &s = *c.st;
     float (*vf)[4] = s.vf;
     int32_t *vi = s.vi;
     uint8_t *m = c.mem;
-    bool upperClipSameCycle = false;
-    (void)upperClipSameCycle;
     (void)m;
     (void)vf;
     (void)vi;
@@ -44985,15 +53366,13 @@ static uint32_t vu1prog_4_0418(VU1NativeCtx &c)
     return (taken ? 0x418u : 0x558u);
 }
 
-static uint32_t vu1prog_4_0558(VU1NativeCtx &c)
+static uint32_t vu1prog_5_0558(VU1NativeCtx &c)
 {
     using namespace vu1n;
     VU1State &s = *c.st;
     float (*vf)[4] = s.vf;
     int32_t *vi = s.vi;
     uint8_t *m = c.mem;
-    bool upperClipSameCycle = false;
-    (void)upperClipSameCycle;
     (void)m;
     (void)vf;
     (void)vi;
@@ -45743,15 +54122,13 @@ static uint32_t vu1prog_4_0558(VU1NativeCtx &c)
     return 0x890u;
 }
 
-static uint32_t vu1prog_4_0708(VU1NativeCtx &c)
+static uint32_t vu1prog_5_0708(VU1NativeCtx &c)
 {
     using namespace vu1n;
     VU1State &s = *c.st;
     float (*vf)[4] = s.vf;
     int32_t *vi = s.vi;
     uint8_t *m = c.mem;
-    bool upperClipSameCycle = false;
-    (void)upperClipSameCycle;
     (void)m;
     (void)vf;
     (void)vi;
@@ -46465,15 +54842,13 @@ static uint32_t vu1prog_4_0708(VU1NativeCtx &c)
     return 0x890;
 }
 
-static uint32_t vu1prog_4_0890(VU1NativeCtx &c)
+static uint32_t vu1prog_5_0890(VU1NativeCtx &c)
 {
     using namespace vu1n;
     VU1State &s = *c.st;
     float (*vf)[4] = s.vf;
     int32_t *vi = s.vi;
     uint8_t *m = c.mem;
-    bool upperClipSameCycle = false;
-    (void)upperClipSameCycle;
     (void)m;
     (void)vf;
     (void)vi;
@@ -46505,15 +54880,13 @@ static uint32_t vu1prog_4_0890(VU1NativeCtx &c)
     return target;
 }
 
-static uint32_t vu1prog_4_08B8(VU1NativeCtx &c)
+static uint32_t vu1prog_5_08B8(VU1NativeCtx &c)
 {
     using namespace vu1n;
     VU1State &s = *c.st;
     float (*vf)[4] = s.vf;
     int32_t *vi = s.vi;
     uint8_t *m = c.mem;
-    bool upperClipSameCycle = false;
-    (void)upperClipSameCycle;
     (void)m;
     (void)vf;
     (void)vi;
@@ -47287,15 +55660,13 @@ static uint32_t vu1prog_4_08B8(VU1NativeCtx &c)
     return (taken ? 0xAF8u : 0xA58u);
 }
 
-static uint32_t vu1prog_4_0A58(VU1NativeCtx &c)
+static uint32_t vu1prog_5_0A58(VU1NativeCtx &c)
 {
     using namespace vu1n;
     VU1State &s = *c.st;
     float (*vf)[4] = s.vf;
     int32_t *vi = s.vi;
     uint8_t *m = c.mem;
-    bool upperClipSameCycle = false;
-    (void)upperClipSameCycle;
     (void)m;
     (void)vf;
     (void)vi;
@@ -47643,15 +56014,13 @@ static uint32_t vu1prog_4_0A58(VU1NativeCtx &c)
     return (taken ? 0xA58u : 0xAF8u);
 }
 
-static uint32_t vu1prog_4_0AF8(VU1NativeCtx &c)
+static uint32_t vu1prog_5_0AF8(VU1NativeCtx &c)
 {
     using namespace vu1n;
     VU1State &s = *c.st;
     float (*vf)[4] = s.vf;
     int32_t *vi = s.vi;
     uint8_t *m = c.mem;
-    bool upperClipSameCycle = false;
-    (void)upperClipSameCycle;
     (void)m;
     (void)vf;
     (void)vi;
@@ -47944,15 +56313,13 @@ static uint32_t vu1prog_4_0AF8(VU1NativeCtx &c)
     return target;
 }
 
-static uint32_t vu1prog_4_0B88(VU1NativeCtx &c)
+static uint32_t vu1prog_5_0B88(VU1NativeCtx &c)
 {
     using namespace vu1n;
     VU1State &s = *c.st;
     float (*vf)[4] = s.vf;
     int32_t *vi = s.vi;
     uint8_t *m = c.mem;
-    bool upperClipSameCycle = false;
-    (void)upperClipSameCycle;
     (void)m;
     (void)vf;
     (void)vi;
@@ -47975,15 +56342,13 @@ static uint32_t vu1prog_4_0B88(VU1NativeCtx &c)
     return (taken ? 0xBD8u : 0xB98u);
 }
 
-static uint32_t vu1prog_4_0B98(VU1NativeCtx &c)
+static uint32_t vu1prog_5_0B98(VU1NativeCtx &c)
 {
     using namespace vu1n;
     VU1State &s = *c.st;
     float (*vf)[4] = s.vf;
     int32_t *vi = s.vi;
     uint8_t *m = c.mem;
-    bool upperClipSameCycle = false;
-    (void)upperClipSameCycle;
     (void)m;
     (void)vf;
     (void)vi;
@@ -48053,15 +56418,13 @@ static uint32_t vu1prog_4_0B98(VU1NativeCtx &c)
     return (taken ? 0xB98u : 0xBD8u);
 }
 
-static uint32_t vu1prog_4_0BD8(VU1NativeCtx &c)
+static uint32_t vu1prog_5_0BD8(VU1NativeCtx &c)
 {
     using namespace vu1n;
     VU1State &s = *c.st;
     float (*vf)[4] = s.vf;
     int32_t *vi = s.vi;
     uint8_t *m = c.mem;
-    bool upperClipSameCycle = false;
-    (void)upperClipSameCycle;
     (void)m;
     (void)vf;
     (void)vi;
@@ -48083,15 +56446,13 @@ static uint32_t vu1prog_4_0BD8(VU1NativeCtx &c)
     return target;
 }
 
-static uint32_t vu1prog_4_0BE8(VU1NativeCtx &c)
+static uint32_t vu1prog_5_0BE8(VU1NativeCtx &c)
 {
     using namespace vu1n;
     VU1State &s = *c.st;
     float (*vf)[4] = s.vf;
     int32_t *vi = s.vi;
     uint8_t *m = c.mem;
-    bool upperClipSameCycle = false;
-    (void)upperClipSameCycle;
     (void)m;
     (void)vf;
     (void)vi;
@@ -48284,15 +56645,13 @@ static uint32_t vu1prog_4_0BE8(VU1NativeCtx &c)
     return (taken ? 0xC98u : 0xC68u);
 }
 
-static uint32_t vu1prog_4_0C68(VU1NativeCtx &c)
+static uint32_t vu1prog_5_0C68(VU1NativeCtx &c)
 {
     using namespace vu1n;
     VU1State &s = *c.st;
     float (*vf)[4] = s.vf;
     int32_t *vi = s.vi;
     uint8_t *m = c.mem;
-    bool upperClipSameCycle = false;
-    (void)upperClipSameCycle;
     (void)m;
     (void)vf;
     (void)vi;
@@ -48380,15 +56739,13 @@ static uint32_t vu1prog_4_0C68(VU1NativeCtx &c)
     return (taken ? 0xC68u : 0xC98u);
 }
 
-static uint32_t vu1prog_4_0C98(VU1NativeCtx &c)
+static uint32_t vu1prog_5_0C98(VU1NativeCtx &c)
 {
     using namespace vu1n;
     VU1State &s = *c.st;
     float (*vf)[4] = s.vf;
     int32_t *vi = s.vi;
     uint8_t *m = c.mem;
-    bool upperClipSameCycle = false;
-    (void)upperClipSameCycle;
     (void)m;
     (void)vf;
     (void)vi;
@@ -48506,15 +56863,13 @@ static uint32_t vu1prog_4_0C98(VU1NativeCtx &c)
     return target;
 }
 
-static uint32_t vu1prog_4_0CE8(VU1NativeCtx &c)
+static uint32_t vu1prog_5_0CE8(VU1NativeCtx &c)
 {
     using namespace vu1n;
     VU1State &s = *c.st;
     float (*vf)[4] = s.vf;
     int32_t *vi = s.vi;
     uint8_t *m = c.mem;
-    bool upperClipSameCycle = false;
-    (void)upperClipSameCycle;
     (void)m;
     (void)vf;
     (void)vi;
@@ -48719,15 +57074,13 @@ static uint32_t vu1prog_4_0CE8(VU1NativeCtx &c)
     return (taken ? 0xD90u : 0xD60u);
 }
 
-static uint32_t vu1prog_4_0D60(VU1NativeCtx &c)
+static uint32_t vu1prog_5_0D60(VU1NativeCtx &c)
 {
     using namespace vu1n;
     VU1State &s = *c.st;
     float (*vf)[4] = s.vf;
     int32_t *vi = s.vi;
     uint8_t *m = c.mem;
-    bool upperClipSameCycle = false;
-    (void)upperClipSameCycle;
     (void)m;
     (void)vf;
     (void)vi;
@@ -48829,15 +57182,13 @@ static uint32_t vu1prog_4_0D60(VU1NativeCtx &c)
     return (taken ? 0xD60u : 0xD90u);
 }
 
-static uint32_t vu1prog_4_0D90(VU1NativeCtx &c)
+static uint32_t vu1prog_5_0D90(VU1NativeCtx &c)
 {
     using namespace vu1n;
     VU1State &s = *c.st;
     float (*vf)[4] = s.vf;
     int32_t *vi = s.vi;
     uint8_t *m = c.mem;
-    bool upperClipSameCycle = false;
-    (void)upperClipSameCycle;
     (void)m;
     (void)vf;
     (void)vi;
@@ -48980,15 +57331,13 @@ static uint32_t vu1prog_4_0D90(VU1NativeCtx &c)
     return target;
 }
 
-static uint32_t vu1prog_4_12B8(VU1NativeCtx &c)
+static uint32_t vu1prog_5_12B8(VU1NativeCtx &c)
 {
     using namespace vu1n;
     VU1State &s = *c.st;
     float (*vf)[4] = s.vf;
     int32_t *vi = s.vi;
     uint8_t *m = c.mem;
-    bool upperClipSameCycle = false;
-    (void)upperClipSameCycle;
     (void)m;
     (void)vf;
     (void)vi;
@@ -49697,15 +58046,13 @@ static uint32_t vu1prog_4_12B8(VU1NativeCtx &c)
     return 0x1450;
 }
 
-static uint32_t vu1prog_4_1450(VU1NativeCtx &c)
+static uint32_t vu1prog_5_1450(VU1NativeCtx &c)
 {
     using namespace vu1n;
     VU1State &s = *c.st;
     float (*vf)[4] = s.vf;
     int32_t *vi = s.vi;
     uint8_t *m = c.mem;
-    bool upperClipSameCycle = false;
-    (void)upperClipSameCycle;
     (void)m;
     (void)vf;
     (void)vi;
@@ -49896,15 +58243,13 @@ static uint32_t vu1prog_4_1450(VU1NativeCtx &c)
     return (taken ? 0x14D0u : 0x14A0u);
 }
 
-static uint32_t vu1prog_4_14A0(VU1NativeCtx &c)
+static uint32_t vu1prog_5_14A0(VU1NativeCtx &c)
 {
     using namespace vu1n;
     VU1State &s = *c.st;
     float (*vf)[4] = s.vf;
     int32_t *vi = s.vi;
     uint8_t *m = c.mem;
-    bool upperClipSameCycle = false;
-    (void)upperClipSameCycle;
     (void)m;
     (void)vf;
     (void)vi;
@@ -49979,15 +58324,13 @@ static uint32_t vu1prog_4_14A0(VU1NativeCtx &c)
     return (taken ? 0x1450u : 0x14B8u);
 }
 
-static uint32_t vu1prog_4_14B8(VU1NativeCtx &c)
+static uint32_t vu1prog_5_14B8(VU1NativeCtx &c)
 {
     using namespace vu1n;
     VU1State &s = *c.st;
     float (*vf)[4] = s.vf;
     int32_t *vi = s.vi;
     uint8_t *m = c.mem;
-    bool upperClipSameCycle = false;
-    (void)upperClipSameCycle;
     (void)m;
     (void)vf;
     (void)vi;
@@ -50014,15 +58357,13 @@ static uint32_t vu1prog_4_14B8(VU1NativeCtx &c)
     return kEnded;
 }
 
-static uint32_t vu1prog_4_14D0(VU1NativeCtx &c)
+static uint32_t vu1prog_5_14D0(VU1NativeCtx &c)
 {
     using namespace vu1n;
     VU1State &s = *c.st;
     float (*vf)[4] = s.vf;
     int32_t *vi = s.vi;
     uint8_t *m = c.mem;
-    bool upperClipSameCycle = false;
-    (void)upperClipSameCycle;
     (void)m;
     (void)vf;
     (void)vi;
@@ -50062,15 +58403,13 @@ static uint32_t vu1prog_4_14D0(VU1NativeCtx &c)
     return (taken ? 0x14A0u : 0x14F0u);
 }
 
-static uint32_t vu1prog_4_14F0(VU1NativeCtx &c)
+static uint32_t vu1prog_5_14F0(VU1NativeCtx &c)
 {
     using namespace vu1n;
     VU1State &s = *c.st;
     float (*vf)[4] = s.vf;
     int32_t *vi = s.vi;
     uint8_t *m = c.mem;
-    bool upperClipSameCycle = false;
-    (void)upperClipSameCycle;
     (void)m;
     (void)vf;
     (void)vi;
@@ -50095,15 +58434,13 @@ static uint32_t vu1prog_4_14F0(VU1NativeCtx &c)
     return (taken ? 0x14A0u : 0x1500u);
 }
 
-static uint32_t vu1prog_4_1500(VU1NativeCtx &c)
+static uint32_t vu1prog_5_1500(VU1NativeCtx &c)
 {
     using namespace vu1n;
     VU1State &s = *c.st;
     float (*vf)[4] = s.vf;
     int32_t *vi = s.vi;
     uint8_t *m = c.mem;
-    bool upperClipSameCycle = false;
-    (void)upperClipSameCycle;
     (void)m;
     (void)vf;
     (void)vi;
@@ -50128,15 +58465,13 @@ static uint32_t vu1prog_4_1500(VU1NativeCtx &c)
     return (taken ? 0x14A0u : 0x1510u);
 }
 
-static uint32_t vu1prog_4_1510(VU1NativeCtx &c)
+static uint32_t vu1prog_5_1510(VU1NativeCtx &c)
 {
     using namespace vu1n;
     VU1State &s = *c.st;
     float (*vf)[4] = s.vf;
     int32_t *vi = s.vi;
     uint8_t *m = c.mem;
-    bool upperClipSameCycle = false;
-    (void)upperClipSameCycle;
     (void)m;
     (void)vf;
     (void)vi;
@@ -50161,15 +58496,13 @@ static uint32_t vu1prog_4_1510(VU1NativeCtx &c)
     return (taken ? 0x14A0u : 0x1520u);
 }
 
-static uint32_t vu1prog_4_1520(VU1NativeCtx &c)
+static uint32_t vu1prog_5_1520(VU1NativeCtx &c)
 {
     using namespace vu1n;
     VU1State &s = *c.st;
     float (*vf)[4] = s.vf;
     int32_t *vi = s.vi;
     uint8_t *m = c.mem;
-    bool upperClipSameCycle = false;
-    (void)upperClipSameCycle;
     (void)m;
     (void)vf;
     (void)vi;
@@ -50194,15 +58527,13 @@ static uint32_t vu1prog_4_1520(VU1NativeCtx &c)
     return (taken ? 0x14A0u : 0x1530u);
 }
 
-static uint32_t vu1prog_4_1530(VU1NativeCtx &c)
+static uint32_t vu1prog_5_1530(VU1NativeCtx &c)
 {
     using namespace vu1n;
     VU1State &s = *c.st;
     float (*vf)[4] = s.vf;
     int32_t *vi = s.vi;
     uint8_t *m = c.mem;
-    bool upperClipSameCycle = false;
-    (void)upperClipSameCycle;
     (void)m;
     (void)vf;
     (void)vi;
@@ -50224,15 +58555,13 @@ static uint32_t vu1prog_4_1530(VU1NativeCtx &c)
     return (taken ? 0x14A0u : 0x1540u);
 }
 
-static uint32_t vu1prog_4_1540(VU1NativeCtx &c)
+static uint32_t vu1prog_5_1540(VU1NativeCtx &c)
 {
     using namespace vu1n;
     VU1State &s = *c.st;
     float (*vf)[4] = s.vf;
     int32_t *vi = s.vi;
     uint8_t *m = c.mem;
-    bool upperClipSameCycle = false;
-    (void)upperClipSameCycle;
     (void)m;
     (void)vf;
     (void)vi;
@@ -50616,15 +58945,13 @@ static uint32_t vu1prog_4_1540(VU1NativeCtx &c)
     return 0x1630u;
 }
 
-static uint32_t vu1prog_4_1608(VU1NativeCtx &c)
+static uint32_t vu1prog_5_1608(VU1NativeCtx &c)
 {
     using namespace vu1n;
     VU1State &s = *c.st;
     float (*vf)[4] = s.vf;
     int32_t *vi = s.vi;
     uint8_t *m = c.mem;
-    bool upperClipSameCycle = false;
-    (void)upperClipSameCycle;
     (void)m;
     (void)vf;
     (void)vi;
@@ -50691,15 +59018,13 @@ static uint32_t vu1prog_4_1608(VU1NativeCtx &c)
     return 0x14A0u;
 }
 
-static uint32_t vu1prog_4_1630(VU1NativeCtx &c)
+static uint32_t vu1prog_5_1630(VU1NativeCtx &c)
 {
     using namespace vu1n;
     VU1State &s = *c.st;
     float (*vf)[4] = s.vf;
     int32_t *vi = s.vi;
     uint8_t *m = c.mem;
-    bool upperClipSameCycle = false;
-    (void)upperClipSameCycle;
     (void)m;
     (void)vf;
     (void)vi;
@@ -50769,15 +59094,13 @@ static uint32_t vu1prog_4_1630(VU1NativeCtx &c)
     return 0x1668;
 }
 
-static uint32_t vu1prog_4_1668(VU1NativeCtx &c)
+static uint32_t vu1prog_5_1668(VU1NativeCtx &c)
 {
     using namespace vu1n;
     VU1State &s = *c.st;
     float (*vf)[4] = s.vf;
     int32_t *vi = s.vi;
     uint8_t *m = c.mem;
-    bool upperClipSameCycle = false;
-    (void)upperClipSameCycle;
     (void)m;
     (void)vf;
     (void)vi;
@@ -50898,15 +59221,13 @@ static uint32_t vu1prog_4_1668(VU1NativeCtx &c)
     return (taken ? 0x1758u : 0x16A8u);
 }
 
-static uint32_t vu1prog_4_16A8(VU1NativeCtx &c)
+static uint32_t vu1prog_5_16A8(VU1NativeCtx &c)
 {
     using namespace vu1n;
     VU1State &s = *c.st;
     float (*vf)[4] = s.vf;
     int32_t *vi = s.vi;
     uint8_t *m = c.mem;
-    bool upperClipSameCycle = false;
-    (void)upperClipSameCycle;
     (void)m;
     (void)vf;
     (void)vi;
@@ -50951,15 +59272,13 @@ static uint32_t vu1prog_4_16A8(VU1NativeCtx &c)
     return (taken ? 0x1738u : 0x16B8u);
 }
 
-static uint32_t vu1prog_4_16B8(VU1NativeCtx &c)
+static uint32_t vu1prog_5_16B8(VU1NativeCtx &c)
 {
     using namespace vu1n;
     VU1State &s = *c.st;
     float (*vf)[4] = s.vf;
     int32_t *vi = s.vi;
     uint8_t *m = c.mem;
-    bool upperClipSameCycle = false;
-    (void)upperClipSameCycle;
     (void)m;
     (void)vf;
     (void)vi;
@@ -50981,15 +59300,13 @@ static uint32_t vu1prog_4_16B8(VU1NativeCtx &c)
     return (taken ? 0x16E8u : 0x16C8u);
 }
 
-static uint32_t vu1prog_4_16C8(VU1NativeCtx &c)
+static uint32_t vu1prog_5_16C8(VU1NativeCtx &c)
 {
     using namespace vu1n;
     VU1State &s = *c.st;
     float (*vf)[4] = s.vf;
     int32_t *vi = s.vi;
     uint8_t *m = c.mem;
-    bool upperClipSameCycle = false;
-    (void)upperClipSameCycle;
     (void)m;
     (void)vf;
     (void)vi;
@@ -51058,15 +59375,13 @@ static uint32_t vu1prog_4_16C8(VU1NativeCtx &c)
     return 0x1710u;
 }
 
-static uint32_t vu1prog_4_16E8(VU1NativeCtx &c)
+static uint32_t vu1prog_5_16E8(VU1NativeCtx &c)
 {
     using namespace vu1n;
     VU1State &s = *c.st;
     float (*vf)[4] = s.vf;
     int32_t *vi = s.vi;
     uint8_t *m = c.mem;
-    bool upperClipSameCycle = false;
-    (void)upperClipSameCycle;
     (void)m;
     (void)vf;
     (void)vi;
@@ -51150,15 +59465,13 @@ static uint32_t vu1prog_4_16E8(VU1NativeCtx &c)
     return 0x1710;
 }
 
-static uint32_t vu1prog_4_1710(VU1NativeCtx &c)
+static uint32_t vu1prog_5_1710(VU1NativeCtx &c)
 {
     using namespace vu1n;
     VU1State &s = *c.st;
     float (*vf)[4] = s.vf;
     int32_t *vi = s.vi;
     uint8_t *m = c.mem;
-    bool upperClipSameCycle = false;
-    (void)upperClipSameCycle;
     (void)m;
     (void)vf;
     (void)vi;
@@ -51252,15 +59565,13 @@ static uint32_t vu1prog_4_1710(VU1NativeCtx &c)
     return 0x1738;
 }
 
-static uint32_t vu1prog_4_1738(VU1NativeCtx &c)
+static uint32_t vu1prog_5_1738(VU1NativeCtx &c)
 {
     using namespace vu1n;
     VU1State &s = *c.st;
     float (*vf)[4] = s.vf;
     int32_t *vi = s.vi;
     uint8_t *m = c.mem;
-    bool upperClipSameCycle = false;
-    (void)upperClipSameCycle;
     (void)m;
     (void)vf;
     (void)vi;
@@ -51312,15 +59623,13 @@ static uint32_t vu1prog_4_1738(VU1NativeCtx &c)
     return 0x1758;
 }
 
-static uint32_t vu1prog_4_1758(VU1NativeCtx &c)
+static uint32_t vu1prog_5_1758(VU1NativeCtx &c)
 {
     using namespace vu1n;
     VU1State &s = *c.st;
     float (*vf)[4] = s.vf;
     int32_t *vi = s.vi;
     uint8_t *m = c.mem;
-    bool upperClipSameCycle = false;
-    (void)upperClipSameCycle;
     (void)m;
     (void)vf;
     (void)vi;
@@ -51387,15 +59696,13 @@ static uint32_t vu1prog_4_1758(VU1NativeCtx &c)
     return (taken ? 0x1668u : 0x1788u);
 }
 
-static uint32_t vu1prog_4_1788(VU1NativeCtx &c)
+static uint32_t vu1prog_5_1788(VU1NativeCtx &c)
 {
     using namespace vu1n;
     VU1State &s = *c.st;
     float (*vf)[4] = s.vf;
     int32_t *vi = s.vi;
     uint8_t *m = c.mem;
-    bool upperClipSameCycle = false;
-    (void)upperClipSameCycle;
     (void)m;
     (void)vf;
     (void)vi;
@@ -51484,15 +59791,13 @@ static uint32_t vu1prog_4_1788(VU1NativeCtx &c)
     return (taken ? 0x1E68u : 0x17C8u);
 }
 
-static uint32_t vu1prog_4_17C0(VU1NativeCtx &c)
+static uint32_t vu1prog_5_17C0(VU1NativeCtx &c)
 {
     using namespace vu1n;
     VU1State &s = *c.st;
     float (*vf)[4] = s.vf;
     int32_t *vi = s.vi;
     uint8_t *m = c.mem;
-    bool upperClipSameCycle = false;
-    (void)upperClipSameCycle;
     (void)m;
     (void)vf;
     (void)vi;
@@ -51519,15 +59824,13 @@ static uint32_t vu1prog_4_17C0(VU1NativeCtx &c)
     return 0x17C8;
 }
 
-static uint32_t vu1prog_4_17C8(VU1NativeCtx &c)
+static uint32_t vu1prog_5_17C8(VU1NativeCtx &c)
 {
     using namespace vu1n;
     VU1State &s = *c.st;
     float (*vf)[4] = s.vf;
     int32_t *vi = s.vi;
     uint8_t *m = c.mem;
-    bool upperClipSameCycle = false;
-    (void)upperClipSameCycle;
     (void)m;
     (void)vf;
     (void)vi;
@@ -51633,15 +59936,13 @@ static uint32_t vu1prog_4_17C8(VU1NativeCtx &c)
     return (taken ? 0x18B0u : 0x1800u);
 }
 
-static uint32_t vu1prog_4_1800(VU1NativeCtx &c)
+static uint32_t vu1prog_5_1800(VU1NativeCtx &c)
 {
     using namespace vu1n;
     VU1State &s = *c.st;
     float (*vf)[4] = s.vf;
     int32_t *vi = s.vi;
     uint8_t *m = c.mem;
-    bool upperClipSameCycle = false;
-    (void)upperClipSameCycle;
     (void)m;
     (void)vf;
     (void)vi;
@@ -51686,15 +59987,13 @@ static uint32_t vu1prog_4_1800(VU1NativeCtx &c)
     return (taken ? 0x1890u : 0x1810u);
 }
 
-static uint32_t vu1prog_4_1810(VU1NativeCtx &c)
+static uint32_t vu1prog_5_1810(VU1NativeCtx &c)
 {
     using namespace vu1n;
     VU1State &s = *c.st;
     float (*vf)[4] = s.vf;
     int32_t *vi = s.vi;
     uint8_t *m = c.mem;
-    bool upperClipSameCycle = false;
-    (void)upperClipSameCycle;
     (void)m;
     (void)vf;
     (void)vi;
@@ -51716,15 +60015,13 @@ static uint32_t vu1prog_4_1810(VU1NativeCtx &c)
     return (taken ? 0x1840u : 0x1820u);
 }
 
-static uint32_t vu1prog_4_1820(VU1NativeCtx &c)
+static uint32_t vu1prog_5_1820(VU1NativeCtx &c)
 {
     using namespace vu1n;
     VU1State &s = *c.st;
     float (*vf)[4] = s.vf;
     int32_t *vi = s.vi;
     uint8_t *m = c.mem;
-    bool upperClipSameCycle = false;
-    (void)upperClipSameCycle;
     (void)m;
     (void)vf;
     (void)vi;
@@ -51793,15 +60090,13 @@ static uint32_t vu1prog_4_1820(VU1NativeCtx &c)
     return 0x1868u;
 }
 
-static uint32_t vu1prog_4_1840(VU1NativeCtx &c)
+static uint32_t vu1prog_5_1840(VU1NativeCtx &c)
 {
     using namespace vu1n;
     VU1State &s = *c.st;
     float (*vf)[4] = s.vf;
     int32_t *vi = s.vi;
     uint8_t *m = c.mem;
-    bool upperClipSameCycle = false;
-    (void)upperClipSameCycle;
     (void)m;
     (void)vf;
     (void)vi;
@@ -51885,15 +60180,13 @@ static uint32_t vu1prog_4_1840(VU1NativeCtx &c)
     return 0x1868;
 }
 
-static uint32_t vu1prog_4_1868(VU1NativeCtx &c)
+static uint32_t vu1prog_5_1868(VU1NativeCtx &c)
 {
     using namespace vu1n;
     VU1State &s = *c.st;
     float (*vf)[4] = s.vf;
     int32_t *vi = s.vi;
     uint8_t *m = c.mem;
-    bool upperClipSameCycle = false;
-    (void)upperClipSameCycle;
     (void)m;
     (void)vf;
     (void)vi;
@@ -51987,15 +60280,13 @@ static uint32_t vu1prog_4_1868(VU1NativeCtx &c)
     return 0x1890;
 }
 
-static uint32_t vu1prog_4_1890(VU1NativeCtx &c)
+static uint32_t vu1prog_5_1890(VU1NativeCtx &c)
 {
     using namespace vu1n;
     VU1State &s = *c.st;
     float (*vf)[4] = s.vf;
     int32_t *vi = s.vi;
     uint8_t *m = c.mem;
-    bool upperClipSameCycle = false;
-    (void)upperClipSameCycle;
     (void)m;
     (void)vf;
     (void)vi;
@@ -52047,15 +60338,13 @@ static uint32_t vu1prog_4_1890(VU1NativeCtx &c)
     return 0x18B0;
 }
 
-static uint32_t vu1prog_4_18B0(VU1NativeCtx &c)
+static uint32_t vu1prog_5_18B0(VU1NativeCtx &c)
 {
     using namespace vu1n;
     VU1State &s = *c.st;
     float (*vf)[4] = s.vf;
     int32_t *vi = s.vi;
     uint8_t *m = c.mem;
-    bool upperClipSameCycle = false;
-    (void)upperClipSameCycle;
     (void)m;
     (void)vf;
     (void)vi;
@@ -52122,15 +60411,13 @@ static uint32_t vu1prog_4_18B0(VU1NativeCtx &c)
     return (taken ? 0x17C0u : 0x18E0u);
 }
 
-static uint32_t vu1prog_4_18E0(VU1NativeCtx &c)
+static uint32_t vu1prog_5_18E0(VU1NativeCtx &c)
 {
     using namespace vu1n;
     VU1State &s = *c.st;
     float (*vf)[4] = s.vf;
     int32_t *vi = s.vi;
     uint8_t *m = c.mem;
-    bool upperClipSameCycle = false;
-    (void)upperClipSameCycle;
     (void)m;
     (void)vf;
     (void)vi;
@@ -52219,15 +60506,13 @@ static uint32_t vu1prog_4_18E0(VU1NativeCtx &c)
     return (taken ? 0x1E68u : 0x1920u);
 }
 
-static uint32_t vu1prog_4_1918(VU1NativeCtx &c)
+static uint32_t vu1prog_5_1918(VU1NativeCtx &c)
 {
     using namespace vu1n;
     VU1State &s = *c.st;
     float (*vf)[4] = s.vf;
     int32_t *vi = s.vi;
     uint8_t *m = c.mem;
-    bool upperClipSameCycle = false;
-    (void)upperClipSameCycle;
     (void)m;
     (void)vf;
     (void)vi;
@@ -52254,15 +60539,13 @@ static uint32_t vu1prog_4_1918(VU1NativeCtx &c)
     return 0x1920;
 }
 
-static uint32_t vu1prog_4_1920(VU1NativeCtx &c)
+static uint32_t vu1prog_5_1920(VU1NativeCtx &c)
 {
     using namespace vu1n;
     VU1State &s = *c.st;
     float (*vf)[4] = s.vf;
     int32_t *vi = s.vi;
     uint8_t *m = c.mem;
-    bool upperClipSameCycle = false;
-    (void)upperClipSameCycle;
     (void)m;
     (void)vf;
     (void)vi;
@@ -52368,15 +60651,13 @@ static uint32_t vu1prog_4_1920(VU1NativeCtx &c)
     return (taken ? 0x1A08u : 0x1958u);
 }
 
-static uint32_t vu1prog_4_1958(VU1NativeCtx &c)
+static uint32_t vu1prog_5_1958(VU1NativeCtx &c)
 {
     using namespace vu1n;
     VU1State &s = *c.st;
     float (*vf)[4] = s.vf;
     int32_t *vi = s.vi;
     uint8_t *m = c.mem;
-    bool upperClipSameCycle = false;
-    (void)upperClipSameCycle;
     (void)m;
     (void)vf;
     (void)vi;
@@ -52421,15 +60702,13 @@ static uint32_t vu1prog_4_1958(VU1NativeCtx &c)
     return (taken ? 0x19E8u : 0x1968u);
 }
 
-static uint32_t vu1prog_4_1968(VU1NativeCtx &c)
+static uint32_t vu1prog_5_1968(VU1NativeCtx &c)
 {
     using namespace vu1n;
     VU1State &s = *c.st;
     float (*vf)[4] = s.vf;
     int32_t *vi = s.vi;
     uint8_t *m = c.mem;
-    bool upperClipSameCycle = false;
-    (void)upperClipSameCycle;
     (void)m;
     (void)vf;
     (void)vi;
@@ -52451,15 +60730,13 @@ static uint32_t vu1prog_4_1968(VU1NativeCtx &c)
     return (taken ? 0x1998u : 0x1978u);
 }
 
-static uint32_t vu1prog_4_1978(VU1NativeCtx &c)
+static uint32_t vu1prog_5_1978(VU1NativeCtx &c)
 {
     using namespace vu1n;
     VU1State &s = *c.st;
     float (*vf)[4] = s.vf;
     int32_t *vi = s.vi;
     uint8_t *m = c.mem;
-    bool upperClipSameCycle = false;
-    (void)upperClipSameCycle;
     (void)m;
     (void)vf;
     (void)vi;
@@ -52528,15 +60805,13 @@ static uint32_t vu1prog_4_1978(VU1NativeCtx &c)
     return 0x19C0u;
 }
 
-static uint32_t vu1prog_4_1998(VU1NativeCtx &c)
+static uint32_t vu1prog_5_1998(VU1NativeCtx &c)
 {
     using namespace vu1n;
     VU1State &s = *c.st;
     float (*vf)[4] = s.vf;
     int32_t *vi = s.vi;
     uint8_t *m = c.mem;
-    bool upperClipSameCycle = false;
-    (void)upperClipSameCycle;
     (void)m;
     (void)vf;
     (void)vi;
@@ -52620,15 +60895,13 @@ static uint32_t vu1prog_4_1998(VU1NativeCtx &c)
     return 0x19C0;
 }
 
-static uint32_t vu1prog_4_19C0(VU1NativeCtx &c)
+static uint32_t vu1prog_5_19C0(VU1NativeCtx &c)
 {
     using namespace vu1n;
     VU1State &s = *c.st;
     float (*vf)[4] = s.vf;
     int32_t *vi = s.vi;
     uint8_t *m = c.mem;
-    bool upperClipSameCycle = false;
-    (void)upperClipSameCycle;
     (void)m;
     (void)vf;
     (void)vi;
@@ -52722,15 +60995,13 @@ static uint32_t vu1prog_4_19C0(VU1NativeCtx &c)
     return 0x19E8;
 }
 
-static uint32_t vu1prog_4_19E8(VU1NativeCtx &c)
+static uint32_t vu1prog_5_19E8(VU1NativeCtx &c)
 {
     using namespace vu1n;
     VU1State &s = *c.st;
     float (*vf)[4] = s.vf;
     int32_t *vi = s.vi;
     uint8_t *m = c.mem;
-    bool upperClipSameCycle = false;
-    (void)upperClipSameCycle;
     (void)m;
     (void)vf;
     (void)vi;
@@ -52782,15 +61053,13 @@ static uint32_t vu1prog_4_19E8(VU1NativeCtx &c)
     return 0x1A08;
 }
 
-static uint32_t vu1prog_4_1A08(VU1NativeCtx &c)
+static uint32_t vu1prog_5_1A08(VU1NativeCtx &c)
 {
     using namespace vu1n;
     VU1State &s = *c.st;
     float (*vf)[4] = s.vf;
     int32_t *vi = s.vi;
     uint8_t *m = c.mem;
-    bool upperClipSameCycle = false;
-    (void)upperClipSameCycle;
     (void)m;
     (void)vf;
     (void)vi;
@@ -52857,15 +61126,13 @@ static uint32_t vu1prog_4_1A08(VU1NativeCtx &c)
     return (taken ? 0x1918u : 0x1A38u);
 }
 
-static uint32_t vu1prog_4_1A38(VU1NativeCtx &c)
+static uint32_t vu1prog_5_1A38(VU1NativeCtx &c)
 {
     using namespace vu1n;
     VU1State &s = *c.st;
     float (*vf)[4] = s.vf;
     int32_t *vi = s.vi;
     uint8_t *m = c.mem;
-    bool upperClipSameCycle = false;
-    (void)upperClipSameCycle;
     (void)m;
     (void)vf;
     (void)vi;
@@ -52954,15 +61221,13 @@ static uint32_t vu1prog_4_1A38(VU1NativeCtx &c)
     return (taken ? 0x1E68u : 0x1A78u);
 }
 
-static uint32_t vu1prog_4_1A70(VU1NativeCtx &c)
+static uint32_t vu1prog_5_1A70(VU1NativeCtx &c)
 {
     using namespace vu1n;
     VU1State &s = *c.st;
     float (*vf)[4] = s.vf;
     int32_t *vi = s.vi;
     uint8_t *m = c.mem;
-    bool upperClipSameCycle = false;
-    (void)upperClipSameCycle;
     (void)m;
     (void)vf;
     (void)vi;
@@ -52989,15 +61254,13 @@ static uint32_t vu1prog_4_1A70(VU1NativeCtx &c)
     return 0x1A78;
 }
 
-static uint32_t vu1prog_4_1A78(VU1NativeCtx &c)
+static uint32_t vu1prog_5_1A78(VU1NativeCtx &c)
 {
     using namespace vu1n;
     VU1State &s = *c.st;
     float (*vf)[4] = s.vf;
     int32_t *vi = s.vi;
     uint8_t *m = c.mem;
-    bool upperClipSameCycle = false;
-    (void)upperClipSameCycle;
     (void)m;
     (void)vf;
     (void)vi;
@@ -53103,15 +61366,13 @@ static uint32_t vu1prog_4_1A78(VU1NativeCtx &c)
     return (taken ? 0x1B60u : 0x1AB0u);
 }
 
-static uint32_t vu1prog_4_1AB0(VU1NativeCtx &c)
+static uint32_t vu1prog_5_1AB0(VU1NativeCtx &c)
 {
     using namespace vu1n;
     VU1State &s = *c.st;
     float (*vf)[4] = s.vf;
     int32_t *vi = s.vi;
     uint8_t *m = c.mem;
-    bool upperClipSameCycle = false;
-    (void)upperClipSameCycle;
     (void)m;
     (void)vf;
     (void)vi;
@@ -53156,15 +61417,13 @@ static uint32_t vu1prog_4_1AB0(VU1NativeCtx &c)
     return (taken ? 0x1B40u : 0x1AC0u);
 }
 
-static uint32_t vu1prog_4_1AC0(VU1NativeCtx &c)
+static uint32_t vu1prog_5_1AC0(VU1NativeCtx &c)
 {
     using namespace vu1n;
     VU1State &s = *c.st;
     float (*vf)[4] = s.vf;
     int32_t *vi = s.vi;
     uint8_t *m = c.mem;
-    bool upperClipSameCycle = false;
-    (void)upperClipSameCycle;
     (void)m;
     (void)vf;
     (void)vi;
@@ -53186,15 +61445,13 @@ static uint32_t vu1prog_4_1AC0(VU1NativeCtx &c)
     return (taken ? 0x1AF0u : 0x1AD0u);
 }
 
-static uint32_t vu1prog_4_1AD0(VU1NativeCtx &c)
+static uint32_t vu1prog_5_1AD0(VU1NativeCtx &c)
 {
     using namespace vu1n;
     VU1State &s = *c.st;
     float (*vf)[4] = s.vf;
     int32_t *vi = s.vi;
     uint8_t *m = c.mem;
-    bool upperClipSameCycle = false;
-    (void)upperClipSameCycle;
     (void)m;
     (void)vf;
     (void)vi;
@@ -53263,15 +61520,13 @@ static uint32_t vu1prog_4_1AD0(VU1NativeCtx &c)
     return 0x1B18u;
 }
 
-static uint32_t vu1prog_4_1AF0(VU1NativeCtx &c)
+static uint32_t vu1prog_5_1AF0(VU1NativeCtx &c)
 {
     using namespace vu1n;
     VU1State &s = *c.st;
     float (*vf)[4] = s.vf;
     int32_t *vi = s.vi;
     uint8_t *m = c.mem;
-    bool upperClipSameCycle = false;
-    (void)upperClipSameCycle;
     (void)m;
     (void)vf;
     (void)vi;
@@ -53355,15 +61610,13 @@ static uint32_t vu1prog_4_1AF0(VU1NativeCtx &c)
     return 0x1B18;
 }
 
-static uint32_t vu1prog_4_1B18(VU1NativeCtx &c)
+static uint32_t vu1prog_5_1B18(VU1NativeCtx &c)
 {
     using namespace vu1n;
     VU1State &s = *c.st;
     float (*vf)[4] = s.vf;
     int32_t *vi = s.vi;
     uint8_t *m = c.mem;
-    bool upperClipSameCycle = false;
-    (void)upperClipSameCycle;
     (void)m;
     (void)vf;
     (void)vi;
@@ -53457,15 +61710,13 @@ static uint32_t vu1prog_4_1B18(VU1NativeCtx &c)
     return 0x1B40;
 }
 
-static uint32_t vu1prog_4_1B40(VU1NativeCtx &c)
+static uint32_t vu1prog_5_1B40(VU1NativeCtx &c)
 {
     using namespace vu1n;
     VU1State &s = *c.st;
     float (*vf)[4] = s.vf;
     int32_t *vi = s.vi;
     uint8_t *m = c.mem;
-    bool upperClipSameCycle = false;
-    (void)upperClipSameCycle;
     (void)m;
     (void)vf;
     (void)vi;
@@ -53517,15 +61768,13 @@ static uint32_t vu1prog_4_1B40(VU1NativeCtx &c)
     return 0x1B60;
 }
 
-static uint32_t vu1prog_4_1B60(VU1NativeCtx &c)
+static uint32_t vu1prog_5_1B60(VU1NativeCtx &c)
 {
     using namespace vu1n;
     VU1State &s = *c.st;
     float (*vf)[4] = s.vf;
     int32_t *vi = s.vi;
     uint8_t *m = c.mem;
-    bool upperClipSameCycle = false;
-    (void)upperClipSameCycle;
     (void)m;
     (void)vf;
     (void)vi;
@@ -53592,15 +61841,13 @@ static uint32_t vu1prog_4_1B60(VU1NativeCtx &c)
     return (taken ? 0x1A70u : 0x1B90u);
 }
 
-static uint32_t vu1prog_4_1B90(VU1NativeCtx &c)
+static uint32_t vu1prog_5_1B90(VU1NativeCtx &c)
 {
     using namespace vu1n;
     VU1State &s = *c.st;
     float (*vf)[4] = s.vf;
     int32_t *vi = s.vi;
     uint8_t *m = c.mem;
-    bool upperClipSameCycle = false;
-    (void)upperClipSameCycle;
     (void)m;
     (void)vf;
     (void)vi;
@@ -53689,15 +61936,13 @@ static uint32_t vu1prog_4_1B90(VU1NativeCtx &c)
     return (taken ? 0x1E68u : 0x1BD0u);
 }
 
-static uint32_t vu1prog_4_1BC8(VU1NativeCtx &c)
+static uint32_t vu1prog_5_1BC8(VU1NativeCtx &c)
 {
     using namespace vu1n;
     VU1State &s = *c.st;
     float (*vf)[4] = s.vf;
     int32_t *vi = s.vi;
     uint8_t *m = c.mem;
-    bool upperClipSameCycle = false;
-    (void)upperClipSameCycle;
     (void)m;
     (void)vf;
     (void)vi;
@@ -53724,15 +61969,13 @@ static uint32_t vu1prog_4_1BC8(VU1NativeCtx &c)
     return 0x1BD0;
 }
 
-static uint32_t vu1prog_4_1BD0(VU1NativeCtx &c)
+static uint32_t vu1prog_5_1BD0(VU1NativeCtx &c)
 {
     using namespace vu1n;
     VU1State &s = *c.st;
     float (*vf)[4] = s.vf;
     int32_t *vi = s.vi;
     uint8_t *m = c.mem;
-    bool upperClipSameCycle = false;
-    (void)upperClipSameCycle;
     (void)m;
     (void)vf;
     (void)vi;
@@ -53838,15 +62081,13 @@ static uint32_t vu1prog_4_1BD0(VU1NativeCtx &c)
     return (taken ? 0x1CB8u : 0x1C08u);
 }
 
-static uint32_t vu1prog_4_1C08(VU1NativeCtx &c)
+static uint32_t vu1prog_5_1C08(VU1NativeCtx &c)
 {
     using namespace vu1n;
     VU1State &s = *c.st;
     float (*vf)[4] = s.vf;
     int32_t *vi = s.vi;
     uint8_t *m = c.mem;
-    bool upperClipSameCycle = false;
-    (void)upperClipSameCycle;
     (void)m;
     (void)vf;
     (void)vi;
@@ -53891,15 +62132,13 @@ static uint32_t vu1prog_4_1C08(VU1NativeCtx &c)
     return (taken ? 0x1C98u : 0x1C18u);
 }
 
-static uint32_t vu1prog_4_1C18(VU1NativeCtx &c)
+static uint32_t vu1prog_5_1C18(VU1NativeCtx &c)
 {
     using namespace vu1n;
     VU1State &s = *c.st;
     float (*vf)[4] = s.vf;
     int32_t *vi = s.vi;
     uint8_t *m = c.mem;
-    bool upperClipSameCycle = false;
-    (void)upperClipSameCycle;
     (void)m;
     (void)vf;
     (void)vi;
@@ -53921,15 +62160,13 @@ static uint32_t vu1prog_4_1C18(VU1NativeCtx &c)
     return (taken ? 0x1C48u : 0x1C28u);
 }
 
-static uint32_t vu1prog_4_1C28(VU1NativeCtx &c)
+static uint32_t vu1prog_5_1C28(VU1NativeCtx &c)
 {
     using namespace vu1n;
     VU1State &s = *c.st;
     float (*vf)[4] = s.vf;
     int32_t *vi = s.vi;
     uint8_t *m = c.mem;
-    bool upperClipSameCycle = false;
-    (void)upperClipSameCycle;
     (void)m;
     (void)vf;
     (void)vi;
@@ -53998,15 +62235,13 @@ static uint32_t vu1prog_4_1C28(VU1NativeCtx &c)
     return 0x1C70u;
 }
 
-static uint32_t vu1prog_4_1C48(VU1NativeCtx &c)
+static uint32_t vu1prog_5_1C48(VU1NativeCtx &c)
 {
     using namespace vu1n;
     VU1State &s = *c.st;
     float (*vf)[4] = s.vf;
     int32_t *vi = s.vi;
     uint8_t *m = c.mem;
-    bool upperClipSameCycle = false;
-    (void)upperClipSameCycle;
     (void)m;
     (void)vf;
     (void)vi;
@@ -54090,15 +62325,13 @@ static uint32_t vu1prog_4_1C48(VU1NativeCtx &c)
     return 0x1C70;
 }
 
-static uint32_t vu1prog_4_1C70(VU1NativeCtx &c)
+static uint32_t vu1prog_5_1C70(VU1NativeCtx &c)
 {
     using namespace vu1n;
     VU1State &s = *c.st;
     float (*vf)[4] = s.vf;
     int32_t *vi = s.vi;
     uint8_t *m = c.mem;
-    bool upperClipSameCycle = false;
-    (void)upperClipSameCycle;
     (void)m;
     (void)vf;
     (void)vi;
@@ -54192,15 +62425,13 @@ static uint32_t vu1prog_4_1C70(VU1NativeCtx &c)
     return 0x1C98;
 }
 
-static uint32_t vu1prog_4_1C98(VU1NativeCtx &c)
+static uint32_t vu1prog_5_1C98(VU1NativeCtx &c)
 {
     using namespace vu1n;
     VU1State &s = *c.st;
     float (*vf)[4] = s.vf;
     int32_t *vi = s.vi;
     uint8_t *m = c.mem;
-    bool upperClipSameCycle = false;
-    (void)upperClipSameCycle;
     (void)m;
     (void)vf;
     (void)vi;
@@ -54252,15 +62483,13 @@ static uint32_t vu1prog_4_1C98(VU1NativeCtx &c)
     return 0x1CB8;
 }
 
-static uint32_t vu1prog_4_1CB8(VU1NativeCtx &c)
+static uint32_t vu1prog_5_1CB8(VU1NativeCtx &c)
 {
     using namespace vu1n;
     VU1State &s = *c.st;
     float (*vf)[4] = s.vf;
     int32_t *vi = s.vi;
     uint8_t *m = c.mem;
-    bool upperClipSameCycle = false;
-    (void)upperClipSameCycle;
     (void)m;
     (void)vf;
     (void)vi;
@@ -54327,15 +62556,13 @@ static uint32_t vu1prog_4_1CB8(VU1NativeCtx &c)
     return (taken ? 0x1BC8u : 0x1CE8u);
 }
 
-static uint32_t vu1prog_4_1CE8(VU1NativeCtx &c)
+static uint32_t vu1prog_5_1CE8(VU1NativeCtx &c)
 {
     using namespace vu1n;
     VU1State &s = *c.st;
     float (*vf)[4] = s.vf;
     int32_t *vi = s.vi;
     uint8_t *m = c.mem;
-    bool upperClipSameCycle = false;
-    (void)upperClipSameCycle;
     (void)m;
     (void)vf;
     (void)vi;
@@ -54369,15 +62596,13 @@ static uint32_t vu1prog_4_1CE8(VU1NativeCtx &c)
     return (taken ? 0x1E68u : 0x1D08u);
 }
 
-static uint32_t vu1prog_4_1D08(VU1NativeCtx &c)
+static uint32_t vu1prog_5_1D08(VU1NativeCtx &c)
 {
     using namespace vu1n;
     VU1State &s = *c.st;
     float (*vf)[4] = s.vf;
     int32_t *vi = s.vi;
     uint8_t *m = c.mem;
-    bool upperClipSameCycle = false;
-    (void)upperClipSameCycle;
     (void)m;
     (void)vf;
     (void)vi;
@@ -54432,15 +62657,13 @@ static uint32_t vu1prog_4_1D08(VU1NativeCtx &c)
     return (taken ? 0x1D60u : 0x1D48u);
 }
 
-static uint32_t vu1prog_4_1D48(VU1NativeCtx &c)
+static uint32_t vu1prog_5_1D48(VU1NativeCtx &c)
 {
     using namespace vu1n;
     VU1State &s = *c.st;
     float (*vf)[4] = s.vf;
     int32_t *vi = s.vi;
     uint8_t *m = c.mem;
-    bool upperClipSameCycle = false;
-    (void)upperClipSameCycle;
     (void)m;
     (void)vf;
     (void)vi;
@@ -54467,15 +62690,13 @@ static uint32_t vu1prog_4_1D48(VU1NativeCtx &c)
     return 0x1D70u;
 }
 
-static uint32_t vu1prog_4_1D60(VU1NativeCtx &c)
+static uint32_t vu1prog_5_1D60(VU1NativeCtx &c)
 {
     using namespace vu1n;
     VU1State &s = *c.st;
     float (*vf)[4] = s.vf;
     int32_t *vi = s.vi;
     uint8_t *m = c.mem;
-    bool upperClipSameCycle = false;
-    (void)upperClipSameCycle;
     (void)m;
     (void)vf;
     (void)vi;
@@ -54495,15 +62716,13 @@ static uint32_t vu1prog_4_1D60(VU1NativeCtx &c)
     return 0x1D70;
 }
 
-static uint32_t vu1prog_4_1D70(VU1NativeCtx &c)
+static uint32_t vu1prog_5_1D70(VU1NativeCtx &c)
 {
     using namespace vu1n;
     VU1State &s = *c.st;
     float (*vf)[4] = s.vf;
     int32_t *vi = s.vi;
     uint8_t *m = c.mem;
-    bool upperClipSameCycle = false;
-    (void)upperClipSameCycle;
     (void)m;
     (void)vf;
     (void)vi;
@@ -54639,15 +62858,13 @@ static uint32_t vu1prog_4_1D70(VU1NativeCtx &c)
     return 0x1DC8;
 }
 
-static uint32_t vu1prog_4_1DC8(VU1NativeCtx &c)
+static uint32_t vu1prog_5_1DC8(VU1NativeCtx &c)
 {
     using namespace vu1n;
     VU1State &s = *c.st;
     float (*vf)[4] = s.vf;
     int32_t *vi = s.vi;
     uint8_t *m = c.mem;
-    bool upperClipSameCycle = false;
-    (void)upperClipSameCycle;
     (void)m;
     (void)vf;
     (void)vi;
@@ -54849,15 +63066,13 @@ static uint32_t vu1prog_4_1DC8(VU1NativeCtx &c)
     return (taken ? 0x1DC8u : 0x1E28u);
 }
 
-static uint32_t vu1prog_4_1E28(VU1NativeCtx &c)
+static uint32_t vu1prog_5_1E28(VU1NativeCtx &c)
 {
     using namespace vu1n;
     VU1State &s = *c.st;
     float (*vf)[4] = s.vf;
     int32_t *vi = s.vi;
     uint8_t *m = c.mem;
-    bool upperClipSameCycle = false;
-    (void)upperClipSameCycle;
     (void)m;
     (void)vf;
     (void)vi;
@@ -54915,15 +63130,13 @@ static uint32_t vu1prog_4_1E28(VU1NativeCtx &c)
     return 0x1E68;
 }
 
-static uint32_t vu1prog_4_1E68(VU1NativeCtx &c)
+static uint32_t vu1prog_5_1E68(VU1NativeCtx &c)
 {
     using namespace vu1n;
     VU1State &s = *c.st;
     float (*vf)[4] = s.vf;
     int32_t *vi = s.vi;
     uint8_t *m = c.mem;
-    bool upperClipSameCycle = false;
-    (void)upperClipSameCycle;
     (void)m;
     (void)vf;
     (void)vi;
@@ -54945,15 +63158,13 @@ static uint32_t vu1prog_4_1E68(VU1NativeCtx &c)
     return target;
 }
 
-static uint32_t vu1prog_4_1F40(VU1NativeCtx &c)
+static uint32_t vu1prog_5_1F40(VU1NativeCtx &c)
 {
     using namespace vu1n;
     VU1State &s = *c.st;
     float (*vf)[4] = s.vf;
     int32_t *vi = s.vi;
     uint8_t *m = c.mem;
-    bool upperClipSameCycle = false;
-    (void)upperClipSameCycle;
     (void)m;
     (void)vf;
     (void)vi;
@@ -55047,15 +63258,13 @@ static uint32_t vu1prog_4_1F40(VU1NativeCtx &c)
     return (taken ? 0xB88u : 0x1FA0u);
 }
 
-static uint32_t vu1prog_4_1FA0(VU1NativeCtx &c)
+static uint32_t vu1prog_5_1FA0(VU1NativeCtx &c)
 {
     using namespace vu1n;
     VU1State &s = *c.st;
     float (*vf)[4] = s.vf;
     int32_t *vi = s.vi;
     uint8_t *m = c.mem;
-    bool upperClipSameCycle = false;
-    (void)upperClipSameCycle;
     (void)m;
     (void)vf;
     (void)vi;
@@ -55089,15 +63298,13 @@ static uint32_t vu1prog_4_1FA0(VU1NativeCtx &c)
     return (taken ? 0xBE8u : 0x1FB8u);
 }
 
-static uint32_t vu1prog_4_1FB8(VU1NativeCtx &c)
+static uint32_t vu1prog_5_1FB8(VU1NativeCtx &c)
 {
     using namespace vu1n;
     VU1State &s = *c.st;
     float (*vf)[4] = s.vf;
     int32_t *vi = s.vi;
     uint8_t *m = c.mem;
-    bool upperClipSameCycle = false;
-    (void)upperClipSameCycle;
     (void)m;
     (void)vf;
     (void)vi;
@@ -55131,15 +63338,13 @@ static uint32_t vu1prog_4_1FB8(VU1NativeCtx &c)
     return (taken ? 0xCE8u : 0x1FD0u);
 }
 
-static uint32_t vu1prog_4_1FD0(VU1NativeCtx &c)
+static uint32_t vu1prog_5_1FD0(VU1NativeCtx &c)
 {
     using namespace vu1n;
     VU1State &s = *c.st;
     float (*vf)[4] = s.vf;
     int32_t *vi = s.vi;
     uint8_t *m = c.mem;
-    bool upperClipSameCycle = false;
-    (void)upperClipSameCycle;
     (void)m;
     (void)vf;
     (void)vi;
@@ -55173,15 +63378,13 @@ static uint32_t vu1prog_4_1FD0(VU1NativeCtx &c)
     return (taken ? 0x3400u : 0x1FE8u);
 }
 
-static uint32_t vu1prog_4_1FE8(VU1NativeCtx &c)
+static uint32_t vu1prog_5_1FE8(VU1NativeCtx &c)
 {
     using namespace vu1n;
     VU1State &s = *c.st;
     float (*vf)[4] = s.vf;
     int32_t *vi = s.vi;
     uint8_t *m = c.mem;
-    bool upperClipSameCycle = false;
-    (void)upperClipSameCycle;
     (void)m;
     (void)vf;
     (void)vi;
@@ -55212,15 +63415,13 @@ static uint32_t vu1prog_4_1FE8(VU1NativeCtx &c)
     return (taken ? 0xBE8u : 0x2000u);
 }
 
-static uint32_t vu1prog_4_2000(VU1NativeCtx &c)
+static uint32_t vu1prog_5_2000(VU1NativeCtx &c)
 {
     using namespace vu1n;
     VU1State &s = *c.st;
     float (*vf)[4] = s.vf;
     int32_t *vi = s.vi;
     uint8_t *m = c.mem;
-    bool upperClipSameCycle = false;
-    (void)upperClipSameCycle;
     (void)m;
     (void)vf;
     (void)vi;
@@ -55242,15 +63443,13 @@ static uint32_t vu1prog_4_2000(VU1NativeCtx &c)
     return target;
 }
 
-static uint32_t vu1prog_4_2010(VU1NativeCtx &c)
+static uint32_t vu1prog_5_2010(VU1NativeCtx &c)
 {
     using namespace vu1n;
     VU1State &s = *c.st;
     float (*vf)[4] = s.vf;
     int32_t *vi = s.vi;
     uint8_t *m = c.mem;
-    bool upperClipSameCycle = false;
-    (void)upperClipSameCycle;
     (void)m;
     (void)vf;
     (void)vi;
@@ -55359,15 +63558,13 @@ static uint32_t vu1prog_4_2010(VU1NativeCtx &c)
     return (taken ? 0xB88u : 0x2080u);
 }
 
-static uint32_t vu1prog_4_2080(VU1NativeCtx &c)
+static uint32_t vu1prog_5_2080(VU1NativeCtx &c)
 {
     using namespace vu1n;
     VU1State &s = *c.st;
     float (*vf)[4] = s.vf;
     int32_t *vi = s.vi;
     uint8_t *m = c.mem;
-    bool upperClipSameCycle = false;
-    (void)upperClipSameCycle;
     (void)m;
     (void)vf;
     (void)vi;
@@ -55401,15 +63598,13 @@ static uint32_t vu1prog_4_2080(VU1NativeCtx &c)
     return (taken ? 0xBE8u : 0x2098u);
 }
 
-static uint32_t vu1prog_4_2098(VU1NativeCtx &c)
+static uint32_t vu1prog_5_2098(VU1NativeCtx &c)
 {
     using namespace vu1n;
     VU1State &s = *c.st;
     float (*vf)[4] = s.vf;
     int32_t *vi = s.vi;
     uint8_t *m = c.mem;
-    bool upperClipSameCycle = false;
-    (void)upperClipSameCycle;
     (void)m;
     (void)vf;
     (void)vi;
@@ -55443,15 +63638,13 @@ static uint32_t vu1prog_4_2098(VU1NativeCtx &c)
     return (taken ? 0xCE8u : 0x20B0u);
 }
 
-static uint32_t vu1prog_4_20B0(VU1NativeCtx &c)
+static uint32_t vu1prog_5_20B0(VU1NativeCtx &c)
 {
     using namespace vu1n;
     VU1State &s = *c.st;
     float (*vf)[4] = s.vf;
     int32_t *vi = s.vi;
     uint8_t *m = c.mem;
-    bool upperClipSameCycle = false;
-    (void)upperClipSameCycle;
     (void)m;
     (void)vf;
     (void)vi;
@@ -55481,15 +63674,13 @@ static uint32_t vu1prog_4_20B0(VU1NativeCtx &c)
     return (taken ? 0x3400u : 0x20C8u);
 }
 
-static uint32_t vu1prog_4_20C8(VU1NativeCtx &c)
+static uint32_t vu1prog_5_20C8(VU1NativeCtx &c)
 {
     using namespace vu1n;
     VU1State &s = *c.st;
     float (*vf)[4] = s.vf;
     int32_t *vi = s.vi;
     uint8_t *m = c.mem;
-    bool upperClipSameCycle = false;
-    (void)upperClipSameCycle;
     (void)m;
     (void)vf;
     (void)vi;
@@ -55520,15 +63711,13 @@ static uint32_t vu1prog_4_20C8(VU1NativeCtx &c)
     return (taken ? 0xBE8u : 0x20E0u);
 }
 
-static uint32_t vu1prog_4_20E0(VU1NativeCtx &c)
+static uint32_t vu1prog_5_20E0(VU1NativeCtx &c)
 {
     using namespace vu1n;
     VU1State &s = *c.st;
     float (*vf)[4] = s.vf;
     int32_t *vi = s.vi;
     uint8_t *m = c.mem;
-    bool upperClipSameCycle = false;
-    (void)upperClipSameCycle;
     (void)m;
     (void)vf;
     (void)vi;
@@ -55550,15 +63739,13 @@ static uint32_t vu1prog_4_20E0(VU1NativeCtx &c)
     return target;
 }
 
-static uint32_t vu1prog_4_20F0(VU1NativeCtx &c)
+static uint32_t vu1prog_5_20F0(VU1NativeCtx &c)
 {
     using namespace vu1n;
     VU1State &s = *c.st;
     float (*vf)[4] = s.vf;
     int32_t *vi = s.vi;
     uint8_t *m = c.mem;
-    bool upperClipSameCycle = false;
-    (void)upperClipSameCycle;
     (void)m;
     (void)vf;
     (void)vi;
@@ -55667,15 +63854,13 @@ static uint32_t vu1prog_4_20F0(VU1NativeCtx &c)
     return (taken ? 0x8B8u : 0x2160u);
 }
 
-static uint32_t vu1prog_4_2160(VU1NativeCtx &c)
+static uint32_t vu1prog_5_2160(VU1NativeCtx &c)
 {
     using namespace vu1n;
     VU1State &s = *c.st;
     float (*vf)[4] = s.vf;
     int32_t *vi = s.vi;
     uint8_t *m = c.mem;
-    bool upperClipSameCycle = false;
-    (void)upperClipSameCycle;
     (void)m;
     (void)vf;
     (void)vi;
@@ -55697,15 +63882,13 @@ static uint32_t vu1prog_4_2160(VU1NativeCtx &c)
     return target;
 }
 
-static uint32_t vu1prog_4_2170(VU1NativeCtx &c)
+static uint32_t vu1prog_5_2170(VU1NativeCtx &c)
 {
     using namespace vu1n;
     VU1State &s = *c.st;
     float (*vf)[4] = s.vf;
     int32_t *vi = s.vi;
     uint8_t *m = c.mem;
-    bool upperClipSameCycle = false;
-    (void)upperClipSameCycle;
     (void)m;
     (void)vf;
     (void)vi;
@@ -56065,15 +64248,13 @@ static uint32_t vu1prog_4_2170(VU1NativeCtx &c)
     return target;
 }
 
-static uint32_t vu1prog_4_2270(VU1NativeCtx &c)
+static uint32_t vu1prog_5_2270(VU1NativeCtx &c)
 {
     using namespace vu1n;
     VU1State &s = *c.st;
     float (*vf)[4] = s.vf;
     int32_t *vi = s.vi;
     uint8_t *m = c.mem;
-    bool upperClipSameCycle = false;
-    (void)upperClipSameCycle;
     (void)m;
     (void)vf;
     (void)vi;
@@ -56106,15 +64287,13 @@ static uint32_t vu1prog_4_2270(VU1NativeCtx &c)
     return (taken ? 0x2320u : 0x2290u);
 }
 
-static uint32_t vu1prog_4_2290(VU1NativeCtx &c)
+static uint32_t vu1prog_5_2290(VU1NativeCtx &c)
 {
     using namespace vu1n;
     VU1State &s = *c.st;
     float (*vf)[4] = s.vf;
     int32_t *vi = s.vi;
     uint8_t *m = c.mem;
-    bool upperClipSameCycle = false;
-    (void)upperClipSameCycle;
     (void)m;
     (void)vf;
     (void)vi;
@@ -56133,15 +64312,13 @@ static uint32_t vu1prog_4_2290(VU1NativeCtx &c)
     return 0x2388u;
 }
 
-static uint32_t vu1prog_4_22C8(VU1NativeCtx &c)
+static uint32_t vu1prog_5_22C8(VU1NativeCtx &c)
 {
     using namespace vu1n;
     VU1State &s = *c.st;
     float (*vf)[4] = s.vf;
     int32_t *vi = s.vi;
     uint8_t *m = c.mem;
-    bool upperClipSameCycle = false;
-    (void)upperClipSameCycle;
     (void)m;
     (void)vf;
     (void)vi;
@@ -56174,15 +64351,13 @@ static uint32_t vu1prog_4_22C8(VU1NativeCtx &c)
     return (taken ? 0x2358u : 0x22E8u);
 }
 
-static uint32_t vu1prog_4_22E8(VU1NativeCtx &c)
+static uint32_t vu1prog_5_22E8(VU1NativeCtx &c)
 {
     using namespace vu1n;
     VU1State &s = *c.st;
     float (*vf)[4] = s.vf;
     int32_t *vi = s.vi;
     uint8_t *m = c.mem;
-    bool upperClipSameCycle = false;
-    (void)upperClipSameCycle;
     (void)m;
     (void)vf;
     (void)vi;
@@ -56201,15 +64376,13 @@ static uint32_t vu1prog_4_22E8(VU1NativeCtx &c)
     return 0x23C0u;
 }
 
-static uint32_t vu1prog_4_2320(VU1NativeCtx &c)
+static uint32_t vu1prog_5_2320(VU1NativeCtx &c)
 {
     using namespace vu1n;
     VU1State &s = *c.st;
     float (*vf)[4] = s.vf;
     int32_t *vi = s.vi;
     uint8_t *m = c.mem;
-    bool upperClipSameCycle = false;
-    (void)upperClipSameCycle;
     (void)m;
     (void)vf;
     (void)vi;
@@ -56246,15 +64419,13 @@ static uint32_t vu1prog_4_2320(VU1NativeCtx &c)
     return 0x2428u;
 }
 
-static uint32_t vu1prog_4_2340(VU1NativeCtx &c)
+static uint32_t vu1prog_5_2340(VU1NativeCtx &c)
 {
     using namespace vu1n;
     VU1State &s = *c.st;
     float (*vf)[4] = s.vf;
     int32_t *vi = s.vi;
     uint8_t *m = c.mem;
-    bool upperClipSameCycle = false;
-    (void)upperClipSameCycle;
     (void)m;
     (void)vf;
     (void)vi;
@@ -56273,15 +64444,13 @@ static uint32_t vu1prog_4_2340(VU1NativeCtx &c)
     return kEnded;
 }
 
-static uint32_t vu1prog_4_2358(VU1NativeCtx &c)
+static uint32_t vu1prog_5_2358(VU1NativeCtx &c)
 {
     using namespace vu1n;
     VU1State &s = *c.st;
     float (*vf)[4] = s.vf;
     int32_t *vi = s.vi;
     uint8_t *m = c.mem;
-    bool upperClipSameCycle = false;
-    (void)upperClipSameCycle;
     (void)m;
     (void)vf;
     (void)vi;
@@ -56311,15 +64480,13 @@ static uint32_t vu1prog_4_2358(VU1NativeCtx &c)
     return 0x2540u;
 }
 
-static uint32_t vu1prog_4_2370(VU1NativeCtx &c)
+static uint32_t vu1prog_5_2370(VU1NativeCtx &c)
 {
     using namespace vu1n;
     VU1State &s = *c.st;
     float (*vf)[4] = s.vf;
     int32_t *vi = s.vi;
     uint8_t *m = c.mem;
-    bool upperClipSameCycle = false;
-    (void)upperClipSameCycle;
     (void)m;
     (void)vf;
     (void)vi;
@@ -56338,15 +64505,13 @@ static uint32_t vu1prog_4_2370(VU1NativeCtx &c)
     return kEnded;
 }
 
-static uint32_t vu1prog_4_2388(VU1NativeCtx &c)
+static uint32_t vu1prog_5_2388(VU1NativeCtx &c)
 {
     using namespace vu1n;
     VU1State &s = *c.st;
     float (*vf)[4] = s.vf;
     int32_t *vi = s.vi;
     uint8_t *m = c.mem;
-    bool upperClipSameCycle = false;
-    (void)upperClipSameCycle;
     (void)m;
     (void)vf;
     (void)vi;
@@ -56388,15 +64553,13 @@ static uint32_t vu1prog_4_2388(VU1NativeCtx &c)
     return 0x2710u;
 }
 
-static uint32_t vu1prog_4_23B0(VU1NativeCtx &c)
+static uint32_t vu1prog_5_23B0(VU1NativeCtx &c)
 {
     using namespace vu1n;
     VU1State &s = *c.st;
     float (*vf)[4] = s.vf;
     int32_t *vi = s.vi;
     uint8_t *m = c.mem;
-    bool upperClipSameCycle = false;
-    (void)upperClipSameCycle;
     (void)m;
     (void)vf;
     (void)vi;
@@ -56415,15 +64578,13 @@ static uint32_t vu1prog_4_23B0(VU1NativeCtx &c)
     return kEnded;
 }
 
-static uint32_t vu1prog_4_23C0(VU1NativeCtx &c)
+static uint32_t vu1prog_5_23C0(VU1NativeCtx &c)
 {
     using namespace vu1n;
     VU1State &s = *c.st;
     float (*vf)[4] = s.vf;
     int32_t *vi = s.vi;
     uint8_t *m = c.mem;
-    bool upperClipSameCycle = false;
-    (void)upperClipSameCycle;
     (void)m;
     (void)vf;
     (void)vi;
@@ -56458,15 +64619,13 @@ static uint32_t vu1prog_4_23C0(VU1NativeCtx &c)
     return 0x2710u;
 }
 
-static uint32_t vu1prog_4_23E0(VU1NativeCtx &c)
+static uint32_t vu1prog_5_23E0(VU1NativeCtx &c)
 {
     using namespace vu1n;
     VU1State &s = *c.st;
     float (*vf)[4] = s.vf;
     int32_t *vi = s.vi;
     uint8_t *m = c.mem;
-    bool upperClipSameCycle = false;
-    (void)upperClipSameCycle;
     (void)m;
     (void)vf;
     (void)vi;
@@ -56485,15 +64644,13 @@ static uint32_t vu1prog_4_23E0(VU1NativeCtx &c)
     return kEnded;
 }
 
-static uint32_t vu1prog_4_2400(VU1NativeCtx &c)
+static uint32_t vu1prog_5_2400(VU1NativeCtx &c)
 {
     using namespace vu1n;
     VU1State &s = *c.st;
     float (*vf)[4] = s.vf;
     int32_t *vi = s.vi;
     uint8_t *m = c.mem;
-    bool upperClipSameCycle = false;
-    (void)upperClipSameCycle;
     (void)m;
     (void)vf;
     (void)vi;
@@ -56526,15 +64683,13 @@ static uint32_t vu1prog_4_2400(VU1NativeCtx &c)
     return kEnded;
 }
 
-static uint32_t vu1prog_4_2428(VU1NativeCtx &c)
+static uint32_t vu1prog_5_2428(VU1NativeCtx &c)
 {
     using namespace vu1n;
     VU1State &s = *c.st;
     float (*vf)[4] = s.vf;
     int32_t *vi = s.vi;
     uint8_t *m = c.mem;
-    bool upperClipSameCycle = false;
-    (void)upperClipSameCycle;
     (void)m;
     (void)vf;
     (void)vi;
@@ -56589,15 +64744,13 @@ static uint32_t vu1prog_4_2428(VU1NativeCtx &c)
     return (taken ? 0x2470u : 0x2460u);
 }
 
-static uint32_t vu1prog_4_2460(VU1NativeCtx &c)
+static uint32_t vu1prog_5_2460(VU1NativeCtx &c)
 {
     using namespace vu1n;
     VU1State &s = *c.st;
     float (*vf)[4] = s.vf;
     int32_t *vi = s.vi;
     uint8_t *m = c.mem;
-    bool upperClipSameCycle = false;
-    (void)upperClipSameCycle;
     (void)m;
     (void)vf;
     (void)vi;
@@ -56621,15 +64774,13 @@ static uint32_t vu1prog_4_2460(VU1NativeCtx &c)
     return 0x2170u;
 }
 
-static uint32_t vu1prog_4_2470(VU1NativeCtx &c)
+static uint32_t vu1prog_5_2470(VU1NativeCtx &c)
 {
     using namespace vu1n;
     VU1State &s = *c.st;
     float (*vf)[4] = s.vf;
     int32_t *vi = s.vi;
     uint8_t *m = c.mem;
-    bool upperClipSameCycle = false;
-    (void)upperClipSameCycle;
     (void)m;
     (void)vf;
     (void)vi;
@@ -57026,15 +65177,13 @@ static uint32_t vu1prog_4_2470(VU1NativeCtx &c)
     return 0x2540u;
 }
 
-static uint32_t vu1prog_4_2540(VU1NativeCtx &c)
+static uint32_t vu1prog_5_2540(VU1NativeCtx &c)
 {
     using namespace vu1n;
     VU1State &s = *c.st;
     float (*vf)[4] = s.vf;
     int32_t *vi = s.vi;
     uint8_t *m = c.mem;
-    bool upperClipSameCycle = false;
-    (void)upperClipSameCycle;
     (void)m;
     (void)vf;
     (void)vi;
@@ -57062,15 +65211,13 @@ static uint32_t vu1prog_4_2540(VU1NativeCtx &c)
     return 0x1F40u;
 }
 
-static uint32_t vu1prog_4_2558(VU1NativeCtx &c)
+static uint32_t vu1prog_5_2558(VU1NativeCtx &c)
 {
     using namespace vu1n;
     VU1State &s = *c.st;
     float (*vf)[4] = s.vf;
     int32_t *vi = s.vi;
     uint8_t *m = c.mem;
-    bool upperClipSameCycle = false;
-    (void)upperClipSameCycle;
     (void)m;
     (void)vf;
     (void)vi;
@@ -57091,15 +65238,13 @@ static uint32_t vu1prog_4_2558(VU1NativeCtx &c)
     return 0x20F0u;
 }
 
-static uint32_t vu1prog_4_2568(VU1NativeCtx &c)
+static uint32_t vu1prog_5_2568(VU1NativeCtx &c)
 {
     using namespace vu1n;
     VU1State &s = *c.st;
     float (*vf)[4] = s.vf;
     int32_t *vi = s.vi;
     uint8_t *m = c.mem;
-    bool upperClipSameCycle = false;
-    (void)upperClipSameCycle;
     (void)m;
     (void)vf;
     (void)vi;
@@ -57363,15 +65508,13 @@ static uint32_t vu1prog_4_2568(VU1NativeCtx &c)
     return (taken ? 0x26A0u : 0x2650u);
 }
 
-static uint32_t vu1prog_4_2650(VU1NativeCtx &c)
+static uint32_t vu1prog_5_2650(VU1NativeCtx &c)
 {
     using namespace vu1n;
     VU1State &s = *c.st;
     float (*vf)[4] = s.vf;
     int32_t *vi = s.vi;
     uint8_t *m = c.mem;
-    bool upperClipSameCycle = false;
-    (void)upperClipSameCycle;
     (void)m;
     (void)vf;
     (void)vi;
@@ -57393,15 +65536,13 @@ static uint32_t vu1prog_4_2650(VU1NativeCtx &c)
     return (taken ? 0x2680u : 0x2660u);
 }
 
-static uint32_t vu1prog_4_2660(VU1NativeCtx &c)
+static uint32_t vu1prog_5_2660(VU1NativeCtx &c)
 {
     using namespace vu1n;
     VU1State &s = *c.st;
     float (*vf)[4] = s.vf;
     int32_t *vi = s.vi;
     uint8_t *m = c.mem;
-    bool upperClipSameCycle = false;
-    (void)upperClipSameCycle;
     (void)m;
     (void)vf;
     (void)vi;
@@ -57422,15 +65563,13 @@ static uint32_t vu1prog_4_2660(VU1NativeCtx &c)
     return 0x2F60u;
 }
 
-static uint32_t vu1prog_4_2670(VU1NativeCtx &c)
+static uint32_t vu1prog_5_2670(VU1NativeCtx &c)
 {
     using namespace vu1n;
     VU1State &s = *c.st;
     float (*vf)[4] = s.vf;
     int32_t *vi = s.vi;
     uint8_t *m = c.mem;
-    bool upperClipSameCycle = false;
-    (void)upperClipSameCycle;
     (void)m;
     (void)vf;
     (void)vi;
@@ -57449,15 +65588,13 @@ static uint32_t vu1prog_4_2670(VU1NativeCtx &c)
     return 0x26E0u;
 }
 
-static uint32_t vu1prog_4_2680(VU1NativeCtx &c)
+static uint32_t vu1prog_5_2680(VU1NativeCtx &c)
 {
     using namespace vu1n;
     VU1State &s = *c.st;
     float (*vf)[4] = s.vf;
     int32_t *vi = s.vi;
     uint8_t *m = c.mem;
-    bool upperClipSameCycle = false;
-    (void)upperClipSameCycle;
     (void)m;
     (void)vf;
     (void)vi;
@@ -57478,15 +65615,13 @@ static uint32_t vu1prog_4_2680(VU1NativeCtx &c)
     return 0x2D28u;
 }
 
-static uint32_t vu1prog_4_2690(VU1NativeCtx &c)
+static uint32_t vu1prog_5_2690(VU1NativeCtx &c)
 {
     using namespace vu1n;
     VU1State &s = *c.st;
     float (*vf)[4] = s.vf;
     int32_t *vi = s.vi;
     uint8_t *m = c.mem;
-    bool upperClipSameCycle = false;
-    (void)upperClipSameCycle;
     (void)m;
     (void)vf;
     (void)vi;
@@ -57505,15 +65640,13 @@ static uint32_t vu1prog_4_2690(VU1NativeCtx &c)
     return 0x26E0u;
 }
 
-static uint32_t vu1prog_4_26A0(VU1NativeCtx &c)
+static uint32_t vu1prog_5_26A0(VU1NativeCtx &c)
 {
     using namespace vu1n;
     VU1State &s = *c.st;
     float (*vf)[4] = s.vf;
     int32_t *vi = s.vi;
     uint8_t *m = c.mem;
-    bool upperClipSameCycle = false;
-    (void)upperClipSameCycle;
     (void)m;
     (void)vf;
     (void)vi;
@@ -57535,15 +65668,13 @@ static uint32_t vu1prog_4_26A0(VU1NativeCtx &c)
     return (taken ? 0x26D0u : 0x26B0u);
 }
 
-static uint32_t vu1prog_4_26B0(VU1NativeCtx &c)
+static uint32_t vu1prog_5_26B0(VU1NativeCtx &c)
 {
     using namespace vu1n;
     VU1State &s = *c.st;
     float (*vf)[4] = s.vf;
     int32_t *vi = s.vi;
     uint8_t *m = c.mem;
-    bool upperClipSameCycle = false;
-    (void)upperClipSameCycle;
     (void)m;
     (void)vf;
     (void)vi;
@@ -57564,15 +65695,13 @@ static uint32_t vu1prog_4_26B0(VU1NativeCtx &c)
     return 0x2B28u;
 }
 
-static uint32_t vu1prog_4_26C0(VU1NativeCtx &c)
+static uint32_t vu1prog_5_26C0(VU1NativeCtx &c)
 {
     using namespace vu1n;
     VU1State &s = *c.st;
     float (*vf)[4] = s.vf;
     int32_t *vi = s.vi;
     uint8_t *m = c.mem;
-    bool upperClipSameCycle = false;
-    (void)upperClipSameCycle;
     (void)m;
     (void)vf;
     (void)vi;
@@ -57591,15 +65720,13 @@ static uint32_t vu1prog_4_26C0(VU1NativeCtx &c)
     return 0x26E0u;
 }
 
-static uint32_t vu1prog_4_26D0(VU1NativeCtx &c)
+static uint32_t vu1prog_5_26D0(VU1NativeCtx &c)
 {
     using namespace vu1n;
     VU1State &s = *c.st;
     float (*vf)[4] = s.vf;
     int32_t *vi = s.vi;
     uint8_t *m = c.mem;
-    bool upperClipSameCycle = false;
-    (void)upperClipSameCycle;
     (void)m;
     (void)vf;
     (void)vi;
@@ -57620,15 +65747,13 @@ static uint32_t vu1prog_4_26D0(VU1NativeCtx &c)
     return 0x2908u;
 }
 
-static uint32_t vu1prog_4_26E0(VU1NativeCtx &c)
+static uint32_t vu1prog_5_26E0(VU1NativeCtx &c)
 {
     using namespace vu1n;
     VU1State &s = *c.st;
     float (*vf)[4] = s.vf;
     int32_t *vi = s.vi;
     uint8_t *m = c.mem;
-    bool upperClipSameCycle = false;
-    (void)upperClipSameCycle;
     (void)m;
     (void)vf;
     (void)vi;
@@ -57677,15 +65802,13 @@ static uint32_t vu1prog_4_26E0(VU1NativeCtx &c)
     return target;
 }
 
-static uint32_t vu1prog_4_2710(VU1NativeCtx &c)
+static uint32_t vu1prog_5_2710(VU1NativeCtx &c)
 {
     using namespace vu1n;
     VU1State &s = *c.st;
     float (*vf)[4] = s.vf;
     int32_t *vi = s.vi;
     uint8_t *m = c.mem;
-    bool upperClipSameCycle = false;
-    (void)upperClipSameCycle;
     (void)m;
     (void)vf;
     (void)vi;
@@ -57713,15 +65836,13 @@ static uint32_t vu1prog_4_2710(VU1NativeCtx &c)
     return 0x2010u;
 }
 
-static uint32_t vu1prog_4_2728(VU1NativeCtx &c)
+static uint32_t vu1prog_5_2728(VU1NativeCtx &c)
 {
     using namespace vu1n;
     VU1State &s = *c.st;
     float (*vf)[4] = s.vf;
     int32_t *vi = s.vi;
     uint8_t *m = c.mem;
-    bool upperClipSameCycle = false;
-    (void)upperClipSameCycle;
     (void)m;
     (void)vf;
     (void)vi;
@@ -57857,15 +65978,13 @@ static uint32_t vu1prog_4_2728(VU1NativeCtx &c)
     return (taken ? 0x28C8u : 0x27B0u);
 }
 
-static uint32_t vu1prog_4_27B0(VU1NativeCtx &c)
+static uint32_t vu1prog_5_27B0(VU1NativeCtx &c)
 {
     using namespace vu1n;
     VU1State &s = *c.st;
     float (*vf)[4] = s.vf;
     int32_t *vi = s.vi;
     uint8_t *m = c.mem;
-    bool upperClipSameCycle = false;
-    (void)upperClipSameCycle;
     (void)m;
     (void)vf;
     (void)vi;
@@ -58092,15 +66211,13 @@ static uint32_t vu1prog_4_27B0(VU1NativeCtx &c)
     return 0x2F60u;
 }
 
-static uint32_t vu1prog_4_2878(VU1NativeCtx &c)
+static uint32_t vu1prog_5_2878(VU1NativeCtx &c)
 {
     using namespace vu1n;
     VU1State &s = *c.st;
     float (*vf)[4] = s.vf;
     int32_t *vi = s.vi;
     uint8_t *m = c.mem;
-    bool upperClipSameCycle = false;
-    (void)upperClipSameCycle;
     (void)m;
     (void)vf;
     (void)vi;
@@ -58177,15 +66294,13 @@ static uint32_t vu1prog_4_2878(VU1NativeCtx &c)
     return target;
 }
 
-static uint32_t vu1prog_4_28C8(VU1NativeCtx &c)
+static uint32_t vu1prog_5_28C8(VU1NativeCtx &c)
 {
     using namespace vu1n;
     VU1State &s = *c.st;
     float (*vf)[4] = s.vf;
     int32_t *vi = s.vi;
     uint8_t *m = c.mem;
-    bool upperClipSameCycle = false;
-    (void)upperClipSameCycle;
     (void)m;
     (void)vf;
     (void)vi;
@@ -58206,15 +66321,13 @@ static uint32_t vu1prog_4_28C8(VU1NativeCtx &c)
     return 0x3360u;
 }
 
-static uint32_t vu1prog_4_28D8(VU1NativeCtx &c)
+static uint32_t vu1prog_5_28D8(VU1NativeCtx &c)
 {
     using namespace vu1n;
     VU1State &s = *c.st;
     float (*vf)[4] = s.vf;
     int32_t *vi = s.vi;
     uint8_t *m = c.mem;
-    bool upperClipSameCycle = false;
-    (void)upperClipSameCycle;
     (void)m;
     (void)vf;
     (void)vi;
@@ -58263,15 +66376,13 @@ static uint32_t vu1prog_4_28D8(VU1NativeCtx &c)
     return target;
 }
 
-static uint32_t vu1prog_4_2908(VU1NativeCtx &c)
+static uint32_t vu1prog_5_2908(VU1NativeCtx &c)
 {
     using namespace vu1n;
     VU1State &s = *c.st;
     float (*vf)[4] = s.vf;
     int32_t *vi = s.vi;
     uint8_t *m = c.mem;
-    bool upperClipSameCycle = false;
-    (void)upperClipSameCycle;
     (void)m;
     (void)vf;
     (void)vi;
@@ -58417,15 +66528,13 @@ static uint32_t vu1prog_4_2908(VU1NativeCtx &c)
     return 0x2950;
 }
 
-static uint32_t vu1prog_4_2950(VU1NativeCtx &c)
+static uint32_t vu1prog_5_2950(VU1NativeCtx &c)
 {
     using namespace vu1n;
     VU1State &s = *c.st;
     float (*vf)[4] = s.vf;
     int32_t *vi = s.vi;
     uint8_t *m = c.mem;
-    bool upperClipSameCycle = false;
-    (void)upperClipSameCycle;
     (void)m;
     (void)vf;
     (void)vi;
@@ -58776,15 +66885,13 @@ static uint32_t vu1prog_4_2950(VU1NativeCtx &c)
     return (taken ? 0x2A58u : 0x2A10u);
 }
 
-static uint32_t vu1prog_4_2A10(VU1NativeCtx &c)
+static uint32_t vu1prog_5_2A10(VU1NativeCtx &c)
 {
     using namespace vu1n;
     VU1State &s = *c.st;
     float (*vf)[4] = s.vf;
     int32_t *vi = s.vi;
     uint8_t *m = c.mem;
-    bool upperClipSameCycle = false;
-    (void)upperClipSameCycle;
     (void)m;
     (void)vf;
     (void)vi;
@@ -59001,15 +67108,13 @@ static uint32_t vu1prog_4_2A10(VU1NativeCtx &c)
     return (taken ? 0x2A10u : 0x2A58u);
 }
 
-static uint32_t vu1prog_4_2A58(VU1NativeCtx &c)
+static uint32_t vu1prog_5_2A58(VU1NativeCtx &c)
 {
     using namespace vu1n;
     VU1State &s = *c.st;
     float (*vf)[4] = s.vf;
     int32_t *vi = s.vi;
     uint8_t *m = c.mem;
-    bool upperClipSameCycle = false;
-    (void)upperClipSameCycle;
     (void)m;
     (void)vf;
     (void)vi;
@@ -59325,15 +67430,13 @@ static uint32_t vu1prog_4_2A58(VU1NativeCtx &c)
     return (taken ? 0x2950u : 0x2B08u);
 }
 
-static uint32_t vu1prog_4_2B08(VU1NativeCtx &c)
+static uint32_t vu1prog_5_2B08(VU1NativeCtx &c)
 {
     using namespace vu1n;
     VU1State &s = *c.st;
     float (*vf)[4] = s.vf;
     int32_t *vi = s.vi;
     uint8_t *m = c.mem;
-    bool upperClipSameCycle = false;
-    (void)upperClipSameCycle;
     (void)m;
     (void)vf;
     (void)vi;
@@ -59365,15 +67468,13 @@ static uint32_t vu1prog_4_2B08(VU1NativeCtx &c)
     return target;
 }
 
-static uint32_t vu1prog_4_2B28(VU1NativeCtx &c)
+static uint32_t vu1prog_5_2B28(VU1NativeCtx &c)
 {
     using namespace vu1n;
     VU1State &s = *c.st;
     float (*vf)[4] = s.vf;
     int32_t *vi = s.vi;
     uint8_t *m = c.mem;
-    bool upperClipSameCycle = false;
-    (void)upperClipSameCycle;
     (void)m;
     (void)vf;
     (void)vi;
@@ -59519,15 +67620,13 @@ static uint32_t vu1prog_4_2B28(VU1NativeCtx &c)
     return 0x2B70;
 }
 
-static uint32_t vu1prog_4_2B70(VU1NativeCtx &c)
+static uint32_t vu1prog_5_2B70(VU1NativeCtx &c)
 {
     using namespace vu1n;
     VU1State &s = *c.st;
     float (*vf)[4] = s.vf;
     int32_t *vi = s.vi;
     uint8_t *m = c.mem;
-    bool upperClipSameCycle = false;
-    (void)upperClipSameCycle;
     (void)m;
     (void)vf;
     (void)vi;
@@ -59897,15 +67996,13 @@ static uint32_t vu1prog_4_2B70(VU1NativeCtx &c)
     return (taken ? 0x2C78u : 0x2C30u);
 }
 
-static uint32_t vu1prog_4_2C30(VU1NativeCtx &c)
+static uint32_t vu1prog_5_2C30(VU1NativeCtx &c)
 {
     using namespace vu1n;
     VU1State &s = *c.st;
     float (*vf)[4] = s.vf;
     int32_t *vi = s.vi;
     uint8_t *m = c.mem;
-    bool upperClipSameCycle = false;
-    (void)upperClipSameCycle;
     (void)m;
     (void)vf;
     (void)vi;
@@ -60117,15 +68214,13 @@ static uint32_t vu1prog_4_2C30(VU1NativeCtx &c)
     return (taken ? 0x2C30u : 0x2C78u);
 }
 
-static uint32_t vu1prog_4_2C78(VU1NativeCtx &c)
+static uint32_t vu1prog_5_2C78(VU1NativeCtx &c)
 {
     using namespace vu1n;
     VU1State &s = *c.st;
     float (*vf)[4] = s.vf;
     int32_t *vi = s.vi;
     uint8_t *m = c.mem;
-    bool upperClipSameCycle = false;
-    (void)upperClipSameCycle;
     (void)m;
     (void)vf;
     (void)vi;
@@ -60423,15 +68518,13 @@ static uint32_t vu1prog_4_2C78(VU1NativeCtx &c)
     return (taken ? 0x2B70u : 0x2D08u);
 }
 
-static uint32_t vu1prog_4_2D08(VU1NativeCtx &c)
+static uint32_t vu1prog_5_2D08(VU1NativeCtx &c)
 {
     using namespace vu1n;
     VU1State &s = *c.st;
     float (*vf)[4] = s.vf;
     int32_t *vi = s.vi;
     uint8_t *m = c.mem;
-    bool upperClipSameCycle = false;
-    (void)upperClipSameCycle;
     (void)m;
     (void)vf;
     (void)vi;
@@ -60463,15 +68556,13 @@ static uint32_t vu1prog_4_2D08(VU1NativeCtx &c)
     return target;
 }
 
-static uint32_t vu1prog_4_2D28(VU1NativeCtx &c)
+static uint32_t vu1prog_5_2D28(VU1NativeCtx &c)
 {
     using namespace vu1n;
     VU1State &s = *c.st;
     float (*vf)[4] = s.vf;
     int32_t *vi = s.vi;
     uint8_t *m = c.mem;
-    bool upperClipSameCycle = false;
-    (void)upperClipSameCycle;
     (void)m;
     (void)vf;
     (void)vi;
@@ -61167,15 +69258,13 @@ static uint32_t vu1prog_4_2D28(VU1NativeCtx &c)
     return 0x2EA0;
 }
 
-static uint32_t vu1prog_4_2EA0(VU1NativeCtx &c)
+static uint32_t vu1prog_5_2EA0(VU1NativeCtx &c)
 {
     using namespace vu1n;
     VU1State &s = *c.st;
     float (*vf)[4] = s.vf;
     int32_t *vi = s.vi;
     uint8_t *m = c.mem;
-    bool upperClipSameCycle = false;
-    (void)upperClipSameCycle;
     (void)m;
     (void)vf;
     (void)vi;
@@ -61387,15 +69476,13 @@ static uint32_t vu1prog_4_2EA0(VU1NativeCtx &c)
     return (taken ? 0x2F30u : 0x2EF0u);
 }
 
-static uint32_t vu1prog_4_2EF0(VU1NativeCtx &c)
+static uint32_t vu1prog_5_2EF0(VU1NativeCtx &c)
 {
     using namespace vu1n;
     VU1State &s = *c.st;
     float (*vf)[4] = s.vf;
     int32_t *vi = s.vi;
     uint8_t *m = c.mem;
-    bool upperClipSameCycle = false;
-    (void)upperClipSameCycle;
     (void)m;
     (void)vf;
     (void)vi;
@@ -61459,15 +69546,13 @@ static uint32_t vu1prog_4_2EF0(VU1NativeCtx &c)
     return (taken ? 0x2EA0u : 0x2F00u);
 }
 
-static uint32_t vu1prog_4_2F00(VU1NativeCtx &c)
+static uint32_t vu1prog_5_2F00(VU1NativeCtx &c)
 {
     using namespace vu1n;
     VU1State &s = *c.st;
     float (*vf)[4] = s.vf;
     int32_t *vi = s.vi;
     uint8_t *m = c.mem;
-    bool upperClipSameCycle = false;
-    (void)upperClipSameCycle;
     (void)m;
     (void)vf;
     (void)vi;
@@ -61514,15 +69599,13 @@ static uint32_t vu1prog_4_2F00(VU1NativeCtx &c)
     return (taken ? 0x2D28u : 0x2F20u);
 }
 
-static uint32_t vu1prog_4_2F20(VU1NativeCtx &c)
+static uint32_t vu1prog_5_2F20(VU1NativeCtx &c)
 {
     using namespace vu1n;
     VU1State &s = *c.st;
     float (*vf)[4] = s.vf;
     int32_t *vi = s.vi;
     uint8_t *m = c.mem;
-    bool upperClipSameCycle = false;
-    (void)upperClipSameCycle;
     (void)m;
     (void)vf;
     (void)vi;
@@ -61544,15 +69627,13 @@ static uint32_t vu1prog_4_2F20(VU1NativeCtx &c)
     return target;
 }
 
-static uint32_t vu1prog_4_2F30(VU1NativeCtx &c)
+static uint32_t vu1prog_5_2F30(VU1NativeCtx &c)
 {
     using namespace vu1n;
     VU1State &s = *c.st;
     float (*vf)[4] = s.vf;
     int32_t *vi = s.vi;
     uint8_t *m = c.mem;
-    bool upperClipSameCycle = false;
-    (void)upperClipSameCycle;
     (void)m;
     (void)vf;
     (void)vi;
@@ -61603,15 +69684,13 @@ static uint32_t vu1prog_4_2F30(VU1NativeCtx &c)
     return 0x3198u;
 }
 
-static uint32_t vu1prog_4_2F40(VU1NativeCtx &c)
+static uint32_t vu1prog_5_2F40(VU1NativeCtx &c)
 {
     using namespace vu1n;
     VU1State &s = *c.st;
     float (*vf)[4] = s.vf;
     int32_t *vi = s.vi;
     uint8_t *m = c.mem;
-    bool upperClipSameCycle = false;
-    (void)upperClipSameCycle;
     (void)m;
     (void)vf;
     (void)vi;
@@ -61645,15 +69724,13 @@ static uint32_t vu1prog_4_2F40(VU1NativeCtx &c)
     return (taken ? 0x2EA0u : 0x2F50u);
 }
 
-static uint32_t vu1prog_4_2F50(VU1NativeCtx &c)
+static uint32_t vu1prog_5_2F50(VU1NativeCtx &c)
 {
     using namespace vu1n;
     VU1State &s = *c.st;
     float (*vf)[4] = s.vf;
     int32_t *vi = s.vi;
     uint8_t *m = c.mem;
-    bool upperClipSameCycle = false;
-    (void)upperClipSameCycle;
     (void)m;
     (void)vf;
     (void)vi;
@@ -61672,15 +69749,13 @@ static uint32_t vu1prog_4_2F50(VU1NativeCtx &c)
     return 0x2F00u;
 }
 
-static uint32_t vu1prog_4_2F60(VU1NativeCtx &c)
+static uint32_t vu1prog_5_2F60(VU1NativeCtx &c)
 {
     using namespace vu1n;
     VU1State &s = *c.st;
     float (*vf)[4] = s.vf;
     int32_t *vi = s.vi;
     uint8_t *m = c.mem;
-    bool upperClipSameCycle = false;
-    (void)upperClipSameCycle;
     (void)m;
     (void)vf;
     (void)vi;
@@ -62351,15 +70426,13 @@ static uint32_t vu1prog_4_2F60(VU1NativeCtx &c)
     return 0x30D8;
 }
 
-static uint32_t vu1prog_4_30D8(VU1NativeCtx &c)
+static uint32_t vu1prog_5_30D8(VU1NativeCtx &c)
 {
     using namespace vu1n;
     VU1State &s = *c.st;
     float (*vf)[4] = s.vf;
     int32_t *vi = s.vi;
     uint8_t *m = c.mem;
-    bool upperClipSameCycle = false;
-    (void)upperClipSameCycle;
     (void)m;
     (void)vf;
     (void)vi;
@@ -62558,15 +70631,13 @@ static uint32_t vu1prog_4_30D8(VU1NativeCtx &c)
     return (taken ? 0x3168u : 0x3128u);
 }
 
-static uint32_t vu1prog_4_3128(VU1NativeCtx &c)
+static uint32_t vu1prog_5_3128(VU1NativeCtx &c)
 {
     using namespace vu1n;
     VU1State &s = *c.st;
     float (*vf)[4] = s.vf;
     int32_t *vi = s.vi;
     uint8_t *m = c.mem;
-    bool upperClipSameCycle = false;
-    (void)upperClipSameCycle;
     (void)m;
     (void)vf;
     (void)vi;
@@ -62630,15 +70701,13 @@ static uint32_t vu1prog_4_3128(VU1NativeCtx &c)
     return (taken ? 0x30D8u : 0x3138u);
 }
 
-static uint32_t vu1prog_4_3138(VU1NativeCtx &c)
+static uint32_t vu1prog_5_3138(VU1NativeCtx &c)
 {
     using namespace vu1n;
     VU1State &s = *c.st;
     float (*vf)[4] = s.vf;
     int32_t *vi = s.vi;
     uint8_t *m = c.mem;
-    bool upperClipSameCycle = false;
-    (void)upperClipSameCycle;
     (void)m;
     (void)vf;
     (void)vi;
@@ -62685,15 +70754,13 @@ static uint32_t vu1prog_4_3138(VU1NativeCtx &c)
     return (taken ? 0x2F60u : 0x3158u);
 }
 
-static uint32_t vu1prog_4_3158(VU1NativeCtx &c)
+static uint32_t vu1prog_5_3158(VU1NativeCtx &c)
 {
     using namespace vu1n;
     VU1State &s = *c.st;
     float (*vf)[4] = s.vf;
     int32_t *vi = s.vi;
     uint8_t *m = c.mem;
-    bool upperClipSameCycle = false;
-    (void)upperClipSameCycle;
     (void)m;
     (void)vf;
     (void)vi;
@@ -62715,15 +70782,13 @@ static uint32_t vu1prog_4_3158(VU1NativeCtx &c)
     return target;
 }
 
-static uint32_t vu1prog_4_3168(VU1NativeCtx &c)
+static uint32_t vu1prog_5_3168(VU1NativeCtx &c)
 {
     using namespace vu1n;
     VU1State &s = *c.st;
     float (*vf)[4] = s.vf;
     int32_t *vi = s.vi;
     uint8_t *m = c.mem;
-    bool upperClipSameCycle = false;
-    (void)upperClipSameCycle;
     (void)m;
     (void)vf;
     (void)vi;
@@ -62774,15 +70839,13 @@ static uint32_t vu1prog_4_3168(VU1NativeCtx &c)
     return 0x3198u;
 }
 
-static uint32_t vu1prog_4_3178(VU1NativeCtx &c)
+static uint32_t vu1prog_5_3178(VU1NativeCtx &c)
 {
     using namespace vu1n;
     VU1State &s = *c.st;
     float (*vf)[4] = s.vf;
     int32_t *vi = s.vi;
     uint8_t *m = c.mem;
-    bool upperClipSameCycle = false;
-    (void)upperClipSameCycle;
     (void)m;
     (void)vf;
     (void)vi;
@@ -62816,15 +70879,13 @@ static uint32_t vu1prog_4_3178(VU1NativeCtx &c)
     return (taken ? 0x30D8u : 0x3188u);
 }
 
-static uint32_t vu1prog_4_3188(VU1NativeCtx &c)
+static uint32_t vu1prog_5_3188(VU1NativeCtx &c)
 {
     using namespace vu1n;
     VU1State &s = *c.st;
     float (*vf)[4] = s.vf;
     int32_t *vi = s.vi;
     uint8_t *m = c.mem;
-    bool upperClipSameCycle = false;
-    (void)upperClipSameCycle;
     (void)m;
     (void)vf;
     (void)vi;
@@ -62843,15 +70904,13 @@ static uint32_t vu1prog_4_3188(VU1NativeCtx &c)
     return 0x3138u;
 }
 
-static uint32_t vu1prog_4_3198(VU1NativeCtx &c)
+static uint32_t vu1prog_5_3198(VU1NativeCtx &c)
 {
     using namespace vu1n;
     VU1State &s = *c.st;
     float (*vf)[4] = s.vf;
     int32_t *vi = s.vi;
     uint8_t *m = c.mem;
-    bool upperClipSameCycle = false;
-    (void)upperClipSameCycle;
     (void)m;
     (void)vf;
     (void)vi;
@@ -62891,15 +70950,13 @@ static uint32_t vu1prog_4_3198(VU1NativeCtx &c)
     return (taken ? 0x3350u : 0x31B8u);
 }
 
-static uint32_t vu1prog_4_31B8(VU1NativeCtx &c)
+static uint32_t vu1prog_5_31B8(VU1NativeCtx &c)
 {
     using namespace vu1n;
     VU1State &s = *c.st;
     float (*vf)[4] = s.vf;
     int32_t *vi = s.vi;
     uint8_t *m = c.mem;
-    bool upperClipSameCycle = false;
-    (void)upperClipSameCycle;
     (void)m;
     (void)vf;
     (void)vi;
@@ -62924,15 +70981,13 @@ static uint32_t vu1prog_4_31B8(VU1NativeCtx &c)
     return (taken ? 0x3350u : 0x31C8u);
 }
 
-static uint32_t vu1prog_4_31C8(VU1NativeCtx &c)
+static uint32_t vu1prog_5_31C8(VU1NativeCtx &c)
 {
     using namespace vu1n;
     VU1State &s = *c.st;
     float (*vf)[4] = s.vf;
     int32_t *vi = s.vi;
     uint8_t *m = c.mem;
-    bool upperClipSameCycle = false;
-    (void)upperClipSameCycle;
     (void)m;
     (void)vf;
     (void)vi;
@@ -62957,15 +71012,13 @@ static uint32_t vu1prog_4_31C8(VU1NativeCtx &c)
     return (taken ? 0x3350u : 0x31D8u);
 }
 
-static uint32_t vu1prog_4_31D8(VU1NativeCtx &c)
+static uint32_t vu1prog_5_31D8(VU1NativeCtx &c)
 {
     using namespace vu1n;
     VU1State &s = *c.st;
     float (*vf)[4] = s.vf;
     int32_t *vi = s.vi;
     uint8_t *m = c.mem;
-    bool upperClipSameCycle = false;
-    (void)upperClipSameCycle;
     (void)m;
     (void)vf;
     (void)vi;
@@ -62990,15 +71043,13 @@ static uint32_t vu1prog_4_31D8(VU1NativeCtx &c)
     return (taken ? 0x3350u : 0x31E8u);
 }
 
-static uint32_t vu1prog_4_31E8(VU1NativeCtx &c)
+static uint32_t vu1prog_5_31E8(VU1NativeCtx &c)
 {
     using namespace vu1n;
     VU1State &s = *c.st;
     float (*vf)[4] = s.vf;
     int32_t *vi = s.vi;
     uint8_t *m = c.mem;
-    bool upperClipSameCycle = false;
-    (void)upperClipSameCycle;
     (void)m;
     (void)vf;
     (void)vi;
@@ -63023,15 +71074,13 @@ static uint32_t vu1prog_4_31E8(VU1NativeCtx &c)
     return (taken ? 0x3350u : 0x31F8u);
 }
 
-static uint32_t vu1prog_4_31F8(VU1NativeCtx &c)
+static uint32_t vu1prog_5_31F8(VU1NativeCtx &c)
 {
     using namespace vu1n;
     VU1State &s = *c.st;
     float (*vf)[4] = s.vf;
     int32_t *vi = s.vi;
     uint8_t *m = c.mem;
-    bool upperClipSameCycle = false;
-    (void)upperClipSameCycle;
     (void)m;
     (void)vf;
     (void)vi;
@@ -63056,15 +71105,13 @@ static uint32_t vu1prog_4_31F8(VU1NativeCtx &c)
     return (taken ? 0x3350u : 0x3208u);
 }
 
-static uint32_t vu1prog_4_3208(VU1NativeCtx &c)
+static uint32_t vu1prog_5_3208(VU1NativeCtx &c)
 {
     using namespace vu1n;
     VU1State &s = *c.st;
     float (*vf)[4] = s.vf;
     int32_t *vi = s.vi;
     uint8_t *m = c.mem;
-    bool upperClipSameCycle = false;
-    (void)upperClipSameCycle;
     (void)m;
     (void)vf;
     (void)vi;
@@ -63528,15 +71575,13 @@ static uint32_t vu1prog_4_3208(VU1NativeCtx &c)
     return 0x1630u;
 }
 
-static uint32_t vu1prog_4_3318(VU1NativeCtx &c)
+static uint32_t vu1prog_5_3318(VU1NativeCtx &c)
 {
     using namespace vu1n;
     VU1State &s = *c.st;
     float (*vf)[4] = s.vf;
     int32_t *vi = s.vi;
     uint8_t *m = c.mem;
-    bool upperClipSameCycle = false;
-    (void)upperClipSameCycle;
     (void)m;
     (void)vf;
     (void)vi;
@@ -63609,15 +71654,13 @@ static uint32_t vu1prog_4_3318(VU1NativeCtx &c)
     return 0x3350;
 }
 
-static uint32_t vu1prog_4_3350(VU1NativeCtx &c)
+static uint32_t vu1prog_5_3350(VU1NativeCtx &c)
 {
     using namespace vu1n;
     VU1State &s = *c.st;
     float (*vf)[4] = s.vf;
     int32_t *vi = s.vi;
     uint8_t *m = c.mem;
-    bool upperClipSameCycle = false;
-    (void)upperClipSameCycle;
     (void)m;
     (void)vf;
     (void)vi;
@@ -63641,15 +71684,13 @@ static uint32_t vu1prog_4_3350(VU1NativeCtx &c)
     return target;
 }
 
-static uint32_t vu1prog_4_3360(VU1NativeCtx &c)
+static uint32_t vu1prog_5_3360(VU1NativeCtx &c)
 {
     using namespace vu1n;
     VU1State &s = *c.st;
     float (*vf)[4] = s.vf;
     int32_t *vi = s.vi;
     uint8_t *m = c.mem;
-    bool upperClipSameCycle = false;
-    (void)upperClipSameCycle;
     (void)m;
     (void)vf;
     (void)vi;
@@ -63762,15 +71803,13 @@ static uint32_t vu1prog_4_3360(VU1NativeCtx &c)
     return 0x33A8;
 }
 
-static uint32_t vu1prog_4_33A8(VU1NativeCtx &c)
+static uint32_t vu1prog_5_33A8(VU1NativeCtx &c)
 {
     using namespace vu1n;
     VU1State &s = *c.st;
     float (*vf)[4] = s.vf;
     int32_t *vi = s.vi;
     uint8_t *m = c.mem;
-    bool upperClipSameCycle = false;
-    (void)upperClipSameCycle;
     (void)m;
     (void)vf;
     (void)vi;
@@ -63859,15 +71898,13 @@ static uint32_t vu1prog_4_33A8(VU1NativeCtx &c)
     return (taken ? 0x33A8u : 0x33D8u);
 }
 
-static uint32_t vu1prog_4_33D8(VU1NativeCtx &c)
+static uint32_t vu1prog_5_33D8(VU1NativeCtx &c)
 {
     using namespace vu1n;
     VU1State &s = *c.st;
     float (*vf)[4] = s.vf;
     int32_t *vi = s.vi;
     uint8_t *m = c.mem;
-    bool upperClipSameCycle = false;
-    (void)upperClipSameCycle;
     (void)m;
     (void)vf;
     (void)vi;
@@ -63928,15 +71965,13 @@ static uint32_t vu1prog_4_33D8(VU1NativeCtx &c)
     return target;
 }
 
-static uint32_t vu1prog_4_3400(VU1NativeCtx &c)
+static uint32_t vu1prog_5_3400(VU1NativeCtx &c)
 {
     using namespace vu1n;
     VU1State &s = *c.st;
     float (*vf)[4] = s.vf;
     int32_t *vi = s.vi;
     uint8_t *m = c.mem;
-    bool upperClipSameCycle = false;
-    (void)upperClipSameCycle;
     (void)m;
     (void)vf;
     (void)vi;
@@ -64735,15 +72770,13 @@ static uint32_t vu1prog_4_3400(VU1NativeCtx &c)
     return (taken ? 0x38E0u : 0x3608u);
 }
 
-static uint32_t vu1prog_4_3608(VU1NativeCtx &c)
+static uint32_t vu1prog_5_3608(VU1NativeCtx &c)
 {
     using namespace vu1n;
     VU1State &s = *c.st;
     float (*vf)[4] = s.vf;
     int32_t *vi = s.vi;
     uint8_t *m = c.mem;
-    bool upperClipSameCycle = false;
-    (void)upperClipSameCycle;
     (void)m;
     (void)vf;
     (void)vi;
@@ -65081,15 +73114,13 @@ static uint32_t vu1prog_4_3608(VU1NativeCtx &c)
     return (taken ? 0x37B8u : 0x36E0u);
 }
 
-static uint32_t vu1prog_4_36E0(VU1NativeCtx &c)
+static uint32_t vu1prog_5_36E0(VU1NativeCtx &c)
 {
     using namespace vu1n;
     VU1State &s = *c.st;
     float (*vf)[4] = s.vf;
     int32_t *vi = s.vi;
     uint8_t *m = c.mem;
-    bool upperClipSameCycle = false;
-    (void)upperClipSameCycle;
     (void)m;
     (void)vf;
     (void)vi;
@@ -65448,15 +73479,13 @@ static uint32_t vu1prog_4_36E0(VU1NativeCtx &c)
     return (taken ? 0x36E0u : 0x37B8u);
 }
 
-static uint32_t vu1prog_4_37B8(VU1NativeCtx &c)
+static uint32_t vu1prog_5_37B8(VU1NativeCtx &c)
 {
     using namespace vu1n;
     VU1State &s = *c.st;
     float (*vf)[4] = s.vf;
     int32_t *vi = s.vi;
     uint8_t *m = c.mem;
-    bool upperClipSameCycle = false;
-    (void)upperClipSameCycle;
     (void)m;
     (void)vf;
     (void)vi;
@@ -65860,15 +73889,13 @@ static uint32_t vu1prog_4_37B8(VU1NativeCtx &c)
     return 0x39E0u;
 }
 
-static uint32_t vu1prog_4_38E0(VU1NativeCtx &c)
+static uint32_t vu1prog_5_38E0(VU1NativeCtx &c)
 {
     using namespace vu1n;
     VU1State &s = *c.st;
     float (*vf)[4] = s.vf;
     int32_t *vi = s.vi;
     uint8_t *m = c.mem;
-    bool upperClipSameCycle = false;
-    (void)upperClipSameCycle;
     (void)m;
     (void)vf;
     (void)vi;
@@ -66226,15 +74253,13 @@ static uint32_t vu1prog_4_38E0(VU1NativeCtx &c)
     return 0x39E0;
 }
 
-static uint32_t vu1prog_4_39E0(VU1NativeCtx &c)
+static uint32_t vu1prog_5_39E0(VU1NativeCtx &c)
 {
     using namespace vu1n;
     VU1State &s = *c.st;
     float (*vf)[4] = s.vf;
     int32_t *vi = s.vi;
     uint8_t *m = c.mem;
-    bool upperClipSameCycle = false;
-    (void)upperClipSameCycle;
     (void)m;
     (void)vf;
     (void)vi;
@@ -66266,15 +74291,13 @@ static uint32_t vu1prog_4_39E0(VU1NativeCtx &c)
     return target;
 }
 
-static uint32_t vu1prog_4_3A08(VU1NativeCtx &c)
+static uint32_t vu1prog_5_3A08(VU1NativeCtx &c)
 {
     using namespace vu1n;
     VU1State &s = *c.st;
     float (*vf)[4] = s.vf;
     int32_t *vi = s.vi;
     uint8_t *m = c.mem;
-    bool upperClipSameCycle = false;
-    (void)upperClipSameCycle;
     (void)m;
     (void)vf;
     (void)vi;
@@ -66342,15 +74365,13 @@ static uint32_t vu1prog_4_3A08(VU1NativeCtx &c)
     return 0x3A48;
 }
 
-static uint32_t vu1prog_4_3A48(VU1NativeCtx &c)
+static uint32_t vu1prog_5_3A48(VU1NativeCtx &c)
 {
     using namespace vu1n;
     VU1State &s = *c.st;
     float (*vf)[4] = s.vf;
     int32_t *vi = s.vi;
     uint8_t *m = c.mem;
-    bool upperClipSameCycle = false;
-    (void)upperClipSameCycle;
     (void)m;
     (void)vf;
     (void)vi;
@@ -66450,15 +74471,13 @@ static uint32_t vu1prog_4_3A48(VU1NativeCtx &c)
     return (taken ? 0x3A48u : 0x3A98u);
 }
 
-static uint32_t vu1prog_4_3A98(VU1NativeCtx &c)
+static uint32_t vu1prog_5_3A98(VU1NativeCtx &c)
 {
     using namespace vu1n;
     VU1State &s = *c.st;
     float (*vf)[4] = s.vf;
     int32_t *vi = s.vi;
     uint8_t *m = c.mem;
-    bool upperClipSameCycle = false;
-    (void)upperClipSameCycle;
     (void)m;
     (void)vf;
     (void)vi;
@@ -66669,15 +74688,13 @@ static uint32_t vu1prog_4_3A98(VU1NativeCtx &c)
     return (taken ? 0x3BB8u : 0x3B30u);
 }
 
-static uint32_t vu1prog_4_3B30(VU1NativeCtx &c)
+static uint32_t vu1prog_5_3B30(VU1NativeCtx &c)
 {
     using namespace vu1n;
     VU1State &s = *c.st;
     float (*vf)[4] = s.vf;
     int32_t *vi = s.vi;
     uint8_t *m = c.mem;
-    bool upperClipSameCycle = false;
-    (void)upperClipSameCycle;
     (void)m;
     (void)vf;
     (void)vi;
@@ -66892,15 +74909,13 @@ static uint32_t vu1prog_4_3B30(VU1NativeCtx &c)
     return (taken ? 0x3B30u : 0x3BB8u);
 }
 
-static uint32_t vu1prog_4_3BB8(VU1NativeCtx &c)
+static uint32_t vu1prog_5_3BB8(VU1NativeCtx &c)
 {
     using namespace vu1n;
     VU1State &s = *c.st;
     float (*vf)[4] = s.vf;
     int32_t *vi = s.vi;
     uint8_t *m = c.mem;
-    bool upperClipSameCycle = false;
-    (void)upperClipSameCycle;
     (void)m;
     (void)vf;
     (void)vi;
@@ -66960,15 +74975,13 @@ static uint32_t vu1prog_4_3BB8(VU1NativeCtx &c)
     return 0x12B8u;
 }
 
-static uint32_t vu1prog_4_3BF0(VU1NativeCtx &c)
+static uint32_t vu1prog_5_3BF0(VU1NativeCtx &c)
 {
     using namespace vu1n;
     VU1State &s = *c.st;
     float (*vf)[4] = s.vf;
     int32_t *vi = s.vi;
     uint8_t *m = c.mem;
-    bool upperClipSameCycle = false;
-    (void)upperClipSameCycle;
     (void)m;
     (void)vf;
     (void)vi;
@@ -67602,8 +75615,7 @@ static uint32_t vu1prog_4_3BF0(VU1NativeCtx &c)
     // 3D58: 01014200 2200003F
     {
         const float u0 = fAdd(N(vf[8][0]), N(vf[1][0]));
-        upperClipSameCycle = false;
-        fcset(c, 0x3Fu, upperClipSameCycle);
+        fcset(c, 0x3Fu);
         vf[8][0] = u0; c.vfReady[8][0] = c.cyc + 4;
         c.bkValid = false;
         ++c.cyc;
@@ -67703,15 +75715,13 @@ static uint32_t vu1prog_4_3BF0(VU1NativeCtx &c)
     return 0x3D90;
 }
 
-static uint32_t vu1prog_4_3D90(VU1NativeCtx &c)
+static uint32_t vu1prog_5_3D90(VU1NativeCtx &c)
 {
     using namespace vu1n;
     VU1State &s = *c.st;
     float (*vf)[4] = s.vf;
     int32_t *vi = s.vi;
     uint8_t *m = c.mem;
-    bool upperClipSameCycle = false;
-    (void)upperClipSameCycle;
     (void)m;
     (void)vf;
     (void)vi;
@@ -67913,15 +75923,13 @@ static uint32_t vu1prog_4_3D90(VU1NativeCtx &c)
     return (taken ? 0x3D90u : 0x3DF0u);
 }
 
-static uint32_t vu1prog_4_3DF0(VU1NativeCtx &c)
+static uint32_t vu1prog_5_3DF0(VU1NativeCtx &c)
 {
     using namespace vu1n;
     VU1State &s = *c.st;
     float (*vf)[4] = s.vf;
     int32_t *vi = s.vi;
     uint8_t *m = c.mem;
-    bool upperClipSameCycle = false;
-    (void)upperClipSameCycle;
     (void)m;
     (void)vf;
     (void)vi;
@@ -67948,204 +75956,204 @@ static uint32_t vu1prog_4_3DF0(VU1NativeCtx &c)
     return kEnded;
 }
 
-static VU1NativeExit vu1prog_4(VU1NativeCtx &c, uint32_t pc)
+static VU1NativeExit vu1prog_5(VU1NativeCtx &c, uint32_t pc)
 {
     for (;;)
     {
         uint32_t next;
         switch (pc)
         {
-        case 0x0: next = vu1prog_4_0000(c); break;
-        case 0x8: next = vu1prog_4_0008(c); break;
-        case 0x48: next = vu1prog_4_0048(c); break;
-        case 0x2D8: next = vu1prog_4_02D8(c); break;
-        case 0x418: next = vu1prog_4_0418(c); break;
-        case 0x558: next = vu1prog_4_0558(c); break;
-        case 0x708: next = vu1prog_4_0708(c); break;
-        case 0x890: next = vu1prog_4_0890(c); break;
-        case 0x8B8: next = vu1prog_4_08B8(c); break;
-        case 0xA58: next = vu1prog_4_0A58(c); break;
-        case 0xAF8: next = vu1prog_4_0AF8(c); break;
-        case 0xB88: next = vu1prog_4_0B88(c); break;
-        case 0xB98: next = vu1prog_4_0B98(c); break;
-        case 0xBD8: next = vu1prog_4_0BD8(c); break;
-        case 0xBE8: next = vu1prog_4_0BE8(c); break;
-        case 0xC68: next = vu1prog_4_0C68(c); break;
-        case 0xC98: next = vu1prog_4_0C98(c); break;
-        case 0xCE8: next = vu1prog_4_0CE8(c); break;
-        case 0xD60: next = vu1prog_4_0D60(c); break;
-        case 0xD90: next = vu1prog_4_0D90(c); break;
-        case 0x12B8: next = vu1prog_4_12B8(c); break;
-        case 0x1450: next = vu1prog_4_1450(c); break;
-        case 0x14A0: next = vu1prog_4_14A0(c); break;
-        case 0x14B8: next = vu1prog_4_14B8(c); break;
-        case 0x14D0: next = vu1prog_4_14D0(c); break;
-        case 0x14F0: next = vu1prog_4_14F0(c); break;
-        case 0x1500: next = vu1prog_4_1500(c); break;
-        case 0x1510: next = vu1prog_4_1510(c); break;
-        case 0x1520: next = vu1prog_4_1520(c); break;
-        case 0x1530: next = vu1prog_4_1530(c); break;
-        case 0x1540: next = vu1prog_4_1540(c); break;
-        case 0x1608: next = vu1prog_4_1608(c); break;
-        case 0x1630: next = vu1prog_4_1630(c); break;
-        case 0x1668: next = vu1prog_4_1668(c); break;
-        case 0x16A8: next = vu1prog_4_16A8(c); break;
-        case 0x16B8: next = vu1prog_4_16B8(c); break;
-        case 0x16C8: next = vu1prog_4_16C8(c); break;
-        case 0x16E8: next = vu1prog_4_16E8(c); break;
-        case 0x1710: next = vu1prog_4_1710(c); break;
-        case 0x1738: next = vu1prog_4_1738(c); break;
-        case 0x1758: next = vu1prog_4_1758(c); break;
-        case 0x1788: next = vu1prog_4_1788(c); break;
-        case 0x17C0: next = vu1prog_4_17C0(c); break;
-        case 0x17C8: next = vu1prog_4_17C8(c); break;
-        case 0x1800: next = vu1prog_4_1800(c); break;
-        case 0x1810: next = vu1prog_4_1810(c); break;
-        case 0x1820: next = vu1prog_4_1820(c); break;
-        case 0x1840: next = vu1prog_4_1840(c); break;
-        case 0x1868: next = vu1prog_4_1868(c); break;
-        case 0x1890: next = vu1prog_4_1890(c); break;
-        case 0x18B0: next = vu1prog_4_18B0(c); break;
-        case 0x18E0: next = vu1prog_4_18E0(c); break;
-        case 0x1918: next = vu1prog_4_1918(c); break;
-        case 0x1920: next = vu1prog_4_1920(c); break;
-        case 0x1958: next = vu1prog_4_1958(c); break;
-        case 0x1968: next = vu1prog_4_1968(c); break;
-        case 0x1978: next = vu1prog_4_1978(c); break;
-        case 0x1998: next = vu1prog_4_1998(c); break;
-        case 0x19C0: next = vu1prog_4_19C0(c); break;
-        case 0x19E8: next = vu1prog_4_19E8(c); break;
-        case 0x1A08: next = vu1prog_4_1A08(c); break;
-        case 0x1A38: next = vu1prog_4_1A38(c); break;
-        case 0x1A70: next = vu1prog_4_1A70(c); break;
-        case 0x1A78: next = vu1prog_4_1A78(c); break;
-        case 0x1AB0: next = vu1prog_4_1AB0(c); break;
-        case 0x1AC0: next = vu1prog_4_1AC0(c); break;
-        case 0x1AD0: next = vu1prog_4_1AD0(c); break;
-        case 0x1AF0: next = vu1prog_4_1AF0(c); break;
-        case 0x1B18: next = vu1prog_4_1B18(c); break;
-        case 0x1B40: next = vu1prog_4_1B40(c); break;
-        case 0x1B60: next = vu1prog_4_1B60(c); break;
-        case 0x1B90: next = vu1prog_4_1B90(c); break;
-        case 0x1BC8: next = vu1prog_4_1BC8(c); break;
-        case 0x1BD0: next = vu1prog_4_1BD0(c); break;
-        case 0x1C08: next = vu1prog_4_1C08(c); break;
-        case 0x1C18: next = vu1prog_4_1C18(c); break;
-        case 0x1C28: next = vu1prog_4_1C28(c); break;
-        case 0x1C48: next = vu1prog_4_1C48(c); break;
-        case 0x1C70: next = vu1prog_4_1C70(c); break;
-        case 0x1C98: next = vu1prog_4_1C98(c); break;
-        case 0x1CB8: next = vu1prog_4_1CB8(c); break;
-        case 0x1CE8: next = vu1prog_4_1CE8(c); break;
-        case 0x1D08: next = vu1prog_4_1D08(c); break;
-        case 0x1D48: next = vu1prog_4_1D48(c); break;
-        case 0x1D60: next = vu1prog_4_1D60(c); break;
-        case 0x1D70: next = vu1prog_4_1D70(c); break;
-        case 0x1DC8: next = vu1prog_4_1DC8(c); break;
-        case 0x1E28: next = vu1prog_4_1E28(c); break;
-        case 0x1E68: next = vu1prog_4_1E68(c); break;
-        case 0x1F40: next = vu1prog_4_1F40(c); break;
-        case 0x1FA0: next = vu1prog_4_1FA0(c); break;
-        case 0x1FB8: next = vu1prog_4_1FB8(c); break;
-        case 0x1FD0: next = vu1prog_4_1FD0(c); break;
-        case 0x1FE8: next = vu1prog_4_1FE8(c); break;
-        case 0x2000: next = vu1prog_4_2000(c); break;
-        case 0x2010: next = vu1prog_4_2010(c); break;
-        case 0x2080: next = vu1prog_4_2080(c); break;
-        case 0x2098: next = vu1prog_4_2098(c); break;
-        case 0x20B0: next = vu1prog_4_20B0(c); break;
-        case 0x20C8: next = vu1prog_4_20C8(c); break;
-        case 0x20E0: next = vu1prog_4_20E0(c); break;
-        case 0x20F0: next = vu1prog_4_20F0(c); break;
-        case 0x2160: next = vu1prog_4_2160(c); break;
-        case 0x2170: next = vu1prog_4_2170(c); break;
-        case 0x2270: next = vu1prog_4_2270(c); break;
-        case 0x2290: next = vu1prog_4_2290(c); break;
-        case 0x22C8: next = vu1prog_4_22C8(c); break;
-        case 0x22E8: next = vu1prog_4_22E8(c); break;
-        case 0x2320: next = vu1prog_4_2320(c); break;
-        case 0x2340: next = vu1prog_4_2340(c); break;
-        case 0x2358: next = vu1prog_4_2358(c); break;
-        case 0x2370: next = vu1prog_4_2370(c); break;
-        case 0x2388: next = vu1prog_4_2388(c); break;
-        case 0x23B0: next = vu1prog_4_23B0(c); break;
-        case 0x23C0: next = vu1prog_4_23C0(c); break;
-        case 0x23E0: next = vu1prog_4_23E0(c); break;
-        case 0x2400: next = vu1prog_4_2400(c); break;
-        case 0x2428: next = vu1prog_4_2428(c); break;
-        case 0x2460: next = vu1prog_4_2460(c); break;
-        case 0x2470: next = vu1prog_4_2470(c); break;
-        case 0x2540: next = vu1prog_4_2540(c); break;
-        case 0x2558: next = vu1prog_4_2558(c); break;
-        case 0x2568: next = vu1prog_4_2568(c); break;
-        case 0x2650: next = vu1prog_4_2650(c); break;
-        case 0x2660: next = vu1prog_4_2660(c); break;
-        case 0x2670: next = vu1prog_4_2670(c); break;
-        case 0x2680: next = vu1prog_4_2680(c); break;
-        case 0x2690: next = vu1prog_4_2690(c); break;
-        case 0x26A0: next = vu1prog_4_26A0(c); break;
-        case 0x26B0: next = vu1prog_4_26B0(c); break;
-        case 0x26C0: next = vu1prog_4_26C0(c); break;
-        case 0x26D0: next = vu1prog_4_26D0(c); break;
-        case 0x26E0: next = vu1prog_4_26E0(c); break;
-        case 0x2710: next = vu1prog_4_2710(c); break;
-        case 0x2728: next = vu1prog_4_2728(c); break;
-        case 0x27B0: next = vu1prog_4_27B0(c); break;
-        case 0x2878: next = vu1prog_4_2878(c); break;
-        case 0x28C8: next = vu1prog_4_28C8(c); break;
-        case 0x28D8: next = vu1prog_4_28D8(c); break;
-        case 0x2908: next = vu1prog_4_2908(c); break;
-        case 0x2950: next = vu1prog_4_2950(c); break;
-        case 0x2A10: next = vu1prog_4_2A10(c); break;
-        case 0x2A58: next = vu1prog_4_2A58(c); break;
-        case 0x2B08: next = vu1prog_4_2B08(c); break;
-        case 0x2B28: next = vu1prog_4_2B28(c); break;
-        case 0x2B70: next = vu1prog_4_2B70(c); break;
-        case 0x2C30: next = vu1prog_4_2C30(c); break;
-        case 0x2C78: next = vu1prog_4_2C78(c); break;
-        case 0x2D08: next = vu1prog_4_2D08(c); break;
-        case 0x2D28: next = vu1prog_4_2D28(c); break;
-        case 0x2EA0: next = vu1prog_4_2EA0(c); break;
-        case 0x2EF0: next = vu1prog_4_2EF0(c); break;
-        case 0x2F00: next = vu1prog_4_2F00(c); break;
-        case 0x2F20: next = vu1prog_4_2F20(c); break;
-        case 0x2F30: next = vu1prog_4_2F30(c); break;
-        case 0x2F40: next = vu1prog_4_2F40(c); break;
-        case 0x2F50: next = vu1prog_4_2F50(c); break;
-        case 0x2F60: next = vu1prog_4_2F60(c); break;
-        case 0x30D8: next = vu1prog_4_30D8(c); break;
-        case 0x3128: next = vu1prog_4_3128(c); break;
-        case 0x3138: next = vu1prog_4_3138(c); break;
-        case 0x3158: next = vu1prog_4_3158(c); break;
-        case 0x3168: next = vu1prog_4_3168(c); break;
-        case 0x3178: next = vu1prog_4_3178(c); break;
-        case 0x3188: next = vu1prog_4_3188(c); break;
-        case 0x3198: next = vu1prog_4_3198(c); break;
-        case 0x31B8: next = vu1prog_4_31B8(c); break;
-        case 0x31C8: next = vu1prog_4_31C8(c); break;
-        case 0x31D8: next = vu1prog_4_31D8(c); break;
-        case 0x31E8: next = vu1prog_4_31E8(c); break;
-        case 0x31F8: next = vu1prog_4_31F8(c); break;
-        case 0x3208: next = vu1prog_4_3208(c); break;
-        case 0x3318: next = vu1prog_4_3318(c); break;
-        case 0x3350: next = vu1prog_4_3350(c); break;
-        case 0x3360: next = vu1prog_4_3360(c); break;
-        case 0x33A8: next = vu1prog_4_33A8(c); break;
-        case 0x33D8: next = vu1prog_4_33D8(c); break;
-        case 0x3400: next = vu1prog_4_3400(c); break;
-        case 0x3608: next = vu1prog_4_3608(c); break;
-        case 0x36E0: next = vu1prog_4_36E0(c); break;
-        case 0x37B8: next = vu1prog_4_37B8(c); break;
-        case 0x38E0: next = vu1prog_4_38E0(c); break;
-        case 0x39E0: next = vu1prog_4_39E0(c); break;
-        case 0x3A08: next = vu1prog_4_3A08(c); break;
-        case 0x3A48: next = vu1prog_4_3A48(c); break;
-        case 0x3A98: next = vu1prog_4_3A98(c); break;
-        case 0x3B30: next = vu1prog_4_3B30(c); break;
-        case 0x3BB8: next = vu1prog_4_3BB8(c); break;
-        case 0x3BF0: next = vu1prog_4_3BF0(c); break;
-        case 0x3D90: next = vu1prog_4_3D90(c); break;
-        case 0x3DF0: next = vu1prog_4_3DF0(c); break;
+        case 0x0: next = vu1prog_5_0000(c); break;
+        case 0x8: next = vu1prog_5_0008(c); break;
+        case 0x48: next = vu1prog_5_0048(c); break;
+        case 0x2D8: next = vu1prog_5_02D8(c); break;
+        case 0x418: next = vu1prog_5_0418(c); break;
+        case 0x558: next = vu1prog_5_0558(c); break;
+        case 0x708: next = vu1prog_5_0708(c); break;
+        case 0x890: next = vu1prog_5_0890(c); break;
+        case 0x8B8: next = vu1prog_5_08B8(c); break;
+        case 0xA58: next = vu1prog_5_0A58(c); break;
+        case 0xAF8: next = vu1prog_5_0AF8(c); break;
+        case 0xB88: next = vu1prog_5_0B88(c); break;
+        case 0xB98: next = vu1prog_5_0B98(c); break;
+        case 0xBD8: next = vu1prog_5_0BD8(c); break;
+        case 0xBE8: next = vu1prog_5_0BE8(c); break;
+        case 0xC68: next = vu1prog_5_0C68(c); break;
+        case 0xC98: next = vu1prog_5_0C98(c); break;
+        case 0xCE8: next = vu1prog_5_0CE8(c); break;
+        case 0xD60: next = vu1prog_5_0D60(c); break;
+        case 0xD90: next = vu1prog_5_0D90(c); break;
+        case 0x12B8: next = vu1prog_5_12B8(c); break;
+        case 0x1450: next = vu1prog_5_1450(c); break;
+        case 0x14A0: next = vu1prog_5_14A0(c); break;
+        case 0x14B8: next = vu1prog_5_14B8(c); break;
+        case 0x14D0: next = vu1prog_5_14D0(c); break;
+        case 0x14F0: next = vu1prog_5_14F0(c); break;
+        case 0x1500: next = vu1prog_5_1500(c); break;
+        case 0x1510: next = vu1prog_5_1510(c); break;
+        case 0x1520: next = vu1prog_5_1520(c); break;
+        case 0x1530: next = vu1prog_5_1530(c); break;
+        case 0x1540: next = vu1prog_5_1540(c); break;
+        case 0x1608: next = vu1prog_5_1608(c); break;
+        case 0x1630: next = vu1prog_5_1630(c); break;
+        case 0x1668: next = vu1prog_5_1668(c); break;
+        case 0x16A8: next = vu1prog_5_16A8(c); break;
+        case 0x16B8: next = vu1prog_5_16B8(c); break;
+        case 0x16C8: next = vu1prog_5_16C8(c); break;
+        case 0x16E8: next = vu1prog_5_16E8(c); break;
+        case 0x1710: next = vu1prog_5_1710(c); break;
+        case 0x1738: next = vu1prog_5_1738(c); break;
+        case 0x1758: next = vu1prog_5_1758(c); break;
+        case 0x1788: next = vu1prog_5_1788(c); break;
+        case 0x17C0: next = vu1prog_5_17C0(c); break;
+        case 0x17C8: next = vu1prog_5_17C8(c); break;
+        case 0x1800: next = vu1prog_5_1800(c); break;
+        case 0x1810: next = vu1prog_5_1810(c); break;
+        case 0x1820: next = vu1prog_5_1820(c); break;
+        case 0x1840: next = vu1prog_5_1840(c); break;
+        case 0x1868: next = vu1prog_5_1868(c); break;
+        case 0x1890: next = vu1prog_5_1890(c); break;
+        case 0x18B0: next = vu1prog_5_18B0(c); break;
+        case 0x18E0: next = vu1prog_5_18E0(c); break;
+        case 0x1918: next = vu1prog_5_1918(c); break;
+        case 0x1920: next = vu1prog_5_1920(c); break;
+        case 0x1958: next = vu1prog_5_1958(c); break;
+        case 0x1968: next = vu1prog_5_1968(c); break;
+        case 0x1978: next = vu1prog_5_1978(c); break;
+        case 0x1998: next = vu1prog_5_1998(c); break;
+        case 0x19C0: next = vu1prog_5_19C0(c); break;
+        case 0x19E8: next = vu1prog_5_19E8(c); break;
+        case 0x1A08: next = vu1prog_5_1A08(c); break;
+        case 0x1A38: next = vu1prog_5_1A38(c); break;
+        case 0x1A70: next = vu1prog_5_1A70(c); break;
+        case 0x1A78: next = vu1prog_5_1A78(c); break;
+        case 0x1AB0: next = vu1prog_5_1AB0(c); break;
+        case 0x1AC0: next = vu1prog_5_1AC0(c); break;
+        case 0x1AD0: next = vu1prog_5_1AD0(c); break;
+        case 0x1AF0: next = vu1prog_5_1AF0(c); break;
+        case 0x1B18: next = vu1prog_5_1B18(c); break;
+        case 0x1B40: next = vu1prog_5_1B40(c); break;
+        case 0x1B60: next = vu1prog_5_1B60(c); break;
+        case 0x1B90: next = vu1prog_5_1B90(c); break;
+        case 0x1BC8: next = vu1prog_5_1BC8(c); break;
+        case 0x1BD0: next = vu1prog_5_1BD0(c); break;
+        case 0x1C08: next = vu1prog_5_1C08(c); break;
+        case 0x1C18: next = vu1prog_5_1C18(c); break;
+        case 0x1C28: next = vu1prog_5_1C28(c); break;
+        case 0x1C48: next = vu1prog_5_1C48(c); break;
+        case 0x1C70: next = vu1prog_5_1C70(c); break;
+        case 0x1C98: next = vu1prog_5_1C98(c); break;
+        case 0x1CB8: next = vu1prog_5_1CB8(c); break;
+        case 0x1CE8: next = vu1prog_5_1CE8(c); break;
+        case 0x1D08: next = vu1prog_5_1D08(c); break;
+        case 0x1D48: next = vu1prog_5_1D48(c); break;
+        case 0x1D60: next = vu1prog_5_1D60(c); break;
+        case 0x1D70: next = vu1prog_5_1D70(c); break;
+        case 0x1DC8: next = vu1prog_5_1DC8(c); break;
+        case 0x1E28: next = vu1prog_5_1E28(c); break;
+        case 0x1E68: next = vu1prog_5_1E68(c); break;
+        case 0x1F40: next = vu1prog_5_1F40(c); break;
+        case 0x1FA0: next = vu1prog_5_1FA0(c); break;
+        case 0x1FB8: next = vu1prog_5_1FB8(c); break;
+        case 0x1FD0: next = vu1prog_5_1FD0(c); break;
+        case 0x1FE8: next = vu1prog_5_1FE8(c); break;
+        case 0x2000: next = vu1prog_5_2000(c); break;
+        case 0x2010: next = vu1prog_5_2010(c); break;
+        case 0x2080: next = vu1prog_5_2080(c); break;
+        case 0x2098: next = vu1prog_5_2098(c); break;
+        case 0x20B0: next = vu1prog_5_20B0(c); break;
+        case 0x20C8: next = vu1prog_5_20C8(c); break;
+        case 0x20E0: next = vu1prog_5_20E0(c); break;
+        case 0x20F0: next = vu1prog_5_20F0(c); break;
+        case 0x2160: next = vu1prog_5_2160(c); break;
+        case 0x2170: next = vu1prog_5_2170(c); break;
+        case 0x2270: next = vu1prog_5_2270(c); break;
+        case 0x2290: next = vu1prog_5_2290(c); break;
+        case 0x22C8: next = vu1prog_5_22C8(c); break;
+        case 0x22E8: next = vu1prog_5_22E8(c); break;
+        case 0x2320: next = vu1prog_5_2320(c); break;
+        case 0x2340: next = vu1prog_5_2340(c); break;
+        case 0x2358: next = vu1prog_5_2358(c); break;
+        case 0x2370: next = vu1prog_5_2370(c); break;
+        case 0x2388: next = vu1prog_5_2388(c); break;
+        case 0x23B0: next = vu1prog_5_23B0(c); break;
+        case 0x23C0: next = vu1prog_5_23C0(c); break;
+        case 0x23E0: next = vu1prog_5_23E0(c); break;
+        case 0x2400: next = vu1prog_5_2400(c); break;
+        case 0x2428: next = vu1prog_5_2428(c); break;
+        case 0x2460: next = vu1prog_5_2460(c); break;
+        case 0x2470: next = vu1prog_5_2470(c); break;
+        case 0x2540: next = vu1prog_5_2540(c); break;
+        case 0x2558: next = vu1prog_5_2558(c); break;
+        case 0x2568: next = vu1prog_5_2568(c); break;
+        case 0x2650: next = vu1prog_5_2650(c); break;
+        case 0x2660: next = vu1prog_5_2660(c); break;
+        case 0x2670: next = vu1prog_5_2670(c); break;
+        case 0x2680: next = vu1prog_5_2680(c); break;
+        case 0x2690: next = vu1prog_5_2690(c); break;
+        case 0x26A0: next = vu1prog_5_26A0(c); break;
+        case 0x26B0: next = vu1prog_5_26B0(c); break;
+        case 0x26C0: next = vu1prog_5_26C0(c); break;
+        case 0x26D0: next = vu1prog_5_26D0(c); break;
+        case 0x26E0: next = vu1prog_5_26E0(c); break;
+        case 0x2710: next = vu1prog_5_2710(c); break;
+        case 0x2728: next = vu1prog_5_2728(c); break;
+        case 0x27B0: next = vu1prog_5_27B0(c); break;
+        case 0x2878: next = vu1prog_5_2878(c); break;
+        case 0x28C8: next = vu1prog_5_28C8(c); break;
+        case 0x28D8: next = vu1prog_5_28D8(c); break;
+        case 0x2908: next = vu1prog_5_2908(c); break;
+        case 0x2950: next = vu1prog_5_2950(c); break;
+        case 0x2A10: next = vu1prog_5_2A10(c); break;
+        case 0x2A58: next = vu1prog_5_2A58(c); break;
+        case 0x2B08: next = vu1prog_5_2B08(c); break;
+        case 0x2B28: next = vu1prog_5_2B28(c); break;
+        case 0x2B70: next = vu1prog_5_2B70(c); break;
+        case 0x2C30: next = vu1prog_5_2C30(c); break;
+        case 0x2C78: next = vu1prog_5_2C78(c); break;
+        case 0x2D08: next = vu1prog_5_2D08(c); break;
+        case 0x2D28: next = vu1prog_5_2D28(c); break;
+        case 0x2EA0: next = vu1prog_5_2EA0(c); break;
+        case 0x2EF0: next = vu1prog_5_2EF0(c); break;
+        case 0x2F00: next = vu1prog_5_2F00(c); break;
+        case 0x2F20: next = vu1prog_5_2F20(c); break;
+        case 0x2F30: next = vu1prog_5_2F30(c); break;
+        case 0x2F40: next = vu1prog_5_2F40(c); break;
+        case 0x2F50: next = vu1prog_5_2F50(c); break;
+        case 0x2F60: next = vu1prog_5_2F60(c); break;
+        case 0x30D8: next = vu1prog_5_30D8(c); break;
+        case 0x3128: next = vu1prog_5_3128(c); break;
+        case 0x3138: next = vu1prog_5_3138(c); break;
+        case 0x3158: next = vu1prog_5_3158(c); break;
+        case 0x3168: next = vu1prog_5_3168(c); break;
+        case 0x3178: next = vu1prog_5_3178(c); break;
+        case 0x3188: next = vu1prog_5_3188(c); break;
+        case 0x3198: next = vu1prog_5_3198(c); break;
+        case 0x31B8: next = vu1prog_5_31B8(c); break;
+        case 0x31C8: next = vu1prog_5_31C8(c); break;
+        case 0x31D8: next = vu1prog_5_31D8(c); break;
+        case 0x31E8: next = vu1prog_5_31E8(c); break;
+        case 0x31F8: next = vu1prog_5_31F8(c); break;
+        case 0x3208: next = vu1prog_5_3208(c); break;
+        case 0x3318: next = vu1prog_5_3318(c); break;
+        case 0x3350: next = vu1prog_5_3350(c); break;
+        case 0x3360: next = vu1prog_5_3360(c); break;
+        case 0x33A8: next = vu1prog_5_33A8(c); break;
+        case 0x33D8: next = vu1prog_5_33D8(c); break;
+        case 0x3400: next = vu1prog_5_3400(c); break;
+        case 0x3608: next = vu1prog_5_3608(c); break;
+        case 0x36E0: next = vu1prog_5_36E0(c); break;
+        case 0x37B8: next = vu1prog_5_37B8(c); break;
+        case 0x38E0: next = vu1prog_5_38E0(c); break;
+        case 0x39E0: next = vu1prog_5_39E0(c); break;
+        case 0x3A08: next = vu1prog_5_3A08(c); break;
+        case 0x3A48: next = vu1prog_5_3A48(c); break;
+        case 0x3A98: next = vu1prog_5_3A98(c); break;
+        case 0x3B30: next = vu1prog_5_3B30(c); break;
+        case 0x3BB8: next = vu1prog_5_3BB8(c); break;
+        case 0x3BF0: next = vu1prog_5_3BF0(c); break;
+        case 0x3D90: next = vu1prog_5_3D90(c); break;
+        case 0x3DF0: next = vu1prog_5_3DF0(c); break;
         default: return vu1n::handoff(c, pc);
         }
         if (next == kEnded)
@@ -68156,12 +76164,12 @@ static VU1NativeExit vu1prog_4(VU1NativeCtx &c, uint32_t pc)
     }
 }
 
-const uint16_t vu1prog_4_spans[] = {0x0, 0x8B0, 0x8B8, 0xDF0, 0x12B8, 0x1E78, 0x1F40, 0x2268, 0x2270, 0x22A0, 0x22C8, 0x22F8, 0x2320, 0x2350, 0x2358, 0x2380, 0x2388, 0x23F0, 0x2400, 0x2420, 0x2428, 0x2538, 0x2540, 0x3A00, 0x3A08, 0x3E08, 0, 0};
-const uint16_t vu1prog_4_entries[] = {0x12B8, 0x2270, 0x22C8, 0x2320, 0x2358, 0x2400, 0x3A08, 0x3BF0, 0xFFFF};
-const VU1NativeImage vu1prog_4_image = {"vu1prog_4", 0xF0867AA35BADA6C6ull, vu1prog_4_spans, vu1prog_4_entries, vu1prog_4};
-const vu1n::Registrar vu1prog_4_reg(&vu1prog_4_image);
+const uint16_t vu1prog_5_spans[] = {0x0, 0x8B0, 0x8B8, 0xDF0, 0x12B8, 0x1E78, 0x1F40, 0x2268, 0x2270, 0x22A0, 0x22C8, 0x22F8, 0x2320, 0x2350, 0x2358, 0x2380, 0x2388, 0x23F0, 0x2400, 0x2420, 0x2428, 0x2538, 0x2540, 0x3A00, 0x3A08, 0x3E08, 0, 0};
+const uint16_t vu1prog_5_entries[] = {0x12B8, 0x2270, 0x22C8, 0x2320, 0x2358, 0x2400, 0x3A08, 0x3BF0, 0xFFFF};
+const VU1NativeImage vu1prog_5_image = {"vu1prog_5", 0xF0867AA35BADA6C6ull, vu1prog_5_spans, vu1prog_5_entries, vu1prog_5};
+const vu1n::Registrar vu1prog_5_reg(&vu1prog_5_image);
 
 }
 
 // Referenced by the runtime so the linker keeps this translation unit.
-int g_vu1NativeGeneratedImages = 5;
+int g_vu1NativeGeneratedImages = 6;

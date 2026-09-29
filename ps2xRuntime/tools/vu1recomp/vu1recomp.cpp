@@ -121,16 +121,58 @@ namespace
 
     std::string vs(uint8_t r, int c) { return fmt("N(vf[%u][%d])", r, c); }
 
-    Upper translateUpper(uint32_t up)
+    // flags: produce MAC/status for FMAC ops (images that read them).
+    Upper translateUpper(uint32_t up, bool flags)
     {
         Upper u;
         const uint8_t op = up & 0x3F;
         const uint8_t dest = DEST(up), fs = FSr(up), ft = FTr(up), fd = FDr(up);
+        const uint8_t spc = (up & 3) | ((up >> 4) & 0x7C);
+        const bool opmsub = op == 0x2E;
+        const bool opmula = op >= 0x3C && spc == 0x2E;
         auto lanes = [&](auto body)
         {
+            bool fmac = false;
+            std::string code;
             for (int c = 0; c < 4; ++c)
-                if (dest & laneBit(c))
-                    u.code += fmt("        const float u%d = %s;\n", c, body(c).c_str());
+            {
+                if (!(dest & laneBit(c)))
+                    continue;
+                std::string e = body(c);
+                const bool isFmacExpr = e.rfind("fAdd(", 0) == 0 || e.rfind("fSub(", 0) == 0 || e.rfind("fMul(", 0) == 0 ||
+                                        e.rfind("fMadd(", 0) == 0 || e.rfind("fMsub(", 0) == 0 || ((opmsub || opmula) && e == "0.0f");
+                if (!flags || !isFmacExpr)
+                {
+                    code += fmt("        const float u%d = %s;\n", c, e.c_str());
+                    continue;
+                }
+                fmac = true;
+                if (e == "0.0f")
+                {
+                    code += fmt("        float u%d = 0.0f;\n        const uint32_t f%d = exactFlags(u%d, 0.0L);\n", c, c, c);
+                    if (opmsub)
+                        code += fmt("        stk |= productFlags(N(vf[%u][3]), N(vf[%u][3]));\n", fs, ft);
+                    continue;
+                }
+                const size_t paren = e.find('(');
+                const std::string name = e.substr(0, paren), args = e.substr(paren + 1, e.size() - paren - 2);
+                const bool product = name == "fMadd" || name == "fMsub";
+                code += fmt("        uint32_t f%d = 0u;\n        const float u%d = %sF(%s, f%d%s);\n", c, c, name.c_str(), args.c_str(), c, product ? ", stk" : "");
+            }
+            if (fmac)
+            {
+                u.code += "        uint32_t stk = 0u;\n" + code;
+                std::string mac = "0u", status = "0u";
+                for (int c = 0; c < 4; ++c)
+                    if (dest & laneBit(c))
+                    {
+                        mac += fmt(" | macBits(f%d, %uu)", c, laneBit(c));
+                        status += fmt(" | f%d", c);
+                    }
+                u.code += fmt("        pushMacStatus(c, %s, %s, stk);\n", mac.c_str(), status.c_str());
+            }
+            else
+                u.code += code;
         };
         auto bc = [&](int b) { return vs(ft, b); };
         const std::string Q = "N(s.q)", I = "N(s.i)";
@@ -341,12 +383,33 @@ namespace
             return l;
         }
         case 0x10: l.readsClip = true; setVi(1, fmt("((s.clip & 0xFFFFFFu) == 0x%Xu) ? 1 : 0", lo & 0xFFFFFF)); return l;
-        case 0x11: l.code += fmt("        fcset(c, 0x%Xu, upperClipSameCycle);\n", lo & 0xFFFFFF); return l;
+        case 0x11: l.code += fmt("        fcset(c, 0x%Xu);\n", lo & 0xFFFFFF); return l;
         case 0x12: l.readsClip = true; setVi(1, fmt("((s.clip & 0x%Xu) != 0u) ? 1 : 0", lo & 0xFFFFFF)); return l;
         case 0x13: l.readsClip = true; setVi(1, fmt("((s.clip | 0x%Xu) == 0xFFFFFFu) ? 1 : 0", lo & 0xFFFFFF)); return l;
         case 0x1C: l.readsClip = true; setVi(VIT(lo), "static_cast<int32_t>(s.clip & 0x0FFFu)"); return l;
-        case 0x14: case 0x15: case 0x16: case 0x17: case 0x18: case 0x1A: case 0x1B:
-            l.unsupported = true; // MAC/status flags are not produced
+        case 0x14: case 0x15: case 0x16: case 0x17:
+        {
+            const uint32_t imm12 = (((lo >> 21) & 1u) << 11) | (lo & 0x7FFu);
+            if (opHi == 0x15)
+            {
+                l.code += fmt("        fsset(c, 0x%Xu);\n", imm12);
+                return l;
+            }
+            l.readsClip = true; // commits the flag pipeline
+            if (opHi == 0x14)
+                setVi(VIT(lo), fmt("((s.status & 0xFFFu) == 0x%Xu) ? 1 : 0", imm12));
+            else if (opHi == 0x16)
+                setVi(VIT(lo), fmt("static_cast<int32_t>((s.status & 0xFFFu) & 0x%Xu)", imm12));
+            else
+                setVi(VIT(lo), fmt("static_cast<int32_t>((s.status & 0xFFFu) | 0x%Xu)", imm12));
+            return l;
+        }
+        case 0x18: case 0x1A: case 0x1B:
+            l.readsClip = true;
+            if (opHi == 0x18)
+                setVi(VIT(lo), fmt("((s.mac & 0xFFFFu) == static_cast<uint32_t>(static_cast<uint16_t>(vi[%u]))) ? 1 : 0", VIS(lo)));
+            else
+                setVi(VIT(lo), fmt("static_cast<int32_t>(s.mac %c static_cast<uint32_t>(static_cast<uint16_t>(vi[%u])))", opHi == 0x1A ? '&' : '|', VIS(lo)));
             return l;
         case 0x20: branch(""); return l;
         case 0x21: branch(""); l.isBal = true; setVi(VIT(lo), fmt("%u", (pc + 16u) / 8u)); return l;
@@ -639,6 +702,7 @@ namespace
             return h;
         }
         size_t pairCount() const { return m_pairs.size(); }
+        bool m_flags = false; // produce MAC/status flags (the image reads them)
 
         // MAC/status flags are not modelled, so an image whose code reads them stays interpreted
         // (a handoff mid-program would leave the interpreter with stale flags).
@@ -685,7 +749,7 @@ namespace
             out += fmt("static uint32_t %s_%04X(VU1NativeCtx &c)\n{\n", m_name.c_str(), start);
             out += "    using namespace vu1n;\n";
             out += "    VU1State &s = *c.st;\n    float (*vf)[4] = s.vf;\n    int32_t *vi = s.vi;\n    uint8_t *m = c.mem;\n";
-            out += "    bool upperClipSameCycle = false;\n    (void)upperClipSameCycle;\n    (void)m;\n    (void)vf;\n    (void)vi;\n";
+            out += "    (void)m;\n    (void)vf;\n    (void)vi;\n";
             emitBlockBody(out, start);
             out += "}\n\n";
         }
@@ -731,7 +795,7 @@ namespace
         // Returns nothing; for branch pairs the branch decision is emitted by emitBranch.
         void emitPair(std::string &out, uint32_t pc, const DP &d, const Lower *branchLower = nullptr)
         {
-            const Upper u = translateUpper(d.upper);
+            const Upper u = translateUpper(d.upper, m_flags);
             const Lower l = d.iBit ? Lower{} : translateLower(d.lower, pc);
             out += fmt("    // %04X: %08X %08X\n", pc, d.upper, d.lower);
             if (u.unsupported || l.unsupported || d.upperUsage.reserved || d.lowerUsage.reserved)
@@ -799,9 +863,6 @@ namespace
             if (d.iBit)
                 out += fmt("        s.i = N(bitsf(0x%08Xu));\n", d.lower);
             // ---- lower
-            const bool fcsetSameCycle = u.clip;
-            if (!d.iBit && ((d.lower >> 25) & 0x7F) == 0x11)
-                out += fmt("        upperClipSameCycle = %s;\n", fcsetSameCycle ? "true" : "false");
             if (branchLower)
             {
                 if (branchLower->flow == Flow::Branch && !branchLower->unconditional)
@@ -956,10 +1017,6 @@ int main(int argc, char **argv)
            "        if (ex(v[1], 0u)) f |= 0x04u;\n        if (ex(v[1], 0x80000000u)) f |= 0x08u;\n"
            "        if (ex(v[2], 0u)) f |= 0x10u;\n        if (ex(v[2], 0x80000000u)) f |= 0x20u;\n"
            "        return f;\n    }\n";
-    out += "    inline void fcset(VU1NativeCtx &c, uint32_t value, bool sameCycleClip)\n    {\n"
-           "        // FCSET cancels a CLIP issued in the same cycle (the upper half of this pair).\n"
-           "        if (sameCycleClip && c.clipCount != 0u)\n            --c.clipCount;\n"
-           "        c.workingClip = value & 0xFFFFFFu;\n        pushClip(c, c.workingClip);\n    }\n";
     out += "    inline void divq(VU1NativeCtx &c, float num, float den)\n    {\n"
            "        uint32_t di = 0u;\n        float r;\n"
            "        if (den == 0.0f)\n        {\n            di = num == 0.0f ? 0x10u : 0x20u;\n"
@@ -982,12 +1039,10 @@ int main(int argc, char **argv)
         const std::string name = fmt("vu1prog_%d", index);
         Translator t(img, name);
         t.discover();
-        if (t.readsMacOrStatus())
-        {
-            std::fprintf(stderr, "skipping image %016llx (%zu entries): reads MAC/status flags\n",
+        t.m_flags = t.readsMacOrStatus();
+        if (t.m_flags)
+            std::fprintf(stderr, "image %016llx (%zu entries) reads MAC/status: producing flags\n",
                          static_cast<unsigned long long>(hash), img.entries.size());
-            continue;
-        }
         out += t.emit();
         out += fmt("\nconst uint16_t %s_spans[] = {", name.c_str());
         for (auto [a, b] : t.spans())

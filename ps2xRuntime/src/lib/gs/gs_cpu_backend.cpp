@@ -675,7 +675,11 @@ void GSCpuBackend::LoadClut(const GSTex0Reg &tex0, const GSTexClutReg &texclut)
         const uint32_t width = tex0.csm == 0u ? 1u : std::max<uint32_t>(texclut.cbw, 1u);
         const uint32_t end = static_cast<uint32_t>(std::min<uint64_t>(static_cast<uint64_t>(start) + static_cast<uint64_t>(rows) * width * 8192u, 4u * 1024u * 1024u));
         if (!CanRunDirectUnlocked(start, end))
+        {
+            if (s_gsHazDebug)
+                std::fprintf(stderr, "SYNC clut cbp=%x [%x,%x)\n", tex0.cbp, start, end);
             SyncUnlocked();
+        }
     }
     LoadClutUnlocked(tex0, texclut);
 }
@@ -2412,7 +2416,11 @@ void GSCpuBackend::BeginTransfer(const GSTransferCommand &command)
     // Threaded mode: m_transfer/m_transferState belong to this thread. Queued upload chunks carry
     // their own copy of the transfer and start position, so transfers never wait on each other.
     if (threaded() && command.direction != 0u)
+    {
+        if (s_gsHazDebug)
+            std::fprintf(stderr, "SYNC transfer dir=%u\n", command.direction);
         SyncUnlocked(); // local->local / local->host read VRAM: let queued work land first
+    }
     BeginTransferUnlocked(command);
 }
 

@@ -1524,11 +1524,12 @@ void GS::writeRegisterUnlocked(uint8_t regAddr, uint64_t value)
     }
     case GS_REG_FINISH:
     {
+        // FINISH only tells the EE that everything before it has been accepted; with the threaded
+        // rasteriser the pixels may still be landing. Anything that actually reads local memory
+        // (presentation, local->host transfers, VRAM reads) waits for the queue itself, so the
+        // EE does not have to stall here every frame.
         if (m_backend)
-        {
             m_backend->Flush();
-            m_backend->Sync(GSSyncReason::Finish);
-        }
         if (m_privRegs)
             m_privRegs->csr.fetch_or(0x2);
         break;

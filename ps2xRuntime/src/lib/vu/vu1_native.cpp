@@ -86,16 +86,25 @@ struct VU1NativeAccess
         vu.m_flagMask = 0u;
         for (auto &entry : vu.m_flagPipeline)
             entry = {};
-        for (uint32_t i = 0; i < c.clipCount; ++i)
+        for (uint32_t i = 0, slot = 0; i < c.flagCount && slot < vu.m_flagPipeline.size(); ++i)
         {
-            const uint32_t slot = (c.clipHead + i) & 7u;
-            auto &entry = vu.m_flagPipeline[i];
+            const VU1NativeCtx::FlagEntry &e = c.flags[(c.flagHead + i) % VU1NativeCtx::kFlagSlots];
+            if (e.kind == 0u)
+                continue;
+            auto &entry = vu.m_flagPipeline[slot];
             entry.valid = true;
-            entry.issueCycle = c.clipIssue[slot];
-            entry.readyCycle = c.clipReady[slot];
-            entry.clip = c.clipValue[slot];
-            entry.writesClip = true;
-            vu.m_flagMask |= 1u << i;
+            entry.issueCycle = e.issue;
+            entry.readyCycle = e.ready;
+            entry.mac = e.mac;
+            entry.status = e.status;
+            entry.extraSticky = e.sticky;
+            entry.clip = e.clip;
+            entry.writesMac = (e.kind & 1u) != 0u;
+            entry.writesStatus = (e.kind & 2u) != 0u;
+            entry.writesSticky = (e.kind & 4u) != 0u;
+            entry.writesClip = (e.kind & 8u) != 0u;
+            vu.m_flagMask |= 1u << slot;
+            ++slot;
         }
         vu.m_workingClip = c.workingClip;
         vu.m_viBranchBackupValid = c.bkValid;
@@ -250,8 +259,8 @@ namespace vu1n
         if (c.qPending)
             end = std::max(end, c.qReady);
         end = std::max(end, pAllReady(c));
-        for (uint32_t i = 0; i < c.clipCount; ++i)
-            end = std::max(end, c.clipReady[(c.clipHead + i) & 7u]);
+        for (uint32_t i = 0; i < c.flagCount; ++i)
+            end = std::max(end, c.flags[(c.flagHead + i) % VU1NativeCtx::kFlagSlots].ready);
         if (c.xgActive)
         {
             xgProgressTo(c, c.cyc);
@@ -263,9 +272,8 @@ namespace vu1n
             end = std::max(end, c.cyc);
         }
         c.cyc = end;
-        commitQ(c);
+        commitAll(c);
         commitP(c);
-        commitClip(c);
     }
 
     VU1NativeExit handoff(VU1NativeCtx &c, uint32_t pc, bool branchPending, uint32_t target, bool ebit)

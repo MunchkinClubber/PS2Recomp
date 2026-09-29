@@ -47,12 +47,19 @@ struct VU1NativeCtx
     float pValue[2]{};
     uint64_t efuResourceReady = 0;
 
-    // Clip flag pipeline (FIFO, becomes visible 4 cycles after issue)
+    // Flag pipeline (clip, and MAC/status for images that read them): FIFO of results that
+    // become visible 4 cycles after issue, committed in order together with Q's status bits.
+    struct FlagEntry
+    {
+        uint64_t ready;
+        uint64_t issue;
+        uint32_t mac, status, sticky, clip;
+        uint8_t kind; // 1 = MAC, 2 = status, 4 = FSSET sticky, 8 = clip
+    };
+    static constexpr uint32_t kFlagSlots = 16u;
     uint32_t workingClip = 0;
-    uint32_t clipHead = 0, clipCount = 0;
-    uint64_t clipReady[8]{};
-    uint64_t clipIssue[8]{};
-    uint32_t clipValue[8]{};
+    uint32_t flagHead = 0, flagCount = 0;
+    FlagEntry flags[kFlagSlots]{};
 
     // Branch VI read-back of the previous pair's integer write
     bool bkValid = false;
@@ -235,15 +242,53 @@ namespace vu1n
             c.cyc = ready;
     }
 
-    // Commit pipelines whose results are visible at the current cycle.
-    VU1N_INLINE void commitQ(VU1NativeCtx &c)
+    // Commit everything visible at the current cycle, in time order: flag entries first, then Q
+    // on the same cycle (the order of VU1Interpreter::commitReadyPipelines).
+    inline void applyFlag(VU1NativeCtx &c, const VU1NativeCtx::FlagEntry &e)
     {
-        if (c.qPending && c.qReady <= c.cyc)
+        if (e.kind & 1u)
+            c.st->mac = e.mac;
+        if (e.kind & 2u)
         {
-            c.st->q = c.qValue;
-            c.qPending = false;
+            const uint32_t current = e.status & 0xFu;
+            c.st->status = (c.st->status & 0xFF0u) | current | ((current | e.sticky) << 6);
+        }
+        if (e.kind & 4u)
+            c.st->status = (c.st->status & 0x03Fu) | (e.status & 0xFC0u);
+        if (e.kind & 8u)
+            c.st->clip = e.clip;
+    }
+    inline void applyQ(VU1NativeCtx &c)
+    {
+        c.st->q = c.qValue;
+        const uint32_t di = c.qDi & 0x30u;
+        c.st->status = (c.st->status & 0xFCFu) | di | (di << 6);
+        c.qPending = false;
+    }
+    inline void commitAll(VU1NativeCtx &c)
+    {
+        for (;;)
+        {
+            const bool haveFlag = c.flagCount != 0u && c.flags[c.flagHead].ready <= c.cyc;
+            const bool haveQ = c.qPending && c.qReady <= c.cyc;
+            if (!haveFlag && !haveQ)
+                return;
+            if (haveFlag && (!haveQ || c.flags[c.flagHead].ready <= c.qReady))
+            {
+                applyFlag(c, c.flags[c.flagHead]);
+                c.flagHead = (c.flagHead + 1u) % VU1NativeCtx::kFlagSlots;
+                --c.flagCount;
+            }
+            else
+                applyQ(c);
         }
     }
+    VU1N_INLINE void commitQ(VU1NativeCtx &c)
+    {
+        if ((c.qPending && c.qReady <= c.cyc) || (c.flagCount != 0u && c.flags[c.flagHead].ready <= c.cyc))
+            commitAll(c);
+    }
+    VU1N_INLINE void commitClip(VU1NativeCtx &c) { commitQ(c); }
     inline void commitP(VU1NativeCtx &c)
     {
         for (int i = 0; i < 2; ++i)
@@ -253,31 +298,125 @@ namespace vu1n
                 c.pPending[i] = false;
             }
     }
-    VU1N_INLINE void commitClip(VU1NativeCtx &c)
+    inline VU1NativeCtx::FlagEntry &pushFlag(VU1NativeCtx &c, uint8_t kind)
     {
-        while (c.clipCount != 0u && c.clipReady[c.clipHead] <= c.cyc)
+        commitAll(c);
+        if (c.flagCount == VU1NativeCtx::kFlagSlots)
         {
-            c.st->clip = c.clipValue[c.clipHead];
-            c.clipHead = (c.clipHead + 1u) & 7u;
-            --c.clipCount;
-        }
-    }
-    inline void pushClip(VU1NativeCtx &c, uint32_t value)
-    {
-        commitClip(c);
-        const uint32_t slot = (c.clipHead + c.clipCount) & 7u;
-        c.clipReady[slot] = c.cyc + 4u;
-        c.clipIssue[slot] = c.cyc;
-        c.clipValue[slot] = value;
-        if (c.clipCount < 8u)
-            ++c.clipCount;
-        else
             c.stopped = true;
+            c.flagCount = VU1NativeCtx::kFlagSlots - 1u;
+        }
+        VU1NativeCtx::FlagEntry &e = c.flags[(c.flagHead + c.flagCount) % VU1NativeCtx::kFlagSlots];
+        ++c.flagCount;
+        e = {};
+        e.ready = c.cyc + 4u;
+        e.issue = c.cyc;
+        e.kind = kind;
+        return e;
     }
     inline void queueClip(VU1NativeCtx &c, uint32_t bits6)
     {
         c.workingClip = ((c.workingClip << 6) | (bits6 & 0x3Fu)) & 0xFFFFFFu;
-        pushClip(c, c.workingClip);
+        pushFlag(c, 8u).clip = c.workingClip;
+    }
+    // Newest flag entry, if it was issued this cycle (the upper half of the current pair).
+    inline VU1NativeCtx::FlagEntry *sameCycleFlag(VU1NativeCtx &c)
+    {
+        if (c.flagCount == 0u)
+            return nullptr;
+        VU1NativeCtx::FlagEntry &e = c.flags[(c.flagHead + c.flagCount - 1u) % VU1NativeCtx::kFlagSlots];
+        return e.issue == c.cyc ? &e : nullptr;
+    }
+    inline void fcset(VU1NativeCtx &c, uint32_t value)
+    {
+        // FCSET cancels a CLIP issued in the same cycle.
+        if (VU1NativeCtx::FlagEntry *e = sameCycleFlag(c))
+            e->kind &= static_cast<uint8_t>(~8u);
+        c.workingClip = value & 0xFFFFFFu;
+        pushFlag(c, 8u).clip = c.workingClip;
+    }
+    inline void fsset(VU1NativeCtx &c, uint32_t imm12)
+    {
+        // FSSET cancels the status write of an FMAC op issued in the same cycle.
+        if (VU1NativeCtx::FlagEntry *e = sameCycleFlag(c))
+            e->kind &= static_cast<uint8_t>(~2u);
+        pushFlag(c, 4u).status = imm12 & 0xFC0u;
+    }
+
+    // ---- MAC/status producing FMAC variants (images that read the flags) ------------------
+    // Flags and value fix-up of VU1Interpreter::normalizeFmacExactResult.
+    inline uint32_t exactFlags(float &value, long double e)
+    {
+        const bool negative = std::signbit(e);
+        const long double mag = std::fabs(e);
+        uint32_t flags = negative ? 0x2u : 0u;
+        uint32_t bits = negative ? 0x80000000u : 0u;
+        if (mag == 0.0L)
+        {
+            flags |= 0x1u;
+            std::memcpy(&value, &bits, 4);
+        }
+        else if (mag > static_cast<long double>(std::numeric_limits<float>::max()))
+        {
+            flags |= 0x8u;
+            bits |= 0x7F7FFFFFu;
+            std::memcpy(&value, &bits, 4);
+        }
+        else if (mag < static_cast<long double>(std::numeric_limits<float>::min()))
+        {
+            flags |= 0x5u;
+            std::memcpy(&value, &bits, 4);
+        }
+        return flags;
+    }
+    inline uint32_t productFlags(float a, float b)
+    {
+        float p = a * b;
+        return exactFlags(p, static_cast<long double>(a) * static_cast<long double>(b)) & 0xFu;
+    }
+    inline float fAddF(float a, float b, uint32_t &f)
+    {
+        float r = a + b;
+        f = exactFlags(r, static_cast<long double>(a) + static_cast<long double>(b));
+        return r;
+    }
+    inline float fSubF(float a, float b, uint32_t &f)
+    {
+        float r = a - b;
+        f = exactFlags(r, static_cast<long double>(a) - static_cast<long double>(b));
+        return r;
+    }
+    inline float fMulF(float a, float b, uint32_t &f)
+    {
+        float r = a * b;
+        f = exactFlags(r, static_cast<long double>(a) * static_cast<long double>(b));
+        return r;
+    }
+    inline float fMaddF(float acc, float a, float b, uint32_t &f, uint32_t &sticky)
+    {
+        float r = acc + a * b;
+        f = exactFlags(r, static_cast<long double>(acc) + static_cast<long double>(a) * static_cast<long double>(b));
+        sticky |= productFlags(a, b);
+        return r;
+    }
+    inline float fMsubF(float acc, float a, float b, uint32_t &f, uint32_t &sticky)
+    {
+        float r = acc - a * b;
+        f = exactFlags(r, static_cast<long double>(acc) - static_cast<long double>(a) * static_cast<long double>(b));
+        sticky |= productFlags(a, b);
+        return r;
+    }
+    // Lane flags (Z/S/U/O per lane) -> MAC bits; lane bit is 8 >> component.
+    VU1N_INLINE uint32_t macBits(uint32_t f, uint32_t laneBit)
+    {
+        return ((f & 1u) ? laneBit : 0u) | ((f & 2u) ? laneBit << 4 : 0u) | ((f & 4u) ? laneBit << 8 : 0u) | ((f & 8u) ? laneBit << 12 : 0u);
+    }
+    inline void pushMacStatus(VU1NativeCtx &c, uint32_t mac, uint32_t status, uint32_t sticky)
+    {
+        VU1NativeCtx::FlagEntry &e = pushFlag(c, 3u);
+        e.mac = mac;
+        e.status = status;
+        e.sticky = sticky;
     }
 
     inline void queueQ(VU1NativeCtx &c, float value, uint32_t latency, uint32_t di)
