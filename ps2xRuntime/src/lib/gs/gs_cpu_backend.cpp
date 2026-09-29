@@ -3095,9 +3095,15 @@ void GSCpuBackend::BeginTransfer(const GSTransferCommand &command)
     }
     if (threaded() && command.direction != 0u)
     {
-        if (s_gsHazDebug)
-            std::fprintf(stderr, "SYNC transfer dir=%u\n", command.direction);
-        SyncUnlocked(7); // local->host reads VRAM: let queued work land first
+        // Local->host reads VRAM: wait for queued work only when some of it writes the source.
+        const GsByteRange src = gsBufferRange(command.bitbltbuf.sbp, std::max<uint32_t>(command.bitbltbuf.sbw, 1u), command.bitbltbuf.spsm,
+                                              static_cast<uint32_t>(command.trxpos.ssay) + static_cast<uint32_t>(command.trxreg.rrh));
+        if (!CanRunDirectUnlocked(src.start, src.end, true))
+        {
+            if (s_gsHazDebug)
+                std::fprintf(stderr, "SYNC transfer dir=%u\n", command.direction);
+            SyncUnlocked(7);
+        }
     }
     BeginTransferUnlocked(command);
 }
