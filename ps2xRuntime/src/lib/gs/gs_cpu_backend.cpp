@@ -34,6 +34,11 @@ std::atomic<uint64_t> g_perfGsBarriers{0};  // ordered global commands (transfer
 std::atomic<uint64_t> g_perfGsHazards{0};   // barriers inserted for render-to-texture hazards
 std::atomic<uint64_t> g_perfGsDraws{0};
 std::atomic<uint64_t> g_perfGsUploadBarriers{0}; // uploads that had to wait behind queued draws
+// Blocking syncs by reason: 0 init/reset, 1 CLUT load, 2 Sync() (presentation etc.), 3 ReadVram,
+// 4 SnapshotVram, 5 transfer snapshot, 6 epoch list full, 7 local->local/host transfer, 8 readback.
+std::atomic<uint64_t> g_perfGsSyncCount[9]{};
+std::atomic<uint64_t> g_perfGsSyncNs[9]{};
+std::atomic<uint64_t> g_perfGsQueueFullNs{0};
 
 namespace
 {
@@ -559,7 +564,7 @@ void GSCpuBackend::Initialize(uint8_t *vram, uint32_t vramSize)
         throw std::invalid_argument("GS CPU backend requires at least 4 MiB of VRAM");
 
     std::lock_guard<std::mutex> lock(m_mutex);
-    SyncUnlocked();
+    SyncUnlocked(0);
     m_vram = vram;
     m_vramSize = vramSize;
     ResetUnlocked();
@@ -568,7 +573,7 @@ void GSCpuBackend::Initialize(uint8_t *vram, uint32_t vramSize)
 void GSCpuBackend::Reset()
 {
     std::lock_guard<std::mutex> lock(m_mutex);
-    SyncUnlocked();
+    SyncUnlocked(0);
     ResetUnlocked();
 }
 
@@ -678,7 +683,7 @@ void GSCpuBackend::LoadClut(const GSTex0Reg &tex0, const GSTexClutReg &texclut)
         {
             if (s_gsHazDebug)
                 std::fprintf(stderr, "SYNC clut cbp=%x [%x,%x)\n", tex0.cbp, start, end);
-            SyncUnlocked();
+            SyncUnlocked(1);
         }
     }
     LoadClutUnlocked(tex0, texclut);
@@ -746,13 +751,13 @@ void GSCpuBackend::TextureFlush()
 void GSCpuBackend::Sync(GSSyncReason)
 {
     std::lock_guard<std::mutex> lock(m_mutex);
-    SyncUnlocked();
+    SyncUnlocked(2);
 }
 
 uint32_t GSCpuBackend::ReadVram(uint32_t psm, uint32_t base, uint32_t bw, uint32_t x, uint32_t y) const
 {
     std::lock_guard<std::mutex> lock(m_mutex);
-    SyncUnlocked();
+    SyncUnlocked(3);
     return ReadVramUnlocked(psm, base, bw, x, y);
 }
 
@@ -791,7 +796,7 @@ void GSCpuBackend::WriteVramUnlocked(uint32_t psm, uint32_t base, uint32_t bw, u
 void GSCpuBackend::SnapshotVram(std::vector<uint8_t> &out) const
 {
     std::lock_guard<std::mutex> lock(m_mutex);
-    SyncUnlocked();
+    SyncUnlocked(4);
     if (!m_vram || m_vramSize == 0u)
     {
         out.clear();
@@ -804,7 +809,7 @@ void GSCpuBackend::SnapshotVram(std::vector<uint8_t> &out) const
 GSTransferSnapshot GSCpuBackend::GetTransferSnapshot() const
 {
     std::lock_guard<std::mutex> lock(m_mutex);
-    SyncUnlocked();
+    SyncUnlocked(5);
     GSTransferSnapshot result = m_transferState;
     result.localToHostPendingBytes = m_localToHostReadPos < m_localToHostBuffer.size()
                                          ? m_localToHostBuffer.size() - m_localToHostReadPos
@@ -1036,6 +1041,7 @@ void GSCpuBackend::EnqueueUnlocked(Command &&command)
         gsWaitUntil([&]()
                     { return idx - MinDone() < kRingSize; });
         g_perfGsWaitNs.fetch_add(gsNowNs() - t0, std::memory_order_relaxed);
+        g_perfGsQueueFullNs.fetch_add(gsNowNs() - t0, std::memory_order_relaxed);
     }
     m_ring[idx % kRingSize] = std::move(command);
     m_writeIdx.store(idx + 1u); // seq_cst: pairs with the m_sleepers check below
@@ -1070,9 +1076,25 @@ void GSCpuBackend::EnqueueGlobalUnlocked(std::function<void()> fn, uint32_t touc
     m_epochs.push_back(std::move(epoch));
     if (m_epochs.size() > 256u)
     {
-        // Bound the bookkeeping: wait for the oldest epochs to retire.
-        SyncUnlocked();
-        m_epochs.clear();
+        // Bound the bookkeeping without waiting: fold the older half into one epoch that retires
+        // with its newest barrier (conservative), keeping its ranges merged and few.
+        const size_t fold = m_epochs.size() / 2u;
+        Epoch merged;
+        merged.globalIdx = m_epochs[fold - 1u].globalIdx;
+        std::vector<DirtyRange> all;
+        for (size_t i = 0; i < fold; ++i)
+            all.insert(all.end(), m_epochs[i].ranges.begin(), m_epochs[i].ranges.end());
+        std::sort(all.begin(), all.end(), [](const DirtyRange &a, const DirtyRange &b)
+                  { return a.start < b.start; });
+        for (const DirtyRange &r : all)
+        {
+            if (!merged.ranges.empty() && r.start <= merged.ranges.back().end + 0x10000u)
+                merged.ranges.back().end = std::max(merged.ranges.back().end, r.end);
+            else
+                merged.ranges.push_back({~0ull, r.start, r.end});
+        }
+        m_epochs.erase(m_epochs.begin(), m_epochs.begin() + static_cast<std::ptrdiff_t>(fold));
+        m_epochs.insert(m_epochs.begin(), std::move(merged));
     }
     m_dirty.clear();
     m_reads.clear();
@@ -1105,7 +1127,7 @@ bool GSCpuBackend::CanRunDirectUnlocked(uint32_t start, uint32_t end) const
     return true;
 }
 
-void GSCpuBackend::SyncUnlocked() const
+void GSCpuBackend::SyncUnlocked(int reason) const
 {
     if (!threaded())
         return;
@@ -1116,7 +1138,11 @@ void GSCpuBackend::SyncUnlocked() const
     const uint64_t t0 = gsNowNs();
     gsWaitUntil([&]()
                 { return MinDone() >= target; });
-    g_perfGsWaitNs.fetch_add(gsNowNs() - t0, std::memory_order_relaxed);
+    const uint64_t waited = gsNowNs() - t0;
+    g_perfGsWaitNs.fetch_add(waited, std::memory_order_relaxed);
+    const int r = (reason >= 0 && reason < 9) ? reason : 0;
+    g_perfGsSyncCount[r].fetch_add(1u, std::memory_order_relaxed);
+    g_perfGsSyncNs[r].fetch_add(waited, std::memory_order_relaxed);
 }
 
 void GSCpuBackend::NoteDrawHazardsUnlocked(const GSPrimitiveBatch &batch)
@@ -2419,7 +2445,7 @@ void GSCpuBackend::BeginTransfer(const GSTransferCommand &command)
     {
         if (s_gsHazDebug)
             std::fprintf(stderr, "SYNC transfer dir=%u\n", command.direction);
-        SyncUnlocked(); // local->local / local->host read VRAM: let queued work land first
+        SyncUnlocked(7); // local->local / local->host read VRAM: let queued work land first
     }
     BeginTransferUnlocked(command);
 }
@@ -2724,7 +2750,7 @@ void GSCpuBackend::PerformLocalToHostTransfer()
 uint32_t GSCpuBackend::ConsumeLocalToHostBytes(uint8_t *dst, uint32_t maxBytes)
 {
     std::lock_guard<std::mutex> lock(m_mutex);
-    SyncUnlocked();
+    SyncUnlocked(8);
     if (!dst || maxBytes == 0u || m_localToHostReadPos >= m_localToHostBuffer.size())
         return 0u;
     const size_t count = std::min<size_t>(maxBytes, m_localToHostBuffer.size() - m_localToHostReadPos);

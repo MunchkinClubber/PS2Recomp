@@ -176,6 +176,8 @@ namespace ps2x::iop::detail
 
         void schedulePendingDma()
         {
+            if (!memory.hasDmaStart())
+                return;
             if (const auto dma = memory.takeDmaStart())
                 pendingDmaInterrupts[dma->irq] = totalCycles + dma->delayCycles;
         }
@@ -484,6 +486,16 @@ namespace ps2x::iop::detail
         void servicePendingDmaInterrupts()
         {
             if (servicingDmaInterrupts || pendingDmaInterrupts.empty())
+                return;
+            // Called after every instruction while a DMA is in flight: bail out cheaply until one is due.
+            bool due = false;
+            for (const auto &[irq, completionCycle] : pendingDmaInterrupts)
+                if (completionCycle <= totalCycles)
+                {
+                    due = true;
+                    break;
+                }
+            if (!due)
                 return;
 
             servicingDmaInterrupts = true;

@@ -27,6 +27,7 @@ extern std::atomic<uint32_t> g_ps2WatchChain; // ps2_runtime.cpp
 extern std::atomic<uint64_t> g_perfVif1Ns, g_perfGsNs; // ps2_runtime.cpp
 extern std::atomic<uint64_t> g_perfGsWorkerNs, g_perfGsWaitNs; // gs_cpu_backend.cpp
 extern std::atomic<uint64_t> g_vu1NativeRuns, g_vu1NativeMisses, g_vu1NativeHandoffs; // vu1_native.cpp
+extern std::atomic<uint64_t> g_perfGsSyncCount[9], g_perfGsSyncNs[9], g_perfGsQueueFullNs; // gs_cpu_backend.cpp
 
 namespace
 {
@@ -345,6 +346,30 @@ namespace
                 lastNative = native;
                 lastMiss = miss;
                 lastHandoff = handoff;
+                {
+                    // Where the EE thread waited for the raster threads (per frame).
+                    static const char *names[9] = {"reset", "clut", "sync", "readvram", "snapshot", "xferstate", "epochs", "xfer", "readback"};
+                    static uint64_t lastCount[9]{}, lastNs[9]{}, lastFull = 0u;
+                    std::string text;
+                    for (int i = 0; i < 9; ++i)
+                    {
+                        const uint64_t count = g_perfGsSyncCount[i].load(std::memory_order_relaxed);
+                        const uint64_t ns = g_perfGsSyncNs[i].load(std::memory_order_relaxed);
+                        if (count != lastCount[i])
+                        {
+                            char item[64];
+                            std::snprintf(item, sizeof(item), " %s %.1fx/%.1fms", names[i],
+                                          static_cast<double>(count - lastCount[i]) / frames, (ns - lastNs[i]) / 1e6 / frames);
+                            text += item;
+                        }
+                        lastCount[i] = count;
+                        lastNs[i] = ns;
+                    }
+                    const uint64_t full = g_perfGsQueueFullNs.load(std::memory_order_relaxed);
+                    std::fprintf(stderr, "[ssx3:perf]   GS waits per frame:%s | queue full %.1fms\n", text.empty() ? " none" : text.c_str(),
+                                 (full - lastFull) / 1e6 / frames);
+                    lastFull = full;
+                }
                 last = now;
                 frames = 0u;
                 lastVif = vif;

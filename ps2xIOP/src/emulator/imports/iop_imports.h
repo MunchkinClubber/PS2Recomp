@@ -3,6 +3,7 @@
 #include <cstddef>
 #include <cstdint>
 #include <map>
+#include <unordered_map>
 #include <optional>
 #include <string>
 #include <string_view>
@@ -44,7 +45,18 @@ namespace ps2x::iop::detail
 
         [[nodiscard]] const ExportLibrary *findLibrary(std::string_view name, std::optional<uint16_t> version) const;
 
+        std::optional<IopImportCall> decodeUncached(uint32_t pc, uint32_t delay, uint32_t &tableOut) const;
+
         IopMemory &m_memory;
         std::map<uint32_t, ExportLibrary> m_libraries;
+        // decode() walks up to 64 KiB backwards to find a stub's import table; remember results per
+        // stub (revalidated against the stub words and the table magic on every hit).
+        struct DecodeCacheEntry
+        {
+            uint32_t delay = 0;
+            uint32_t table = 0; // 0 = not an import stub
+            IopImportCall call;
+        };
+        mutable std::unordered_map<uint32_t, DecodeCacheEntry> m_decodeCache;
     };
 }

@@ -72,7 +72,7 @@ private:
     void EnqueueUnlocked(Command &&command);
     // `touchStart/End`: VRAM bytes the command itself writes (for CanRunDirectUnlocked).
     void EnqueueGlobalUnlocked(std::function<void()> fn, uint32_t touchStart = 0u, uint32_t touchEnd = 0x400000u);
-    void SyncUnlocked() const;
+    void SyncUnlocked(int reason) const;
     void NoteDrawHazardsUnlocked(const GSPrimitiveBatch &batch);
     uint64_t MinDone() const;
     bool threaded() const { return m_threadCount != 0u; }

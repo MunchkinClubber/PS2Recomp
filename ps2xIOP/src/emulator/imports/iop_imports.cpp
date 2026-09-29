@@ -43,6 +43,7 @@ namespace ps2x::iop::detail
     void IopImportRegistry::reset()
     {
         m_libraries.clear();
+        m_decodeCache.clear();
     }
 
     std::optional<IopImportCall> IopImportRegistry::decode(uint32_t pc) const
@@ -53,6 +54,27 @@ namespace ps2x::iop::detail
         if ((delay & 0xFFFF0000u) != 0x24000000u)
             return std::nullopt;
 
+        const uint32_t physicalPc = IopMemory::physicalAddress(pc);
+        auto it = m_decodeCache.find(physicalPc);
+        if (it != m_decodeCache.end() && it->second.delay == delay &&
+            (it->second.table == 0u || m_memory.read32(it->second.table) == kImportMagic))
+        {
+            if (it->second.table == 0u)
+                return std::nullopt;
+            return it->second.call;
+        }
+        uint32_t table = 0u;
+        std::optional<IopImportCall> result = decodeUncached(pc, delay, table);
+        DecodeCacheEntry &entry = m_decodeCache[physicalPc];
+        entry.delay = delay;
+        entry.table = result ? table : 0u;
+        if (result)
+            entry.call = *result;
+        return result;
+    }
+
+    std::optional<IopImportCall> IopImportRegistry::decodeUncached(uint32_t pc, uint32_t delay, uint32_t &tableOut) const
+    {
         const uint32_t physicalPc = IopMemory::physicalAddress(pc);
         const uint32_t searchBegin = physicalPc > 0x10000u ? physicalPc - 0x10000u : 0u;
         for (uint32_t candidate = physicalPc & ~3u; candidate >= searchBegin + 20u; candidate -= 4u)
@@ -89,6 +111,7 @@ namespace ps2x::iop::detail
             }
             if (valid)
             {
+                tableOut = table;
                 return IopImportCall{
                     trimLibraryName(name),
                     static_cast<uint16_t>(delay & 0xFFFFu),
@@ -101,6 +124,7 @@ namespace ps2x::iop::detail
 
     bool IopImportRegistry::registerExportTable(uint32_t address)
     {
+        m_decodeCache.clear();
         const uint32_t physical = IopMemory::physicalAddress(address);
         if (physical + 20u > IopMemory::RamSize ||
             m_memory.read32(physical) != kExportMagic)
@@ -129,6 +153,7 @@ namespace ps2x::iop::detail
 
     bool IopImportRegistry::releaseExportTable(uint32_t address)
     {
+        m_decodeCache.clear();
         return m_libraries.erase(IopMemory::physicalAddress(address)) != 0u;
     }
 
@@ -184,6 +209,7 @@ namespace ps2x::iop::detail
 
     void IopImportRegistry::eraseRange(uint32_t base, uint32_t size)
     {
+        m_decodeCache.clear();
         for (auto library = m_libraries.begin(); library != m_libraries.end();)
         {
             if (library->first >= base && library->first < base + size)
