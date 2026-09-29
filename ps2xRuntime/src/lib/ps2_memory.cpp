@@ -57,10 +57,35 @@ namespace
         uint64_t count = 0, ns = 0, minNs = ~0ull;
     };
     std::map<uint32_t, Vif1Obs> s_vif1Obs;
+    // Event sequence after the longest kick of the report window.
+    struct Vif1Seq
+    {
+        uint32_t key;
+        uint32_t us;
+    };
+    std::vector<Vif1Seq> s_vif1Seq, s_vif1SeqBest;
+    uint64_t s_vif1SeqKickNs = 0, s_vif1SeqBestKickNs = 0;
+    bool s_vif1SeqActive = false;
 }
 
 void vif1Observe(uint32_t key)
 {
+    if (s_vif1SeqActive)
+    {
+        const uint64_t us = static_cast<uint64_t>(std::chrono::duration_cast<std::chrono::microseconds>(
+                                                      std::chrono::steady_clock::now() - s_vif1WatchStart)
+                                                      .count());
+        s_vif1Seq.push_back({key, static_cast<uint32_t>(std::min<uint64_t>(us, 0xFFFFFFFFu))});
+        if (s_vif1Seq.size() >= 24u || us > 20000u)
+        {
+            s_vif1SeqActive = false;
+            if (s_vif1SeqKickNs >= s_vif1SeqBestKickNs)
+            {
+                s_vif1SeqBest = s_vif1Seq;
+                s_vif1SeqBestKickNs = s_vif1SeqKickNs;
+            }
+        }
+    }
     if (!s_vif1Watch)
         return;
     s_vif1Watch = false;
@@ -88,6 +113,19 @@ void vif1ObsReport(double frames)
     }
     std::fprintf(stderr, "[ssx3:perf]   VIF1 kicks %.1f/frame, %.2f ms/frame; next observer:%s\n", s_vif1Kicks / frames,
                  s_vif1KickNs / 1e6 / frames, text.c_str());
+    if (!s_vif1SeqBest.empty())
+    {
+        std::string seq;
+        for (const Vif1Seq &e : s_vif1SeqBest)
+        {
+            char item[40];
+            std::snprintf(item, sizeof(item), " %08x@%uus", e.key, e.us);
+            seq += item;
+        }
+        std::fprintf(stderr, "[ssx3:perf]   after a %.2f ms VIF1 kick:%s\n", s_vif1SeqBestKickNs / 1e6, seq.c_str());
+    }
+    s_vif1SeqBest.clear();
+    s_vif1SeqBestKickNs = 0;
     s_vif1Obs.clear();
     s_vif1Kicks = 0;
     s_vif1KickNs = 0;
@@ -1954,6 +1992,14 @@ void PS2Memory::processPendingTransfers()
         s_vif1KickNs += static_cast<uint64_t>(std::chrono::duration_cast<std::chrono::nanoseconds>(vif1End - vif1Start).count());
         s_vif1Watch = true;
         s_vif1WatchStart = vif1End;
+        if (s_vif1SeqActive && s_vif1SeqKickNs >= s_vif1SeqBestKickNs)
+        {
+            s_vif1SeqBest = s_vif1Seq; // the previous kick's sequence ended at this kick
+            s_vif1SeqBestKickNs = s_vif1SeqKickNs;
+        }
+        s_vif1Seq.clear();
+        s_vif1SeqActive = true;
+        s_vif1SeqKickNs = static_cast<uint64_t>(std::chrono::duration_cast<std::chrono::nanoseconds>(vif1End - vif1Start).count());
     }
 
     static constexpr uint32_t GIF_CHANNEL = 0x1000A000;
