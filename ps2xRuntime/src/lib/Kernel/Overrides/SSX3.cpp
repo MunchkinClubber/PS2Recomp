@@ -316,6 +316,63 @@ namespace
         ctx->pc = ra;
     }
 
+    // Diagnostics: the game's async file-request queue (FUN_003DDFA8(request)). Logs each request
+    // and the file name it refers to, to see whether the sound banks are ever asked for.
+    constexpr uint32_t kFileRequestQueue = 0x003DDFA8u;
+    PS2Runtime::RecompiledFunction g_ssx3OrigFileReq = nullptr;
+    void ssx3FileRequest(uint8_t *rdram, R5900Context *ctx, PS2Runtime *runtime)
+    {
+        static int s_logs = 0;
+        const uint32_t req = getRegU32(ctx, 4);
+        if (req != 0u && s_logs < 1500)
+        {
+            ++s_logs;
+            uint32_t w[13] = {};
+            std::memcpy(w, rdram + (req & PS2_RAM_MASK), sizeof(w));
+            char name[96] = {};
+            const uint32_t h = w[9];
+            if (h >= 0x100000u && h < 0x2000000u)
+            {
+                for (int i = 0; i < 95; ++i)
+                {
+                    const char c = static_cast<char>(rdram[(h + 0x10u + i) & PS2_RAM_MASK]);
+                    if (c == 0)
+                        break;
+                    name[i] = (c >= 32 && c < 127) ? c : '?';
+                }
+            }
+            std::fprintf(stderr, "[ssx3:freq] req 0x%x ra 0x%x w0 %08x w1 %08x w2 %08x w3 %08x pri %d w5 %08x w6 %08x w7 %08x w8 %08x h %08x '%s'\n",
+                         req, getRegU32(ctx, 31), w[0], w[1], w[2], w[3], (int)w[4], w[5], w[6], w[7], w[8], h, name);
+        }
+        g_ssx3OrigFileReq(rdram, ctx, runtime);
+    }
+
+    // Diagnostics: sound bank slot load (FUN_0028B830(slot, path) is called first by every bank load).
+    constexpr uint32_t kBankSlotCheck = 0x0028B830u;
+    PS2Runtime::RecompiledFunction g_ssx3OrigBankCheck = nullptr;
+    void ssx3BankCheck(uint8_t *rdram, R5900Context *ctx, PS2Runtime *runtime)
+    {
+        static int s_logs = 0;
+        const uint32_t slot = getRegU32(ctx, 4);
+        const uint32_t path = getRegU32(ctx, 5);
+        const uint32_t ra = getRegU32(ctx, 31);
+        g_ssx3OrigBankCheck(rdram, ctx, runtime);
+        if (s_logs < 300)
+        {
+            ++s_logs;
+            char name[128] = {};
+            if (path >= 0x100000u && path < 0x2000000u)
+                for (int i = 0; i < 127; ++i)
+                {
+                    const char c = static_cast<char>(rdram[(path + i) & PS2_RAM_MASK]);
+                    if (c == 0)
+                        break;
+                    name[i] = (c >= 32 && c < 127) ? c : '?';
+                }
+            std::fprintf(stderr, "[ssx3:bank] slot 0x%x path '%s' ra 0x%x -> %d\n", slot, name, ra, (int)getRegU32(ctx, 2));
+        }
+    }
+
     void ssx3RendererSubmit(uint8_t *rdram, R5900Context *ctx, PS2Runtime *runtime)
     {
         const uint32_t obj = getRegU32(ctx, 4);
@@ -555,6 +612,12 @@ namespace
         runtime.replaceFunction(kSifSearchModuleByAddress, ssx3SifSearchModuleByAddress);
         runtime.replaceFunction(kSifSendCmd, ssx3SifSendCmd);
         runtime.replaceFunction(kISifSendCmd, ssx3SifSendCmd);
+        g_ssx3OrigFileReq = runtime.lookupFunction(kFileRequestQueue);
+        if (g_ssx3OrigFileReq)
+            runtime.replaceFunction(kFileRequestQueue, ssx3FileRequest);
+        g_ssx3OrigBankCheck = runtime.lookupFunction(kBankSlotCheck);
+        if (g_ssx3OrigBankCheck)
+            runtime.replaceFunction(kBankSlotCheck, ssx3BankCheck);
         runtime.replaceFunction(kRendererVif1Done, ssx3RendererVif1Done);
         // The game's allocator (init at 0x31AED0) takes [malloc(0x400)+0x800, EndOfHeap()), i.e. all RAM
         // from SetupHeap's base -- exactly where the runtime put its own heap (sceMpegCreate buffers,
