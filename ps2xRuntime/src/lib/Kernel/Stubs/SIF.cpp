@@ -720,7 +720,7 @@ namespace ps2_stubs
                 };
                 static std::unordered_map<uint32_t, Stat> s_stats;
                 static std::mutex s_statMutex;
-                if (sizeBytes >= 256u && sizeBytes < 65536u)
+                if (sizeBytes >= 16u && sizeBytes < 65536u)
                 {
                     std::vector<int16_t> tmp(sizeBytes / 2u);
                     if (readEeRange(rdram, xfer.src, tmp.data(), static_cast<uint32_t>(tmp.size() * 2u)))
@@ -734,7 +734,7 @@ namespace ps2_stubs
                         st.size = sizeBytes;
                         st.peak = std::max(st.peak, peak);
                         st.nonSilent += peak > 64 ? 1u : 0u;
-                        if (st.n == 1u || st.n == 10u || st.n == 100u || st.n == 1000u || st.n == 5000u || st.n == 20000u)
+                        if (s_stats.size() <= 64u && (st.n == 1u || st.n == 10u || st.n == 100u || st.n == 1000u || st.n == 5000u || st.n == 20000u))
                             std::fprintf(stderr, "[sif] dst 0x%x size %u: %llu transfers, %llu non-silent, peak %d (ra 0x%x)\n", xfer.dest, sizeBytes,
                                          (unsigned long long)st.n, (unsigned long long)st.nonSilent, st.peak, getRegU32(ctx, 31));
                     }
