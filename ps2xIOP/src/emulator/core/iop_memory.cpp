@@ -4,6 +4,7 @@
 
 #include <algorithm>
 #include <cstring>
+#include <cstdio>
 
 namespace ps2x::iop
 {
@@ -362,7 +363,19 @@ namespace ps2x::iop::detail
             return;
         std::vector<uint8_t> pcm(cap.bytes);
         if (readRam(cap.madr, pcm.data(), pcm.size()))
+        {
+            // Diagnostics: which buffer each auto-DMA transfer reads and a checksum per 1 KiB block.
+            static int s_logs = 0;
+            if (s_logs < 400)
+            {
+                ++s_logs;
+                uint32_t sum[4] = {};
+                for (size_t i = 0; i < pcm.size(); ++i)
+                    sum[(i / 1024u) & 3u] = sum[(i / 1024u) & 3u] * 31u + pcm[i];
+                std::fprintf(stderr, "[adma] core %d madr 0x%x bytes %u sums %08x %08x %08x %08x\n", core, cap.madr, cap.bytes, sum[0], sum[1], sum[2], sum[3]);
+            }
             s_admaSink(static_cast<uint32_t>(core), pcm.data(), cap.bytes);
+        }
     }
 
     std::optional<IopMemory::DmaStart> IopMemory::takeDmaStart() noexcept
