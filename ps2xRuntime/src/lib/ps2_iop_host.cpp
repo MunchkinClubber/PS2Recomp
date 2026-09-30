@@ -7,6 +7,8 @@
 #include "Kernel/Stubs/MemoryCard.h"
 #include "Kernel/Syscalls/Common.h"
 
+void ps2SoundDataRequested(uint32_t iopAddress);
+
 #include <algorithm>
 #include <cstring>
 #include <filesystem>
@@ -510,6 +512,14 @@ bool PS2IopHostAdapter::sendSifCommand(uint32_t commandId,
     uint8_t *const rdram = m_activeRdram
                                ? m_activeRdram
                                : m_runtime.memory().getRDRAM();
+    // EA sound driver asking the EE for its next packet (command 1, word 3 = IOP destination).
+    if (commandId == 1u && packet && packetSize >= 16u)
+    {
+        uint32_t iopAddress = 0u;
+        std::memcpy(&iopAddress, static_cast<const uint8_t *>(packet) + 12u, 4u);
+        if (iopAddress != 0u && iopAddress < 0x200000u)
+            ps2SoundDataRequested(iopAddress);
+    }
     return ps2_stubs::dispatchSifCommand(rdram,
                                          &m_runtime,
                                          commandId,

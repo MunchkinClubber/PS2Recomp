@@ -10,6 +10,8 @@
 
 namespace ps2x::iop::detail
 {
+    bool admaGateAllows();
+
     class IopMemory
     {
     public:

@@ -133,10 +133,14 @@ namespace ps2x::iop
         virtual void log(LogLevel level, std::string_view message) = 0;
     };
 
-    // Receives the PCM of every SPU2 auto-DMA (ADMA) transfer when it starts: core 0/1, the raw
+    // Receives the PCM of every SPU2 auto-DMA (ADMA) transfer when it completes: core 0/1, the raw
     // transfer (blocks of 256 left then 256 right 16-bit samples, 48 kHz). The host plays it.
     using AdmaSink = void (*)(uint32_t core, const uint8_t *data, uint32_t bytes);
     void setAdmaSink(AdmaSink sink);
+    // Asked before an auto-DMA transfer completes; returning false holds the completion back (the
+    // host uses it to keep the IOP sound driver from running ahead of the EE data it waits for).
+    using AdmaGate = bool (*)();
+    void setAdmaGate(AdmaGate gate);
     // Adds the SPU2 voices' output for `frames` 48 kHz stereo frames into `stereo` (interleaved
     // L/R, saturating). Called from the host audio thread. PS2_SPU2=0 disables voice emulation.
     void spu2Render(int16_t *stereo, uint32_t frames);

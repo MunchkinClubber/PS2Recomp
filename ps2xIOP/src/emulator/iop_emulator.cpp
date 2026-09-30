@@ -131,6 +131,8 @@ namespace ps2x::iop::detail
             timrman.reset();
             ioman.reset();
             pendingDmaInterrupts.clear();
+            admaIrqs.clear();
+            admaHeldUntil = 0;
             pendingGuestCallbacks.clear();
             nextModuleId = 1;
             moduleCursor = kModuleLoadBase;
@@ -196,6 +198,10 @@ namespace ps2x::iop::detail
                     log(LogLevel::Info, out.str());
                 }
                 const bool pace = dma->autoDma && admaPacing;
+                if (dma->autoDma)
+                    admaIrqs.insert(dma->irq);
+                else
+                    admaIrqs.erase(dma->irq);
                 pendingDmaInterrupts[dma->irq] = totalCycles + (pace ? dma->delayCycles : std::max<uint64_t>(dma->words * 2u, 64u));
             }
         }
@@ -522,8 +528,27 @@ namespace ps2x::iop::detail
                 return;
             // Called after every instruction while a DMA is in flight: bail out cheaply until one is due.
             bool due = false;
+            bool gateChecked = false, gateOpen = true;
+            auto held = [&](int irq) {
+                if (admaIrqs.count(irq) == 0u)
+                    return false;
+                if (!gateChecked)
+                {
+                    // While held, ask the host again only every 4096 IOP cycles.
+                    gateChecked = true;
+                    if (admaHeldUntil > totalCycles)
+                        gateOpen = false;
+                    else
+                    {
+                        gateOpen = admaGateAllows();
+                        if (!gateOpen)
+                            admaHeldUntil = totalCycles + 4096u;
+                    }
+                }
+                return !gateOpen;
+            };
             for (const auto &[irq, completionCycle] : pendingDmaInterrupts)
-                if (completionCycle <= totalCycles)
+                if (completionCycle <= totalCycles && !held(irq))
                 {
                     due = true;
                     break;
@@ -536,7 +561,7 @@ namespace ps2x::iop::detail
             std::vector<int> completed;
             for (auto it = pendingDmaInterrupts.begin(); it != pendingDmaInterrupts.end();)
             {
-                if (it->second > totalCycles)
+                if (it->second > totalCycles || held(it->first))
                 {
                     ++it;
                     continue;
@@ -616,7 +641,8 @@ namespace ps2x::iop::detail
                     {
                         uint64_t nextWake = kernel.nextWakeCycle(target);
                         for (const auto &[irq, completionCycle] : pendingDmaInterrupts)
-                            nextWake = std::min(nextWake, completionCycle);
+                            if (completionCycle > totalCycles) // an overdue one is being held by the host gate
+                                nextWake = std::min(nextWake, completionCycle);
                         if (!pendingGuestCallbacks.empty())
                             nextWake = std::min(nextWake, pendingGuestCallbacks.begin()->first);
                         nextWake = timrman.nextEventCycle(nextWake);
@@ -746,6 +772,8 @@ namespace ps2x::iop::detail
         IopLoadcore loadcore;
         std::map<int, Module> modules;
         std::map<int, uint64_t> pendingDmaInterrupts;
+        std::set<int> admaIrqs; // DMA interrupts that belong to auto-DMA (host-gated) transfers
+        uint64_t admaHeldUntil = 0;
         std::multimap<uint64_t, ScheduledGuestCallback> pendingGuestCallbacks;
         uint32_t nextModuleId = 1;
         uint32_t moduleCursor = kModuleLoadBase;

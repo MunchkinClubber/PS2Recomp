@@ -11,8 +11,14 @@ namespace ps2x::iop
     namespace
     {
         AdmaSink s_admaSink = nullptr;
+        AdmaGate s_admaGate = nullptr;
     }
     void setAdmaSink(AdmaSink sink) { s_admaSink = sink; }
+    void setAdmaGate(AdmaGate gate) { s_admaGate = gate; }
+    namespace detail
+    {
+        bool admaGateAllows() { return !s_admaGate || s_admaGate(); }
+    }
 }
 
 namespace ps2x::iop::detail

@@ -1,3 +1,5 @@
+#include <cstdint>
+void ps2SoundDataDelivered(uint32_t iopAddress);
 #include <cstdlib>
 #include <cstdio>
 #include "Common.h"
@@ -724,6 +726,7 @@ namespace ps2_stubs
                     break;
                 }
                 {
+                    ps2SoundDataDelivered(xfer.dest);
                     // PS2_AUDIO_DUMP=1: the EA sound driver's EE->IOP tag buffers (2288 bytes each,
                     // EE-mixed 36 kHz PCM inside) go to audio_ee.raw for offline comparison.
                     static const bool s_dump = [] { const char *e = std::getenv("PS2_AUDIO_DUMP"); return e && e[0] == '1'; }();

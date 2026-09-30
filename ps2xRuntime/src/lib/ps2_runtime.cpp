@@ -39,6 +39,38 @@ namespace
     // mixes everything in software on the IOP and streams the result to SPU2 core 0. Each
     // transfer holds blocks of 256 left then 256 right 16-bit samples at 48 kHz; they go into a
     // ring buffer that the audio thread drains. PS2_AUDIO=0 disables it.
+    // The EA sound driver (IOP) mixes one EE packet per auto-DMA period: it asks the EE for the
+    // next one (IOP->EE command 1, word 3 = the IOP address to send it to) and the EE's sound
+    // thread answers with a SIF DMA there. When the EE thread was late, the driver re-mixed the old
+    // packet: 10 ms of audio played twice, a pop at each end. Hold the auto-DMA completion (up to
+    // 60 ms) while a requested packet has not arrived.
+    std::atomic<bool> g_sndAwaiting{false};
+    std::atomic<uint32_t> g_sndRequestAddr{0u};
+    std::atomic<int64_t> g_sndRequestNs{0};
+    std::atomic<uint64_t> g_sndHolds{0u};
+    int64_t sndNowNs()
+    {
+        return std::chrono::duration_cast<std::chrono::nanoseconds>(std::chrono::steady_clock::now().time_since_epoch()).count();
+    }
+    bool admaGate()
+    {
+        if (!g_sndAwaiting.load(std::memory_order_acquire))
+            return true;
+        if (sndNowNs() - g_sndRequestNs.load(std::memory_order_relaxed) > 60'000'000)
+        {
+            g_sndAwaiting.store(false, std::memory_order_release);
+            return true;
+        }
+        static thread_local int64_t s_lastCounted = 0;
+        const int64_t req = g_sndRequestNs.load(std::memory_order_relaxed);
+        if (s_lastCounted != req)
+        {
+            s_lastCounted = req;
+            g_sndHolds.fetch_add(1u, std::memory_order_relaxed);
+        }
+        return false;
+    }
+
     struct AdmaPlayer
     {
         static constexpr size_t kCapacity = 48000u; // frames (1 s)
@@ -212,18 +244,20 @@ namespace
         }
         // Every 10 s, if anything went wrong, report it (underruns = audible gaps).
         static auto s_last = std::chrono::steady_clock::now();
-        static uint64_t s_lastUnder = 0u, s_lastTrims = 0u, s_lastIn = 0u, s_lastOut = 0u, s_lastRepeats = 0u;
+        static uint64_t s_lastUnder = 0u, s_lastTrims = 0u, s_lastIn = 0u, s_lastOut = 0u, s_lastRepeats = 0u, s_lastHolds = 0u;
         const auto now = std::chrono::steady_clock::now();
         if (now - s_last >= std::chrono::seconds(10))
         {
             const double secs = std::chrono::duration<double>(now - s_last).count();
             s_last = now;
-            if (p.underruns != s_lastUnder || p.trims != s_lastTrims || p.repeats != s_lastRepeats)
-                std::fprintf(stderr, "[audio] last 10 s: %llu underruns, %llu overflow trims, %llu stale blocks, queue %zu frames, in %.0f/s out %.0f/s\n",
+            const uint64_t holds = g_sndHolds.load(std::memory_order_relaxed);
+            if (p.underruns != s_lastUnder || p.trims != s_lastTrims || holds != s_lastHolds)
+                std::fprintf(stderr, "[audio] last 10 s: %llu underruns, %llu overflow trims, %llu waits for EE sound data, queue %zu frames, in %.0f/s out %.0f/s\n",
                              (unsigned long long)(p.underruns - s_lastUnder), (unsigned long long)(p.trims - s_lastTrims),
-                             (unsigned long long)(p.repeats - s_lastRepeats), p.count,
+                             (unsigned long long)(holds - s_lastHolds), p.count,
                              (p.framesIn - s_lastIn) / secs, (p.framesOut - s_lastOut) / secs);
             s_lastRepeats = p.repeats;
+            s_lastHolds = holds;
             s_lastIn = p.framesIn;
             s_lastOut = p.framesOut;
             if (p.dumpIn)
@@ -251,6 +285,8 @@ namespace
         SetAudioStreamCallback(g_adma->stream, admaAudioCallback);
         PlayAudioStream(g_adma->stream);
         ps2x::iop::setAdmaSink(&admaSink);
+        if (const char *gate = std::getenv("PS2_AUDIO_GATE"); !(gate && gate[0] == '0'))
+            ps2x::iop::setAdmaGate(&admaGate);
         std::fprintf(stderr, "[audio] SPU2 auto-DMA playback started (48 kHz stereo)\n");
     }
 }
@@ -936,6 +972,19 @@ static void flushIopCyclesFor(ps2x::iop::IopSubsystem *iop) noexcept
 
 // EE->IOP SIF command (sceSifSendCmd): run the handler an IOP module registered for it.
 // (A free function so ps2_runtime.h, included by all recompiled code, stays unchanged.)
+void ps2SoundDataRequested(uint32_t iopAddress)
+{
+    g_sndRequestAddr.store(iopAddress, std::memory_order_relaxed);
+    g_sndRequestNs.store(sndNowNs(), std::memory_order_relaxed);
+    g_sndAwaiting.store(true, std::memory_order_release);
+}
+
+void ps2SoundDataDelivered(uint32_t iopAddress)
+{
+    if (g_sndAwaiting.load(std::memory_order_acquire) && g_sndRequestAddr.load(std::memory_order_relaxed) == iopAddress)
+        g_sndAwaiting.store(false, std::memory_order_release);
+}
+
 bool ps2DeliverSifCommandToIop(uint8_t *rdram, R5900Context *ctx, const uint8_t *packet, uint32_t size)
 {
     if (!s_iopSubsystemForCmds || !s_iopHostForCmds)
