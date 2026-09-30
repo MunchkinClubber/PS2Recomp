@@ -1,3 +1,5 @@
+#include <cstdlib>
+#include <cstdio>
 #include "Common.h"
 #include "SIF.h"
 #include "../Syscalls/RPC.h"
@@ -720,6 +722,24 @@ namespace ps2_stubs
                 {
                     ok = false;
                     break;
+                }
+                {
+                    // PS2_AUDIO_DUMP=1: the EA sound driver's EE->IOP tag buffers (2288 bytes each,
+                    // EE-mixed 36 kHz PCM inside) go to audio_ee.raw for offline comparison.
+                    static const bool s_dump = [] { const char *e = std::getenv("PS2_AUDIO_DUMP"); return e && e[0] == '1'; }();
+                    static FILE *s_file = nullptr;
+                    static uint32_t s_count = 0;
+                    if (s_dump && sizeBytes == 2288u && s_count < 9000u)
+                    {
+                        if (!s_file)
+                            s_file = std::fopen("audio_ee.raw", "wb");
+                        if (s_file)
+                        {
+                            std::fwrite(payload.data(), 1u, payload.size(), s_file);
+                            if ((++s_count % 500u) == 0u)
+                                std::fflush(s_file);
+                        }
+                    }
                 }
                 if (runtime)
                 {

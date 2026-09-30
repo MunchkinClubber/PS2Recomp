@@ -231,12 +231,6 @@ namespace ps2x::iop::detail
         if (address > RamSize || size > RamSize - address)
             return;
         std::fill(m_owned.begin() + address, m_owned.begin() + address + size, uint8_t{1});
-        if (address >= m_admaWatchLo && address < m_admaWatchHi)
-        {
-            const uint32_t block = (address - m_admaWatchLo) / 1024u;
-            if (block < 16u)
-                m_admaBlockWrites[block] += static_cast<uint32_t>(size);
-        }
     }
 
     bool IopMemory::isHardwareAddress(uint32_t address) const
@@ -330,10 +324,6 @@ namespace ps2x::iop::detail
                 completeAdmaCapture(secondCore ? kDmaSpu1Irq : kDmaSpu0Irq);
             cap.pending = true;
             cap.madr = madr;
-            if (madr < m_admaWatchLo)
-                m_admaWatchLo = madr;
-            if (madr + static_cast<uint32_t>(transferWords) * 4u > m_admaWatchHi)
-                m_admaWatchHi = std::min(madr + static_cast<uint32_t>(transferWords) * 4u, m_admaWatchLo + 16u * 1024u);
             cap.bytes = static_cast<uint32_t>(transferWords) * 4u;
         }
         if (!autoDma && transferWords <= (1u << 20))
@@ -374,30 +364,6 @@ namespace ps2x::iop::detail
         std::vector<uint8_t> pcm(cap.bytes);
         if (readRam(cap.madr, pcm.data(), pcm.size()))
         {
-            // Diagnostics: which buffer each auto-DMA transfer reads and a checksum per 1 KiB block.
-            static int s_logs = 0;
-            uint32_t sum[4] = {};
-            bool silent = true;
-            for (size_t i = 0; i < pcm.size(); ++i)
-            {
-                sum[(i / 1024u) & 3u] = sum[(i / 1024u) & 3u] * 31u + pcm[i];
-                silent = silent && pcm[i] == 0u;
-            }
-            uint32_t writes[2] = {};
-            for (uint32_t b = 0; b < 2u; ++b)
-            {
-                const uint32_t block = (cap.madr - m_admaWatchLo) / 1024u + b;
-                if (cap.madr >= m_admaWatchLo && block < 16u)
-                {
-                    writes[b] = m_admaBlockWrites[block];
-                    m_admaBlockWrites[block] = 0u;
-                }
-            }
-            if (!silent && s_logs < 600)
-            {
-                ++s_logs;
-                std::fprintf(stderr, "[adma] madr 0x%x sums %08x %08x written since last %u %u\n", cap.madr, sum[0], sum[1], writes[0], writes[1]);
-            }
             s_admaSink(static_cast<uint32_t>(core), pcm.data(), cap.bytes);
         }
     }
