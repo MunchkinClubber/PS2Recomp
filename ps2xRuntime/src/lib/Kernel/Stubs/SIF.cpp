@@ -1,3 +1,4 @@
+#include <cstdio>
 #include "Common.h"
 #include "SIF.h"
 #include "../Syscalls/RPC.h"
@@ -660,6 +661,9 @@ namespace ps2_stubs
 
         if (!dmatAddr || count == 0u || count > 32u)
         {
+            static int s_badLogs = 0;
+            if (s_badLogs++ < 20)
+                std::fprintf(stderr, "[sif] sceSifSetDma ignored: list=0x%x count=%u\n", dmatAddr, count);
             setReturnS32(ctx, 0);
             return;
         }
@@ -692,8 +696,17 @@ namespace ps2_stubs
             }
             if (!runtime || !canAccessEeRange(rdram, xfer.src, sizeBytes) || !runtime->isIopMemoryRange(xfer.dest, sizeBytes))
             {
+                static int s_rejectLogs = 0;
+                if (s_rejectLogs++ < 50)
+                    std::fprintf(stderr, "[sif] sceSifSetDma REJECTED entry %u: src=0x%x dst=0x%x size=%u (ra 0x%x)\n", i, xfer.src, xfer.dest,
+                                 sizeBytes, getRegU32(ctx, 31));
                 ok = false;
                 break;
+            }
+            {
+                static int s_bigLogs = 0;
+                if (sizeBytes >= 16384u && s_bigLogs++ < 60)
+                    std::fprintf(stderr, "[sif] sceSifSetDma %u bytes 0x%x -> IOP 0x%x (ra 0x%x)\n", sizeBytes, xfer.src, xfer.dest, getRegU32(ctx, 31));
             }
 
             pending[pendingCount++] = xfer;
