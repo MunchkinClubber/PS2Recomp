@@ -7,6 +7,7 @@ layout(location = 0) noperspective in vec4 vColor;
 layout(location = 1) flat in uvec4 vColorFlat;
 layout(location = 2) noperspective in vec3 vSTQ;
 layout(location = 3) noperspective in float vFog;
+layout(location = 4) flat in float vZ;
 
 #ifdef DUAL_SRC
 layout(location = 0, index = 0) out vec4 outColor;
@@ -61,7 +62,10 @@ const uint F_BLEND_DST = 2097152u;  // (with F_DSTREAD) blend with the full GS f
 const uint F_PABE = 4194304u;
 const uint F_AD_HALF = 8388608u;    // Cs * Ad + Cd as two additive draws of Cs/256 * Ad
 const uint F_TEXA24 = 16777216u;    // texture is a render target: apply TEXA as for PSMCT24
-const uint F_TEXA16 = 33554432u;    // ... as for PSMCT16 (alpha stored as 0x80 / 0)   // source term of a blend with Cd * 1: exact integer |(kS*Cs*C >> 7) + dS*Cs|
+const uint F_TEXA16 = 33554432u;
+const uint F_ZFLAT = 67108864u;
+const uint F_BIAS_DOWN = 134217728u; // fixed-function blend rounds; bias the source so it truncates like the GS
+const uint F_BIAS_UP = 268435456u;     // constant-depth primitive (sprite, line, point): exact Z from the vertex    // ... as for PSMCT16 (alpha stored as 0x80 / 0)   // source term of a blend with Cd * 1: exact integer |(kS*Cs*C >> 7) + dS*Cs|
 
 int wrapCoord(int c, int size, uint mode, int mn, int mx)
 {
@@ -139,7 +143,9 @@ bool alphaPasses(uint a)
 void main()
 {
     // Depth is z / 2^24: round to the integer Z the GS would store (as the CPU renderer does).
-    if ((pc.flags & F_ZROUND) != 0u)
+    if ((pc.flags & F_ZFLAT) != 0u)
+        gl_FragDepth = vZ;
+    else if ((pc.flags & F_ZROUND) != 0u)
         gl_FragDepth = floor(gl_FragCoord.z * 16777216.0 + 0.5) / 16777216.0;
     else
         gl_FragDepth = gl_FragCoord.z;
@@ -225,7 +231,7 @@ void main()
         if ((pc.flags & F_BLEND_DST) != 0u && !((pc.flags & F_PABE) != 0u && (col.a & 0x80) == 0))
         {
             v = (((pc.kS * v + pc.kD * d.rgb) * cd) >> 7) + pc.dS * v + pc.dD * d.rgb;
-            v = ((pc.blend & 0x800u) != 0u) ? clamp(v, ivec3(0), ivec3(255)) : (v & ivec3(0xFF));
+            v = clamp(v, ivec3(0), ivec3(255)); // COLCLAMP=0 (wrap) is not emulated, as in the CPU renderer
         }
         int a = col.a;
         if ((pc.flags & F_FBA) != 0u)
@@ -259,7 +265,12 @@ void main()
     else if ((pc.flags & F_BLEND_SCALE) != 0u)
     {
         const float f = float(c) / 128.0;
-        rgb = vec3(col.rgb) * abs(float(pc.kS) * f + float(pc.dS)) / 255.0;
+        vec3 v = vec3(col.rgb) * abs(float(pc.kS) * f + float(pc.dS));
+        if ((pc.flags & F_BIAS_DOWN) != 0u)
+            v -= 0.49;
+        else if ((pc.flags & F_BIAS_UP) != 0u)
+            v += 0.49;
+        rgb = v / 255.0;
     }
     else
     {

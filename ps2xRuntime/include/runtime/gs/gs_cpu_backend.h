@@ -68,6 +68,8 @@ public:
     // ---- Helpers for the GPU backend (which keeps this backend for everything but draws) ----
     // Rasterise on the calling thread (no worker threads). Call before the first Submit.
     void SetSynchronous() { m_threadMode = 0; }
+    // Changes whenever the loaded CLUT may have changed.
+    uint64_t ClutVersion() const { return m_clutVersion; }
     // The palette an indexed texture of `state` uses (16 or 256 entries, RGBA8 after TEXA);
     // returns the entry count, 0 for a non-indexed texture.
     uint32_t DecodePalette(const GSDrawState &state, uint32_t *out256);

@@ -10,6 +10,7 @@ layout(location = 0) noperspective out vec4 vColor;
 layout(location = 1) flat out uvec4 vColorFlat;
 layout(location = 2) noperspective out vec3 vSTQ;
 layout(location = 3) noperspective out float vFog;
+layout(location = 4) flat out float vZ;
 
 void main()
 {
@@ -19,4 +20,5 @@ void main()
     vColorFlat = inColor;
     vSTQ = inSTQ;
     vFog = inFog;
+    vZ = inPos.z;
 }

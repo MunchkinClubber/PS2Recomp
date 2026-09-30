@@ -236,6 +236,9 @@ namespace
         F_AD_HALF = 8388608u,
         F_TEXA24 = 16777216u,
         F_TEXA16 = 33554432u,
+        F_ZFLAT = 67108864u,
+        F_BIAS_DOWN = 134217728u,
+        F_BIAS_UP = 268435456u,
     };
 
     // Why a draw went to the CPU renderer (stats).
@@ -294,11 +297,16 @@ namespace
         case GS_PRIM_TRISTRIP:
         case GS_PRIM_TRIFAN:
         case GS_PRIM_SPRITE:
+        case GS_PRIM_POINT:
+        case GS_PRIM_LINE:
+        case GS_PRIM_LINESTRIP:
             break;
         default:
             d.fallback = FB_PRIM;
             return d;
         }
+        // Lines and points are untextured on the GS path the CPU renderer implements.
+        const bool usesTexture = st.prim.tme && st.prim.type != GS_PRIM_POINT && st.prim.type != GS_PRIM_LINE && st.prim.type != GS_PRIM_LINESTRIP;
         const uint8_t fpsm = ctx.frame.psm;
         if (fpsm != GS_PSM_CT32 && fpsm != GS_PSM_CT24 && fpsm != GS_PSM_CT16)
         {
@@ -335,7 +343,7 @@ namespace
             mask &= 0x7u;
         d.fbWriteMask = mask;
 
-        if (st.prim.tme)
+        if (usesTexture)
         {
             const uint8_t tpsm = ctx.tex0.psm;
             if (!validTexturePsm(tpsm) || st.textureWidth > 1024u || st.textureHeight > 1024u)
@@ -606,6 +614,7 @@ private:
         VkDescriptorSet set = VK_NULL_HANDLE;
         std::vector<uint16_t> pages;
         uint64_t serial = 0;  // GS memory serial the texels were decoded at
+        uint64_t rawHash = 0; // hash of its pages' raw GS memory at decode time
         uint64_t lastUse = 0; // m_submitSerial of the last command buffer using it
         uint8_t maxAlpha = 0; // largest texel alpha
     };
@@ -645,6 +654,7 @@ private:
     void uploadStale(Target &t, int y0, int y1);
     void prepareDrawTarget(Target &t, const PageSet &drawPages, int y0, int y1);
     void dropAll();
+    uint64_t pagesHash(const std::vector<uint16_t> &pages) const;
     static PageSet displayPages(const GSPresentationRequest &request);
 
     // ---- drawing ----
@@ -716,6 +726,13 @@ private:
     bool m_haveLastAnalysed = false;
     PageSet m_uploadPages;
     std::vector<uint32_t> m_decodeBuf;
+    struct PaletteEntry
+    {
+        std::array<uint32_t, 256> colors{};
+        uint64_t hash = 0;
+    };
+    std::unordered_map<uint64_t, PaletteEntry> m_palCache; // decoded palettes for the current CLUT
+    uint64_t m_palVersion = ~0ull;
 
     // Presentation
     std::mutex m_presentMutex;
@@ -731,9 +748,24 @@ private:
     uint64_t m_statBatches = 0, m_statDraws = 0, m_statPrims = 0, m_statDownloads = 0, m_statDownloadPx = 0;
     uint64_t m_statUploads = 0, m_statUploadRows = 0, m_statTexUploads = 0, m_statTexHits = 0, m_statSubmits = 0;
     uint64_t m_statFallback[FB_COUNT]{};
-    uint64_t m_statFlips = 0;
-    uint64_t m_statDstCopies = 0, m_statAliasCopies = 0;
+    uint64_t m_statFlips = 0, m_ivFlips = 0;
+    uint64_t m_statDstCopies = 0, m_statAliasCopies = 0, m_statTexRehash = 0;
+    // Interval timings (ns) and counts, printed per frame with the stats.
+    struct Interval
+    {
+        uint64_t submitNs = 0, waitNs = 0, downloadNs = 0, decodeNs = 0, uploadNs = 0, flushNs = 0;
+        uint64_t downloads = 0, decodes = 0, uploads = 0, batches = 0, prims = 0, waits = 0;
+    } m_iv;
+    struct ScopeTimer
+    {
+        uint64_t &acc;
+        uint64_t t0;
+        explicit ScopeTimer(uint64_t &a) : acc(a), t0(nowNs()) {}
+        ~ScopeTimer() { acc += nowNs() - t0; }
+    };
     bool m_noAlias = false;
+    bool m_noBias = false;
+    bool m_noBigDst = false;
     const char *m_why = "?";
     std::unordered_map<std::string, uint64_t> m_statWhy;
     uint64_t m_statBigFactor[256]{};
@@ -792,6 +824,8 @@ bool GsVulkanBackend::Create()
 {
     m_stats = envFlag("PS2_GS_VK_STATS");
     m_noAlias = envFlag("PS2_GS_VK_NOALIAS");
+    m_noBias = envFlag("PS2_GS_VK_NOBIAS");
+    m_noBigDst = envFlag("PS2_GS_VK_SPLITBLEND");
     m_cpu.SetSynchronous();
     m_presenter.SetSynchronous();
     if (volkInitialize() != VK_SUCCESS)
@@ -1161,7 +1195,11 @@ void GsVulkanBackend::submitAndWait()
     si.commandBufferCount = 1;
     si.pCommandBuffers = &m_cmd;
     m_dt.vkQueueSubmit(m_queue, 1, &si, m_fence);
-    m_dt.vkWaitForFences(m_device, 1, &m_fence, VK_TRUE, UINT64_MAX);
+    {
+        ScopeTimer timer(m_iv.waitNs);
+        ++m_iv.waits;
+        m_dt.vkWaitForFences(m_device, 1, &m_fence, VK_TRUE, UINT64_MAX);
+    }
     m_dt.vkResetFences(m_device, 1, &m_fence);
     m_dt.vkResetCommandBuffer(m_cmd, 0);
     m_cmdOpen = false;
@@ -1375,6 +1413,8 @@ void GsVulkanBackend::download(Target &t)
 {
     if (!t.dirty)
         return;
+    ScopeTimer timer(m_iv.downloadNs);
+    ++m_iv.downloads;
     const int x0 = std::max(t.dx0, 0), y0 = std::max(t.dy0, 0);
     const int x1 = std::min<int>(t.dx1, static_cast<int>(t.img.width) - 1), y1 = std::min<int>(t.dy1, static_cast<int>(t.img.height) - 1);
     t.dirty = false;
@@ -1487,6 +1527,8 @@ void GsVulkanBackend::uploadStale(Target &t, int y0, int y1)
         return;
     m_why = "upload";
     ensureVramCurrent(groupPages(t, stale));
+    ScopeTimer uploadTimer(m_iv.uploadNs);
+    ++m_iv.uploads;
     t.stale &= ~stale;
     const uint32_t groups = kTargetHeight / d.h;
     const uint32_t w = t.img.width;
@@ -1596,6 +1638,26 @@ PageSet GsVulkanBackend::displayPages(const GSPresentationRequest &request)
     return pages;
 }
 
+uint64_t GsVulkanBackend::pagesHash(const std::vector<uint16_t> &pages) const
+{
+    uint64_t h = 0x9E3779B97F4A7C15ull;
+    for (uint16_t p : pages)
+    {
+        const uint64_t *w = reinterpret_cast<const uint64_t *>(m_vram + static_cast<size_t>(p) * 8192u);
+        uint64_t a = h ^ p, b = 0, c = 0, d = 0;
+        for (uint32_t i = 0; i < 1024u; i += 4u)
+        {
+            a = (a ^ w[i]) * 0x100000001B3ull;
+            b = (b ^ w[i + 1]) * 0xC2B2AE3D27D4EB4Full;
+            c = (c ^ w[i + 2]) * 0x165667B19E3779F9ull;
+            d = (d ^ w[i + 3]) * 0x27D4EB2F165667C5ull;
+        }
+        h = (h ^ a ^ (b << 1) ^ (c << 2) ^ (d << 3)) * 0x9E3779B97F4A7C15ull;
+        h ^= h >> 31;
+    }
+    return h;
+}
+
 void GsVulkanBackend::dropAll()
 {
     submitAndWait();
@@ -1639,6 +1701,82 @@ void GsVulkanBackend::appendPrimitive(const GSPrimitiveBatch &batch)
         b.minY = std::min(b.minY, y);
         b.maxY = std::max(b.maxY, y);
     };
+
+    if (st.prim.type == GS_PRIM_POINT || st.prim.type == GS_PRIM_LINE || st.prim.type == GS_PRIM_LINESTRIP)
+    {
+        // One 1x1 quad per pixel, stepped exactly like GSCpuBackend::DrawLine (Bresenham, colour
+        // and Z interpolated per step, Z truncated).
+        auto pixel = [&](int x, int y, uint8_t r, uint8_t g, uint8_t bl, uint8_t a, uint32_t zi, uint8_t fog)
+        {
+            GpuVertex q{};
+            q.z = depthNeeded ? static_cast<float>(static_cast<double>(zi) * zscale) : 0.0f;
+            q.r = r;
+            q.g = g;
+            q.b = bl;
+            q.a = a;
+            q.q = 1.0f;
+            q.fog = static_cast<float>(fog);
+            const float X0 = static_cast<float>(x), Y0 = static_cast<float>(y);
+            GpuVertex c[4] = {q, q, q, q};
+            c[0].x = X0; c[0].y = Y0;
+            c[1].x = X0 + 1.0f; c[1].y = Y0;
+            c[2].x = X0; c[2].y = Y0 + 1.0f;
+            c[3].x = X0 + 1.0f; c[3].y = Y0 + 1.0f;
+            b.verts.push_back(c[0]);
+            b.verts.push_back(c[1]);
+            b.verts.push_back(c[2]);
+            b.verts.push_back(c[1]);
+            b.verts.push_back(c[3]);
+            b.verts.push_back(c[2]);
+            bound(X0, Y0);
+            b.maxVA = std::max<uint32_t>(b.maxVA, a);
+        };
+        const GSVertex &v0 = batch.vertices[0];
+        if (st.prim.type == GS_PRIM_POINT)
+        {
+            pixel(static_cast<int>(v0.x) - ofx, static_cast<int>(v0.y) - ofy, v0.r, v0.g, v0.b, v0.a, static_cast<uint32_t>(v0.z), v0.fog);
+            return;
+        }
+        const GSVertex &v1 = batch.vertices[1];
+        int x0 = static_cast<int>(v0.x) - ofx, y0 = static_cast<int>(v0.y) - ofy;
+        const int x1 = static_cast<int>(v1.x) - ofx, y1 = static_cast<int>(v1.y) - ofy;
+        const int dx = std::abs(x1 - x0), dy = -std::abs(y1 - y0);
+        const int sx = x0 < x1 ? 1 : -1, sy = y0 < y1 ? 1 : -1;
+        int err = dx + dy;
+        int totalSteps = std::max(std::abs(x1 - x0), std::abs(y1 - y0));
+        if (totalSteps == 0)
+            totalSteps = 1;
+        auto c8 = [](int v) { return static_cast<uint8_t>(v < 0 ? 0 : v > 255 ? 255 : v); };
+        for (int step = 0; step < 4096; ++step)
+        {
+            const float t = static_cast<float>(step) / static_cast<float>(totalSteps);
+            uint8_t r = v1.r, g = v1.g, bl = v1.b, a = v1.a;
+            if (st.prim.iip)
+            {
+                r = c8(static_cast<int>(v0.r + (v1.r - v0.r) * t));
+                g = c8(static_cast<int>(v0.g + (v1.g - v0.g) * t));
+                bl = c8(static_cast<int>(v0.b + (v1.b - v0.b) * t));
+                a = c8(static_cast<int>(v0.a + (v1.a - v0.a) * t));
+            }
+            const double z = v0.z + (v1.z - v0.z) * t;
+            const uint8_t fog = c8(static_cast<int>(v0.fog + (v1.fog - v0.fog) * t));
+            pixel(x0, y0, r, g, bl, a, static_cast<uint32_t>(z), fog);
+            if (x0 == x1 && y0 == y1)
+                break;
+            const int e2 = 2 * err;
+            if (e2 >= dy)
+            {
+                err += dy;
+                x0 += sx;
+            }
+            if (e2 <= dx)
+            {
+                err += dx;
+                y0 += sy;
+            }
+        }
+        return;
+    }
 
     if (st.prim.type == GS_PRIM_SPRITE)
     {
@@ -1740,6 +1878,8 @@ void GsVulkanBackend::appendPrimitive(const GSPrimitiveBatch &batch)
 void GsVulkanBackend::Submit(const GSPrimitiveBatch &batch)
 {
     std::lock_guard<std::recursive_mutex> lock(m_mutex);
+    ScopeTimer timer(m_iv.submitNs);
+    ++m_iv.prims;
     if (!m_vram || batch.vertexCount == 0u)
         return;
     if (primitiveOutsideScissor(batch))
@@ -1917,8 +2057,24 @@ GsVulkanBackend::Texture *GsVulkanBackend::getTexture(const GSDrawState &st, uin
     uint32_t palette[256];
     if (isIndexedPsm(tex.psm))
     {
-        const uint32_t n = m_cpu.DecodePalette(st, palette);
-        key.palette = hashWords(palette, n) ^ n;
+        const uint64_t pkey = static_cast<uint64_t>(tex.cpsm) | (static_cast<uint64_t>(tex.csm & 1u) << 8) | (static_cast<uint64_t>(tex.csa & 0x1Fu) << 9) |
+                              (static_cast<uint64_t>(tex.psm == GS_PSM_T4 || tex.psm == GS_PSM_T4HL || tex.psm == GS_PSM_T4HH) << 14) |
+                              (static_cast<uint64_t>(st.texa.ta0) << 16) | (static_cast<uint64_t>(st.texa.ta1) << 24) | (static_cast<uint64_t>(st.texa.aem) << 32);
+        if (m_palVersion != m_cpu.ClutVersion())
+        {
+            m_palCache.clear();
+            m_palVersion = m_cpu.ClutVersion();
+        }
+        auto pit = m_palCache.find(pkey);
+        if (pit == m_palCache.end())
+        {
+            PaletteEntry e;
+            const uint32_t n = m_cpu.DecodePalette(st, e.colors.data());
+            e.hash = hashWords(e.colors.data(), n) ^ n;
+            pit = m_palCache.emplace(pkey, e).first;
+        }
+        std::memcpy(palette, pit->second.colors.data(), sizeof(palette));
+        key.palette = pit->second.hash;
     }
 
     PageSet pages;
@@ -1950,6 +2106,13 @@ GsVulkanBackend::Texture *GsVulkanBackend::getTexture(const GSDrawState &st, uin
                 valid = false;
                 break;
             }
+        if (!valid && t.rawHash == pagesHash(t.pages))
+        {
+            // Pages rewritten with the same bytes (textures streamed in again every frame).
+            t.serial = m_serial;
+            valid = true;
+            ++m_statTexRehash;
+        }
         if (valid)
         {
             t.lastUse = m_submitSerial;
@@ -1959,6 +2122,8 @@ GsVulkanBackend::Texture *GsVulkanBackend::getTexture(const GSDrawState &st, uin
     }
 
     m_decodeBuf.resize(static_cast<size_t>(w) * h);
+    ScopeTimer decodeTimer(m_iv.decodeNs);
+    ++m_iv.decodes;
     if (!m_cpu.DecodeTexture(st, w, h, isIndexedPsm(tex.psm) ? palette : nullptr, m_decodeBuf.data()))
         return nullptr;
 
@@ -2028,6 +2193,7 @@ GsVulkanBackend::Texture *GsVulkanBackend::getTexture(const GSDrawState &st, uin
         if (pages.test(p))
             tt.pages.push_back(static_cast<uint16_t>(p));
     tt.serial = m_serial;
+    tt.rawHash = pagesHash(tt.pages);
     {
         uint32_t ma = 0;
         for (uint32_t v : m_decodeBuf)
@@ -2048,9 +2214,11 @@ void GsVulkanBackend::flushBatch()
     if (b.verts.empty())
         return;
     ++m_statBatches;
+    ++m_iv.batches;
+    ScopeTimer flushTimer(m_iv.flushNs);
     const GSDrawState &st = b.state;
     const GSContext &ctx = st.context;
-    const DrawSetup &setup = b.setup;
+    DrawSetup setup = b.setup;
     const uint32_t fbw = std::max<uint32_t>(ctx.frame.fbw, 1u);
     const int tw = static_cast<int>(fbw * 64u), th = static_cast<int>(kTargetHeight);
 
@@ -2073,7 +2241,8 @@ void GsVulkanBackend::flushBatch()
     // Texture.
     Texture *tex = nullptr;
     uint32_t decW = 1, decH = 1, texFlags = 0;
-    if (st.prim.tme)
+    const bool pixelPrims = st.prim.type == GS_PRIM_POINT || st.prim.type == GS_PRIM_LINE || st.prim.type == GS_PRIM_LINESTRIP;
+    if (st.prim.tme && !pixelPrims)
     {
         tex = getTexture(st, decW, decH, texFlags);
         if (!tex)
@@ -2103,7 +2272,18 @@ void GsVulkanBackend::flushBatch()
     }
     b.maxVA = 0;
     if (setup.blend.enable && cBound > 128u)
+    {
         ++m_statBigFactor[ctx.alpha & 0xFFu];
+        if ((setup.blend.flags & F_BLEND_SCALE) && !m_noBigDst)
+        {
+            // A blend factor above one cannot be done with fixed-function blending: blend in the
+            // shader from a copy of the target instead (exact GS arithmetic).
+            setup.dstRead = true;
+            setup.blend.enable = false;
+            setup.blend.flags = F_DSTREAD | F_BLEND_DST;
+            setup.fbWriteMask = ctx.frame.psm == GS_PSM_CT24 ? 0x7u : 0xFu;
+        }
+    }
 
     // Targets.
     bool writesColor = false, writesDepth = false;
@@ -2197,7 +2377,7 @@ void GsVulkanBackend::flushBatch()
 
     PushConsts pc{};
     uint32_t flags = setup.blend.flags | texFlags;
-    if (st.prim.tme)
+    if (tex)
     {
         flags |= F_TME;
         if (st.prim.fst)
@@ -2210,12 +2390,18 @@ void GsVulkanBackend::flushBatch()
     }
     if (st.prim.fge)
         flags |= F_FGE;
-    if (st.prim.iip && st.prim.type != GS_PRIM_SPRITE)
+    if (st.prim.iip && st.prim.type != GS_PRIM_SPRITE && !pixelPrims)
         flags |= F_IIP;
     if (ctx.frame.psm == GS_PSM_CT16)
         flags |= F_CT16;
     if (depth && ctx.zbuf.psm != GS_PSM_Z32)
         flags |= F_ZROUND;
+    if (st.prim.type == GS_PRIM_SPRITE || pixelPrims)
+        flags |= F_ZFLAT;
+    // Fixed-function blending rounds to nearest where the GS truncates: bias the source term by
+    // just under half a step (towards a smaller result) so the blend truncates too.
+    if ((flags & F_BLEND_SCALE) && !m_noBias)
+        flags |= setup.blend.op == 2u ? F_BIAS_UP : F_BIAS_DOWN;
     pc.wrap = static_cast<uint32_t>(ctx.clamp & 0xFu);
     pc.regionU = static_cast<uint32_t>((ctx.clamp >> 4) & 0x3FFu) | (static_cast<uint32_t>((ctx.clamp >> 14) & 0x3FFu) << 16);
     pc.regionV = static_cast<uint32_t>((ctx.clamp >> 24) & 0x3FFu) | (static_cast<uint32_t>((ctx.clamp >> 34) & 0x3FFu) << 16);
@@ -2372,6 +2558,8 @@ void GsVulkanBackend::Reset()
 void GsVulkanBackend::LoadClut(const GSTex0Reg &tex0, const GSTexClutReg &texclut)
 {
     std::lock_guard<std::recursive_mutex> lock(m_mutex);
+    if (!isIndexedPsm(tex0.psm) || tex0.cld == 0u || tex0.cld >= 6u)
+        return; // no CLUT load (the CPU backend ignores these too)
     flushBatch();
     PageSet pages;
     // CSM1: a 16x16 (or 8x2) block-ordered CLUT occupies at most four blocks from CBP.
@@ -2380,6 +2568,17 @@ void GsVulkanBackend::LoadClut(const GSTex0Reg &tex0, const GSTexClutReg &texclu
     if (tex0.csm)
         addRectPages(pages, tex0.cbp, texclut.cbw, tex0.cpsm, texclut.cou * 16, texclut.cov, texclut.cou * 16 + 255, texclut.cov + 1);
     m_why = "clut";
+    if (m_stats)
+    {
+        static int logged = 0;
+        for (Target *t : m_targets)
+            if (t->dirty && (t->dirtyPages & pages).any() && logged < 30)
+            {
+                ++logged;
+                std::fprintf(stderr, "[gs:vk] clut cbp=%x cpsm=%x csm=%u csa=%u psm=%x <- target fbp=%x fbw=%u psm=%x dirty=(%d,%d)-(%d,%d)\n", tex0.cbp, tex0.cpsm, tex0.csm,
+                             tex0.csa, tex0.psm, t->fbp, t->fbw, t->psm, t->dx0, t->dy0, t->dx1, t->dy1);
+            }
+    }
     ensureVramCurrent(pages);
     m_cpu.LoadClut(tex0, texclut);
 }
@@ -2549,12 +2748,24 @@ GSTransferSnapshot GsVulkanBackend::GetTransferSnapshot() const
 
 void GsVulkanBackend::printStats()
 {
+    {
+        const double f = static_cast<double>(std::max<uint64_t>(m_statFlips - m_ivFlips, 1u));
+        const auto ms = [&](uint64_t ns) { return static_cast<double>(ns) / 1e6 / f; };
+        const auto pf = [&](uint64_t n) { return static_cast<double>(n) / f; };
+        std::fprintf(stderr,
+                     "[gs:vk] per frame: submit %.2f ms (flush %.2f), GPU waits %.1fx %.2f ms, downloads %.1fx %.2f ms, texture decodes %.1fx %.2f ms, "
+                     "target uploads %.1fx %.2f ms | %.0f prims, %.0f batches\n",
+                     ms(m_iv.submitNs), ms(m_iv.flushNs), pf(m_iv.waits), ms(m_iv.waitNs), pf(m_iv.downloads), ms(m_iv.downloadNs), pf(m_iv.decodes),
+                     ms(m_iv.decodeNs), pf(m_iv.uploads), ms(m_iv.uploadNs), pf(m_iv.prims), pf(m_iv.batches));
+        m_iv = Interval{};
+        m_ivFlips = m_statFlips;
+    }
     std::fprintf(stderr,
-                 "[gs:vk] alias copies=%llu dst copies=%llu prims=%llu batches=%llu draws=%llu submits=%llu downloads=%llu (%llu px) uploads=%llu (%llu rows) tex uploads=%llu hits=%llu targets=%zu textures=%zu\n",
+                 "[gs:vk] alias copies=%llu dst copies=%llu prims=%llu batches=%llu draws=%llu submits=%llu downloads=%llu (%llu px) uploads=%llu (%llu rows) tex uploads=%llu hits=%llu (rehash %llu) targets=%zu textures=%zu\n",
                  (unsigned long long)m_statAliasCopies, (unsigned long long)m_statDstCopies, (unsigned long long)m_statPrims, (unsigned long long)m_statBatches, (unsigned long long)m_statDraws,
                  (unsigned long long)m_statSubmits, (unsigned long long)m_statDownloads, (unsigned long long)m_statDownloadPx,
                  (unsigned long long)m_statUploads, (unsigned long long)m_statUploadRows, (unsigned long long)m_statTexUploads,
-                 (unsigned long long)m_statTexHits, m_targets.size(), m_textures.size());
+                 (unsigned long long)m_statTexHits, (unsigned long long)m_statTexRehash, m_targets.size(), m_textures.size());
     std::fprintf(stderr, "[gs:vk] cpu fallbacks:");
     for (int i = 0; i < FB_COUNT; ++i)
         if (m_statFallback[i])
