@@ -30,7 +30,7 @@ extern std::atomic<uint64_t> g_vu1NativeRuns, g_vu1NativeMisses, g_vu1NativeHand
 extern std::atomic<uint64_t> g_vu0NativeRuns, g_vu0NativeMisses; // vu1_native.cpp
 extern std::atomic<uint64_t> g_perfVu0Ns, g_perfVu0Calls; // ps2_runtime.cpp
 void vif1ObsReport(double frames);
-std::atomic<uint32_t> g_ssx3SkyCalls{0}; // sky dome MSCALs this frame (counted in ps2_runtime.cpp)
+std::atomic<uint32_t> g_ssx3SkyCalls{0}; // sky dome MSCALs since the last flip (ps2_runtime.cpp)
 extern std::atomic<uint64_t> g_perfGsSyncCount[9], g_perfGsSyncNs[9], g_perfGsQueueFullNs; // gs_cpu_backend.cpp
 
 namespace
@@ -319,19 +319,7 @@ namespace
         std::memcpy(&head, rdram + ((obj + 0x5a0cu) & PS2_RAM_MASK), 4);
         std::memcpy(&cur, rdram + ((obj + 0x5a00u) & PS2_RAM_MASK), 4);
         ssx3FrameCallsFlush(*runtime, 'S' | (idx << 16), getRegU32(ctx, 31), cur - head);
-        {
-            // Frames in which the sky dome (VU1 0x22C8) was not drawn although it was the frame
-            // before: tells a game-side skip (streaming) from a rendering problem.
-            static uint32_t frameNo = 0u, prevSky = 0u, logged = 0u;
-            ++frameNo;
-            const uint32_t sky = g_ssx3SkyCalls.exchange(0u, std::memory_order_relaxed);
-            if ((sky == 0u) != (prevSky == 0u) && frameNo > 1u && logged < 200u)
-            {
-                ++logged;
-                std::fprintf(stderr, "[ssx3:sky] frame %u: sky dome MSCALs %u (previous frame %u)\n", frameNo, sky, prevSky);
-            }
-            prevSky = sky;
-        }
+
         {
             // Frame-rate / time-split report every ~2 s: VIF1 time includes VU1 execution and the
             // GS work its XGKICKs trigger; GS is also reported on its own (PATH3 included).

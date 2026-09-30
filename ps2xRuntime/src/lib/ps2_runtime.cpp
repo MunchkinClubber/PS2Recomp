@@ -831,7 +831,22 @@ bool PS2Runtime::syncCoreSubsystems()
         { if (s_gsForSync) s_gsForSync->syncLocalMemory(); };
         extern void (*g_ps2FlipHook)();
         g_ps2FlipHook = []()
-        { if (s_gsForSync) s_gsForSync->notePresentPoint(); };
+        {
+            if (s_gsForSync)
+                s_gsForSync->notePresentPoint();
+            // SSX3 diagnostics, in command order (runs where the flip is processed): log displayed
+            // frames in which the sky dome (VU1 0x22C8) was not drawn, and when it comes back.
+            extern std::atomic<uint32_t> g_ssx3SkyCalls;
+            static uint32_t flipNo = 0u, prevSky = 1u, logged = 0u;
+            ++flipNo;
+            const uint32_t sky = g_ssx3SkyCalls.exchange(0u, std::memory_order_relaxed);
+            if ((sky == 0u) != (prevSky == 0u) && logged < 400u)
+            {
+                ++logged;
+                std::fprintf(stderr, "[ssx3:sky] flip %u: sky dome MSCALs %u (previous flip %u)\n", flipNo, sky, prevSky);
+            }
+            prevSky = sky;
+        };
     }
     m_gifArbiter.setProcessPacketFn([this](const uint8_t *data, uint32_t size)
                                     {
