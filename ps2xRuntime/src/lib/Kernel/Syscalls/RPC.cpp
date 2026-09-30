@@ -5,6 +5,9 @@
 #include "RPC.h"
 #include "../../ps2_iop_transport.h"
 
+// ps2_runtime.cpp: runs the IOP handler registered for an EE->IOP SIF command.
+bool ps2DeliverSifCommandToIop(uint8_t *rdram, R5900Context *ctx, const uint8_t *packet, uint32_t size);
+
 namespace ps2_syscalls
 {
     namespace
@@ -1025,8 +1028,7 @@ namespace ps2_syscalls
                 std::memcpy(packet + 0u, &sizeWord, 4u);
                 std::memcpy(packet + 4u, &destExtra, 4u);
                 std::memcpy(packet + 8u, &cid, 4u);
-                extern bool ps2DeliverSifCommandToIop(uint8_t *, R5900Context *, const uint8_t *, uint32_t);
-                const bool delivered = ps2DeliverSifCommandToIop(rdram, ctx, packet, packetSize);
+                const bool delivered = ::ps2DeliverSifCommandToIop(rdram, ctx, packet, packetSize);
                 static int s_cmdLogs = 0;
                 if (s_cmdLogs < 20)
                 {
