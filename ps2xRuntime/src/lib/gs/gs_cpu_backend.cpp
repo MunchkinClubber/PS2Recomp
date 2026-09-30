@@ -40,6 +40,8 @@ std::atomic<uint64_t> g_perfGsSyncs{0};     // read-back / FINISH waits that act
 std::atomic<uint64_t> g_perfGsBarriers{0};  // ordered global commands (transfers, CLUT, clears...)
 std::atomic<uint64_t> g_perfGsHazards{0};   // barriers inserted for render-to-texture hazards
 std::atomic<uint64_t> g_perfGsDraws{0};
+std::atomic<uint64_t> g_perfGsCulled{0};
+std::atomic<uint64_t> g_perfGsClutShadow{0}; // CLUT loads served from the upload shadow
 std::atomic<uint64_t> g_perfGsUploadBarriers{0}; // uploads that had to wait behind queued draws
 // Blocking syncs by reason: 0 init/reset, 1 CLUT load, 2 Sync() (presentation etc.), 3 ReadVram,
 // 4 SnapshotVram, 5 transfer snapshot, 6 epoch list full, 7 local->local/host transfer, 8 readback.
@@ -636,11 +638,46 @@ void GSCpuBackend::ResetUnlocked()
     m_localToHostReadPos = 0u;
 }
 
+namespace
+{
+// True when the primitive's vertex bounds (padded by a pixel) miss the scissor rectangle, so it
+// can write nothing. Such draws are dropped before they reach the queue: besides the wasted
+// setup, their clamped hazard range would otherwise mark a scissor-corner pixel as written.
+bool primitiveOutsideScissor(const GSPrimitiveBatch &batch)
+{
+    const GSDrawState &state = batch.state;
+    const GSContext &ctx = state.context;
+    const uint32_t count = (state.prim.type == GS_PRIM_SPRITE || state.prim.type == GS_PRIM_LINE || state.prim.type == GS_PRIM_LINESTRIP) ? 2u
+                           : (state.prim.type == GS_PRIM_POINT ? 1u : 3u);
+    if (batch.vertexCount < count)
+        return false;
+    const float ofx = static_cast<float>(ctx.xyoffset.ofx >> 4);
+    const float ofy = static_cast<float>(ctx.xyoffset.ofy >> 4);
+    float xMin = batch.vertices[0].x, xMax = xMin, yMin = batch.vertices[0].y, yMax = yMin;
+    for (uint32_t i = 1; i < count; ++i)
+    {
+        xMin = std::min(xMin, batch.vertices[i].x);
+        xMax = std::max(xMax, batch.vertices[i].x);
+        yMin = std::min(yMin, batch.vertices[i].y);
+        yMax = std::max(yMax, batch.vertices[i].y);
+    }
+    if (!(xMin == xMin && xMax == xMax && yMin == yMin && yMax == yMax))
+        return false;
+    return xMax - ofx + 1.0f < static_cast<float>(ctx.scissor.x0) || xMin - ofx - 1.0f > static_cast<float>(ctx.scissor.x1) ||
+           yMax - ofy + 1.0f < static_cast<float>(ctx.scissor.y0) || yMin - ofy - 1.0f > static_cast<float>(ctx.scissor.y1);
+}
+}
+
 void GSCpuBackend::Submit(const GSPrimitiveBatch &batch)
 {
     std::lock_guard<GsLock> lock(m_mutex);
     if (!m_vram || batch.vertexCount == 0u)
         return;
+    if (primitiveOutsideScissor(batch))
+    {
+        g_perfGsCulled.fetch_add(1u, std::memory_order_relaxed);
+        return;
+    }
     if (m_threadMode < 0)
         StartWorkersUnlocked();
     if (!threaded())
@@ -778,14 +815,78 @@ void GSCpuBackend::LoadClut(const GSTex0Reg &tex0, const GSTexClutReg &texclut)
                             if (r.start < end && start < r.end && r.key != 0u)
                                 std::fprintf(stderr, "   epoch %llu (w=%llu) key=%llx [%x,%x)\n", (unsigned long long)e.globalIdx, (unsigned long long)m_writeIdx.load(), (unsigned long long)r.key, r.start, r.end);
             }
+            // A 16-entry CSM1 CLUT is one 64-byte column (8x2 CT32, or half of a 16x2 CT16 one).
+            const uint32_t shadowEnd = (tex0.csm == 0u && isFourBitIndexedPsm(tex0.psm)) ? std::min<uint32_t>(end, start + 64u) : end;
+            if (ClutFromShadowUnlocked(start, shadowEnd))
+            {
+                g_perfGsClutShadow.fetch_add(1u, std::memory_order_relaxed);
+                LoadClutUnlocked(tex0, texclut, m_shadowVram.data());
+                static const bool s_verify = std::getenv("GS_SHADOW_VERIFY") != nullptr;
+                if (s_verify)
+                {
+                    // Debug: check the shadow palette against the one from real VRAM.
+                    const auto fromShadow = m_clut;
+                    SyncToUnlocked(clutTarget, 1);
+                    LoadClutUnlocked(tex0, texclut);
+                    static int s_bad = 0, s_ok = 0;
+                    if (fromShadow != m_clut) ++s_bad; else ++s_ok;
+                    std::fprintf(stderr, "SHADOWVERIFY ok=%d bad=%d\n", s_ok, s_bad);
+                }
+                return;
+            }
             SyncToUnlocked(clutTarget, 1);
         }
     }
     LoadClutUnlocked(tex0, texclut);
 }
 
-void GSCpuBackend::LoadClutUnlocked(const GSTex0Reg &tex0, const GSTexClutReg &texclut)
+bool GSCpuBackend::ClutFromShadowUnlocked(uint32_t start, uint32_t end) const
 {
+    // The CLUT bytes may come from the shadow when, going from the newest pending command
+    // backwards, the first one that writes them is a mirrored upload that wrote every one of
+    // their blocks. Anything older is overwritten by it; any newer writer means real VRAM.
+    if (m_shadowVram.empty() || end <= start)
+        return false;
+    auto hit = [&](const DirtyRange &range)
+    { return range.start < end && start < range.end; };
+    for (const DirtyRange &range : m_dirty)
+        if (range.key != 0u && hit(range))
+            return false;
+    const uint64_t done = MinDone();
+    for (auto it = m_epochs.rbegin(); it != m_epochs.rend(); ++it)
+    {
+        const Epoch &epoch = *it;
+        if (epoch.globalIdx < done)
+            break; // this and every older epoch are finished
+        bool commandHit = false, drawHit = false;
+        for (const DirtyRange &range : epoch.ranges)
+        {
+            if (range.key == 0u || !hit(range))
+                continue;
+            if (range.key == ~0ull)
+                commandHit = true;
+            else
+                drawHit = true;
+        }
+        if (commandHit)
+        {
+            if (!epoch.shadowUpload)
+                return false;
+            for (uint32_t column = start >> 6u; column < ((end + 63u) >> 6u); ++column)
+                if (m_shadowOwner[column] != epoch.globalIdx)
+                    return false;
+            return true;
+        }
+        if (drawHit)
+            return false;
+    }
+    return false;
+}
+
+void GSCpuBackend::LoadClutUnlocked(const GSTex0Reg &tex0, const GSTexClutReg &texclut, const uint8_t *vram)
+{
+    if (!vram)
+        vram = m_vram;
     ++m_clutVersion;
     const bool fourBit = isFourBitIndexedPsm(tex0.psm);
     const bool sixteenBit = tex0.cpsm == GS_PSM_CT16 || tex0.cpsm == GS_PSM_CT16S;
@@ -819,7 +920,7 @@ void GSCpuBackend::LoadClutUnlocked(const GSTex0Reg &tex0, const GSTexClutReg &t
             sourceY = static_cast<uint32_t>(texclut.cov);
         }
 
-        const uint32_t raw = ReadTextureVramUnlocked(tex0.cpsm, tex0.cbp, sourceWidth, sourceX, sourceY); 
+        const uint32_t raw = vram ? GSMem::ReadTexture(nullptr, vram, tex0.cpsm, tex0.cbp, sourceWidth, sourceX, sourceY) : 0u;
         const uint32_t destination = (loadCsm1Suffix ? entry : destinationBase + entry) & (sixteenBit ? 0x1FFu : 0x0FFu);
         if (sixteenBit)
         {
@@ -3394,12 +3495,40 @@ void GSCpuBackend::UploadImage(const uint8_t *data, uint32_t sizeBytes)
         auto copy = std::make_shared<std::vector<uint8_t>>(data, data + sizeBytes);
         const GSTransferCommand xfer = m_transfer;
         const GSTransferSnapshot start = m_transferState;
-        UploadImageImpl(m_transfer, m_transferState, data, sizeBytes, false);
+        // A small CT32/CT16 upload delivered whole and covering whole blocks (typically a CLUT)
+        // is mirrored into the shadow, so a CLUT load right after it need not wait for the queue.
+        const uint8_t dpsm = t.bitbltbuf.dpsm;
+        const uint32_t bpp = dpsm == GS_PSM_CT32 ? 4u : ((dpsm == GS_PSM_CT16 || dpsm == GS_PSM_CT16S) ? 2u : 0u);
+        const uint32_t blockW = bpp == 4u ? 8u : 16u;
+        const uint32_t pixels = static_cast<uint32_t>(t.trxreg.rrw) * static_cast<uint32_t>(t.trxreg.rrh);
+        const bool shadow = bpp != 0u && colsInside && m_transferState.copiedPixels == 0u && pixels == m_transferState.totalPixels &&
+                            pixels * bpp <= 16384u && sizeBytes >= pixels * bpp &&
+                            t.trxpos.dsax % blockW == 0u && t.trxreg.rrw % blockW == 0u && t.trxpos.dsay % 2u == 0u && t.trxreg.rrh % 2u == 0u;
+        if (shadow && m_shadowVram.empty())
+        {
+            m_shadowVram.assign(4u * 1024u * 1024u, 0u);
+            m_shadowOwner.assign(4u * 1024u * 1024u / 64u, ~0ull);
+        }
+        UploadImageImpl(m_transfer, m_transferState, data, sizeBytes, shadow ? m_shadowVram.data() : nullptr);
         EnqueueGlobalUnlocked([this, copy, xfer, start]()
                               {
                                   GSTransferSnapshot st = start;
-                                  UploadImageImpl(xfer, st, copy->data(), static_cast<uint32_t>(copy->size()), true); },
+                                  UploadImageImpl(xfer, st, copy->data(), static_cast<uint32_t>(copy->size()), m_vram); },
                               r.start, r.end);
+        if (shadow)
+        {
+            Epoch &epoch = m_epochs.back();
+            epoch.shadowUpload = true;
+            const uint32_t dbw = std::max<uint32_t>(t.bitbltbuf.dbw, 1u);
+            for (uint32_t y = t.trxpos.dsay; y < static_cast<uint32_t>(t.trxpos.dsay) + t.trxreg.rrh; y += 2u)
+                for (uint32_t x = t.trxpos.dsax; x < static_cast<uint32_t>(t.trxpos.dsax) + t.trxreg.rrw; x += blockW)
+                {
+                    const uint32_t addr = bpp == 4u ? GSPSMCT32::addrPSMCT32(t.bitbltbuf.dbp, dbw, x, y)
+                                                    : (dpsm == GS_PSM_CT16 ? GSPSMCT16::addrPSMCT16(t.bitbltbuf.dbp, dbw, x, y)
+                                                                           : GSPSMCT16::addrPSMCT16S(t.bitbltbuf.dbp, dbw, x, y));
+                    m_shadowOwner[(addr & (4u * 1024u * 1024u - 1u)) >> 6u] = epoch.globalIdx;
+                }
+        }
     }
     else
         UploadImageUnlocked(data, sizeBytes);
@@ -3407,18 +3536,18 @@ void GSCpuBackend::UploadImage(const uint8_t *data, uint32_t sizeBytes)
 
 void GSCpuBackend::UploadImageUnlocked(const uint8_t *data, uint32_t sizeBytes)
 {
-    UploadImageImpl(m_transfer, m_transferState, data, sizeBytes, true);
+    UploadImageImpl(m_transfer, m_transferState, data, sizeBytes, m_vram);
 }
 
 // Writes one chunk of a host->local transfer described by `xfer`, advancing `st`. With
-// write=false only `st` advances (the producer's bookkeeping for a chunk handed to the queue).
+// dst=nullptr only `st` advances (the producer's bookkeeping for a chunk handed to the queue).
 void GSCpuBackend::UploadImageImpl(const GSTransferCommand &xfer, GSTransferSnapshot &st,
-                                   const uint8_t *data, uint32_t sizeBytes, bool write)
+                                   const uint8_t *data, uint32_t sizeBytes, uint8_t *dst)
 {
     auto writePx = [&](uint32_t psm, uint32_t bp, uint32_t bw, uint32_t x, uint32_t y, uint32_t v)
     {
-        if (write)
-            WriteVramUnlocked(psm, bp, bw, x, y, v);
+        if (dst)
+            m_writeVramFuncs[psm & 0x3Fu](dst, bp, bw, x, y, v);
     };
     if (!data || sizeBytes == 0u || !m_vram || st.direction != 0u)
         return;
@@ -3463,13 +3592,13 @@ void GSCpuBackend::UploadImageImpl(const GSTransferCommand &xfer, GSTransferSnap
             run = std::min<uint32_t>(run, st.totalPixels - st.copiedPixels);
             if (run == 0u)
                 break;
-            if (write)
+            if (dst)
             {
                 const uint32_t x0 = st.x;
                 const uint32_t y = st.y;
                 const uint8_t *src = data + offset;
                 for (uint32_t i = 0; i < run; ++i)
-                    surf.write(m_vram, x0 + i, y, load(src + i * bpp));
+                    surf.write(dst, x0 + i, y, load(src + i * bpp));
             }
             offset += run * bpp;
             advancePixel(run);
@@ -3504,8 +3633,8 @@ void GSCpuBackend::UploadImageImpl(const GSTransferCommand &xfer, GSTransferSnap
         {
             const uint8_t packed = data[offset++];
             const uint32_t remaining = st.totalPixels - st.copiedPixels;
-            if (write)
-                surf.write(m_vram, dsax + col, xfer.trxpos.dsay + row, packed & 0x0Fu);
+            if (dst)
+                surf.write(dst, dsax + col, xfer.trxpos.dsay + row, packed & 0x0Fu);
             if (++col == rrw)
             {
                 col = 0u;
@@ -3513,8 +3642,8 @@ void GSCpuBackend::UploadImageImpl(const GSTransferCommand &xfer, GSTransferSnap
             }
             if (remaining > 1u)
             {
-                if (write)
-                    surf.write(m_vram, dsax + col, xfer.trxpos.dsay + row, (packed >> 4u) & 0x0Fu);
+                if (dst)
+                    surf.write(dst, dsax + col, xfer.trxpos.dsay + row, (packed >> 4u) & 0x0Fu);
                 if (++col == rrw)
                 {
                     col = 0u;

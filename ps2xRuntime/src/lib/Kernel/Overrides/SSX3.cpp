@@ -32,6 +32,7 @@ extern std::atomic<uint64_t> g_perfVu0Ns, g_perfVu0Calls; // ps2_runtime.cpp
 void vif1ObsReport(double frames);
 std::atomic<uint32_t> g_ssx3SkyCalls{0}; // sky dome MSCALs since the last flip (ps2_runtime.cpp)
 extern std::atomic<uint64_t> g_perfGsSyncCount[9], g_perfGsSyncNs[9], g_perfGsQueueFullNs; // gs_cpu_backend.cpp
+extern std::atomic<uint64_t> g_perfGsCulled, g_perfGsClutShadow; // gs_cpu_backend.cpp
 
 namespace
 {
@@ -386,9 +387,15 @@ namespace
                         lastNs[i] = ns;
                     }
                     const uint64_t full = g_perfGsQueueFullNs.load(std::memory_order_relaxed);
-                    std::fprintf(stderr, "[ssx3:perf]   GS waits per frame:%s | queue full %.1fms\n", text.empty() ? " none" : text.c_str(),
-                                 (full - lastFull) / 1e6 / frames);
+                    static uint64_t lastCulled = 0u, lastShadow = 0u;
+                    const uint64_t culled = g_perfGsCulled.load(std::memory_order_relaxed);
+                    const uint64_t shadow = g_perfGsClutShadow.load(std::memory_order_relaxed);
+                    std::fprintf(stderr, "[ssx3:perf]   GS waits per frame:%s | queue full %.1fms | CLUTs from shadow %.1f, culled prims %.0f\n",
+                                 text.empty() ? " none" : text.c_str(), (full - lastFull) / 1e6 / frames,
+                                 static_cast<double>(shadow - lastShadow) / frames, static_cast<double>(culled - lastCulled) / frames);
                     lastFull = full;
+                    lastCulled = culled;
+                    lastShadow = shadow;
                 }
                 last = now;
                 frames = 0u;

@@ -131,7 +131,15 @@ private:
     {
         uint64_t globalIdx; // the barrier closing this epoch; done once every worker passed it
         std::vector<DirtyRange> ranges; // writes + reads of its draws, plus the barrier's own writes
+        bool shadowUpload = false;      // its command is a whole-transfer upload mirrored in m_shadowVram
     };
+    // Producer-side mirror of small, block-aligned CT32/CT16 uploads that had to be queued behind
+    // draws: a CLUT load whose newest pending writer is such an upload decodes the palette from
+    // here instead of waiting for the queue. m_shadowOwner[column] = epoch index of the upload
+    // that last wrote that whole 64-byte column (8x2 CT32 / 16x2 CT16 pixels; ~0 = none).
+    std::vector<uint8_t> m_shadowVram;
+    std::vector<uint64_t> m_shadowOwner;
+    bool ClutFromShadowUnlocked(uint32_t start, uint32_t end) const;
     std::vector<Epoch> m_epochs;  // closed epochs that may still be running
     // Asynchronous presentation (threaded mode): a queued barrier copies VRAM into m_presentStage
     // at its place in the command stream; Present() converts the latest completed copy, so the
@@ -162,10 +170,10 @@ private:
     void BeginTransferUnlocked(const GSTransferCommand &command);
     void UploadImageUnlocked(const uint8_t *data, uint32_t sizeBytes);
     void UploadImageImpl(const GSTransferCommand &xfer, GSTransferSnapshot &st,
-                         const uint8_t *data, uint32_t sizeBytes, bool write);
+                         const uint8_t *data, uint32_t sizeBytes, uint8_t *dst);
     void ClearFramebufferUnlocked(const GSContext &context, uint32_t rgba);
     void ResetUnlocked();
-    void LoadClutUnlocked(const GSTex0Reg &tex0, const GSTexClutReg &texclut);
+    void LoadClutUnlocked(const GSTex0Reg &tex0, const GSTexClutReg &texclut, const uint8_t *vram = nullptr);
     uint32_t ReadVramUnlocked(uint32_t psm, uint32_t base, uint32_t bw, uint32_t x, uint32_t y) const;
     uint32_t ReadTextureVramUnlocked(uint32_t psm, uint32_t base, uint32_t bw, uint32_t x, uint32_t y);
     void WriteVramUnlocked(uint32_t psm, uint32_t base, uint32_t bw, uint32_t x, uint32_t y, uint32_t value);
