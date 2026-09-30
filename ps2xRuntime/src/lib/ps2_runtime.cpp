@@ -42,10 +42,25 @@ namespace
     struct AdmaPlayer
     {
         static constexpr size_t kCapacity = 48000u; // frames (1 s)
+        // The game produces audio in bursts tied to emulation speed, the host plays at a steady
+        // 48 kHz. Keep about kTarget frames queued and nudge the playback rate (at most +-2%,
+        // linear interpolation) to hold that level instead of letting the queue run dry (hard
+        // cut to silence) or overflow (a jump). A real underrun fades out, rebuffers to the target
+        // and fades back in.
+        static constexpr size_t kTarget = 4800u;  // 100 ms
+        static constexpr size_t kMaxQueued = 4u * kTarget;
+        static constexpr float kMaxRateDelta = 0.02f;
+        static constexpr int kFadeFrames = 96;
         std::mutex mutex;
         std::vector<int16_t> ring = std::vector<int16_t>(kCapacity * 2u);
         size_t readPos = 0u, count = 0u;
-        bool started = false; // wait for some data before playing (avoids crackle at start)
+        bool started = false;
+        double frac = 0.0;       // fractional read position between ring[readPos] and the next frame
+        float fillAvg = 0.0f;    // smoothed queue level
+        int fadeIn = 0;          // frames of fade-in remaining after (re)start
+        float lastL = 0.0f, lastR = 0.0f;
+        int fadeOut = 0;         // frames of fade-out remaining after an underrun
+        uint64_t underruns = 0u, trims = 0u;
         AudioStream stream{};
     };
     AdmaPlayer *g_adma = nullptr;
@@ -63,23 +78,64 @@ namespace
     {
         AdmaPlayer &p = *g_adma;
         std::lock_guard<std::mutex> lock(p.mutex);
-        if (!p.started && p.count >= 2400u)
+        if (!p.started && p.count >= AdmaPlayer::kTarget)
+        {
             p.started = true;
+            p.frac = 0.0;
+            p.fadeIn = AdmaPlayer::kFadeFrames;
+            p.fillAvg = static_cast<float>(p.count);
+        }
+        // Rate from the smoothed queue level: above target play slightly faster, below slower.
+        p.fillAvg += (static_cast<float>(p.count) - p.fillAvg) * 0.05f;
+        float rate = 1.0f + AdmaPlayer::kMaxRateDelta *
+                                ((p.fillAvg - static_cast<float>(AdmaPlayer::kTarget)) / static_cast<float>(AdmaPlayer::kTarget));
+        rate = std::clamp(rate, 1.0f - AdmaPlayer::kMaxRateDelta, 1.0f + AdmaPlayer::kMaxRateDelta);
+
         for (unsigned int i = 0; i < frames; ++i)
         {
-            if (p.started && p.count > 0u)
+            float l = 0.0f, r = 0.0f;
+            if (p.started && p.count >= 2u)
             {
-                out[2u * i] = p.ring[2u * p.readPos];
-                out[2u * i + 1u] = p.ring[2u * p.readPos + 1u];
-                p.readPos = (p.readPos + 1u) % AdmaPlayer::kCapacity;
-                --p.count;
+                const size_t i0 = p.readPos, i1 = (p.readPos + 1u) % AdmaPlayer::kCapacity;
+                const float t = static_cast<float>(p.frac);
+                l = p.ring[2u * i0] + (p.ring[2u * i1] - p.ring[2u * i0]) * t;
+                r = p.ring[2u * i0 + 1u] + (p.ring[2u * i1 + 1u] - p.ring[2u * i0 + 1u]) * t;
+                if (p.fadeIn > 0)
+                {
+                    const float g = 1.0f - static_cast<float>(p.fadeIn) / AdmaPlayer::kFadeFrames;
+                    l *= g;
+                    r *= g;
+                    --p.fadeIn;
+                }
+                p.lastL = l;
+                p.lastR = r;
+                p.frac += rate;
+                while (p.frac >= 1.0 && p.count >= 2u)
+                {
+                    p.frac -= 1.0;
+                    p.readPos = (p.readPos + 1u) % AdmaPlayer::kCapacity;
+                    --p.count;
+                }
             }
             else
             {
-                out[2u * i] = 0;
-                out[2u * i + 1u] = 0;
-                p.started = false; // underrun: rebuffer a little
+                if (p.started)
+                {
+                    // Underrun: fade the last sample out and rebuffer to the target level.
+                    p.started = false;
+                    p.fadeOut = AdmaPlayer::kFadeFrames;
+                    ++p.underruns;
+                }
+                if (p.fadeOut > 0)
+                {
+                    const float g = static_cast<float>(p.fadeOut) / AdmaPlayer::kFadeFrames;
+                    l = p.lastL * g;
+                    r = p.lastR * g;
+                    --p.fadeOut;
+                }
             }
+            out[2u * i] = static_cast<int16_t>(std::clamp(l, -32768.0f, 32767.0f));
+            out[2u * i + 1u] = static_cast<int16_t>(std::clamp(r, -32768.0f, 32767.0f));
         }
     }
 
@@ -107,13 +163,27 @@ namespace
                 ++p.count;
             }
         }
-        // Keep latency bounded (~150 ms) if the game produces faster than we play.
-        constexpr size_t kMaxQueued = 7200u, kTrimTo = 3600u;
-        if (p.count > kMaxQueued)
+        // Far too much queued (e.g. after a long host stall): drop back to the target.
+        if (p.count > AdmaPlayer::kMaxQueued)
         {
-            const size_t drop = p.count - kTrimTo;
+            const size_t drop = p.count - AdmaPlayer::kTarget;
             p.readPos = (p.readPos + drop) % AdmaPlayer::kCapacity;
             p.count -= drop;
+            p.fillAvg = static_cast<float>(p.count);
+            ++p.trims;
+        }
+        // Every 10 s, if anything went wrong, report it (underruns = audible gaps).
+        static auto s_last = std::chrono::steady_clock::now();
+        static uint64_t s_lastUnder = 0u, s_lastTrims = 0u;
+        const auto now = std::chrono::steady_clock::now();
+        if (now - s_last >= std::chrono::seconds(10))
+        {
+            s_last = now;
+            if (p.underruns != s_lastUnder || p.trims != s_lastTrims)
+                std::fprintf(stderr, "[audio] last 10 s: %llu underruns, %llu overflow trims, queue %zu frames\n",
+                             (unsigned long long)(p.underruns - s_lastUnder), (unsigned long long)(p.trims - s_lastTrims), p.count);
+            s_lastUnder = p.underruns;
+            s_lastTrims = p.trims;
         }
     }
 
