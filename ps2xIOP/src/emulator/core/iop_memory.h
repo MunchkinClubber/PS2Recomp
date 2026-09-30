@@ -103,5 +103,8 @@ namespace ps2x::iop::detail
             uint32_t bytes = 0;
         };
         AdmaCapture m_admaCapture[2];
+        // Diagnostics: bytes written per 1 KiB block of the auto-DMA buffers since each was last taken.
+        uint32_t m_admaWatchLo = 0xFFFFFFFFu, m_admaWatchHi = 0u;
+        uint32_t m_admaBlockWrites[16] = {};
     };
 }
