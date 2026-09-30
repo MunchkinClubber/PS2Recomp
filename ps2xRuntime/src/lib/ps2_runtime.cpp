@@ -94,9 +94,6 @@ namespace
         int fadeOut = 0;         // frames of fade-out remaining after an underrun
         uint64_t underruns = 0u, trims = 0u;
         uint64_t framesIn = 0u, framesOut = 0u; // produced by the game / consumed by the host
-        uint64_t repeats = 0u;                   // 1 KiB blocks identical to the one two blocks earlier (stale buffer)
-        uint8_t history[2][1024] = {};
-        uint32_t historyIndex = 0u;
         FILE *dumpIn = nullptr, *dumpOut = nullptr; // PS2_AUDIO_DUMP=1: raw 48 kHz s16 stereo, first 90 s
         AudioStream stream{};
     };
@@ -190,16 +187,6 @@ namespace
             int16_t left[256], right[256];
             std::memcpy(left, data + block, sizeof(left));
             std::memcpy(right, data + block + 512u, sizeof(right));
-            {
-                uint8_t *prev = p.history[p.historyIndex & 1u];
-                bool silent = true;
-                for (int k = 0; k < 256 && silent; ++k)
-                    silent = left[k] == 0 && right[k] == 0;
-                if (!silent && std::memcmp(prev, data + block, 1024u) == 0)
-                    ++p.repeats;
-                std::memcpy(prev, data + block, 1024u);
-                ++p.historyIndex;
-            }
             if (p.dumpIn && p.framesIn < 48000ull * 90u)
                 for (int k = 0; k < 256; ++k)
                 {
@@ -244,7 +231,7 @@ namespace
         }
         // Every 10 s, if anything went wrong, report it (underruns = audible gaps).
         static auto s_last = std::chrono::steady_clock::now();
-        static uint64_t s_lastUnder = 0u, s_lastTrims = 0u, s_lastIn = 0u, s_lastOut = 0u, s_lastRepeats = 0u, s_lastHolds = 0u;
+        static uint64_t s_lastUnder = 0u, s_lastTrims = 0u, s_lastIn = 0u, s_lastOut = 0u, s_lastHolds = 0u;
         const auto now = std::chrono::steady_clock::now();
         if (now - s_last >= std::chrono::seconds(10))
         {
@@ -256,7 +243,6 @@ namespace
                              (unsigned long long)(p.underruns - s_lastUnder), (unsigned long long)(p.trims - s_lastTrims),
                              (unsigned long long)(holds - s_lastHolds), p.count,
                              (p.framesIn - s_lastIn) / secs, (p.framesOut - s_lastOut) / secs);
-            s_lastRepeats = p.repeats;
             s_lastHolds = holds;
             s_lastIn = p.framesIn;
             s_lastOut = p.framesOut;
