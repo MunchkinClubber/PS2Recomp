@@ -720,6 +720,7 @@ void GSCpuBackend::Submit(const GSPrimitiveBatch &batch)
         m_pending.batch.vertexCount == batch.vertexCount &&
         std::memcmp(&m_pending.batch.state, &batch.state, sizeof(GSDrawState)) == 0)
     {
+        m_pending.dep = std::max(m_pending.dep, m_nextDep);
         m_pending.more.resize(m_pending.more.size() + 3u);
         GSVertex *dst = m_pending.more.data() + m_pending.more.size() - 3u;
         dst[0] = batch.vertices[0];
@@ -730,6 +731,8 @@ void GSCpuBackend::Submit(const GSPrimitiveBatch &batch)
     }
     FlushPendingUnlocked();
     m_pending.global = false;
+    m_pending.soft = false;
+    m_pending.dep = m_nextDep;
     m_pending.batch = batch;
     if (indexed)
         m_pending.palette = m_sharedPalette;
@@ -1219,6 +1222,9 @@ void GSCpuBackend::WorkerMain(uint32_t index)
         Command &command = m_ring[idx % kRingSize];
         if (!command.global)
         {
+            if (command.dep != 0u)
+                gsWaitUntil([&]()
+                            { return MinDone() >= command.dep || m_stopWorkers.load(std::memory_order_relaxed); });
             t_drawPalette = command.palette ? command.palette->data() : nullptr;
             DrawPrimitive(command.batch);
             if (!command.more.empty())
@@ -1233,6 +1239,10 @@ void GSCpuBackend::WorkerMain(uint32_t index)
                 }
             }
             t_drawPalette = nullptr;
+        }
+        else if (command.soft && (index != 0u || !command.fn))
+        {
+            // Soft barrier: nothing to wait for here (dependent draws carry dep).
         }
         else if (index == 0u)
         {
@@ -1310,12 +1320,19 @@ void GSCpuBackend::WakeWorkers() const
     m_wakeCv.notify_all();
 }
 
-void GSCpuBackend::EnqueueGlobalUnlocked(std::function<void()> fn, uint32_t touchStart, uint32_t touchEnd)
+void GSCpuBackend::EnqueueGlobalUnlocked(std::function<void()> fn, uint32_t touchStart, uint32_t touchEnd, bool soft)
 {
     g_perfGsBarriers.fetch_add(1u, std::memory_order_relaxed);
+    static const bool s_softBarriers = []
+    {
+        const char *v = std::getenv("PS2_GS_SOFT");
+        return !(v && v[0] == '0');
+    }();
     Command command;
     command.global = true;
+    command.soft = soft && s_softBarriers;
     command.fn = std::move(fn);
+    ++m_epochSerial;
     if (!m_epochs.empty())
     {
         const uint64_t done = MinDone();
@@ -1483,6 +1500,73 @@ void GSCpuBackend::SyncUnlocked(int reason) const
     g_perfGsSyncNs[r].fetch_add(waited, std::memory_order_relaxed);
 }
 
+uint64_t GSCpuBackend::DrawDepUnlocked(const GSDrawState &state, uint32_t texStart, uint32_t texEnd) const
+{
+    // With soft barriers, workers do not stop at a barrier: a draw that reads what an earlier
+    // epoch (its draws or its barrier command) wrote, writes what it read or wrote under another
+    // layout, or touches the barrier command's range at all, must wait until every worker is
+    // past that epoch's barrier. Targets are taken over the scissor rows (per state, so the
+    // result can be cached while no epoch is added).
+    const uint64_t done = MinDone();
+    if (m_epochs.empty() || m_epochs.back().globalIdx < done)
+        return 0u;
+    if (m_depCacheSerial == m_epochSerial && std::memcmp(&m_depCacheState, &state, sizeof(GSDrawState)) == 0)
+        return m_depCacheValue > done ? m_depCacheValue : 0u;
+    const GSContext &ctx = state.context;
+    const uint32_t fbw = std::max<uint32_t>(ctx.frame.fbw, 1u);
+    const uint32_t rows = static_cast<uint32_t>(ctx.scissor.y1) + 1u, row0 = static_cast<uint32_t>(ctx.scissor.y0);
+    DirtyRange targets[2];
+    uint32_t targetCount = 0u;
+    {
+        const GsByteRange r = gsBufferRange(ctx.frame.fbp * 32u, fbw, ctx.frame.psm, rows, row0);
+        targets[targetCount++] = {static_cast<uint64_t>(ctx.frame.fbp) | (static_cast<uint64_t>(fbw) << 16) | (static_cast<uint64_t>(ctx.frame.psm) << 32), r.start, r.end};
+    }
+    const uint32_t ztestMethod = static_cast<uint32_t>((ctx.test >> 17) & 3u);
+    if (ztestMethod >= 2u || !ctx.zbuf.zmask)
+    {
+        const GsByteRange r = gsBufferRange(ctx.zbuf.zbp * 32u, fbw, ctx.zbuf.psm, rows, row0);
+        targets[targetCount++] = {static_cast<uint64_t>(ctx.zbuf.zbp) | (static_cast<uint64_t>(fbw) << 16) | (static_cast<uint64_t>(ctx.zbuf.psm) << 32) | (1ull << 40), r.start, r.end};
+    }
+    const bool reads = state.prim.tme && texEnd > texStart;
+    uint64_t dep = 0u;
+    for (auto it = m_epochs.rbegin(); it != m_epochs.rend() && dep == 0u; ++it)
+    {
+        const Epoch &epoch = *it;
+        if (epoch.globalIdx < done)
+            break;
+        for (const DirtyRange &range : epoch.ranges)
+        {
+            bool hit = false;
+            if (range.key == ~0ull)
+            {
+                hit = reads && range.start < texEnd && texStart < range.end;
+                for (uint32_t t = 0; t < targetCount && !hit; ++t)
+                    hit = range.start < targets[t].end && targets[t].start < range.end;
+            }
+            else if (range.key == 0u)
+            {
+                for (uint32_t t = 0; t < targetCount && !hit; ++t)
+                    hit = range.start < targets[t].end && targets[t].start < range.end;
+            }
+            else
+            {
+                hit = reads && range.start < texEnd && texStart < range.end;
+                for (uint32_t t = 0; t < targetCount && !hit; ++t)
+                    hit = range.key != targets[t].key && range.start < targets[t].end && targets[t].start < range.end;
+            }
+            if (hit)
+            {
+                dep = epoch.globalIdx + 1u;
+                break;
+            }
+        }
+    }
+    m_depCacheSerial = m_epochSerial;
+    std::memcpy(&m_depCacheState, &state, sizeof(GSDrawState));
+    m_depCacheValue = dep;
+    return dep;
+}
+
 void GSCpuBackend::NoteDrawHazardsUnlocked(const GSPrimitiveBatch &batch)
 {
     // Workers only order draws within their own rows. A draw that reads memory another queued
@@ -1569,8 +1653,9 @@ void GSCpuBackend::NoteDrawHazardsUnlocked(const GSPrimitiveBatch &batch)
     if (barrier)
     {
         g_perfGsHazards.fetch_add(1u, std::memory_order_relaxed);
-        EnqueueGlobalUnlocked(nullptr, 0u, 0u);
+        EnqueueGlobalUnlocked(nullptr, 0u, 0u, true);
     }
+    m_nextDep = DrawDepUnlocked(state, tex.start, tex.end);
 
     // This draw goes into the pending batch, which lands at the current write index or - if an
     // older batch is flushed first - the next one.
@@ -3546,7 +3631,7 @@ void GSCpuBackend::BeginTransfer(const GSTransferCommand &command)
                                               static_cast<uint32_t>(command.trxpos.dsay) + static_cast<uint32_t>(command.trxreg.rrh));
         EnqueueGlobalUnlocked([this, command]()
                               { CopyLocalToLocal(command); },
-                              std::min(src.start, dst.start), std::max(src.end, dst.end));
+                              std::min(src.start, dst.start), std::max(src.end, dst.end), true);
         m_epochs.back().kind = 2;
         m_epochs.back().xfer = command;
         return;
@@ -3668,7 +3753,7 @@ void GSCpuBackend::UploadImage(const uint8_t *data, uint32_t sizeBytes)
                               {
                                   GSTransferSnapshot st = start;
                                   UploadImageImpl(xfer, st, copy->data(), static_cast<uint32_t>(copy->size()), m_vram); },
-                              r.start, r.end);
+                              r.start, r.end, true);
         {
             Epoch &epoch = m_epochs.back();
             epoch.kind = 1;

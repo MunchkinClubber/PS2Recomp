@@ -78,6 +78,12 @@ private:
         std::shared_ptr<const std::array<uint32_t, 256>> palette; // decoded CLUT for indexed textures
         std::function<void()> fn;
         std::vector<GSVertex> more; // further primitives with the same state (3 vertices each)
+        // Soft barrier: only worker 0 stops (to run fn once every worker has passed the earlier
+        // commands); the others go on. Draws that touch what such a barrier (or the draws before
+        // it) wrote or read carry dep: they start only once every worker has finished all
+        // commands before index dep.
+        bool soft = false;
+        uint64_t dep = 0;
     };
     struct alignas(64) WorkerSlot
     {
@@ -105,7 +111,13 @@ private:
     mutable bool m_hasPending = false;
     mutable uint32_t m_pendingPrims = 0;
     // `touchStart/End`: VRAM bytes the command itself writes (for CanRunDirectUnlocked).
-    void EnqueueGlobalUnlocked(std::function<void()> fn, uint32_t touchStart = 0u, uint32_t touchEnd = 0x400000u);
+    void EnqueueGlobalUnlocked(std::function<void()> fn, uint32_t touchStart = 0u, uint32_t touchEnd = 0x400000u, bool soft = false);
+    // Draw dependency on closed epochs (see Command::dep), cached per draw state.
+    uint64_t DrawDepUnlocked(const GSDrawState &state, uint32_t texStart, uint32_t texEnd) const;
+    uint64_t m_epochSerial = 0;             // bumped whenever an epoch is added or folded
+    mutable uint64_t m_nextDep = 0;         // dep for the primitive being submitted
+    mutable uint64_t m_depCacheSerial = ~0ull, m_depCacheDone = 0, m_depCacheValue = 0;
+    mutable GSDrawState m_depCacheState{};
     void SyncUnlocked(int reason) const;
     uint64_t HazardTargetUnlocked(uint32_t start, uint32_t end, bool readOnly) const;
     void SyncToUnlocked(uint64_t target, int reason) const;
