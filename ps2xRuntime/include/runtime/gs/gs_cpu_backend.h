@@ -168,7 +168,7 @@ private:
     GSPresentationRequest m_presentStageRequest{}, m_presentLatestRequest{};
     bool m_presentLatestNew = false;
     bool m_presentHaveAny = false;
-    std::atomic<bool> m_presentPending{false};
+    std::atomic<int> m_presentPending{0}; // snapshots queued but not yet taken
     std::atomic<uint64_t> m_lastFlipSnapshotNs{0}; // when the last flip-anchored snapshot was queued
     void EnqueuePresentSnapshotUnlocked(const GSPresentationRequest &request);
     std::shared_ptr<const std::array<uint32_t, 256>> m_sharedPalette;

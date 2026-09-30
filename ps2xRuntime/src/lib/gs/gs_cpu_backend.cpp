@@ -4290,7 +4290,7 @@ void GSCpuBackend::EnqueuePresentSnapshotUnlocked(const GSPresentationRequest &r
                                   m_presentLatestNew = true;
                                   m_presentHaveAny = true;
                               }
-                              m_presentPending.store(false); },
+                              m_presentPending.fetch_sub(1); },
                           0u, 0u);
 }
 
@@ -4299,21 +4299,27 @@ void GSCpuBackend::QueuePresentSnapshot(const GSPresentationRequest &request)
     if (!threaded() || !s_asyncPresent || !m_vram || m_vramSize == 0u)
         return;
     m_lastFlipSnapshotNs.store(gsNowNs(), std::memory_order_relaxed);
-    // One snapshot in flight at a time. By default a flip that finds the previous frame's
-    // snapshot still queued waits for it (up to 100 ms): that keeps the raster queue at most one
-    // frame behind, so every game frame is shown and pacing stays even. Without the wait the
-    // producer could run far ahead, frames were dropped irregularly and the display stuttered.
+    // Up to PS2_GS_PRESENT_DEPTH (default 2) snapshots in flight. A flip that finds that many
+    // still queued waits (up to 100 ms) for the oldest: the raster queue stays at most that many
+    // frames behind, so every game frame is shown and pacing stays even, while the producer can
+    // start the next frame without waiting for the rasteriser to finish the previous one.
     // PS2_GS_PACE=0: skip the flip instead (the display repeats the previous frame).
     static const bool s_pace = []
     {
         const char *v = std::getenv("PS2_GS_PACE");
         return !(v && v[0] == '0');
     }();
-    if (m_presentPending.load(std::memory_order_acquire) && s_pace)
+    static const int s_depth = []
+    {
+        const char *v = std::getenv("PS2_GS_PRESENT_DEPTH");
+        const int d = v ? std::atoi(v) : 2;
+        return std::min(std::max(d, 1), 4);
+    }();
+    if (s_pace && m_presentPending.load(std::memory_order_acquire) >= s_depth)
     {
         const uint64_t t0 = gsNowNs();
         uint32_t spins = 0u;
-        while (m_presentPending.load(std::memory_order_acquire) && gsNowNs() - t0 < 100000000ull)
+        while (m_presentPending.load(std::memory_order_acquire) >= s_depth && gsNowNs() - t0 < 100000000ull)
         {
             if (++spins < 64u)
                 std::this_thread::yield();
@@ -4322,8 +4328,9 @@ void GSCpuBackend::QueuePresentSnapshot(const GSPresentationRequest &request)
         }
         g_perfGsPaceNs.fetch_add(gsNowNs() - t0, std::memory_order_relaxed);
     }
-    if (m_presentPending.exchange(true))
+    if (m_presentPending.fetch_add(1) >= s_depth)
     {
+        m_presentPending.fetch_sub(1);
         g_perfGsPresentSkips.fetch_add(1u, std::memory_order_relaxed);
         return;
     }
@@ -4342,7 +4349,8 @@ PresentationFrame GSCpuBackend::Present(const GSPresentationRequest &request)
         // frame's copy into it. Otherwise (no flips seen lately) snapshot here.
         const uint64_t lastFlip = m_lastFlipSnapshotNs.load(std::memory_order_relaxed);
         const bool flipAnchored = lastFlip != 0u && gsNowNs() - lastFlip < 250000000ull;
-        if (!flipAnchored && !m_presentPending.exchange(true))
+        int expected = 0;
+        if (!flipAnchored && m_presentPending.compare_exchange_strong(expected, 1))
         {
             std::lock_guard<GsLock> lock(m_mutex);
             EnqueuePresentSnapshotUnlocked(request);
