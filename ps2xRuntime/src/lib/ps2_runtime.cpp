@@ -47,8 +47,8 @@ namespace
         // linear interpolation) to hold that level instead of letting the queue run dry (hard
         // cut to silence) or overflow (a jump). A real underrun fades out, rebuffers to the target
         // and fades back in.
-        static constexpr size_t kTarget = 4800u;  // 100 ms
-        static constexpr size_t kMaxQueued = 4u * kTarget;
+        static constexpr size_t kTarget = 7200u;  // 150 ms
+        static constexpr size_t kMaxQueued = 5u * kTarget;
         static constexpr float kMaxRateDelta = 0.02f;
         static constexpr int kFadeFrames = 96;
         std::mutex mutex;
@@ -167,7 +167,20 @@ namespace
         if (p.count > AdmaPlayer::kMaxQueued)
         {
             const size_t drop = p.count - AdmaPlayer::kTarget;
-            p.readPos = (p.readPos + drop) % AdmaPlayer::kCapacity;
+            // Crossfade from what would have played next into the audio after the jump, so the
+            // skip is not a click.
+            const size_t newPos = (p.readPos + drop) % AdmaPlayer::kCapacity;
+            for (int k = 0; k < AdmaPlayer::kFadeFrames; ++k)
+            {
+                const float t = static_cast<float>(k + 1) / (AdmaPlayer::kFadeFrames + 1);
+                const size_t o = (p.readPos + 1u + k) % AdmaPlayer::kCapacity;
+                const size_t n = (newPos + 1u + k) % AdmaPlayer::kCapacity;
+                for (int c = 0; c < 2; ++c)
+                    p.ring[2u * n + c] = static_cast<int16_t>(p.ring[2u * o + c] * (1.0f - t) + p.ring[2u * n + c] * t);
+            }
+            p.ring[2u * newPos] = p.ring[2u * p.readPos];
+            p.ring[2u * newPos + 1u] = p.ring[2u * p.readPos + 1u];
+            p.readPos = newPos;
             p.count -= drop;
             p.fillAvg = static_cast<float>(p.count);
             ++p.trims;
