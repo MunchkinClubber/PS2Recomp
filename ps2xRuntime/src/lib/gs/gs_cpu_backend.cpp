@@ -4123,6 +4123,18 @@ void GSCpuBackend::PerformLocalToHostTransfer()
 
     m_transferState.copiedPixels = total;
     m_transferState.localToHostPendingBytes = m_localToHostBuffer.size();
+
+    // Debug: GS_XFER_LOG=1 logs local->host readbacks (what the game reads back from VRAM).
+    static const bool s_xferLog = std::getenv("GS_XFER_LOG") != nullptr;
+    static int s_xferLogs = 0;
+    if (s_xferLog && s_xferLogs++ < 400)
+    {
+        std::fprintf(stderr, "[gs:readback] sbp=%x sbw=%u spsm=%x ssa=%u,%u %ux%u bytes=%zu:", m_transfer.bitbltbuf.sbp, sbw, spsm,
+                     m_transfer.trxpos.ssax, m_transfer.trxpos.ssay, rrw, rrh, m_localToHostBuffer.size());
+        for (size_t i = 0; i < m_localToHostBuffer.size() && i < 32u; ++i)
+            std::fprintf(stderr, "%s%02x", (i % 4u) == 0u ? " " : "", m_localToHostBuffer[i]);
+        std::fprintf(stderr, "\n");
+    }
 }
 
 uint32_t GSCpuBackend::ConsumeLocalToHostBytes(uint8_t *dst, uint32_t maxBytes)
@@ -4134,6 +4146,12 @@ uint32_t GSCpuBackend::ConsumeLocalToHostBytes(uint8_t *dst, uint32_t maxBytes)
     const size_t count = std::min<size_t>(maxBytes, m_localToHostBuffer.size() - m_localToHostReadPos);
     std::memcpy(dst, m_localToHostBuffer.data() + m_localToHostReadPos, count);
     m_localToHostReadPos += count;
+    {
+        static const bool s_xferLog = std::getenv("GS_XFER_LOG") != nullptr;
+        static int s_consumeLogs = 0;
+        if (s_xferLog && s_consumeLogs++ < 400)
+            std::fprintf(stderr, "[gs:readback] consumed %zu (pos %zu of %zu)\n", count, m_localToHostReadPos, m_localToHostBuffer.size());
+    }
     m_transferState.localToHostPendingBytes = m_localToHostBuffer.size() - m_localToHostReadPos;
     return static_cast<uint32_t>(count);
 }
