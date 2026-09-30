@@ -2104,6 +2104,9 @@ struct GSPixelPipe
     uint32_t ztest;
     bool abe, pabe;
     uint8_t asel, bsel, csel, dsel, fix;
+    // The blend (A - B) * C >> 7 + D as coefficients of Cs and Cd: A - B = kS*Cs + kD*Cd (each
+    // -1, 0 or 1) and D = dS*Cs + dD*Cd (0 or 1).
+    int kS, kD, dS, dD;
     bool date, dateNeedsRead;
     uint32_t fbmsk;
     bool fbaForce;
@@ -2164,6 +2167,10 @@ void GSCpuBackend::SetupPixelPipe(const GSDrawState &state, GSPixelPipe &p) cons
     p.bsel = (alphaReg >> 2) & 3;
     p.csel = (alphaReg >> 4) & 3;
     p.dsel = (alphaReg >> 6) & 3;
+    p.kS = static_cast<int>(p.asel == 0) - static_cast<int>(p.bsel == 0);
+    p.kD = static_cast<int>(p.asel == 1) - static_cast<int>(p.bsel == 1);
+    p.dS = static_cast<int>(p.dsel == 0);
+    p.dD = static_cast<int>(p.dsel == 1);
     p.fix = static_cast<uint8_t>((alphaReg >> 32) & 0xFF);
     p.date = ((ctx.test >> 14) & 0x1u) != 0u;
     p.dateNeedsRead = p.date && (p.fpsm == GS_PSM_CT32 || p.fpsm == GS_PSM_CT16 || p.fpsm == GS_PSM_CT16S);
@@ -2248,11 +2255,9 @@ GS_FORCEINLINE void GSCpuBackend::WritePixelFast(const GSPixelPipe &p, int x, in
             const int db = (fbrgba >> 16) & 0xFF;
             const int da = (fbrgba >> 24) & 0xFF;
             const int cAlpha = (p.csel == 0) ? a : (p.csel == 1) ? da : p.fix;
-            auto pick = [](uint8_t sel, int cs, int cd) -> int
-            { return sel == 0 ? cs : (sel == 1 ? cd : 0); };
-            r = clampU8(((pick(p.asel, r, dr) - pick(p.bsel, r, dr)) * cAlpha >> 7) + pick(p.dsel, r, dr));
-            g = clampU8(((pick(p.asel, g, dg) - pick(p.bsel, g, dg)) * cAlpha >> 7) + pick(p.dsel, g, dg));
-            b = clampU8(((pick(p.asel, b, db) - pick(p.bsel, b, db)) * cAlpha >> 7) + pick(p.dsel, b, db));
+            r = clampU8(((p.kS * r + p.kD * dr) * cAlpha >> 7) + p.dS * r + p.dD * dr);
+            g = clampU8(((p.kS * g + p.kD * dg) * cAlpha >> 7) + p.dS * g + p.dD * dg);
+            b = clampU8(((p.kS * b + p.kD * db) * cAlpha >> 7) + p.dS * b + p.dD * db);
         }
 
         if (writeMask.writeAlpha && p.fbaForce)
@@ -2392,6 +2397,41 @@ namespace
         const double rounded = std::floor(static_cast<double>(v) + 0.5);
         return clampU8(static_cast<int>(rounded));
     }
+
+    // All four channels of lerpChannelFast at once, with the same float operations per lane.
+    // floor(double(v) + 0.5) == trunc(v) + (frac(v) >= 0.5) here: v is never below -0.5 (it is
+    // a blend of values in 0..255), and v - trunc(v) is exact in float.
+    GS_FORCEINLINE uint32_t lerpTexel4(uint32_t c00, uint32_t c10, uint32_t c01, uint32_t c11, float fx, float fy)
+    {
+        const __m128i zero = _mm_setzero_si128();
+        auto toFloat = [&](uint32_t c)
+        {
+            const __m128i v = _mm_unpacklo_epi16(_mm_unpacklo_epi8(_mm_cvtsi32_si128(static_cast<int>(c)), zero), zero);
+            return _mm_cvtepi32_ps(v);
+        };
+        const __m128 a = toFloat(c00), b = toFloat(c10), c = toFloat(c01), d = toFloat(c11);
+        const __m128 vfx = _mm_set1_ps(fx), vfy = _mm_set1_ps(fy);
+        const __m128 top = _mm_add_ps(a, _mm_mul_ps(_mm_sub_ps(b, a), vfx));
+        const __m128 bottom = _mm_add_ps(c, _mm_mul_ps(_mm_sub_ps(d, c), vfx));
+        const __m128 v = _mm_add_ps(top, _mm_mul_ps(_mm_sub_ps(bottom, top), vfy));
+        __m128i n = _mm_cvttps_epi32(v);
+        const __m128 frac = _mm_sub_ps(v, _mm_cvtepi32_ps(n));
+        n = _mm_sub_epi32(n, _mm_castps_si128(_mm_cmpge_ps(frac, _mm_set1_ps(0.5f))));
+        n = _mm_packs_epi32(n, n);
+        n = _mm_packus_epi16(n, n);
+        return static_cast<uint32_t>(_mm_cvtsi128_si32(n));
+    }
+
+    // (int)(c0 * w0 + c1 * w1 + c2 * w2) clamped to 0..255 for four channels, evaluated in the
+    // same order as the scalar expression.
+    GS_FORCEINLINE uint32_t interpColor4(__m128 c0, __m128 c1, __m128 c2, float w0, float w1, float w2)
+    {
+        const __m128 v = _mm_add_ps(_mm_add_ps(_mm_mul_ps(c0, _mm_set1_ps(w0)), _mm_mul_ps(c1, _mm_set1_ps(w1))), _mm_mul_ps(c2, _mm_set1_ps(w2)));
+        __m128i n = _mm_cvttps_epi32(v);
+        n = _mm_packs_epi32(n, n);
+        n = _mm_packus_epi16(n, n);
+        return static_cast<uint32_t>(_mm_cvtsi128_si32(n));
+    }
 }
 
 #ifdef GS_RASTER_STATS
@@ -2446,10 +2486,7 @@ GS_FORCEINLINE uint32_t GSCpuBackend::SampleFast(const GSTexSampler &s, float sv
     if (c00 == c10 && c00 == c01 && c00 == c11)
         return c00;
 
-    return static_cast<uint32_t>(lerpChannelFast(c00, c10, c01, c11, 0, fx, fy)) |
-           (static_cast<uint32_t>(lerpChannelFast(c00, c10, c01, c11, 8, fx, fy)) << 8) |
-           (static_cast<uint32_t>(lerpChannelFast(c00, c10, c01, c11, 16, fx, fy)) << 16) |
-           (static_cast<uint32_t>(lerpChannelFast(c00, c10, c01, c11, 24, fx, fy)) << 24);
+    return lerpTexel4(c00, c10, c01, c11, fx, fy);
 }
 
 // ---- Templated span pipeline ------------------------------------------------------------------
@@ -2571,11 +2608,9 @@ namespace
                     const int db = (fbrgba >> 16) & 0xFF;
                     const int da = (fbrgba >> 24) & 0xFF;
                     const int cAlpha = (p.csel == 0) ? a : (p.csel == 1) ? da : p.fix;
-                    auto pick = [](uint8_t sel, int cs, int cd) -> int
-                    { return sel == 0 ? cs : (sel == 1 ? cd : 0); };
-                    r = clampU8(((pick(p.asel, r, dr) - pick(p.bsel, r, dr)) * cAlpha >> 7) + pick(p.dsel, r, dr));
-                    g = clampU8(((pick(p.asel, g, dg) - pick(p.bsel, g, dg)) * cAlpha >> 7) + pick(p.dsel, g, dg));
-                    b = clampU8(((pick(p.asel, b, db) - pick(p.bsel, b, db)) * cAlpha >> 7) + pick(p.dsel, b, db));
+                    r = clampU8(((p.kS * r + p.kD * dr) * cAlpha >> 7) + p.dS * r + p.dD * dr);
+                    g = clampU8(((p.kS * g + p.kD * dg) * cAlpha >> 7) + p.dS * g + p.dD * dg);
+                    b = clampU8(((p.kS * b + p.kD * db) * cAlpha >> 7) + p.dS * b + p.dD * db);
                 }
 
                 if (writeMask.writeAlpha && p.fbaForce)
@@ -2678,11 +2713,7 @@ namespace
             const uint32_t c11 = fetch(s, vram, u0 + 1, v0 + 1);
             if (c00 == c10 && c00 == c01 && c00 == c11)
                 return c00;
-
-            return static_cast<uint32_t>(lerpChannelFast(c00, c10, c01, c11, 0, fx, fy)) |
-                   (static_cast<uint32_t>(lerpChannelFast(c00, c10, c01, c11, 8, fx, fy)) << 8) |
-                   (static_cast<uint32_t>(lerpChannelFast(c00, c10, c01, c11, 16, fx, fy)) << 16) |
-                   (static_cast<uint32_t>(lerpChannelFast(c00, c10, c01, c11, 24, fx, fy)) << 24);
+            return lerpTexel4(c00, c10, c01, c11, fx, fy);
         }
     };
 
@@ -2691,6 +2722,27 @@ namespace
         GS_FORCEINLINE void init(const GSTexSampler &) {}
     };
 
+    // combineTexture on packed RGBA (vertex colour and texel): MODULATE in SIMD, other functions
+    // through the scalar version.
+    GS_FORCEINLINE uint32_t combineTexturePacked(const GSTex0Reg &tex, uint32_t vcol, uint32_t texel)
+    {
+        if (tex.tfx == 0u)
+        {
+            const __m128i zero = _mm_setzero_si128();
+            const __m128i t = _mm_unpacklo_epi8(_mm_cvtsi32_si128(static_cast<int>(texel)), zero);
+            const __m128i v = _mm_unpacklo_epi8(_mm_cvtsi32_si128(static_cast<int>(vcol)), zero);
+            __m128i m = _mm_srli_epi16(_mm_mullo_epi16(t, v), 7);
+            m = _mm_packus_epi16(m, m);
+            const uint32_t out = static_cast<uint32_t>(_mm_cvtsi128_si32(m));
+            return tex.tcc != 0u ? out : ((out & 0x00FFFFFFu) | (vcol & 0xFF000000u));
+        }
+        const TextureCombineResult c = combineTexture(tex, static_cast<uint8_t>(vcol), static_cast<uint8_t>(vcol >> 8),
+                                                      static_cast<uint8_t>(vcol >> 16), static_cast<uint8_t>(vcol >> 24),
+                                                      static_cast<uint8_t>(texel), static_cast<uint8_t>(texel >> 8),
+                                                      static_cast<uint8_t>(texel >> 16), static_cast<uint8_t>(texel >> 24));
+        return pack32(c.r, c.g, c.b, c.a);
+    }
+
     // ---- triangles ----
     struct TriShade
     {
@@ -2698,7 +2750,7 @@ namespace
         const GSTexSampler *s;
         const GSTex0Reg *tex;
         float a0, a1, fx2, rowB0, rowB1, winding, invAbsDenom;
-        bool iip, fst;
+        bool iip, fst, fge;
     };
     using TriRowFn = int (*)(const TriShade &c, const uint8_t *vram, int xs, int xe, SpanPx *out);
 
@@ -2710,10 +2762,13 @@ namespace
         const GSVertex &v2 = *c.v2;
         const float a0 = c.a0, a1 = c.a1, fx2 = c.fx2, rowB0 = c.rowB0, rowB1 = c.rowB1;
         const float winding = c.winding, invAbsDenom = c.invAbsDenom;
-        const bool iip = c.iip, fst = c.fst;
+        const bool iip = c.iip, fst = c.fst, fge = c.fge;
         Tex t;
         if constexpr (TME)
             t.init(*c.s);
+        const __m128 col0 = _mm_setr_ps(v0.r, v0.g, v0.b, v0.a);
+        const __m128 col1 = _mm_setr_ps(v1.r, v1.g, v1.b, v1.a);
+        const __m128 col2 = _mm_setr_ps(v2.r, v2.g, v2.b, v2.a);
         int n = 0;
         for (int x = xs; x <= xe; ++x)
         {
@@ -2728,10 +2783,11 @@ namespace
             uint8_t r, g, b, a;
             if (iip)
             {
-                r = clampU8(static_cast<int>(v0.r * w0 + v1.r * w1 + v2.r * w2));
-                g = clampU8(static_cast<int>(v0.g * w0 + v1.g * w1 + v2.g * w2));
-                b = clampU8(static_cast<int>(v0.b * w0 + v1.b * w1 + v2.b * w2));
-                a = clampU8(static_cast<int>(v0.a * w0 + v1.a * w1 + v2.a * w2));
+                const uint32_t rgba = interpColor4(col0, col1, col2, w0, w1, w2);
+                r = static_cast<uint8_t>(rgba);
+                g = static_cast<uint8_t>(rgba >> 8);
+                b = static_cast<uint8_t>(rgba >> 16);
+                a = static_cast<uint8_t>(rgba >> 24);
             }
             else
             {
@@ -2758,18 +2814,15 @@ namespace
                     texel = t.sample(*c.s, vram, is, it, iq, 0u, 0u);
                 }
 
-                const TextureCombineResult color = combineTexture(*c.tex, r, g, b, a,
-                                                                  static_cast<uint8_t>(texel & 0xFF),
-                                                                  static_cast<uint8_t>((texel >> 8) & 0xFF),
-                                                                  static_cast<uint8_t>((texel >> 16) & 0xFF),
-                                                                  static_cast<uint8_t>((texel >> 24) & 0xFF));
-                r = color.r;
-                g = color.g;
-                b = color.b;
-                a = color.a;
+                const uint32_t color = combineTexturePacked(*c.tex, pack32(r, g, b, a), texel);
+                r = static_cast<uint8_t>(color);
+                g = static_cast<uint8_t>(color >> 8);
+                b = static_cast<uint8_t>(color >> 16);
+                a = static_cast<uint8_t>(color >> 24);
             }
 
-            const uint8_t fog = clampU8(static_cast<int>(v0.fog * w0 + v1.fog * w1 + v2.fog * w2));
+            // Fog only matters to the span writer when FGE is set.
+            const uint8_t fog = fge ? clampU8(static_cast<int>(v0.fog * w0 + v1.fog * w1 + v2.fog * w2)) : 0u;
             SpanPx &o = out[n++];
             o.x = x;
             o.z = static_cast<u32>(z + 0.5);
@@ -2820,19 +2873,14 @@ namespace
                 texel = t.sample(*c.s, vram, texUf / c.texWf, texVf / c.texHf, 1.0f, 0u, 0u);
             }
 
-            const uint8_t tr = static_cast<uint8_t>(texel & 0xFF);
-            const uint8_t tg = static_cast<uint8_t>((texel >> 8) & 0xFF);
-            const uint8_t tb = static_cast<uint8_t>((texel >> 16) & 0xFF);
-            const uint8_t ta = static_cast<uint8_t>((texel >> 24) & 0xFF);
-
-            const TextureCombineResult color = combineTexture(*c.tex, c.r, c.g, c.b, c.a, tr, tg, tb, ta);
+            const uint32_t color = combineTexturePacked(*c.tex, pack32(c.r, c.g, c.b, c.a), texel);
             SpanPx &o = out[n++];
             o.x = x;
             o.z = c.z1;
-            o.r = color.r;
-            o.g = color.g;
-            o.b = color.b;
-            o.a = color.a;
+            o.r = static_cast<uint8_t>(color);
+            o.g = static_cast<uint8_t>(color >> 8);
+            o.b = static_cast<uint8_t>(color >> 16);
+            o.a = static_cast<uint8_t>(color >> 24);
             o.fog = c.fog;
         }
         return n;
@@ -2907,7 +2955,7 @@ namespace
     // it writes is read by another pixel of the same sprite (disjoint rectangles, or an exact 1:1
     // copy onto itself): a row is sampled completely before it is written.
     bool spriteFeedsBack(const GSDrawState &state, int x0, int y0, int x1, int y1,
-                         float u0f, float v0f, float u1f, float v1f, int ux0, int uy0, int spanW, int spanH)
+                         float u0f, float v0f, float u1f, float v1f, int ux0, int uy0, int spanW, int spanH, bool linear)
     {
         if (!state.prim.tme)
             return false;
@@ -2915,10 +2963,25 @@ namespace
         const int texW = state.textureWidth, texH = state.textureHeight;
         const float uLo = std::min(u0f, u1f), uHi = std::max(u0f, u1f);
         const float vLo = std::min(v0f, v1f), vHi = std::max(v0f, v1f);
-        const int umin = static_cast<int>(std::floor(uLo)) - 1, umax = static_cast<int>(std::ceil(uHi)) + 1;
-        const int vmin = static_cast<int>(std::floor(vLo)) - 1, vmax = static_cast<int>(std::ceil(vHi)) + 1;
-        if (umin < 0 || vmin < 0 || umax >= texW || vmax >= texH)
-            return textureFeedsBack(state, y1); // wraps or clamps: fall back to the whole texture
+        // Texels a sample can touch: nearest reads trunc(t) (plus a margin for the 1/16 rounding
+        // of FST coordinates); bilinear also the neighbours of floor(t - 0.5).
+        const int lo = linear ? 1 : 0;
+        int umin = static_cast<int>(std::floor(uLo)) - lo, umax = static_cast<int>(std::ceil(uHi)) + 1;
+        int vmin = static_cast<int>(std::floor(vLo)) - lo, vmax = static_cast<int>(std::ceil(vHi)) + 1;
+        // Out-of-range taps under CLAMP land on the edge texels, which are inside anyway.
+        const uint32_t wms = static_cast<uint32_t>(c.clamp & 3u), wmt = static_cast<uint32_t>((c.clamp >> 2) & 3u);
+        if (wms == 1u)
+        {
+            umin = std::max(umin, 0);
+            umax = std::min(umax, texW - 1);
+        }
+        if (wmt == 1u)
+        {
+            vmin = std::max(vmin, 0);
+            vmax = std::min(vmax, texH - 1);
+        }
+        if (umin < 0 || vmin < 0 || umax >= texW || vmax >= texH || umin > umax || vmin > vmax)
+            return textureFeedsBack(state, y1); // wraps: fall back to the whole texture
         const uint32_t fbw = std::max<uint32_t>(c.frame.fbw, 1u);
         const GsByteRange t = gsBufferRange(c.tex0.tbp0, c.tex0.tbw, c.tex0.psm, static_cast<uint32_t>(vmax) + 1u,
                                             static_cast<uint32_t>(vmin), static_cast<uint32_t>(umin), static_cast<uint32_t>(umax));
@@ -2933,15 +2996,34 @@ namespace
         }
         if (!(t.start < f.end && f.start < t.end))
             return false;
-        // Same buffer geometry: compare the rectangles in pixel units.
-        if (c.tex0.tbp0 == c.frame.fbp * 32u && std::max<uint32_t>(c.tex0.tbw, 1u) == fbw &&
-            ct32Layout(c.tex0.psm) && ct32Layout(c.frame.psm))
+        // Same buffer geometry (texel (u, v) is the framebuffer pixel (u, v - rowOffset)).
+        const int64_t blockDelta = static_cast<int64_t>(c.frame.fbp) * 32 - static_cast<int64_t>(c.tex0.tbp0);
+        if (std::max<uint32_t>(c.tex0.tbw, 1u) == fbw && ct32Layout(c.tex0.psm) && ct32Layout(c.frame.psm) &&
+            blockDelta % (32 * static_cast<int64_t>(fbw)) == 0)
         {
-            if (umax < x0 || umin > x1 || vmax < y0 || vmin > y1)
-                return false; // reads and writes never meet
-            // Exact 1:1 copy onto itself (pixel x samples texel x at its centre).
-            if (std::fabs((u1f - u0f) - static_cast<float>(spanW)) < 0.01f && std::fabs((v1f - v0f) - static_cast<float>(spanH)) < 0.01f &&
-                std::fabs(u0f - static_cast<float>(ux0)) < 0.01f && std::fabs(v0f - static_cast<float>(uy0)) < 0.01f)
+            const int rowOffset = static_cast<int>(blockDelta / (32 * static_cast<int64_t>(fbw))) * 32;
+            if (rowOffset == 0)
+            {
+                if (umax < x0 || umin > x1 || vmax < y0 || vmin > y1)
+                    return false; // reads and writes never meet
+                // Exact 1:1 copy onto itself (pixel x samples texel x at its centre).
+                if (std::fabs((u1f - u0f) - static_cast<float>(spanW)) < 0.01f && std::fabs((v1f - v0f) - static_cast<float>(spanH)) < 0.01f &&
+                    std::fabs(u0f - static_cast<float>(ux0)) < 0.01f && std::fabs(v0f - static_cast<float>(uy0)) < 0.01f)
+                    return false;
+            }
+            // Rows are shaded and written top to bottom on both paths, and a row is sampled
+            // completely before it is written; results differ only if a row samples texels of its
+            // own framebuffer row. texV(y) is linear in y, so checking the first and last drawn row
+            // (with a margin for the taps) covers every row.
+            const float spriteH = static_cast<float>(std::max(1, spanH));
+            auto rowGap = [&](int y)
+            {
+                const float ty = (static_cast<float>(y - uy0) + 0.5f) / spriteH;
+                const float texV = v0f + (v1f - v0f) * ty;
+                return texV - static_cast<float>(y + rowOffset);
+            };
+            const float g0 = rowGap(y0), g1 = rowGap(y1);
+            if ((g0 > 2.5f && g1 > 2.5f) || (g0 < -2.5f && g1 < -2.5f))
                 return false;
         }
         return true;
@@ -3034,7 +3116,7 @@ void GSCpuBackend::DrawSprite(const GSPrimitiveBatch &batch)
 
         const SpanWriteFn spanWriter = m_vram ? selectSpanWriter(pipe) : nullptr;
         const SprRowFn sprRow = (spanWriter && !spriteFeedsBack(state, drawX0, drawY0, drawX1, drawY1, u0f, v0f, u1f, v1f,
-                                                                               unclippedX0, unclippedY0, spanX, spanY))
+                                                                               unclippedX0, unclippedY0, spanX, spanY, sampler.linear))
                                     ? selectSprRow(tex.psm)
                                     : nullptr;
         SprShade shade{&sampler, &tex, u0f, u1f, 0.0f, spriteW, static_cast<float>(texW), static_cast<float>(texH),
@@ -3161,7 +3243,7 @@ void GSCpuBackend::DrawTriangle(const GSPrimitiveBatch &batch)
 
     const SpanWriteFn spanWriter = m_vram ? selectSpanWriter(pipe) : nullptr;
     const TriRowFn triRow = (spanWriter && !textureFeedsBack(state, maxY)) ? selectTriRow(tme, tex.psm) : nullptr;
-    TriShade shade{&v0, &v1, &v2, &sampler, &tex, a0, a1, fx2, 0.0f, 0.0f, winding, invAbsDenom, iip, fst};
+    TriShade shade{&v0, &v1, &v2, &sampler, &tex, a0, a1, fx2, 0.0f, 0.0f, winding, invAbsDenom, iip, fst, pipe.fge != 0};
     SpanPx span[kMaxSpan];
 
     // Edge functions oriented so the interior is positive; values are exact in double (vertex
