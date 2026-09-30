@@ -1,3 +1,4 @@
+#include <map>
 #include <cstring>
 #include <vector>
 #include <cstdio>
@@ -550,6 +551,15 @@ namespace ps2_syscalls
             request.endParameter = endParameter;
 
             iopResult = PS2IopTransport::handleRpc(runtime, rdram, ctx, request);
+            {
+                // Diagnostics: RPC traffic per server/function (counts at 1, 10, 100, ...).
+                static std::map<uint64_t, uint64_t> s_rpcCounts;
+                const uint64_t key = (static_cast<uint64_t>(sid) << 32) | rpcNum;
+                const uint64_t n = ++s_rpcCounts[key];
+                if (n == 1u || n == 10u || n == 100u || n == 1000u || n == 10000u)
+                    std::fprintf(stderr, "[rpc] sid 0x%x fn %u: call #%llu send %u recv %u mode %u handled %d\n", sid, rpcNum,
+                                 (unsigned long long)n, sendSize, receiveSize, mode, iopResult.handled ? 1 : 0);
+            }
 
             if (iopResult.signalNowaitCompletion &&
                 (mode & kSifRpcModeNowait) != 0u)
