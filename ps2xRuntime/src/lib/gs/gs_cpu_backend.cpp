@@ -1202,6 +1202,11 @@ void GSCpuBackend::EnqueueGlobalUnlocked(std::function<void()> fn, uint32_t touc
                                       { return e.globalIdx < done; }),
                        m_epochs.end());
     }
+    // A pending draw batch goes into the ring first: globalIdx must be the index of this barrier
+    // itself (the epoch counts as finished once the workers are past it). Reading it before the
+    // flush pointed at the batch instead, so an epoch - e.g. a queued CLUT upload - could be taken
+    // as finished one command early (stale CLUT -> black sky for a few frames).
+    FlushPendingUnlocked();
     Epoch epoch;
     epoch.globalIdx = m_writeIdx.load(std::memory_order_relaxed);
     epoch.ranges = std::move(m_dirty);
