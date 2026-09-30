@@ -75,6 +75,7 @@ struct PS2Memory::GpuJob
 
 void vif1Observe(uint32_t) {} // old overlap measurement hook (ps2_runtime.cpp still calls it)
 void (*g_ps2GpuSyncHook)() = nullptr; // called by GS entry points used from the EE (gs_frontend.cpp)
+void (*g_ps2FlipHook)() = nullptr;    // set by PS2Runtime: GS::notePresentPoint (a DISPFB write = the game's flip)
 
 namespace
 {
@@ -1242,10 +1243,13 @@ void PS2Memory::write32(uint32_t address, uint32_t value)
         }
         else if (uint64_t *reg = gsRegPtr(gs_regs, address))
         {
-            auto apply = [reg, off, value]()
+            const bool flip = (regOff == 0x0070u || regOff == 0x0090u) && off == 4u; // DISPFBn high word completes it
+            auto apply = [reg, off, value, flip]()
             {
                 uint64_t mask = 0xFFFFFFFFULL << (off * 8);
                 *reg = (*reg & ~mask) | ((uint64_t)value << (off * 8));
+                if (flip && g_ps2FlipHook)
+                    g_ps2FlipHook();
             };
             if (gpuBusy())
             {
@@ -1315,16 +1319,22 @@ void PS2Memory::write64(uint32_t address, uint64_t value)
         }
         else if (uint64_t *reg = gsRegPtr(gs_regs, address))
         {
+            const bool flip = regOff == 0x0070u || regOff == 0x0090u;
+            auto apply = [reg, value, flip]()
+            {
+                *reg = value;
+                if (flip && g_ps2FlipHook)
+                    g_ps2FlipHook();
+            };
             if (gpuBusy())
             {
                 GpuJob job;
-                job.fn = [reg, value]()
-                { *reg = value; };
+                job.fn = apply;
                 job.drain = false;
                 gpuEnqueue(this, std::move(job));
             }
             else
-                *reg = value;
+                apply();
         }
         return;
     }

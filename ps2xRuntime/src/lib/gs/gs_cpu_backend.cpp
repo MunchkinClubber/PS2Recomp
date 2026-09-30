@@ -3852,28 +3852,51 @@ bool GSCpuBackend::CopyFrameToHostRgba(const GSFrameReg &frame,
     return true;
 }
 
+void GSCpuBackend::EnqueuePresentSnapshotUnlocked(const GSPresentationRequest &request)
+{
+    EnqueueGlobalUnlocked([this, request]()
+                          {
+                              m_presentStage.resize(m_vramSize);
+                              std::memcpy(m_presentStage.data(), m_vram, m_vramSize);
+                              {
+                                  std::lock_guard<std::mutex> presentLock(m_presentMutex);
+                                  m_presentStage.swap(m_presentLatest);
+                                  m_presentLatestRequest = request;
+                                  m_presentLatestNew = true;
+                                  m_presentHaveAny = true;
+                              }
+                              m_presentPending.store(false); },
+                          0u, 0u);
+}
+
+void GSCpuBackend::QueuePresentSnapshot(const GSPresentationRequest &request)
+{
+    if (!threaded() || !s_asyncPresent || !m_vram || m_vramSize == 0u)
+        return;
+    m_lastFlipSnapshotNs.store(gsNowNs(), std::memory_order_relaxed);
+    // One snapshot in flight at a time; a flip that finds one still queued is skipped (the
+    // display then shows the previous complete frame for one more host frame).
+    if (m_presentPending.exchange(true))
+        return;
+    std::lock_guard<GsLock> lock(m_mutex);
+    EnqueuePresentSnapshotUnlocked(request);
+}
+
 PresentationFrame GSCpuBackend::Present(const GSPresentationRequest &request)
 {
     if (threaded() && s_asyncPresent && m_vram && m_vramSize != 0u)
     {
         // Queue a snapshot of VRAM at this point of the command stream (one at a time), then
         // show the most recent completed one: at most one host frame behind, never a wait.
-        if (!m_presentPending.exchange(true))
+        // When the game's flips anchor the snapshots (QueuePresentSnapshot), only show them: a
+        // snapshot at an arbitrary point can catch the display buffer half way through the
+        // frame's copy into it. Otherwise (no flips seen lately) snapshot here.
+        const uint64_t lastFlip = m_lastFlipSnapshotNs.load(std::memory_order_relaxed);
+        const bool flipAnchored = lastFlip != 0u && gsNowNs() - lastFlip < 250000000ull;
+        if (!flipAnchored && !m_presentPending.exchange(true))
         {
             std::lock_guard<GsLock> lock(m_mutex);
-            EnqueueGlobalUnlocked([this, request]()
-                                  {
-                                      m_presentStage.resize(m_vramSize);
-                                      std::memcpy(m_presentStage.data(), m_vram, m_vramSize);
-                                      {
-                                          std::lock_guard<std::mutex> presentLock(m_presentMutex);
-                                          m_presentStage.swap(m_presentLatest);
-                                          m_presentLatestRequest = request;
-                                          m_presentLatestNew = true;
-                                          m_presentHaveAny = true;
-                                      }
-                                      m_presentPending.store(false); },
-                                  0u, 0u);
+            EnqueuePresentSnapshotUnlocked(request);
         }
         thread_local std::vector<uint8_t> shown;
         thread_local GSPresentationRequest shownRequest{};

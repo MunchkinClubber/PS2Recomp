@@ -55,6 +55,7 @@ public:
     void TextureFlush() override;
     void Sync(GSSyncReason reason) override;
     PresentationFrame Present(const GSPresentationRequest &request) override;
+    void QueuePresentSnapshot(const GSPresentationRequest &request) override;
 
     bool ClearFramebuffer(const GSContext &context, uint32_t rgba) override;
     uint32_t ConsumeLocalToHostBytes(uint8_t *dst, uint32_t maxBytes) override;
@@ -140,6 +141,8 @@ private:
     bool m_presentLatestNew = false;
     bool m_presentHaveAny = false;
     std::atomic<bool> m_presentPending{false};
+    std::atomic<uint64_t> m_lastFlipSnapshotNs{0}; // when the last flip-anchored snapshot was queued
+    void EnqueuePresentSnapshotUnlocked(const GSPresentationRequest &request);
     std::shared_ptr<const std::array<uint32_t, 256>> m_sharedPalette;
     uint64_t m_sharedPaletteVersion = 0;
     uint64_t m_sharedPaletteKey = ~0ull;

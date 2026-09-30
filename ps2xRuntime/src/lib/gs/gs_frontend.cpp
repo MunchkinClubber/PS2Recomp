@@ -584,6 +584,20 @@ GSPresentationRequest GS::buildPresentationRequestUnlocked() const
     return request;
 }
 
+void GS::notePresentPoint()
+{
+    GSPresentationRequest request{};
+    {
+        std::lock_guard<std::recursive_mutex> lock(m_stateMutex);
+        if (!m_backend || !m_privRegs)
+            return;
+        request = buildPresentationRequestUnlocked();
+    }
+    std::lock_guard<std::mutex> backendLock(m_backendLifetimeMutex);
+    if (m_backend)
+        m_backend->QueuePresentSnapshot(request);
+}
+
 void GS::latchHostPresentationFrame()
 {
     GSPresentationRequest request{};

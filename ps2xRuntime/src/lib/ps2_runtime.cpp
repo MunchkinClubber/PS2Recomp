@@ -829,6 +829,9 @@ bool PS2Runtime::syncCoreSubsystems()
         s_gsForSync = &m_gs;
         g_ps2GsSyncHook = []()
         { if (s_gsForSync) s_gsForSync->syncLocalMemory(); };
+        extern void (*g_ps2FlipHook)();
+        g_ps2FlipHook = []()
+        { if (s_gsForSync) s_gsForSync->notePresentPoint(); };
     }
     m_gifArbiter.setProcessPacketFn([this](const uint8_t *data, uint32_t size)
                                     {

@@ -23,6 +23,8 @@ public:
     virtual void TextureFlush() = 0;
     virtual void Sync(GSSyncReason reason) = 0;
     virtual PresentationFrame Present(const GSPresentationRequest &request) = 0;
+    // The game just flipped (wrote DISPFBn): capture the frame here, in command-stream order.
+    virtual void QueuePresentSnapshot(const GSPresentationRequest &) {}
 
     virtual bool ClearFramebuffer(const GSContext &context, uint32_t rgba) = 0;
     virtual uint32_t ConsumeLocalToHostBytes(uint8_t *dst, uint32_t maxBytes) = 0;
