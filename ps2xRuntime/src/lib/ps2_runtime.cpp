@@ -61,6 +61,8 @@ namespace
         float lastL = 0.0f, lastR = 0.0f;
         int fadeOut = 0;         // frames of fade-out remaining after an underrun
         uint64_t underruns = 0u, trims = 0u;
+        uint64_t framesIn = 0u, framesOut = 0u; // produced by the game / consumed by the host
+        FILE *dumpIn = nullptr, *dumpOut = nullptr; // PS2_AUDIO_DUMP=1: raw 48 kHz s16 stereo, first 90 s
         AudioStream stream{};
     };
     AdmaPlayer *g_adma = nullptr;
@@ -72,6 +74,9 @@ namespace
         admaFill(out, frames);
         // Sound effects play on SPU2 hardware voices (music and speech come through auto-DMA).
         ps2x::iop::spu2Render(out, frames);
+        if (g_adma->dumpOut && g_adma->framesOut < 48000ull * 90u)
+            std::fwrite(out, 4u, frames, g_adma->dumpOut);
+        g_adma->framesOut += frames;
     }
 
     void admaFill(int16_t *out, unsigned int frames)
@@ -150,6 +155,13 @@ namespace
             int16_t left[256], right[256];
             std::memcpy(left, data + block, sizeof(left));
             std::memcpy(right, data + block + 512u, sizeof(right));
+            if (p.dumpIn && p.framesIn < 48000ull * 90u)
+                for (int k = 0; k < 256; ++k)
+                {
+                    const int16_t fr[2] = {left[k], right[k]};
+                    std::fwrite(fr, 2u, 2u, p.dumpIn);
+                }
+            p.framesIn += 256u;
             for (int k = 0; k < 256; ++k)
             {
                 if (p.count == AdmaPlayer::kCapacity)
@@ -187,14 +199,22 @@ namespace
         }
         // Every 10 s, if anything went wrong, report it (underruns = audible gaps).
         static auto s_last = std::chrono::steady_clock::now();
-        static uint64_t s_lastUnder = 0u, s_lastTrims = 0u;
+        static uint64_t s_lastUnder = 0u, s_lastTrims = 0u, s_lastIn = 0u, s_lastOut = 0u;
         const auto now = std::chrono::steady_clock::now();
         if (now - s_last >= std::chrono::seconds(10))
         {
+            const double secs = std::chrono::duration<double>(now - s_last).count();
             s_last = now;
             if (p.underruns != s_lastUnder || p.trims != s_lastTrims)
-                std::fprintf(stderr, "[audio] last 10 s: %llu underruns, %llu overflow trims, queue %zu frames\n",
-                             (unsigned long long)(p.underruns - s_lastUnder), (unsigned long long)(p.trims - s_lastTrims), p.count);
+                std::fprintf(stderr, "[audio] last 10 s: %llu underruns, %llu overflow trims, queue %zu frames, in %.0f/s out %.0f/s\n",
+                             (unsigned long long)(p.underruns - s_lastUnder), (unsigned long long)(p.trims - s_lastTrims), p.count,
+                             (p.framesIn - s_lastIn) / secs, (p.framesOut - s_lastOut) / secs);
+            s_lastIn = p.framesIn;
+            s_lastOut = p.framesOut;
+            if (p.dumpIn)
+                std::fflush(p.dumpIn);
+            if (p.dumpOut)
+                std::fflush(p.dumpOut);
             s_lastUnder = p.underruns;
             s_lastTrims = p.trims;
         }
@@ -206,6 +226,11 @@ namespace
         if ((env && env[0] == '0') || !IsAudioDeviceReady() || g_adma)
             return;
         g_adma = new AdmaPlayer();
+        if (const char *dump = std::getenv("PS2_AUDIO_DUMP"); dump && dump[0] == '1')
+        {
+            g_adma->dumpIn = std::fopen("audio_in.raw", "wb");
+            g_adma->dumpOut = std::fopen("audio_out.raw", "wb");
+        }
         SetAudioStreamBufferSizeDefault(1024);
         g_adma->stream = LoadAudioStream(48000u, 16u, 2u);
         SetAudioStreamCallback(g_adma->stream, admaAudioCallback);
