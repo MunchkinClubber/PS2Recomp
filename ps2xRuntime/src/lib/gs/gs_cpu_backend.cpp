@@ -762,9 +762,12 @@ void GSCpuBackend::LoadClut(const GSTex0Reg &tex0, const GSTexClutReg &texclut)
         const uint64_t clutTarget = HazardTargetUnlocked(start, end, true);
         if (clutTarget != 0u && MinDone() < clutTarget)
         {
-            if (s_gsHazDebug)
+            static const bool s_clutDebug = std::getenv("GS_CLUT_DEBUG") != nullptr;
+            static int s_clutLogs = 0;
+            if (s_gsHazDebug || (s_clutDebug && s_clutLogs++ < 60))
             {
-                std::fprintf(stderr, "SYNC clut cbp=%x [%x,%x)\n", tex0.cbp, start, end);
+                std::fprintf(stderr, "SYNC clut cbp=%x csm=%u psm=%x [%x,%x) target=%llu done=%llu w=%llu\n", tex0.cbp, tex0.csm, tex0.psm, start, end,
+                             (unsigned long long)clutTarget, (unsigned long long)MinDone(), (unsigned long long)m_writeIdx.load());
                 for (const DirtyRange &r : m_dirty)
                     if (r.start < end && start < r.end)
                         std::fprintf(stderr, "   dirty key=%llx [%x,%x)\n", (unsigned long long)r.key, r.start, r.end);
@@ -1276,14 +1279,16 @@ uint64_t GSCpuBackend::HazardTargetUnlocked(uint32_t start, uint32_t end, bool r
     // a closed epoch only needs its closing barrier; the open epoch needs everything queued.
     auto hit = [&](const DirtyRange &range)
     { return range.start < end && start < range.end && !(readOnly && range.key == 0u); };
-    for (const DirtyRange &range : m_dirty)
-        if (hit(range))
-            return UINT64_MAX;
     if (!readOnly)
         for (const DirtyRange &range : m_reads)
             if (hit(range))
                 return UINT64_MAX;
     uint64_t target = 0u;
+    // Draws of the open epoch: wait for the last one that wrote the range (its batch lands at
+    // idx or idx + 1), not for everything queued after it.
+    for (const DirtyRange &range : m_dirty)
+        if (hit(range))
+            target = std::max(target, range.idx + 2u);
     if (!m_epochs.empty())
     {
         const uint64_t done = MinDone();
@@ -1309,7 +1314,15 @@ void GSCpuBackend::SyncToUnlocked(uint64_t target, int reason) const
         SyncUnlocked(reason);
         return;
     }
-    if (!threaded() || target == 0u || MinDone() >= target)
+    if (!threaded() || target == 0u)
+        return;
+    if (target > m_writeIdx.load(std::memory_order_relaxed))
+    {
+        // The writer may still sit in the pending batch; never wait for a command that does not exist.
+        FlushPendingUnlocked();
+        target = std::min<uint64_t>(target, m_writeIdx.load(std::memory_order_relaxed));
+    }
+    if (MinDone() >= target)
         return;
     if (m_sleepers.load() != 0u)
         WakeWorkers();
@@ -1434,6 +1447,9 @@ void GSCpuBackend::NoteDrawHazardsUnlocked(const GSPrimitiveBatch &batch)
         EnqueueGlobalUnlocked(nullptr, 0u, 0u);
     }
 
+    // This draw goes into the pending batch, which lands at the current write index or - if an
+    // older batch is flushed first - the next one.
+    const uint64_t drawIdx = m_writeIdx.load(std::memory_order_relaxed);
     for (uint32_t t = 0; t < targetCount; ++t)
     {
         bool merged = false;
@@ -1442,11 +1458,15 @@ void GSCpuBackend::NoteDrawHazardsUnlocked(const GSPrimitiveBatch &batch)
             {
                 dirty.start = std::min(dirty.start, targets[t].start);
                 dirty.end = std::max(dirty.end, targets[t].end);
+                dirty.idx = std::max(dirty.idx, drawIdx);
                 merged = true;
                 break;
             }
         if (!merged)
+        {
             m_dirty.push_back(targets[t]);
+            m_dirty.back().idx = drawIdx;
+        }
     }
 
     if (state.prim.tme && tex.end > tex.start)
@@ -3345,6 +3365,28 @@ void GSCpuBackend::UploadImage(const uint8_t *data, uint32_t sizeBytes)
         {
             UploadImageUnlocked(data, sizeBytes);
             return;
+        }
+        {
+            static const bool s_clutDebug = std::getenv("GS_CLUT_DEBUG") != nullptr;
+            static int s_upLogs = 0;
+            if (s_clutDebug && s_upLogs++ < 60)
+            {
+                std::fprintf(stderr, "DEFER upload dbp=%x dbw=%u psm=%x %ux%u at %u,%u [%x,%x):", t.bitbltbuf.dbp, t.bitbltbuf.dbw, t.bitbltbuf.dpsm,
+                             t.trxreg.rrw, t.trxreg.rrh, t.trxpos.dsax, t.trxpos.dsay, r.start, r.end);
+                for (const DirtyRange &d : m_dirty)
+                    if (d.start < r.end && r.start < d.end)
+                        std::fprintf(stderr, " W%llx[%x,%x)", (unsigned long long)d.key, d.start, d.end);
+                for (const DirtyRange &d : m_reads)
+                    if (d.start < r.end && r.start < d.end)
+                        std::fprintf(stderr, " R[%x,%x)", d.start, d.end);
+                const uint64_t done = MinDone();
+                for (const Epoch &e : m_epochs)
+                    if (e.globalIdx >= done)
+                        for (const DirtyRange &d : e.ranges)
+                            if (d.start < r.end && r.start < d.end)
+                                std::fprintf(stderr, " E%llu:%llx[%x,%x)", (unsigned long long)e.globalIdx, (unsigned long long)d.key, d.start, d.end);
+                std::fprintf(stderr, "\n");
+            }
         }
         // Queue the chunk behind the draws that still use that memory, with its own copy of the
         // transfer and start position; this thread's transfer state advances right away.

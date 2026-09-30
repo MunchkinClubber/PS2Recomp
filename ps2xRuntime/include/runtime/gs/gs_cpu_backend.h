@@ -88,6 +88,7 @@ private:
         uint64_t key;
         uint32_t start;
         uint32_t end;
+        uint64_t idx = 0; // draws: ring index the latest draw into this range lands at (or one before)
     };
     static constexpr uint32_t kRingSize = 32768u;
     void StartWorkersUnlocked();
