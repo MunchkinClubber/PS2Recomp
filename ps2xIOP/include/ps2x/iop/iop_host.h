@@ -132,4 +132,9 @@ namespace ps2x::iop
 
         virtual void log(LogLevel level, std::string_view message) = 0;
     };
+
+    // Receives the PCM of every SPU2 auto-DMA (ADMA) transfer when it starts: core 0/1, the raw
+    // transfer (blocks of 256 left then 256 right 16-bit samples, 48 kHz). The host plays it.
+    using AdmaSink = void (*)(uint32_t core, const uint8_t *data, uint32_t bytes);
+    void setAdmaSink(AdmaSink sink);
 }

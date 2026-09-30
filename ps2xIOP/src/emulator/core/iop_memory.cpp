@@ -1,7 +1,17 @@
 #include "iop_memory.h"
+#include "ps2x/iop/iop_host.h"
 
 #include <algorithm>
 #include <cstring>
+
+namespace ps2x::iop
+{
+    namespace
+    {
+        AdmaSink s_admaSink = nullptr;
+    }
+    void setAdmaSink(AdmaSink sink) { s_admaSink = sink; }
+}
 
 namespace ps2x::iop::detail
 {
@@ -278,6 +288,18 @@ namespace ps2x::iop::detail
         if (const auto current = m_hardware.find(admasAddress); current != m_hardware.end())
             admas = current->second & 0xFFFFu;
         const bool autoDma = (admas & (secondCore ? 2u : 1u)) != 0u;
+        // Host audio: the sound driver mixes in software and streams the result to the SPU2 core
+        // through auto-DMA, so its PCM is the game's whole audio output.
+        if (autoDma && (value & 1u) != 0u && s_admaSink && transferWords <= 65536u)
+        {
+            const uint32_t madrAddress = address - 8u;
+            uint32_t madr = 0u;
+            if (const auto current = m_hardware.find(madrAddress); current != m_hardware.end())
+                madr = current->second & 0x00FFFFFFu;
+            std::vector<uint8_t> pcm(static_cast<size_t>(transferWords) * 4u);
+            if (readRam(madr, pcm.data(), pcm.size()))
+                s_admaSink(secondCore ? 1u : 0u, pcm.data(), static_cast<uint32_t>(pcm.size()));
+        }
         DmaStart start;
         start.irq = secondCore ? kDmaSpu1Irq : kDmaSpu0Irq;
         start.delayCycles = autoDma ? std::max<uint64_t>(transferWords * 768u, 64u)

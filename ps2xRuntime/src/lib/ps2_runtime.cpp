@@ -30,6 +30,97 @@
 #include <unordered_map>
 #include <sstream>
 
+namespace
+{
+    // Host playback of the SPU2 auto-DMA PCM (see ps2x::iop::setAdmaSink): SSX 3's sound driver
+    // mixes everything in software on the IOP and streams the result to SPU2 core 0. Each
+    // transfer holds blocks of 256 left then 256 right 16-bit samples at 48 kHz; they go into a
+    // ring buffer that the audio thread drains. PS2_AUDIO=0 disables it.
+    struct AdmaPlayer
+    {
+        static constexpr size_t kCapacity = 48000u; // frames (1 s)
+        std::mutex mutex;
+        std::vector<int16_t> ring = std::vector<int16_t>(kCapacity * 2u);
+        size_t readPos = 0u, count = 0u;
+        bool started = false; // wait for some data before playing (avoids crackle at start)
+        AudioStream stream{};
+    };
+    AdmaPlayer *g_adma = nullptr;
+
+    void admaAudioCallback(void *buffer, unsigned int frames)
+    {
+        int16_t *out = static_cast<int16_t *>(buffer);
+        AdmaPlayer &p = *g_adma;
+        std::lock_guard<std::mutex> lock(p.mutex);
+        if (!p.started && p.count >= 2400u)
+            p.started = true;
+        for (unsigned int i = 0; i < frames; ++i)
+        {
+            if (p.started && p.count > 0u)
+            {
+                out[2u * i] = p.ring[2u * p.readPos];
+                out[2u * i + 1u] = p.ring[2u * p.readPos + 1u];
+                p.readPos = (p.readPos + 1u) % AdmaPlayer::kCapacity;
+                --p.count;
+            }
+            else
+            {
+                out[2u * i] = 0;
+                out[2u * i + 1u] = 0;
+                p.started = false; // underrun: rebuffer a little
+            }
+        }
+    }
+
+    void admaSink(uint32_t core, const uint8_t *data, uint32_t bytes)
+    {
+        if (!g_adma || core != 0u)
+            return;
+        AdmaPlayer &p = *g_adma;
+        std::lock_guard<std::mutex> lock(p.mutex);
+        for (uint32_t block = 0; block + 1024u <= bytes; block += 1024u)
+        {
+            int16_t left[256], right[256];
+            std::memcpy(left, data + block, sizeof(left));
+            std::memcpy(right, data + block + 512u, sizeof(right));
+            for (int k = 0; k < 256; ++k)
+            {
+                if (p.count == AdmaPlayer::kCapacity)
+                {
+                    p.readPos = (p.readPos + 1u) % AdmaPlayer::kCapacity;
+                    --p.count;
+                }
+                const size_t w = (p.readPos + p.count) % AdmaPlayer::kCapacity;
+                p.ring[2u * w] = left[k];
+                p.ring[2u * w + 1u] = right[k];
+                ++p.count;
+            }
+        }
+        // Keep latency bounded (~150 ms) if the game produces faster than we play.
+        constexpr size_t kMaxQueued = 7200u, kTrimTo = 3600u;
+        if (p.count > kMaxQueued)
+        {
+            const size_t drop = p.count - kTrimTo;
+            p.readPos = (p.readPos + drop) % AdmaPlayer::kCapacity;
+            p.count -= drop;
+        }
+    }
+
+    void startAdmaPlayback()
+    {
+        const char *env = std::getenv("PS2_AUDIO");
+        if ((env && env[0] == '0') || !IsAudioDeviceReady() || g_adma)
+            return;
+        g_adma = new AdmaPlayer();
+        SetAudioStreamBufferSizeDefault(1024);
+        g_adma->stream = LoadAudioStream(48000u, 16u, 2u);
+        SetAudioStreamCallback(g_adma->stream, admaAudioCallback);
+        PlayAudioStream(g_adma->stream);
+        ps2x::iop::setAdmaSink(&admaSink);
+        std::fprintf(stderr, "[audio] SPU2 auto-DMA playback started (48 kHz stereo)\n");
+    }
+}
+
 namespace ps2_stubs
 {
     void resetSifState();
@@ -953,6 +1044,7 @@ bool PS2Runtime::initialize(const char *title)
         InitWindow(HOST_WINDOW_WIDTH, HOST_WINDOW_HEIGHT, title);
         InitAudioDevice();
         m_audioBackend.setAudioReady(IsAudioDeviceReady());
+        startAdmaPlayback();
 #endif
         SetTargetFPS(60);
         if (m_debugUiInitCallback)
