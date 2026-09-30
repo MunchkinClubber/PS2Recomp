@@ -43,6 +43,8 @@ namespace ps2x::iop::detail
         std::fill(m_scratch.begin(), m_scratch.end(), uint8_t{0});
         m_hardware.clear();
         m_allocations.clear();
+        m_admaCapture[0] = AdmaCapture{};
+        m_admaCapture[1] = AdmaCapture{};
         m_heapCursor = HeapBase;
         m_interruptStatus = 0;
         m_interruptMask = 0;
@@ -313,9 +315,15 @@ namespace ps2x::iop::detail
             uint32_t madr = 0u;
             if (const auto current = m_hardware.find(madrAddress); current != m_hardware.end())
                 madr = current->second & 0x00FFFFFFu;
-            std::vector<uint8_t> pcm(static_cast<size_t>(transferWords) * 4u);
-            if (readRam(madr, pcm.data(), pcm.size()))
-                s_admaSink(secondCore ? 1u : 0u, pcm.data(), static_cast<uint32_t>(pcm.size()));
+            // Taken at completion (completeAdmaCapture). Reading it here, at the start, got the
+            // previous contents whenever the driver's mixing thread was a little late -- a 5 ms
+            // chunk replayed from 10 ms earlier, heard as a pop (about three a second).
+            AdmaCapture &cap = m_admaCapture[secondCore ? 1 : 0];
+            if (cap.pending)
+                completeAdmaCapture(secondCore ? kDmaSpu1Irq : kDmaSpu0Irq);
+            cap.pending = true;
+            cap.madr = madr;
+            cap.bytes = static_cast<uint32_t>(transferWords) * 4u;
         }
         if (!autoDma && transferWords <= (1u << 20))
         {
@@ -339,6 +347,22 @@ namespace ps2x::iop::detail
         start.admas = admas;
         start.autoDma = autoDma;
         m_dmaStart = start;
+    }
+
+    void IopMemory::completeAdmaCapture(int irq)
+    {
+        const int core = irq == kDmaSpu1Irq ? 1 : (irq == kDmaSpu0Irq ? 0 : -1);
+        if (core < 0)
+            return;
+        AdmaCapture &cap = m_admaCapture[core];
+        if (!cap.pending)
+            return;
+        cap.pending = false;
+        if (!s_admaSink)
+            return;
+        std::vector<uint8_t> pcm(cap.bytes);
+        if (readRam(cap.madr, pcm.data(), pcm.size()))
+            s_admaSink(static_cast<uint32_t>(core), pcm.data(), cap.bytes);
     }
 
     std::optional<IopMemory::DmaStart> IopMemory::takeDmaStart() noexcept

@@ -547,7 +547,10 @@ namespace ps2x::iop::detail
             try
             {
                 for (const int irq : completed)
+                {
+                    memory.completeAdmaCapture(irq);
                     (void)intrman.dispatchInterrupt(irq, *this);
+                }
             }
             catch (...)
             {

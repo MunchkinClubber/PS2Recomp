@@ -76,6 +76,11 @@ namespace ps2x::iop::detail
 
         [[nodiscard]] static uint32_t physicalAddress(uint32_t address) noexcept;
 
+        // Host audio: hand an auto-DMA transfer's PCM to the host when the transfer completes (the
+        // SPU2 reads it during those ~10 ms, and the sound driver may still be filling it when the
+        // transfer starts). irq is the completing DMA interrupt (SPU core 0 or 1).
+        void completeAdmaCapture(int irq);
+
     private:
         [[nodiscard]] uint32_t readHardware32(uint32_t address) const;
         void writeHardware32(uint32_t address, uint32_t value);
@@ -91,5 +96,12 @@ namespace ps2x::iop::detail
         uint32_t m_interruptMask = 0;
         uint32_t m_interruptControl = 1;
         std::optional<DmaStart> m_dmaStart;
+        struct AdmaCapture
+        {
+            bool pending = false;
+            uint32_t madr = 0;
+            uint32_t bytes = 0;
+        };
+        AdmaCapture m_admaCapture[2];
     };
 }
