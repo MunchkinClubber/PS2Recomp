@@ -2460,6 +2460,56 @@ void GSCpuBackend::SetupSampler(const GSDrawState &state, GSTexSampler &s)
     }
 }
 
+uint32_t GSCpuBackend::DecodePalette(const GSDrawState &state, uint32_t *out256)
+{
+    const auto &tex = state.context.tex0;
+    if (!isFourBitIndexedPsm(tex.psm) && !isEightBitIndexedPsm(tex.psm))
+        return 0u;
+    std::lock_guard<GsLock> lock(m_mutex);
+    const uint32_t n = isFourBitIndexedPsm(tex.psm) ? 16u : 256u;
+    for (uint32_t i = 0; i < 256u; ++i)
+        out256[i] = i < n ? LookupCLUT(state, static_cast<uint8_t>(i), tex.cpsm, tex.csm, tex.csa, tex.psm) : 0u;
+    return n;
+}
+
+bool GSCpuBackend::DecodeTexture(const GSDrawState &state, uint32_t width, uint32_t height, const uint32_t *palette, uint32_t *out)
+{
+    std::lock_guard<GsLock> lock(m_mutex);
+    if (!m_vram)
+        return false;
+    GSTexSampler s;
+    const uint32_t *const savedPalette = t_drawPalette;
+    t_drawPalette = palette; // indexed formats: use the caller's palette
+    SetupSampler(state, s);
+    t_drawPalette = savedPalette;
+    if (s.kind == GSTexSampler::Invalid || (s.kind == GSTexSampler::Clut && !s.palette))
+        return false;
+    for (uint32_t y = 0; y < height; ++y)
+    {
+        uint32_t *row = out + static_cast<size_t>(y) * width;
+        for (uint32_t x = 0; x < width; ++x)
+        {
+            const uint32_t raw = s.read(m_vram, s.tbp0, s.tbw, x, y);
+            switch (s.kind)
+            {
+            case GSTexSampler::Direct:
+                row[x] = raw;
+                break;
+            case GSTexSampler::Texa:
+                row[x] = applyTexa(s.texa, s.psm, raw);
+                break;
+            case GSTexSampler::Texa16:
+                row[x] = applyTexa(s.texa, s.psm, Rgba5551ToRgba8888(static_cast<u16>(raw)));
+                break;
+            default:
+                row[x] = s.palette[raw & 0xFFu];
+                break;
+            }
+        }
+    }
+    return true;
+}
+
 GS_FORCEINLINE uint32_t GSCpuBackend::FetchTexel(const GSTexSampler &s, int sampleU, int sampleV) const
 {
     sampleU = wrapTextureCoordinate(sampleU, s.texW, s.wrapU, s.minU, s.maxU);

@@ -22,6 +22,9 @@
 #include <fstream>
 #include <algorithm>
 #include <array>
+#if defined(PS2X_GS_VULKAN)
+#include "runtime/gs/gs_vulkan_backend.h"
+#endif
 #include <cstring>
 #include <limits>
 #include <chrono>
@@ -1096,6 +1099,19 @@ bool PS2Runtime::syncCoreSubsystems()
     }
 
     m_gs.init(gsVram, static_cast<uint32_t>(PS2_GS_VRAM_SIZE), &m_memory.gs());
+#if defined(PS2X_GS_VULKAN)
+    // PS2_GS_BACKEND=vulkan: draw on the GPU (the CPU renderer stays the default).
+    if (const char *gsBackend = std::getenv("PS2_GS_BACKEND"); gsBackend && (gsBackend[0] == 'v' || gsBackend[0] == 'V'))
+    {
+        if (auto vk = ps2CreateVulkanGsBackend())
+        {
+            m_gs.setRasterBackend(std::move(vk));
+            std::fprintf(stderr, "[gs] Vulkan renderer enabled\n");
+        }
+        else
+            std::fprintf(stderr, "[gs] Vulkan renderer unavailable, using the CPU renderer\n");
+    }
+#endif
     {
         extern void (*g_ps2GsSyncHook)();
         static GS *s_gsForSync = nullptr;

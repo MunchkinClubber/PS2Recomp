@@ -589,6 +589,13 @@ if(PS2X_HOST_SDL3 AND NOT PS2X_IS_VITA AND NOT PS2X_IS_ANDROID)
     # flags do not change.
     target_compile_definitions(ps2_runtime PRIVATE PS2X_HOST_SDL3=1)
     target_link_libraries(ps2_runtime PRIVATE ps2_host_sdl3)
+
+    # Vulkan GS backend (selected at run time with PS2_GS_BACKEND=vulkan; volk comes from ps2_host_sdl3).
+    target_sources(ps2_runtime PRIVATE src/lib/gs/vulkan/gs_vulkan_backend.cpp)
+    set_source_files_properties(src/lib/gs/vulkan/gs_vulkan_backend.cpp PROPERTIES
+        COMPILE_DEFINITIONS VK_NO_PROTOTYPES
+        INCLUDE_DIRECTORIES "${vulkan_headers_SOURCE_DIR}/include;${volk_SOURCE_DIR}")
+    target_compile_definitions(ps2_runtime PRIVATE PS2X_GS_VULKAN=1)
 endif()
 target_link_libraries(ps2EntryRunner
     PRIVATE

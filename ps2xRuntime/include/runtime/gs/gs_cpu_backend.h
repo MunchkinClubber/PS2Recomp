@@ -65,6 +65,16 @@ public:
     void SnapshotVram(std::vector<uint8_t> &out) const override;
     GSTransferSnapshot GetTransferSnapshot() const override;
 
+    // ---- Helpers for the GPU backend (which keeps this backend for everything but draws) ----
+    // Rasterise on the calling thread (no worker threads). Call before the first Submit.
+    void SetSynchronous() { m_threadMode = 0; }
+    // The palette an indexed texture of `state` uses (16 or 256 entries, RGBA8 after TEXA);
+    // returns the entry count, 0 for a non-indexed texture.
+    uint32_t DecodePalette(const GSDrawState &state, uint32_t *out256);
+    // Texels [0, width) x [0, height) of the state's texture as RGBA8 (TEXA applied, indexed
+    // formats looked up in `palette`), without any wrapping. False for an unsupported format.
+    bool DecodeTexture(const GSDrawState &state, uint32_t width, uint32_t height, const uint32_t *palette, uint32_t *out);
+
 private:
     // ---- Threaded rasteriser -------------------------------------------------------------
     // Submit() only queues primitives; worker threads rasterise them, each owning an
