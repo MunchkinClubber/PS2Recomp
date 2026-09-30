@@ -993,8 +993,11 @@ void GSCpuBackend::WriteVram(uint32_t psm, uint32_t base, uint32_t bw, uint32_t 
 {
     std::lock_guard<GsLock> lock(m_mutex);
     if (threaded())
+    {
         EnqueueGlobalUnlocked([this, psm, base, bw, x, y, value]()
                               { WriteVramUnlocked(psm, base, bw, x, y, value); });
+        m_epochs.back().kind = 5;
+    }
     else
         WriteVramUnlocked(psm, base, bw, x, y, value);
 }
@@ -1335,21 +1338,27 @@ void GSCpuBackend::EnqueueGlobalUnlocked(std::function<void()> fn, uint32_t touc
     if (m_epochs.size() > 256u)
     {
         // Bound the bookkeeping without waiting: fold the older half into one epoch that retires
-        // with its newest barrier (conservative), keeping its ranges merged and few.
+        // with its newest barrier (conservative). Reads stay reads (key 0) and writes become
+        // generic writes (~0); overlapping or touching ranges of the same class are merged. (This
+        // used to bridge 64 KiB gaps and turn reads into writes, so palettes that sit between
+        // queued textures looked written and every CLUT load there waited for the whole queue.)
         const size_t fold = m_epochs.size() / 2u;
         Epoch merged;
         merged.globalIdx = m_epochs[fold - 1u].globalIdx;
+        merged.kind = 3;
         std::vector<DirtyRange> all;
         for (size_t i = 0; i < fold; ++i)
-            all.insert(all.end(), m_epochs[i].ranges.begin(), m_epochs[i].ranges.end());
+            for (const DirtyRange &r : m_epochs[i].ranges)
+                if (r.end > r.start)
+                    all.push_back({r.key == 0u ? 0ull : ~0ull, r.start, r.end});
         std::sort(all.begin(), all.end(), [](const DirtyRange &a, const DirtyRange &b)
-                  { return a.start < b.start; });
+                  { return a.key != b.key ? a.key < b.key : a.start < b.start; });
         for (const DirtyRange &r : all)
         {
-            if (!merged.ranges.empty() && r.start <= merged.ranges.back().end + 0x10000u)
+            if (!merged.ranges.empty() && merged.ranges.back().key == r.key && r.start <= merged.ranges.back().end)
                 merged.ranges.back().end = std::max(merged.ranges.back().end, r.end);
             else
-                merged.ranges.push_back({~0ull, r.start, r.end});
+                merged.ranges.push_back(r);
         }
         m_epochs.erase(m_epochs.begin(), m_epochs.begin() + static_cast<std::ptrdiff_t>(fold));
         m_epochs.insert(m_epochs.begin(), std::move(merged));
@@ -3910,8 +3919,11 @@ bool GSCpuBackend::ClearFramebuffer(const GSContext &context, uint32_t rgba)
     if (cpsm != GS_PSM_CT32 && cpsm != GS_PSM_CT24 && cpsm != GS_PSM_CT16 && cpsm != GS_PSM_CT16S)
         return false;
     if (threaded())
+    {
         EnqueueGlobalUnlocked([this, context, rgba]()
                               { ClearFramebufferUnlocked(context, rgba); });
+        m_epochs.back().kind = 4;
+    }
     else
         ClearFramebufferUnlocked(context, rgba);
     return true;

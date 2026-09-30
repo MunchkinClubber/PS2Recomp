@@ -132,7 +132,8 @@ private:
         uint64_t globalIdx; // the barrier closing this epoch; done once every worker passed it
         std::vector<DirtyRange> ranges; // writes + reads of its draws, plus the barrier's own writes
         bool shadowUpload = false;      // its command is a whole-transfer upload mirrored in m_shadowVram
-        // Debug (GS_CLUT_DEBUG): what the command was - 1 upload chunk, 2 local->local copy.
+        // Debug (GS_CLUT_DEBUG): what the command was - 1 upload chunk, 2 local->local copy,
+        // 3 folded older epochs, 4 framebuffer clear, 5 single-pixel write.
         uint8_t kind = 0;
         GSTransferCommand xfer{};
         uint32_t chunkBytes = 0, copiedBefore = 0;
