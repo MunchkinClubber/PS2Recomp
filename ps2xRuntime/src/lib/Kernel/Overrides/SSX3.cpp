@@ -387,18 +387,41 @@ namespace
         {0x0018BEF8u, "apply audio options A", nullptr, 0},
         {0x001D64C0u, "apply audio options B", nullptr, 0},
         {0x001A1EC0u, "FE state enter (vtbl 0x46d7d4)", nullptr, 0},
+        {0x00285BE0u, "audio 285BE0", nullptr, 0},
+        {0x002A77F8u, "ini load", nullptr, 0},
+        {0x00317F98u, "file size", nullptr, 0},
+        {0x002A7BF8u, "ini find section", nullptr, 0},
+        {0x0028BC58u, "bank load", nullptr, 0},
     };
     template <int I>
     void ssx3TraceCall(uint8_t *rdram, R5900Context *ctx, PS2Runtime *runtime)
     {
         Ssx3TraceFn &t = g_ssx3Trace[I];
-        if (t.logs < 20)
+        const bool log = t.logs < 40;
+        const uint32_t a0 = getRegU32(ctx, 4), a1 = getRegU32(ctx, 5), ra = getRegU32(ctx, 31);
+        if (log)
         {
             ++t.logs;
-            std::fprintf(stderr, "[ssx3:trace] %s (0x%x) a0 0x%x a1 0x%x a2 0x%x ra 0x%x\n", t.what, t.addr, getRegU32(ctx, 4),
-                         getRegU32(ctx, 5), getRegU32(ctx, 6), getRegU32(ctx, 31));
+            char str[96] = {};
+            if (a1 >= 0x100000u && a1 < 0x2000000u)
+                for (int i = 0; i < 95; ++i)
+                {
+                    const char c = static_cast<char>(rdram[(a1 + i) & PS2_RAM_MASK]);
+                    if (c == 0)
+                        break;
+                    str[i] = (c >= 32 && c < 127) ? c : '?';
+                }
+            std::fprintf(stderr, "[ssx3:trace] > %s (0x%x) a0 0x%x a1 0x%x '%s' a2 0x%x ra 0x%x\n", t.what, t.addr, a0, a1, str,
+                         getRegU32(ctx, 6), ra);
         }
         t.orig(rdram, ctx, runtime);
+        if (log)
+        {
+            uint32_t w0 = 0;
+            if (a0 >= 0x100000u && a0 < 0x2000000u)
+                std::memcpy(&w0, rdram + (a0 & PS2_RAM_MASK), 4);
+            std::fprintf(stderr, "[ssx3:trace] < %s v0 0x%x [a0] 0x%x\n", t.what, getRegU32(ctx, 2), w0);
+        }
     }
     template <int I>
     void ssx3InstallTrace(PS2Runtime &runtime)
@@ -660,6 +683,11 @@ namespace
         ssx3InstallTrace<2>(runtime);
         ssx3InstallTrace<3>(runtime);
         ssx3InstallTrace<4>(runtime);
+        ssx3InstallTrace<5>(runtime);
+        ssx3InstallTrace<6>(runtime);
+        ssx3InstallTrace<7>(runtime);
+        ssx3InstallTrace<8>(runtime);
+        ssx3InstallTrace<9>(runtime);
         runtime.replaceFunction(kRendererVif1Done, ssx3RendererVif1Done);
         // The game's allocator (init at 0x31AED0) takes [malloc(0x400)+0x800, EndOfHeap()), i.e. all RAM
         // from SetupHeap's base -- exactly where the runtime put its own heap (sceMpegCreate buffers,
