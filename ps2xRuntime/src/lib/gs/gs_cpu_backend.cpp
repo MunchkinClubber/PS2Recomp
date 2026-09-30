@@ -41,7 +41,9 @@ std::atomic<uint64_t> g_perfGsBarriers{0};  // ordered global commands (transfer
 std::atomic<uint64_t> g_perfGsHazards{0};   // barriers inserted for render-to-texture hazards
 std::atomic<uint64_t> g_perfGsDraws{0};
 std::atomic<uint64_t> g_perfGsCulled{0};
-std::atomic<uint64_t> g_perfGsClutShadow{0}; // CLUT loads served from the upload shadow
+std::atomic<uint64_t> g_perfGsClutShadow{0};
+std::atomic<uint64_t> g_perfGsPaceNs{0};       // flips waiting for the previous frame's snapshot
+std::atomic<uint64_t> g_perfGsPresentSkips{0}; // flips whose snapshot was skipped (queue > 1 frame behind) // CLUT loads served from the upload shadow
 std::atomic<uint64_t> g_perfGsUploadBarriers{0}; // uploads that had to wait behind queued draws
 // Blocking syncs by reason: 0 init/reset, 1 CLUT load, 2 Sync() (presentation etc.), 3 ReadVram,
 // 4 SnapshotVram, 5 transfer snapshot, 6 epoch list full, 7 local->local/host transfer, 8 readback.
@@ -4084,10 +4086,34 @@ void GSCpuBackend::QueuePresentSnapshot(const GSPresentationRequest &request)
     if (!threaded() || !s_asyncPresent || !m_vram || m_vramSize == 0u)
         return;
     m_lastFlipSnapshotNs.store(gsNowNs(), std::memory_order_relaxed);
-    // One snapshot in flight at a time; a flip that finds one still queued is skipped (the
-    // display then shows the previous complete frame for one more host frame).
+    // One snapshot in flight at a time. By default a flip that finds the previous frame's
+    // snapshot still queued waits for it (up to 100 ms): that keeps the raster queue at most one
+    // frame behind, so every game frame is shown and pacing stays even. Without the wait the
+    // producer could run far ahead, frames were dropped irregularly and the display stuttered.
+    // PS2_GS_PACE=0: skip the flip instead (the display repeats the previous frame).
+    static const bool s_pace = []
+    {
+        const char *v = std::getenv("PS2_GS_PACE");
+        return !(v && v[0] == '0');
+    }();
+    if (m_presentPending.load(std::memory_order_acquire) && s_pace)
+    {
+        const uint64_t t0 = gsNowNs();
+        uint32_t spins = 0u;
+        while (m_presentPending.load(std::memory_order_acquire) && gsNowNs() - t0 < 100000000ull)
+        {
+            if (++spins < 64u)
+                std::this_thread::yield();
+            else
+                std::this_thread::sleep_for(std::chrono::microseconds(100));
+        }
+        g_perfGsPaceNs.fetch_add(gsNowNs() - t0, std::memory_order_relaxed);
+    }
     if (m_presentPending.exchange(true))
+    {
+        g_perfGsPresentSkips.fetch_add(1u, std::memory_order_relaxed);
         return;
+    }
     std::lock_guard<GsLock> lock(m_mutex);
     EnqueuePresentSnapshotUnlocked(request);
 }
