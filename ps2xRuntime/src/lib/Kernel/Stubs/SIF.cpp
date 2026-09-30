@@ -725,6 +725,27 @@ namespace ps2_stubs
                     std::vector<int16_t> tmp(sizeBytes / 2u);
                     if (readEeRange(rdram, xfer.src, tmp.data(), static_cast<uint32_t>(tmp.size() * 2u)))
                     {
+                        // Diagnostics: keep a copy of the EE->IOP sound transfers (2288-byte tag buffers).
+                        {
+                            static std::FILE *s_dump = nullptr;
+                            static uint32_t s_dumped = 0u;
+                            if (sizeBytes == 2288u && s_dumped < 4000u)
+                            {
+                                if (!s_dump)
+                                    s_dump = std::fopen("sif_dts.bin", "wb");
+                                if (s_dump)
+                                {
+                                    std::fwrite(tmp.data(), 1, sizeBytes, s_dump);
+                                    if (++s_dumped == 4000u)
+                                    {
+                                        std::fclose(s_dump);
+                                        s_dump = nullptr;
+                                    }
+                                    else if ((s_dumped % 100u) == 0u)
+                                        std::fflush(s_dump);
+                                }
+                            }
+                        }
                         int peak = 0;
                         for (int16_t v : tmp)
                             peak = std::max(peak, std::abs(static_cast<int>(v)));
