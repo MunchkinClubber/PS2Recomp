@@ -46,10 +46,18 @@ namespace
         AudioStream stream{};
     };
     AdmaPlayer *g_adma = nullptr;
+    void admaFill(int16_t *out, unsigned int frames);
 
     void admaAudioCallback(void *buffer, unsigned int frames)
     {
         int16_t *out = static_cast<int16_t *>(buffer);
+        admaFill(out, frames);
+        // Sound effects play on SPU2 hardware voices (music and speech come through auto-DMA).
+        ps2x::iop::spu2Render(out, frames);
+    }
+
+    void admaFill(int16_t *out, unsigned int frames)
+    {
         AdmaPlayer &p = *g_adma;
         std::lock_guard<std::mutex> lock(p.mutex);
         if (!p.started && p.count >= 2400u)

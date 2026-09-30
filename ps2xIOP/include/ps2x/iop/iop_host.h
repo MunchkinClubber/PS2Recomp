@@ -137,4 +137,7 @@ namespace ps2x::iop
     // transfer (blocks of 256 left then 256 right 16-bit samples, 48 kHz). The host plays it.
     using AdmaSink = void (*)(uint32_t core, const uint8_t *data, uint32_t bytes);
     void setAdmaSink(AdmaSink sink);
+    // Adds the SPU2 voices' output for `frames` 48 kHz stereo frames into `stereo` (interleaved
+    // L/R, saturating). Called from the host audio thread. PS2_SPU2=0 disables voice emulation.
+    void spu2Render(int16_t *stereo, uint32_t frames);
 }
