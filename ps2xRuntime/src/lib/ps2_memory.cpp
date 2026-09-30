@@ -76,6 +76,8 @@ struct PS2Memory::GpuJob
 void vif1Observe(uint32_t) {} // old overlap measurement hook (ps2_runtime.cpp still calls it)
 void (*g_ps2GpuSyncHook)() = nullptr; // called by GS entry points used from the EE (gs_frontend.cpp)
 void (*g_ps2FlipHook)() = nullptr;    // set by PS2Runtime: GS::notePresentPoint (a DISPFB write = the game's flip)
+// set by PS2Runtime: copies up to `bytes` of pending GS local->host (readback) data to dst, returns the count.
+uint32_t (*g_ps2GsReadbackHook)(uint8_t *dst, uint32_t bytes) = nullptr;
 
 namespace
 {
@@ -1680,6 +1682,47 @@ bool PS2Memory::writeIORegister(uint32_t address, uint32_t value)
 
                 uint32_t chcr = value;
                 uint32_t mode = (chcr >> 2) & 0x3;
+
+                // VIF1 with DIR=0 runs towards memory: a GS download (the data of a local->host
+                // transfer comes out of the VIF1 FIFO). It used to be treated as an upload of
+                // whatever was at MADR, so the game never saw the data - e.g. SSX 3 reads 16x8
+                // Z-buffer blocks at each lens flare to test its visibility, and got stale RAM
+                // (flares shone through terrain).
+                if (channelBase == 0x10009000u && (value & 0x1u) == 0u && mode == 0u)
+                {
+                    gpuSyncGlobal(kGpuSyncDma); // the GS commands that started the transfer run first
+                    const uint32_t bytes = (qwc & 0xFFFFu) * 16u;
+                    uint32_t phys = 0u;
+                    bool ok = bytes != 0u;
+                    try
+                    {
+                        phys = translateAddress(madr);
+                    }
+                    catch (const std::exception &)
+                    {
+                        ok = false;
+                    }
+                    if (ok && !isScratchpad(madr) && phys < PS2_RAM_SIZE && bytes <= PS2_RAM_SIZE - phys)
+                    {
+                        const uint32_t got = g_ps2GsReadbackHook ? g_ps2GsReadbackHook(m_rdram + phys, bytes) : 0u;
+                        if (got < bytes)
+                            std::memset(m_rdram + phys + got, 0, bytes - got);
+                        markModified(phys, bytes);
+                    }
+                    m_ioRegisters[channelBase + 0x10] = madr + bytes;
+                    m_ioRegisters[channelBase + 0x20] = 0u;
+                    m_ioRegisters[channelBase + 0x00] = value & ~0x100u;
+                    static constexpr uint32_t kDStat = 0x1000E010u;
+                    uint32_t dstat = m_ioRegisters.count(kDStat) ? m_ioRegisters[kDStat] : 0u;
+                    dstat |= (1u << 1);
+                    if (((dstat & 0x3FFu) & ((dstat >> 16) & 0x3FFu)) != 0u)
+                        dstat |= (1u << 31);
+                    else
+                        dstat &= ~(1u << 31);
+                    m_ioRegisters[kDStat] = dstat;
+                    queueCompletedDmacCause(1u);
+                    return true;
+                }
 
                 if (mode == 0 && qwc > 0)
                 {

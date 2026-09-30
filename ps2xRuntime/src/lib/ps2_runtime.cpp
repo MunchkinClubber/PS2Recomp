@@ -829,6 +829,9 @@ bool PS2Runtime::syncCoreSubsystems()
         s_gsForSync = &m_gs;
         g_ps2GsSyncHook = []()
         { if (s_gsForSync) s_gsForSync->syncLocalMemory(); };
+        extern uint32_t (*g_ps2GsReadbackHook)(uint8_t *, uint32_t);
+        g_ps2GsReadbackHook = [](uint8_t *dst, uint32_t bytes) -> uint32_t
+        { return s_gsForSync ? s_gsForSync->consumeLocalToHostBytes(dst, bytes) : 0u; };
         extern void (*g_ps2FlipHook)();
         g_ps2FlipHook = []()
         {
