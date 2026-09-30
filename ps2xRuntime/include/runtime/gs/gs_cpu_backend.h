@@ -113,7 +113,8 @@ private:
     // `touchStart/End`: VRAM bytes the command itself writes (for CanRunDirectUnlocked).
     void EnqueueGlobalUnlocked(std::function<void()> fn, uint32_t touchStart = 0u, uint32_t touchEnd = 0x400000u, bool soft = false);
     // Draw dependency on closed epochs (see Command::dep), cached per draw state.
-    uint64_t DrawDepUnlocked(const GSDrawState &state, uint32_t texStart, uint32_t texEnd) const;
+    // sameState: the state equals the previous primitive's (skips re-checking the cache key).
+    uint64_t DrawDepUnlocked(const GSDrawState &state, uint32_t texStart, uint32_t texEnd, bool sameState) const;
     uint64_t m_epochSerial = 0;             // bumped whenever an epoch is added or folded
     mutable uint64_t m_nextDep = 0;         // dep for the primitive being submitted
     mutable uint64_t m_depCacheSerial = ~0ull, m_depCacheDone = 0, m_depCacheValue = 0;
@@ -121,7 +122,8 @@ private:
     void SyncUnlocked(int reason) const;
     uint64_t HazardTargetUnlocked(uint32_t start, uint32_t end, bool readOnly) const;
     void SyncToUnlocked(uint64_t target, int reason) const;
-    void NoteDrawHazardsUnlocked(const GSPrimitiveBatch &batch);
+    void NoteDrawHazardsUnlocked(const GSPrimitiveBatch &batch, bool sameState);
+    uint32_t m_lastTexStart = 0, m_lastTexEnd = 0; // texture range of the previous primitive's state
     uint64_t MinDone() const;
     bool threaded() const { return m_threadCount != 0u; }
 

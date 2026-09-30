@@ -735,7 +735,46 @@ void PS2Memory::processVIF1Data(const uint8_t *data, uint32_t sizeBytes)
                              fv[0], fv[1], fv[2], fv[3], fv[4], fv[5], fv[6], fv[7]);
             }
 
-            if (m_vu1Data && totalBytes > 0 && pos + totalBytes <= sizeBytes)
+            // Fast path for the common case - no mask, no row addition, every write cycle reads
+            // source data (CL >= WL), not V4-5: the same writes as the general loop below.
+            if (m_vu1Data && totalBytes > 0 && pos + totalBytes <= sizeBytes && !maskEnable &&
+                (vif1_regs.mode & 3u) == 0u && cl >= wl && vl != 3u)
+            {
+                const uint8_t *srcBase = data + pos;
+                for (uint32_t writeIndex = 0; writeIndex < writeVectorCount; ++writeIndex)
+                {
+                    const uint32_t destVec = (vuAddr + (writeIndex / wl) * cl + (writeIndex % wl)) & 0x3FFu;
+                    uint8_t *dst = m_vu1Data + destVec * 16u;
+                    const uint8_t *src = srcBase + writeIndex * bytesPerVector;
+                    if (vl == 0u && components == 4)
+                    {
+                        std::memcpy(dst, src, 16u);
+                        continue;
+                    }
+                    uint32_t lanes[4];
+                    std::memcpy(lanes, dst, sizeof(lanes));
+                    const uint32_t limit = static_cast<uint32_t>(components);
+                    for (uint32_t c = 0; c < limit; ++c)
+                    {
+                        uint32_t value;
+                        if (vl == 0u)
+                            std::memcpy(&value, src + c * 4u, sizeof(value));
+                        else if (vl == 1u)
+                        {
+                            uint16_t raw;
+                            std::memcpy(&raw, src + c * 2u, sizeof(raw));
+                            value = zeroExtend ? static_cast<uint32_t>(raw) : static_cast<uint32_t>(static_cast<int32_t>(static_cast<int16_t>(raw)));
+                        }
+                        else
+                            value = zeroExtend ? static_cast<uint32_t>(src[c]) : static_cast<uint32_t>(static_cast<int32_t>(static_cast<int8_t>(src[c])));
+                        lanes[c] = value;
+                    }
+                    if (components == 1)
+                        lanes[1] = lanes[2] = lanes[3] = lanes[0];
+                    std::memcpy(dst, lanes, sizeof(lanes));
+                }
+            }
+            else if (m_vu1Data && totalBytes > 0 && pos + totalBytes <= sizeBytes)
             {
                 const uint8_t *srcBase = data + pos;
                 uint32_t srcIndex = 0u;

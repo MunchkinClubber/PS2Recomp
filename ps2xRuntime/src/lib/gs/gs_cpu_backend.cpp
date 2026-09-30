@@ -695,7 +695,11 @@ void GSCpuBackend::Submit(const GSPrimitiveBatch &batch)
         return;
     }
     g_perfGsDraws.fetch_add(1u, std::memory_order_relaxed);
-    NoteDrawHazardsUnlocked(batch);
+    // Consecutive primitives mostly share their state: compare it once and let the hazard and
+    // batching code reuse the result.
+    const bool sameState = m_hasPending && m_pending.batch.vertexCount == batch.vertexCount &&
+                           std::memcmp(&m_pending.batch.state, &batch.state, sizeof(GSDrawState)) == 0;
+    NoteDrawHazardsUnlocked(batch, sameState);
     const uint8_t tpsm = batch.state.context.tex0.psm;
     const bool indexed = batch.state.prim.tme && (isFourBitIndexedPsm(tpsm) || isEightBitIndexedPsm(tpsm));
     if (indexed)
@@ -716,9 +720,7 @@ void GSCpuBackend::Submit(const GSPrimitiveBatch &batch)
         }
     }
     const std::array<uint32_t, 256> *palette = indexed ? m_sharedPalette.get() : nullptr;
-    if (m_hasPending && m_pendingPrims < kMaxBatchPrims && m_pending.palette.get() == palette &&
-        m_pending.batch.vertexCount == batch.vertexCount &&
-        std::memcmp(&m_pending.batch.state, &batch.state, sizeof(GSDrawState)) == 0)
+    if (sameState && m_hasPending && m_pendingPrims < kMaxBatchPrims && m_pending.palette.get() == palette)
     {
         m_pending.dep = std::max(m_pending.dep, m_nextDep);
         m_pending.more.resize(m_pending.more.size() + 3u);
@@ -1075,11 +1077,14 @@ namespace
         default:
             break;
         }
-        const uint32_t pagesW = std::max<uint32_t>((std::max<uint32_t>(width64, 1u) * 64u + pageW - 1u) / pageW, 1u);
-        const uint32_t firstPageRow = std::min(firstRow, rows) / pageH;
-        const uint32_t pagesH = std::max<uint32_t>((rows + pageH - 1u) / pageH, 1u);
-        const uint32_t firstPageCol = std::min(firstCol / pageW, pagesW - 1u);
-        const uint32_t lastPageCol = std::min(lastCol / pageW, pagesW - 1u);
+        // Page sizes are powers of two: shifts instead of divisions (this runs for every primitive).
+        const uint32_t shW = pageW == 128u ? 7u : 6u;
+        const uint32_t shH = pageH == 128u ? 7u : (pageH == 64u ? 6u : 5u);
+        const uint32_t pagesW = std::max<uint32_t>((std::max<uint32_t>(width64, 1u) * 64u + pageW - 1u) >> shW, 1u);
+        const uint32_t firstPageRow = std::min(firstRow, rows) >> shH;
+        const uint32_t pagesH = std::max<uint32_t>((rows + pageH - 1u) >> shH, 1u);
+        const uint32_t firstPageCol = std::min(firstCol >> shW, pagesW - 1u);
+        const uint32_t lastPageCol = std::min(lastCol >> shW, pagesW - 1u);
         const uint64_t base = static_cast<uint64_t>(baseBlock) * 256u;
         // Pages are row-major: the touched pages lie between (firstRow, firstCol) and (lastRow, lastCol).
         const uint64_t start = base + (static_cast<uint64_t>(firstPageRow) * pagesW + firstPageCol) * 8192u;
@@ -1500,7 +1505,7 @@ void GSCpuBackend::SyncUnlocked(int reason) const
     g_perfGsSyncNs[r].fetch_add(waited, std::memory_order_relaxed);
 }
 
-uint64_t GSCpuBackend::DrawDepUnlocked(const GSDrawState &state, uint32_t texStart, uint32_t texEnd) const
+uint64_t GSCpuBackend::DrawDepUnlocked(const GSDrawState &state, uint32_t texStart, uint32_t texEnd, bool sameState) const
 {
     // With soft barriers, workers do not stop at a barrier: a draw that reads what an earlier
     // epoch (its draws or its barrier command) wrote, writes what it read or wrote under another
@@ -1509,8 +1514,11 @@ uint64_t GSCpuBackend::DrawDepUnlocked(const GSDrawState &state, uint32_t texSta
     // result can be cached while no epoch is added).
     const uint64_t done = MinDone();
     if (m_epochs.empty() || m_epochs.back().globalIdx < done)
+    {
+        m_depCacheSerial = ~0ull;
         return 0u;
-    if (m_depCacheSerial == m_epochSerial && std::memcmp(&m_depCacheState, &state, sizeof(GSDrawState)) == 0)
+    }
+    if (m_depCacheSerial == m_epochSerial && (sameState || std::memcmp(&m_depCacheState, &state, sizeof(GSDrawState)) == 0))
         return m_depCacheValue > done ? m_depCacheValue : 0u;
     const GSContext &ctx = state.context;
     const uint32_t fbw = std::max<uint32_t>(ctx.frame.fbw, 1u);
@@ -1567,7 +1575,7 @@ uint64_t GSCpuBackend::DrawDepUnlocked(const GSDrawState &state, uint32_t texSta
     return dep;
 }
 
-void GSCpuBackend::NoteDrawHazardsUnlocked(const GSPrimitiveBatch &batch)
+void GSCpuBackend::NoteDrawHazardsUnlocked(const GSPrimitiveBatch &batch, bool sameState)
 {
     // Workers only order draws within their own rows. A draw that reads memory another queued
     // draw writes (render-to-texture), or that aliases a queued target with a different layout,
@@ -1629,8 +1637,13 @@ void GSCpuBackend::NoteDrawHazardsUnlocked(const GSPrimitiveBatch &batch)
     DirtyRange tex{0u, 0u, 0u};
     if (state.prim.tme)
     {
-        const GsByteRange r = gsBufferRange(ctx.tex0.tbp0, ctx.tex0.tbw, ctx.tex0.psm, state.textureHeight);
-        tex = {0u, r.start, r.end};
+        if (!sameState)
+        {
+            const GsByteRange r = gsBufferRange(ctx.tex0.tbp0, ctx.tex0.tbw, ctx.tex0.psm, state.textureHeight);
+            m_lastTexStart = r.start;
+            m_lastTexEnd = r.end;
+        }
+        tex = {0u, m_lastTexStart, m_lastTexEnd};
     }
     if (!barrier && state.prim.tme)
     {
@@ -1655,7 +1668,7 @@ void GSCpuBackend::NoteDrawHazardsUnlocked(const GSPrimitiveBatch &batch)
         g_perfGsHazards.fetch_add(1u, std::memory_order_relaxed);
         EnqueueGlobalUnlocked(nullptr, 0u, 0u, true);
     }
-    m_nextDep = DrawDepUnlocked(state, tex.start, tex.end);
+    m_nextDep = DrawDepUnlocked(state, tex.start, tex.end, sameState);
 
     // This draw goes into the pending batch, which lands at the current write index or - if an
     // older batch is flushed first - the next one.
@@ -4299,7 +4312,7 @@ void GSCpuBackend::QueuePresentSnapshot(const GSPresentationRequest &request)
     if (!threaded() || !s_asyncPresent || !m_vram || m_vramSize == 0u)
         return;
     m_lastFlipSnapshotNs.store(gsNowNs(), std::memory_order_relaxed);
-    // Up to PS2_GS_PRESENT_DEPTH (default 2) snapshots in flight. A flip that finds that many
+    // Up to PS2_GS_PRESENT_DEPTH (default 1; 2 measured no faster) snapshots in flight. A flip that finds that many
     // still queued waits (up to 100 ms) for the oldest: the raster queue stays at most that many
     // frames behind, so every game frame is shown and pacing stays even, while the producer can
     // start the next frame without waiting for the rasteriser to finish the previous one.
@@ -4312,7 +4325,7 @@ void GSCpuBackend::QueuePresentSnapshot(const GSPresentationRequest &request)
     static const int s_depth = []
     {
         const char *v = std::getenv("PS2_GS_PRESENT_DEPTH");
-        const int d = v ? std::atoi(v) : 2;
+        const int d = v ? std::atoi(v) : 1;
         return std::min(std::max(d, 1), 4);
     }();
     if (s_pace && m_presentPending.load(std::memory_order_acquire) >= s_depth)

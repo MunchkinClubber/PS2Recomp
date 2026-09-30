@@ -1607,7 +1607,9 @@ void GS::vertexKick(bool drawing)
 {
     ++m_vtxCount;
     ++m_vtxIndex;
-    g_ssx3GsKicks.fetch_add(1, std::memory_order_relaxed);
+    // Debug counters: written only by the thread running the GS, so a plain load/store (no locked
+    // read-modify-write per vertex) is enough.
+    g_ssx3GsKicks.store(g_ssx3GsKicks.load(std::memory_order_relaxed) + 1, std::memory_order_relaxed);
 
     PS2_IF_AGRESSIVE_LOGS({
         const uint32_t debugIndex = s_debugGsVertexKickCount.fetch_add(1, std::memory_order_relaxed);
@@ -1658,11 +1660,11 @@ void GS::vertexKick(bool drawing)
         {
             const GSContext &dc = batch.state.context;
             const uint32_t fbp = dc.frame.fbp & 0x1FFu;
-            g_ssx3DrawFbp[fbp].fetch_add(1, std::memory_order_relaxed);
+            g_ssx3DrawFbp[fbp].store(g_ssx3DrawFbp[fbp].load(std::memory_order_relaxed) + 1, std::memory_order_relaxed);
             g_ssx3FbpInfo[fbp].store((dc.frame.fbw & 0xFFu) | (static_cast<uint32_t>(dc.frame.psm) << 8), std::memory_order_relaxed);
-            g_ssx3PrimType[batch.state.prim.type & 7u].fetch_add(1, std::memory_order_relaxed);
+            g_ssx3PrimType[batch.state.prim.type & 7u].store(g_ssx3PrimType[batch.state.prim.type & 7u].load(std::memory_order_relaxed) + 1, std::memory_order_relaxed);
             if (batch.state.prim.type == GS_PRIM_SPRITE && batch.state.prim.tme)
-                g_ssx3SpriteTexTbp[dc.tex0.tbp0 & 0x3FFFu].fetch_add(1, std::memory_order_relaxed);
+                g_ssx3SpriteTexTbp[dc.tex0.tbp0 & 0x3FFFu].store(g_ssx3SpriteTexTbp[dc.tex0.tbp0 & 0x3FFFu].load(std::memory_order_relaxed) + 1, std::memory_order_relaxed);
             static uint64_t ssx3PrimSeq = 0;
             ++ssx3PrimSeq;
             // Once armed (past the intro), sample: every display-buffer (0x70) draw until 40

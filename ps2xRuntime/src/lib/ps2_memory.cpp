@@ -79,6 +79,29 @@ void (*g_ps2FlipHook)() = nullptr;    // set by PS2Runtime: GS::notePresentPoint
 
 namespace
 {
+    // Recycled DMA capture buffers: VIF1 chains are hundreds of KB, and allocating and freeing
+    // them per kick went through VirtualAlloc/VirtualFree (plus fresh-page faults) every frame.
+    std::mutex s_bufPoolMutex;
+    std::vector<std::vector<uint8_t>> s_bufPool;
+    std::vector<uint8_t> gpuTakeBuffer()
+    {
+        std::lock_guard<std::mutex> lock(s_bufPoolMutex);
+        if (s_bufPool.empty())
+            return {};
+        std::vector<uint8_t> v = std::move(s_bufPool.back());
+        s_bufPool.pop_back();
+        v.clear();
+        return v;
+    }
+    void gpuReturnBuffers(std::vector<std::vector<uint8_t>> &buffers)
+    {
+        std::lock_guard<std::mutex> lock(s_bufPoolMutex);
+        for (auto &b : buffers)
+            if (b.capacity() >= 16384u && s_bufPool.size() < 16u)
+                s_bufPool.push_back(std::move(b));
+        buffers.clear();
+    }
+
     std::atomic<uint64_t> s_vif1KickNs{0}, s_vif1Kicks{0};
     std::atomic<uint64_t> s_gpuSyncNs[PS2Memory::kGpuSyncReasonCount]{};
     std::atomic<uint64_t> s_gpuSyncCount[PS2Memory::kGpuSyncReasonCount]{};
@@ -152,6 +175,8 @@ namespace
                 }
                 const bool hadVif = job.countKick && !job.vif1.empty(); // matches gpuEnqueue's backpressure count
                 memory->runGpuJob(job);
+                gpuReturnBuffers(job.vif1);
+                gpuReturnBuffers(job.gif);
                 job = PS2Memory::GpuJob{};
                 s_gpuBusyNs.fetch_add(static_cast<uint64_t>(std::chrono::duration_cast<std::chrono::nanoseconds>(std::chrono::steady_clock::now() - t0).count()),
                                       std::memory_order_relaxed);
@@ -1671,7 +1696,7 @@ bool PS2Memory::writeIORegister(uint32_t address, uint32_t value)
                     // well over 4096 tags in busy scenes; the old 4096 cap silently dropped the rest
                     // of the frame (riders, hair and hats, which are drawn late).
                     const int kMaxChainTags = 1 << 20;
-                    std::vector<uint8_t> chainBuf;
+                    std::vector<uint8_t> chainBuf = gpuTakeBuffer();
 
                     auto appendData = [&](uint32_t srcAddr, uint32_t qwCount)
                     {
