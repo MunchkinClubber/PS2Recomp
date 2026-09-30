@@ -95,11 +95,6 @@ private:
         uint32_t start;
         uint32_t end;
         uint64_t idx = 0; // draws: ring index the latest draw into this range lands at (or one before)
-        // Reads (key 0) only: a sprite that samples texel row y exactly at pixel row y of a CT32-
-        // layout buffer (base localTbp blocks, width localTbw) reads each row on the worker that
-        // owns that row, the same one that writes it - no cross-worker ordering needed for that
-        // buffer. UINT32_MAX = not row-local.
-        uint32_t localTbp = UINT32_MAX, localTbw = 0;
     };
     static constexpr uint32_t kRingSize = 32768u;
     void StartWorkersUnlocked();
@@ -119,12 +114,11 @@ private:
     void EnqueueGlobalUnlocked(std::function<void()> fn, uint32_t touchStart = 0u, uint32_t touchEnd = 0x400000u, bool soft = false);
     // Draw dependency on closed epochs (see Command::dep), cached per draw state.
     // sameState: the state equals the previous primitive's (skips re-checking the cache key).
-    uint64_t DrawDepUnlocked(const GSDrawState &state, uint32_t texStart, uint32_t texEnd, bool sameState, uint32_t localTbp = UINT32_MAX) const;
+    uint64_t DrawDepUnlocked(const GSDrawState &state, uint32_t texStart, uint32_t texEnd, bool sameState) const;
     uint64_t m_epochSerial = 0;             // bumped whenever an epoch is added or folded
     mutable uint64_t m_nextDep = 0;         // dep for the primitive being submitted
     mutable uint64_t m_depCacheSerial = ~0ull, m_depCacheDone = 0, m_depCacheValue = 0;
     mutable GSDrawState m_depCacheState{};
-    mutable uint32_t m_depCacheTexStart = 0, m_depCacheTexEnd = 0, m_depCacheLocal = UINT32_MAX;
     void SyncUnlocked(int reason) const;
     uint64_t HazardTargetUnlocked(uint32_t start, uint32_t end, bool readOnly) const;
     void SyncToUnlocked(uint64_t target, int reason) const;
