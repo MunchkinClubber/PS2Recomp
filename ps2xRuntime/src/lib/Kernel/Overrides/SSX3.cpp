@@ -171,6 +171,10 @@ namespace
     // EE-side libkernel SIF software-register table (sceSifGetSreg 0x425CF0 / sceSifSetSreg 0x425D08).
     constexpr uint32_t kEeSifSregTable = 0x0052BE00u;
     constexpr uint32_t kSifSendCmd = 0x004261B0u;
+    // isceSifSendCmd: the interrupt-context twin. Not replaced before, so its recompiled body wrote
+    // the command into SIF hardware nobody reads, and every command the EA sound library sends that
+    // way (sample bank uploads to SPU RAM, cid 0) was lost -- no bank, no sound effects.
+    constexpr uint32_t kISifSendCmd = 0x004261F0u;
     constexpr uint32_t kSifCmdSetSreg = 0x80000001u;
 
     // SSX 3 boot handshake (FUN_0040B130): the EE sends SIF_CMD_SET_SREG(1, 1) to the IOP and then
@@ -550,6 +554,7 @@ namespace
         runtime.replaceFunction(kSifSearchModuleByName, ssx3SifSearchModuleByName);
         runtime.replaceFunction(kSifSearchModuleByAddress, ssx3SifSearchModuleByAddress);
         runtime.replaceFunction(kSifSendCmd, ssx3SifSendCmd);
+        runtime.replaceFunction(kISifSendCmd, ssx3SifSendCmd);
         runtime.replaceFunction(kRendererVif1Done, ssx3RendererVif1Done);
         // The game's allocator (init at 0x31AED0) takes [malloc(0x400)+0x800, EndOfHeap()), i.e. all RAM
         // from SetupHeap's base -- exactly where the runtime put its own heap (sceMpegCreate buffers,

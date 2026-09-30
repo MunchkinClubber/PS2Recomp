@@ -991,11 +991,11 @@ namespace ps2_syscalls
         uint32_t packetSize = getRegU32(ctx, 6);
         uint32_t srcExtra = getRegU32(ctx, 7);
 
-        uint32_t sp = getRegU32(ctx, 29);
-        uint32_t destExtra = 0;
-        uint32_t sizeExtra = 0;
-        readStackU32(rdram, sp, 0x10, destExtra);
-        readStackU32(rdram, sp, 0x14, sizeExtra);
+        // EE ABI: the 5th and 6th arguments are in t0/t1, not on the stack.
+        uint32_t destExtra = getRegU32(ctx, 8);
+        uint32_t sizeExtra = getRegU32(ctx, 9);
+        if (srcExtra == 0u)
+            sizeExtra = 0u;
 
         // The extra data goes to IOP memory (it used to be copied within EE RAM, to an IOP address).
         if (sizeExtra > 0 && sizeExtra <= 0x100000u && srcExtra && destExtra && runtime)
@@ -1040,11 +1040,13 @@ namespace ps2_syscalls
                 std::memcpy(packet + 8u, &cid, 4u);
                 const bool delivered = ::ps2DeliverSifCommandToIop(rdram, ctx, packet, packetSize);
                 static int s_cmdLogs = 0;
-                if (s_cmdLogs < 20)
+                if (s_cmdLogs < 60)
                 {
                     ++s_cmdLogs;
-                    std::fprintf(stderr, "[sif] EE->IOP cmd 0x%x psize %u extra %u -> %s\n", cid, packetSize, sizeExtra,
-                                 delivered ? "delivered" : "no IOP handler");
+                    uint32_t w[5] = {};
+                    std::memcpy(w, packet + 16u, sizeof(w));
+                    std::fprintf(stderr, "[sif] EE->IOP cmd 0x%x psize %u extra %u -> %s  %08x %08x %08x %08x %08x\n", cid, packetSize, sizeExtra,
+                                 delivered ? "delivered" : "no IOP handler", w[0], w[1], w[2], w[3], w[4]);
                 }
             }
         }
