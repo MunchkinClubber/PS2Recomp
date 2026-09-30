@@ -1229,7 +1229,14 @@ bool PS2Runtime::initialize(const char *title)
         startAdmaPlayback();
 #endif
         SetTargetFPS(60);
+#if defined(PS2X_HOST_SDL3)
+        // The debug panel is built on raylib/rlImGui, which the SDL3 host does not run.
         if (m_debugUiInitCallback)
+            std::cerr << "[host] debug panel is not available with the SDL3/Vulkan host" << std::endl;
+        if (false)
+#else
+        if (m_debugUiInitCallback)
+#endif
         {
             m_debugUiInitCallback(*this, m_debugUiUserData);
             m_debugUiInitialized = true;

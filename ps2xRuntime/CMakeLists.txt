@@ -16,6 +16,7 @@ option(PS2X_ENABLE_IOP_RPC_TRACE "Log unhandled IOP/SIF RPC trace suggestions" O
 option(PS2X_STRICT_RETURN_DIAGNOSTICS "Route generated JR $ra returns through runtime branch diagnostics" OFF)
 option(PS2X_SHOW_WINDOWS_CONSOLE "Show a console window for ps2EntryRunner on Windows release builds" ON)
 option(PS2X_ENABLE_DEBUG_UI "Build the desktop runtime debug UI" ON)
+option(PS2X_HOST_SDL3 "Desktop host backend: SDL3 window/input/audio + Vulkan presentation (OFF = raylib)" ON)
 
 if(PS2X_ENABLE_SCCACHE)
     find_program(PS2X_SCCACHE_PROGRAM sccache)
@@ -75,6 +76,8 @@ else()
         set(PLATFORM "Android" CACHE STRING "" FORCE)
     endif()
 
+    # raylib stays built even with the SDL3 host: the debug panel (rlImGui) still links against it,
+    # and keeping ps2EntryRunner's compile flags unchanged avoids recompiling the generated game code.
     FetchContent_Declare(
         raylib
         GIT_REPOSITORY "https://github.com/raysan5/raylib.git"
@@ -82,6 +85,61 @@ else()
         GIT_PROGRESS TRUE
     )
     FetchContent_MakeAvailable(raylib)
+
+    if(PS2X_IS_ANDROID)
+        set(PS2X_HOST_SDL3 OFF)
+    endif()
+
+    if(PS2X_HOST_SDL3)
+        # SDL3 (window, input, audio) + Vulkan (headers + volk loader; no Vulkan SDK needed).
+        enable_language(C)
+        set(SDL_SHARED OFF CACHE BOOL "" FORCE)
+        set(SDL_STATIC ON CACHE BOOL "" FORCE)
+        set(SDL_TEST_LIBRARY OFF CACHE BOOL "" FORCE)
+        set(SDL_EXAMPLES OFF CACHE BOOL "" FORCE)
+        set(SDL_TESTS OFF CACHE BOOL "" FORCE)
+        FetchContent_Declare(
+            SDL3
+            GIT_REPOSITORY "https://github.com/libsdl-org/SDL.git"
+            GIT_TAG "release-3.4.16"
+            GIT_SHALLOW TRUE
+            GIT_PROGRESS TRUE
+        )
+        FetchContent_MakeAvailable(SDL3)
+
+        FetchContent_Declare(
+            vulkan_headers
+            GIT_REPOSITORY "https://github.com/KhronosGroup/Vulkan-Headers.git"
+            GIT_TAG "v1.4.363"
+            GIT_SHALLOW TRUE
+        )
+        FetchContent_GetProperties(vulkan_headers)
+        if(NOT vulkan_headers_POPULATED)
+            FetchContent_Populate(vulkan_headers)
+        endif()
+
+        FetchContent_Declare(
+            volk
+            GIT_REPOSITORY "https://github.com/zeux/volk.git"
+            GIT_TAG "vulkan-sdk-1.4.363.0"
+            GIT_SHALLOW TRUE
+        )
+        FetchContent_GetProperties(volk)
+        if(NOT volk_POPULATED)
+            FetchContent_Populate(volk)
+        endif()
+
+        add_library(ps2_host_sdl3 STATIC
+            src/lib/host/ps2_host_sdl3.cpp
+            "${volk_SOURCE_DIR}/volk.c"
+        )
+        target_include_directories(ps2_host_sdl3
+            PUBLIC "${CMAKE_CURRENT_SOURCE_DIR}/include"
+            PRIVATE "${vulkan_headers_SOURCE_DIR}/include" "${volk_SOURCE_DIR}"
+        )
+        target_compile_definitions(ps2_host_sdl3 PRIVATE VK_NO_PROTOTYPES)
+        target_link_libraries(ps2_host_sdl3 PRIVATE SDL3::SDL3-static)
+    endif()
 
     if(PS2X_ENABLE_DEBUG_UI AND NOT PS2X_IS_ANDROID)
         FetchContent_Declare(
@@ -526,6 +584,12 @@ target_include_directories(ps2_runtime PUBLIC
 )
 
 target_link_libraries(ps2_runtime PUBLIC ps2_host_backend ffmpeg ps2_iop)
+if(PS2X_HOST_SDL3 AND NOT PS2X_IS_VITA AND NOT PS2X_IS_ANDROID)
+    # Private to ps2_runtime (every host call is made there), so the generated game code's compile
+    # flags do not change.
+    target_compile_definitions(ps2_runtime PRIVATE PS2X_HOST_SDL3=1)
+    target_link_libraries(ps2_runtime PRIVATE ps2_host_sdl3)
+endif()
 target_link_libraries(ps2EntryRunner
     PRIVATE
     ps2_runtime
