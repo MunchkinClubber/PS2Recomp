@@ -433,6 +433,34 @@ namespace
             std::fprintf(stderr, "[ssx3:trace] no function at 0x%x\n", g_ssx3Trace[I].addr);
     }
 
+    // File-table hash comparator (FUN_003E3968, used by qsort/bsearch over the disc file table):
+    //   lwu a, lwu b; d = dsubu a, b; bltz d -> -1; bgtz d -> +1; else ++equalCount, 0.
+    // The recompiler tests bltz/bgtz on the low 32 bits only, so for hashes that differ by 2^31 or
+    // more the sign came out wrong: the table order was inconsistent and bsearch missed entries --
+    // data/config/banks.inf among them, so no sound bank was ever loaded (no sound effects).
+    constexpr uint32_t kFileHashCompare = 0x003E3968u;
+    void ssx3FileHashCompare(uint8_t *rdram, R5900Context *ctx, PS2Runtime *runtime)
+    {
+        (void)runtime;
+        uint32_t a = 0, b = 0;
+        std::memcpy(&a, rdram + (getRegU32(ctx, 4) & PS2_RAM_MASK), 4);
+        std::memcpy(&b, rdram + (getRegU32(ctx, 5) & PS2_RAM_MASK), 4);
+        int32_t result = 0;
+        if (a < b)
+            result = -1;
+        else if (a > b)
+            result = 1;
+        else
+        {
+            uint32_t count = 0;
+            std::memcpy(&count, rdram + 0x0051ED80u, 4);
+            ++count;
+            std::memcpy(rdram + 0x0051ED80u, &count, 4);
+        }
+        returnToCaller(ctx);
+        setReturnS32(ctx, result);
+    }
+
     void ssx3RendererSubmit(uint8_t *rdram, R5900Context *ctx, PS2Runtime *runtime)
     {
         const uint32_t obj = getRegU32(ctx, 4);
@@ -672,6 +700,7 @@ namespace
         runtime.replaceFunction(kSifSearchModuleByAddress, ssx3SifSearchModuleByAddress);
         runtime.replaceFunction(kSifSendCmd, ssx3SifSendCmd);
         runtime.replaceFunction(kISifSendCmd, ssx3SifSendCmd);
+        runtime.replaceFunction(kFileHashCompare, ssx3FileHashCompare);
         g_ssx3OrigFileReq = runtime.lookupFunction(kFileRequestQueue);
         if (g_ssx3OrigFileReq)
             runtime.replaceFunction(kFileRequestQueue, ssx3FileRequest);
