@@ -759,7 +759,8 @@ void GSCpuBackend::LoadClut(const GSTex0Reg &tex0, const GSTexClutReg &texclut)
             const uint32_t width = std::max<uint32_t>(texclut.cbw, 1u);
             end = static_cast<uint32_t>(std::min<uint64_t>(static_cast<uint64_t>(start) + static_cast<uint64_t>(rows) * width * 8192u, 4u * 1024u * 1024u));
         }
-        if (!CanRunDirectUnlocked(start, end, true))
+        const uint64_t clutTarget = HazardTargetUnlocked(start, end, true);
+        if (clutTarget != 0u && MinDone() < clutTarget)
         {
             if (s_gsHazDebug)
             {
@@ -774,7 +775,7 @@ void GSCpuBackend::LoadClut(const GSTex0Reg &tex0, const GSTexClutReg &texclut)
                             if (r.start < end && start < r.end && r.key != 0u)
                                 std::fprintf(stderr, "   epoch %llu (w=%llu) key=%llx [%x,%x)\n", (unsigned long long)e.globalIdx, (unsigned long long)m_writeIdx.load(), (unsigned long long)r.key, r.start, r.end);
             }
-            SyncUnlocked(1);
+            SyncToUnlocked(clutTarget, 1);
         }
     }
     LoadClutUnlocked(tex0, texclut);
@@ -1262,6 +1263,60 @@ bool GSCpuBackend::CanRunDirectUnlocked(uint32_t start, uint32_t end, bool readO
         }
     }
     return true;
+}
+
+uint64_t GSCpuBackend::HazardTargetUnlocked(uint32_t start, uint32_t end, bool readOnly) const
+{
+    // How far the workers must get before [start, end) may be touched: 0 = nothing to wait for;
+    // a closed epoch only needs its closing barrier; the open epoch needs everything queued.
+    auto hit = [&](const DirtyRange &range)
+    { return range.start < end && start < range.end && !(readOnly && range.key == 0u); };
+    for (const DirtyRange &range : m_dirty)
+        if (hit(range))
+            return UINT64_MAX;
+    if (!readOnly)
+        for (const DirtyRange &range : m_reads)
+            if (hit(range))
+                return UINT64_MAX;
+    uint64_t target = 0u;
+    if (!m_epochs.empty())
+    {
+        const uint64_t done = MinDone();
+        for (const Epoch &epoch : m_epochs)
+        {
+            if (epoch.globalIdx < done)
+                continue;
+            for (const DirtyRange &range : epoch.ranges)
+                if (hit(range))
+                {
+                    target = std::max(target, epoch.globalIdx + 1u);
+                    break;
+                }
+        }
+    }
+    return target;
+}
+
+void GSCpuBackend::SyncToUnlocked(uint64_t target, int reason) const
+{
+    if (target == UINT64_MAX)
+    {
+        SyncUnlocked(reason);
+        return;
+    }
+    if (!threaded() || target == 0u || MinDone() >= target)
+        return;
+    if (m_sleepers.load() != 0u)
+        WakeWorkers();
+    g_perfGsSyncs.fetch_add(1u, std::memory_order_relaxed);
+    const uint64_t t0 = gsNowNs();
+    gsWaitUntil([&]()
+                { return MinDone() >= target; });
+    const uint64_t waited = gsNowNs() - t0;
+    g_perfGsWaitNs.fetch_add(waited, std::memory_order_relaxed);
+    const int r = (reason >= 0 && reason < 9) ? reason : 0;
+    g_perfGsSyncCount[r].fetch_add(1u, std::memory_order_relaxed);
+    g_perfGsSyncNs[r].fetch_add(waited, std::memory_order_relaxed);
 }
 
 void GSCpuBackend::SyncUnlocked(int reason) const
@@ -2666,6 +2721,17 @@ namespace
 #undef GS_TEX_SWITCH
 
     // Texture memory overlapping what the draw writes (render-to-self): keep the per-pixel order.
+    // Whether a draw reads or writes its Z buffer at all (ZTE with GEQUAL/GREATER reads it; an
+    // unmasked Z buffer is written unless the test is NEVER).
+    bool zBufferTouched(const GSContext &c)
+    {
+        const bool zte = (c.test >> 16) & 1u;
+        const uint32_t ztst = static_cast<uint32_t>((c.test >> 17) & 3u);
+        if (!zte)
+            return !c.zbuf.zmask;
+        return ztst >= 2u || (!c.zbuf.zmask && ztst != 0u);
+    }
+
     bool textureFeedsBack(const GSDrawState &state, int yMax)
     {
         if (!state.prim.tme)
@@ -2676,7 +2742,59 @@ namespace
         const uint32_t fbw = std::max<uint32_t>(c.frame.fbw, 1u);
         const GsByteRange f = gsBufferRange(c.frame.fbp * 32u, fbw, c.frame.psm, rows);
         const GsByteRange z = gsBufferRange(c.zbuf.zbp * 32u, fbw, c.zbuf.psm, rows);
-        return (t.start < f.end && f.start < t.end) || (t.start < z.end && z.start < t.end);
+        return (t.start < f.end && f.start < t.end) || (zBufferTouched(c) && t.start < z.end && z.start < t.end);
+    }
+
+    // CT32 / CT24 / T8H / T4HL / T4HH share one pixel layout, so a texel (u,v) in one of them is
+    // the same word as pixel (u,v) of a CT32 frame buffer with the same base and width.
+    bool ct32Layout(uint32_t psm)
+    {
+        return psm == GS_PSM_CT32 || psm == GS_PSM_CT24 || psm == 0x1Bu || psm == 0x24u || psm == 0x2Cu;
+    }
+
+    // Sprite version with the texel rectangle actually sampled and the pixel rectangle actually
+    // drawn. A draw may still take the span path when it reads its own buffer, as long as no pixel
+    // it writes is read by another pixel of the same sprite (disjoint rectangles, or an exact 1:1
+    // copy onto itself): a row is sampled completely before it is written.
+    bool spriteFeedsBack(const GSDrawState &state, int x0, int y0, int x1, int y1,
+                         float u0f, float v0f, float u1f, float v1f, int ux0, int uy0, int spanW, int spanH)
+    {
+        if (!state.prim.tme)
+            return false;
+        const auto &c = state.context;
+        const int texW = state.textureWidth, texH = state.textureHeight;
+        const float uLo = std::min(u0f, u1f), uHi = std::max(u0f, u1f);
+        const float vLo = std::min(v0f, v1f), vHi = std::max(v0f, v1f);
+        const int umin = static_cast<int>(std::floor(uLo)) - 1, umax = static_cast<int>(std::ceil(uHi)) + 1;
+        const int vmin = static_cast<int>(std::floor(vLo)) - 1, vmax = static_cast<int>(std::ceil(vHi)) + 1;
+        if (umin < 0 || vmin < 0 || umax >= texW || vmax >= texH)
+            return textureFeedsBack(state, y1); // wraps or clamps: fall back to the whole texture
+        const uint32_t fbw = std::max<uint32_t>(c.frame.fbw, 1u);
+        const GsByteRange t = gsBufferRange(c.tex0.tbp0, c.tex0.tbw, c.tex0.psm, static_cast<uint32_t>(vmax) + 1u,
+                                            static_cast<uint32_t>(vmin), static_cast<uint32_t>(umin), static_cast<uint32_t>(umax));
+        const GsByteRange f = gsBufferRange(c.frame.fbp * 32u, fbw, c.frame.psm, static_cast<uint32_t>(y1) + 1u,
+                                            static_cast<uint32_t>(y0), static_cast<uint32_t>(x0), static_cast<uint32_t>(x1));
+        if (zBufferTouched(c))
+        {
+            const GsByteRange z = gsBufferRange(c.zbuf.zbp * 32u, fbw, c.zbuf.psm, static_cast<uint32_t>(y1) + 1u,
+                                                static_cast<uint32_t>(y0), static_cast<uint32_t>(x0), static_cast<uint32_t>(x1));
+            if (t.start < z.end && z.start < t.end)
+                return true;
+        }
+        if (!(t.start < f.end && f.start < t.end))
+            return false;
+        // Same buffer geometry: compare the rectangles in pixel units.
+        if (c.tex0.tbp0 == c.frame.fbp * 32u && std::max<uint32_t>(c.tex0.tbw, 1u) == fbw &&
+            ct32Layout(c.tex0.psm) && ct32Layout(c.frame.psm))
+        {
+            if (umax < x0 || umin > x1 || vmax < y0 || vmin > y1)
+                return false; // reads and writes never meet
+            // Exact 1:1 copy onto itself (pixel x samples texel x at its centre).
+            if (std::fabs((u1f - u0f) - static_cast<float>(spanW)) < 0.01f && std::fabs((v1f - v0f) - static_cast<float>(spanH)) < 0.01f &&
+                std::fabs(u0f - static_cast<float>(ux0)) < 0.01f && std::fabs(v0f - static_cast<float>(uy0)) < 0.01f)
+                return false;
+        }
+        return true;
     }
 }
 
@@ -2765,7 +2883,10 @@ void GSCpuBackend::DrawSprite(const GSPrimitiveBatch &batch)
             spriteH = 1.0f;
 
         const SpanWriteFn spanWriter = m_vram ? selectSpanWriter(pipe) : nullptr;
-        const SprRowFn sprRow = (spanWriter && !textureFeedsBack(state, drawY1)) ? selectSprRow(tex.psm) : nullptr;
+        const SprRowFn sprRow = (spanWriter && !spriteFeedsBack(state, drawX0, drawY0, drawX1, drawY1, u0f, v0f, u1f, v1f,
+                                                                               unclippedX0, unclippedY0, spanX, spanY))
+                                    ? selectSprRow(tex.psm)
+                                    : nullptr;
         SprShade shade{&sampler, &tex, u0f, u1f, 0.0f, spriteW, static_cast<float>(texW), static_cast<float>(texH),
                        unclippedX0, state.prim.fst != 0, z1, r, g, b, a, v1.fog};
         SpanPx span[kMaxSpan];
@@ -3155,11 +3276,12 @@ void GSCpuBackend::BeginTransfer(const GSTransferCommand &command)
         // Local->host reads VRAM: wait for queued work only when some of it writes the source.
         const GsByteRange src = gsBufferRange(command.bitbltbuf.sbp, std::max<uint32_t>(command.bitbltbuf.sbw, 1u), command.bitbltbuf.spsm,
                                               static_cast<uint32_t>(command.trxpos.ssay) + static_cast<uint32_t>(command.trxreg.rrh));
-        if (!CanRunDirectUnlocked(src.start, src.end, true))
+        const uint64_t srcTarget = HazardTargetUnlocked(src.start, src.end, true);
+        if (srcTarget != 0u && MinDone() < srcTarget)
         {
             if (s_gsHazDebug)
                 std::fprintf(stderr, "SYNC transfer dir=%u\n", command.direction);
-            SyncUnlocked(7);
+            SyncToUnlocked(srcTarget, 7);
         }
     }
     BeginTransferUnlocked(command);
