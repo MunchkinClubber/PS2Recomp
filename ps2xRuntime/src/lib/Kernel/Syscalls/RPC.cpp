@@ -1,4 +1,3 @@
-#include <map>
 #include <cstring>
 #include <vector>
 #include <cstdio>
@@ -551,15 +550,6 @@ namespace ps2_syscalls
             request.endParameter = endParameter;
 
             iopResult = PS2IopTransport::handleRpc(runtime, rdram, ctx, request);
-            {
-                // Diagnostics: RPC traffic per server/function (counts at 1, 10, 100, ...).
-                static std::map<uint64_t, uint64_t> s_rpcCounts;
-                const uint64_t key = (static_cast<uint64_t>(sid) << 32) | rpcNum;
-                const uint64_t n = ++s_rpcCounts[key];
-                if (n == 1u || n == 10u || n == 100u || n == 1000u || n == 10000u)
-                    std::fprintf(stderr, "[rpc] sid 0x%x fn %u: call #%llu send %u recv %u mode %u handled %d\n", sid, rpcNum,
-                                 (unsigned long long)n, sendSize, receiveSize, mode, iopResult.handled ? 1 : 0);
-            }
 
             if (iopResult.signalNowaitCompletion &&
                 (mode & kSifRpcModeNowait) != 0u)
@@ -1038,16 +1028,7 @@ namespace ps2_syscalls
                 std::memcpy(packet + 0u, &sizeWord, 4u);
                 std::memcpy(packet + 4u, &destExtra, 4u);
                 std::memcpy(packet + 8u, &cid, 4u);
-                const bool delivered = ::ps2DeliverSifCommandToIop(rdram, ctx, packet, packetSize);
-                static int s_cmdLogs = 0;
-                if (s_cmdLogs < 60)
-                {
-                    ++s_cmdLogs;
-                    uint32_t w[5] = {};
-                    std::memcpy(w, packet + 16u, sizeof(w));
-                    std::fprintf(stderr, "[sif] EE->IOP cmd 0x%x psize %u extra %u -> %s  %08x %08x %08x %08x %08x\n", cid, packetSize, sizeExtra,
-                                 delivered ? "delivered" : "no IOP handler", w[0], w[1], w[2], w[3], w[4]);
-                }
+                (void)::ps2DeliverSifCommandToIop(rdram, ctx, packet, packetSize);
             }
         }
 

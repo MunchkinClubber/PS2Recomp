@@ -26,6 +26,9 @@
 #include <optional>
 #include <span>
 #include <sstream>
+#include <set>
+#include <mutex>
+#include <string>
 #include <utility>
 
 namespace ps2x::iop::detail
@@ -367,10 +370,21 @@ namespace ps2x::iop::detail
                 return ImportDisposition::JumpToGuest;
             }
 
-            std::ostringstream out;
-            out << "[IOP] unhandled import " << call.library << ':' << call.ordinal
-                << " version=0x" << std::hex << call.version << " pc=0x" << cpu.pc;
-            log(LogLevel::Warning, out.str());
+            // Warn once per import: some (the USB headset library's) are called every frame.
+            static std::mutex s_warnedMutex;
+            static std::set<std::pair<std::string, uint32_t>> s_warned;
+            bool first = false;
+            {
+                std::lock_guard<std::mutex> lock(s_warnedMutex);
+                first = s_warned.emplace(std::string(call.library), call.ordinal).second;
+            }
+            if (first)
+            {
+                std::ostringstream out;
+                out << "[IOP] unhandled import " << call.library << ':' << call.ordinal
+                    << " version=0x" << std::hex << call.version << " pc=0x" << cpu.pc << " (reported once)";
+                log(LogLevel::Warning, out.str());
+            }
             setV0(0);
             return ImportDisposition::Missing;
         }

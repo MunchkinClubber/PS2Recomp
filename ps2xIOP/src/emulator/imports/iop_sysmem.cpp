@@ -1,5 +1,3 @@
-#include <cstdio>
-#include <string>
 #include "iop_sysmem.h"
 
 #include "../core/iop_cpu.h"
@@ -10,16 +8,6 @@
 
 namespace ps2x::iop::detail
 {
-    namespace
-    {
-        std::string toHex(uint32_t v)
-        {
-            char buf[16];
-            std::snprintf(buf, sizeof(buf), "%x", v);
-            return buf;
-        }
-    }
-
     IopSysmem::IopSysmem(IopHost &host, IopMemory &memory) noexcept
         : m_host(host), m_memory(memory)
     {
@@ -43,10 +31,6 @@ namespace ps2x::iop::detail
                                          ? m_memory.allocate(a1, 16u, a2)
                                          : m_memory.allocate(a1, 16u);
             setV0(address);
-            static int s_allocLogs = 0;
-            if (s_allocLogs++ < 200 || address == 0u)
-                m_host.log(LogLevel::Info, "[IOP] AllocSysMemory(type " + std::to_string(a0) + ", " + std::to_string(a1) + " bytes) from ra 0x" +
-                                               toHex(cpu.gpr[31]) + " -> 0x" + toHex(address) + ", max free now " + std::to_string(m_memory.maxFreeMemory()));
             return true;
         }
         case 5: // FreeSysMemory
@@ -58,8 +42,6 @@ namespace ps2x::iop::detail
         case 7: // QueryMaxFreeMemSize
         case 8: // QueryTotalFreeMemSize
             setV0(m_memory.maxFreeMemory());
-            m_host.log(LogLevel::Info, "[IOP] Query" + std::string(ordinal == 7u ? "Max" : "Total") + "FreeMemSize from ra 0x" + toHex(cpu.gpr[31]) +
-                                           " -> " + std::to_string(m_memory.maxFreeMemory()));
             return true;
         case 9: // QueryBlockTopAddress
             if (const auto block = m_memory.allocationContaining(a0))

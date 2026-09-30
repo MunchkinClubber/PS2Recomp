@@ -4,7 +4,6 @@
 #include <algorithm>
 #include <array>
 #include <atomic>
-#include <cmath>
 #include <cstdio>
 #include <cstdlib>
 #include <cstring>
@@ -110,7 +109,7 @@ namespace ps2x::iop::detail::spu2
             std::mutex mutex;
             std::vector<uint16_t> ram = std::vector<uint16_t>(kRamWords);
             std::array<Core, 2> cores{};
-            uint64_t keyOns = 0, portWrites = 0, dmaBytes = 0;
+            uint64_t keyOns = 0;
         };
 
         State &state()
@@ -150,13 +149,6 @@ namespace ps2x::iop::detail::spu2
             startAttack(v);
             core.endx &= ~(1u << index);
             ++state().keyOns;
-            if (state().keyOns <= 40u)
-            {
-                const uint32_t a = v.ssa & (kRamWords - 1u) & ~7u;
-                std::fprintf(stderr, "[spu2] KON #%llu voice %u: ssa=%05x pitch=%04x adsr=%04x/%04x vol=%04x/%04x block=%04x %04x %04x\n",
-                             (unsigned long long)state().keyOns, index, v.ssa, v.pitch, v.adsr1, v.adsr2, v.volL, v.volR,
-                             state().ram[a], state().ram[(a + 1u) & (kRamWords - 1u)], state().ram[(a + 2u) & (kRamWords - 1u)]);
-            }
         }
 
         void keyOff(Voice &v)
@@ -397,7 +389,6 @@ namespace ps2x::iop::detail::spu2
         case 0x1AA: c.tsa = (c.tsa & 0xF0000u) | value; break;
         case 0x1AC:
             s.ram[c.tsa & (kRamWords - 1u)] = value;
-            ++s.portWrites;
             c.tsa = (c.tsa + 1u) & (kRamWords - 1u);
             break;
         case 0x340: c.endx &= ~static_cast<uint32_t>(value); break; // write clears (not used by all drivers)
@@ -468,11 +459,7 @@ namespace ps2x::iop::detail::spu2
         State &s = state();
         std::lock_guard<std::mutex> lock(s.mutex);
         Core &c = s.cores[core & 1u];
-        s.dmaBytes += bytes;
         const uint32_t words = bytes / 2u;
-        static int s_dmaLogs = 0;
-        if (s_dmaLogs++ < 40)
-            std::fprintf(stderr, "[spu2] DMA core %u %s %u bytes at TSA %05x\n", core, toSpu ? "to SPU" : "from SPU", bytes, c.tsa);
         for (uint32_t i = 0; i < words; ++i)
         {
             uint16_t *w = &s.ram[c.tsa & (kRamWords - 1u)];
@@ -494,16 +481,6 @@ namespace ps2x::iop
             return;
         State &s = state();
         std::lock_guard<std::mutex> lock(s.mutex);
-        static uint64_t s_reported = 0;
-        static uint64_t s_frames = 0;
-        static double s_energy = 0.0;
-        if (s.keyOns != 0u && s_reported == 0u)
-        {
-            s_reported = s.keyOns;
-            std::fprintf(stderr, "[spu2] first voice key-on seen: core0 vmix %06x/%06x mvol %04x/%04x, core1 vmix %06x/%06x mvol %04x/%04x\n",
-                         s.cores[0].vmixl, s.cores[0].vmixr, s.cores[0].mvoll, s.cores[0].mvolr,
-                         s.cores[1].vmixl, s.cores[1].vmixr, s.cores[1].mvoll, s.cores[1].mvolr);
-        }
         for (uint32_t f = 0; f < frames; ++f)
         {
             float left = 0.0f, right = 0.0f;
@@ -529,24 +506,6 @@ namespace ps2x::iop
             const int32_t outR = std::clamp(static_cast<int32_t>(stereo[2u * f + 1u]) + static_cast<int32_t>(right), -32768, 32767);
             stereo[2u * f] = static_cast<int16_t>(outL);
             stereo[2u * f + 1u] = static_cast<int16_t>(outR);
-            s_energy += std::fabs(left) + std::fabs(right);
-        }
-        s_frames += frames;
-        if (s_frames >= 48000u * 5u)
-        {
-            uint32_t active = 0u, nonzeroPitch = 0u;
-            for (const Core &c : s.cores)
-                for (const Voice &v : c.voices)
-                    if (v.phase != Phase::Off)
-                    {
-                        ++active;
-                        nonzeroPitch += v.pitch != 0u;
-                    }
-            std::fprintf(stderr, "[spu2] 5 s: key-ons %llu, active voices %u (pitch>0 %u), mean |voice out| %.1f, data-port writes %llu, DMA bytes %llu\n",
-                         (unsigned long long)s.keyOns, active, nonzeroPitch, s_energy / (2.0 * s_frames),
-                         (unsigned long long)s.portWrites, (unsigned long long)s.dmaBytes);
-            s_frames = 0u;
-            s_energy = 0.0;
         }
     }
 }

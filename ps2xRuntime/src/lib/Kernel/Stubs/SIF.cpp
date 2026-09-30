@@ -1,7 +1,3 @@
-#include <cstdlib>
-#include <mutex>
-#include <unordered_map>
-#include <cstdio>
 #include "Common.h"
 #include "SIF.h"
 #include "../Syscalls/RPC.h"
@@ -664,9 +660,6 @@ namespace ps2_stubs
 
         if (!dmatAddr || count == 0u || count > 32u)
         {
-            static int s_badLogs = 0;
-            if (s_badLogs++ < 20)
-                std::fprintf(stderr, "[sif] sceSifSetDma ignored: list=0x%x count=%u\n", dmatAddr, count);
             setReturnS32(ctx, 0);
             return;
         }
@@ -699,67 +692,8 @@ namespace ps2_stubs
             }
             if (!runtime || !canAccessEeRange(rdram, xfer.src, sizeBytes) || !runtime->isIopMemoryRange(xfer.dest, sizeBytes))
             {
-                static int s_rejectLogs = 0;
-                if (s_rejectLogs++ < 50)
-                    std::fprintf(stderr, "[sif] sceSifSetDma REJECTED entry %u: src=0x%x dst=0x%x size=%u (ra 0x%x)\n", i, xfer.src, xfer.dest,
-                                 sizeBytes, getRegU32(ctx, 31));
                 ok = false;
                 break;
-            }
-            {
-                static int s_bigLogs = 0;
-                if (sizeBytes >= 16384u && s_bigLogs++ < 60)
-                    std::fprintf(stderr, "[sif] sceSifSetDma %u bytes 0x%x -> IOP 0x%x (ra 0x%x)\n", sizeBytes, xfer.src, xfer.dest, getRegU32(ctx, 31));
-                // Diagnostics: per destination, how many transfers and how loud their contents are
-                // read as 16-bit PCM (to see whether the EE-side sound mixer sends silence).
-                struct Stat
-                {
-                    uint64_t n = 0, nonSilent = 0;
-                    int peak = 0;
-                    uint32_t size = 0;
-                };
-                static std::unordered_map<uint32_t, Stat> s_stats;
-                static std::mutex s_statMutex;
-                if (sizeBytes >= 16u && sizeBytes < 65536u)
-                {
-                    std::vector<int16_t> tmp(sizeBytes / 2u);
-                    if (readEeRange(rdram, xfer.src, tmp.data(), static_cast<uint32_t>(tmp.size() * 2u)))
-                    {
-                        // Diagnostics: keep a copy of the EE->IOP sound transfers (2288-byte tag buffers).
-                        {
-                            static std::FILE *s_dump = nullptr;
-                            static uint32_t s_dumped = 0u;
-                            if (sizeBytes == 2288u && s_dumped < 4000u)
-                            {
-                                if (!s_dump)
-                                    s_dump = std::fopen("sif_dts.bin", "wb");
-                                if (s_dump)
-                                {
-                                    std::fwrite(tmp.data(), 1, sizeBytes, s_dump);
-                                    if (++s_dumped == 4000u)
-                                    {
-                                        std::fclose(s_dump);
-                                        s_dump = nullptr;
-                                    }
-                                    else if ((s_dumped % 100u) == 0u)
-                                        std::fflush(s_dump);
-                                }
-                            }
-                        }
-                        int peak = 0;
-                        for (int16_t v : tmp)
-                            peak = std::max(peak, std::abs(static_cast<int>(v)));
-                        std::lock_guard<std::mutex> lock(s_statMutex);
-                        Stat &st = s_stats[xfer.dest];
-                        ++st.n;
-                        st.size = sizeBytes;
-                        st.peak = std::max(st.peak, peak);
-                        st.nonSilent += peak > 64 ? 1u : 0u;
-                        if (s_stats.size() <= 64u && (st.n == 1u || st.n == 10u || st.n == 100u || st.n == 1000u || st.n == 5000u || st.n == 20000u))
-                            std::fprintf(stderr, "[sif] dst 0x%x size %u: %llu transfers, %llu non-silent, peak %d (ra 0x%x)\n", xfer.dest, sizeBytes,
-                                         (unsigned long long)st.n, (unsigned long long)st.nonSilent, st.peak, getRegU32(ctx, 31));
-                    }
-                }
             }
 
             pending[pendingCount++] = xfer;

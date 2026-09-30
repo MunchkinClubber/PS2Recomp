@@ -1642,13 +1642,6 @@ bool PS2Memory::writeIORegister(uint32_t address, uint32_t value)
 
     if (address >= 0x10008000 && address < 0x1000F000)
     {
-        if (address >= 0x1000C000u && address < 0x1000C800u)
-        {
-            // Diagnostics: SIF0/1/2 DMA channel programming by the game itself.
-            static int s_sifDmaLogs = 0;
-            if (s_sifDmaLogs++ < 60)
-                std::fprintf(stderr, "[sif] EE write DMA reg 0x%x = 0x%x\n", address, value);
-        }
         if ((address & 0xFF) == 0x00 && (value & 0x100))
         {
             const auto dctrlIt = m_ioRegisters.find(0x1000E000u);

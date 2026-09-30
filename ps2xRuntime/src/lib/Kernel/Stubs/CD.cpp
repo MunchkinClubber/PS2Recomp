@@ -1,3 +1,4 @@
+#include <cstdlib>
 #include "Common.h"
 #include "CD.h"
 #include "MPEG.h"
@@ -348,9 +349,10 @@ namespace ps2_stubs
         }
 
         {
-            // SSX3 debug: log disc reads (map LBNs to files with ssx3_iso_files.txt)
+            // Debug: PS2_CD_LOG=1 logs disc reads (map LBNs to files with ssx3_iso_files.txt)
+            static const bool s_cdLog = std::getenv("PS2_CD_LOG") != nullptr;
             static uint32_t readLogCount = 0;
-            if (readLogCount < 20000u)
+            if (s_cdLog && readLogCount < 20000u)
             {
                 ++readLogCount;
                 std::fprintf(stderr, "[ssx3:cdread] lbn=%u sectors=%u buf=0x%x ok=%d ra=0x%x\n",

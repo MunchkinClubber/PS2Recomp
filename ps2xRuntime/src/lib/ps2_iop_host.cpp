@@ -1,5 +1,3 @@
-#include <cstdio>
-#include <map>
 #include "ps2_iop_host.h"
 
 #include "ps2_runtime.h"
@@ -512,17 +510,6 @@ bool PS2IopHostAdapter::sendSifCommand(uint32_t commandId,
     uint8_t *const rdram = m_activeRdram
                                ? m_activeRdram
                                : m_runtime.memory().getRDRAM();
-    {
-        static std::map<uint32_t, uint64_t> s_counts;
-        const uint64_t n = ++s_counts[commandId];
-        if (n == 1u || n == 10u || n == 100u || n == 1000u || n == 10000u)
-        {
-            uint32_t words[8] = {};
-            std::memcpy(words, packet, std::min<size_t>(packetSize, sizeof(words)));
-            std::fprintf(stderr, "[sif] IOP->EE cmd 0x%x #%llu size %zu: %08x %08x %08x %08x %08x %08x\n", commandId, (unsigned long long)n, packetSize,
-                         words[0], words[1], words[2], words[3], words[4], words[5]);
-        }
-    }
     return ps2_stubs::dispatchSifCommand(rdram,
                                          &m_runtime,
                                          commandId,
