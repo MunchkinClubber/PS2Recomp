@@ -799,25 +799,11 @@ void GSCpuBackend::LoadClut(const GSTex0Reg &tex0, const GSTexClutReg &texclut)
         const uint64_t clutTarget = HazardTargetUnlocked(start, end, true);
         if (clutTarget != 0u && MinDone() < clutTarget)
         {
-            static const bool s_clutDebug = std::getenv("GS_CLUT_DEBUG") != nullptr;
-            static int s_clutLogs = 0;
-            if (s_gsHazDebug || (s_clutDebug && s_clutLogs++ < 60))
-            {
-                std::fprintf(stderr, "SYNC clut cbp=%x csm=%u psm=%x [%x,%x) target=%llu done=%llu w=%llu\n", tex0.cbp, tex0.csm, tex0.psm, start, end,
-                             (unsigned long long)clutTarget, (unsigned long long)MinDone(), (unsigned long long)m_writeIdx.load());
-                for (const DirtyRange &r : m_dirty)
-                    if (r.start < end && start < r.end)
-                        std::fprintf(stderr, "   dirty key=%llx [%x,%x)\n", (unsigned long long)r.key, r.start, r.end);
-                const uint64_t done = MinDone();
-                for (const Epoch &e : m_epochs)
-                    if (e.globalIdx >= done)
-                        for (const DirtyRange &r : e.ranges)
-                            if (r.start < end && start < r.end && r.key != 0u)
-                                std::fprintf(stderr, "   epoch %llu (w=%llu) key=%llx [%x,%x)\n", (unsigned long long)e.globalIdx, (unsigned long long)m_writeIdx.load(), (unsigned long long)r.key, r.start, r.end);
-            }
             // A 16-entry CSM1 CLUT is one 64-byte column (8x2 CT32, or half of a 16x2 CT16 one).
             const uint32_t shadowEnd = (tex0.csm == 0u && isFourBitIndexedPsm(tex0.psm)) ? std::min<uint32_t>(end, start + 64u) : end;
-            if (ClutFromShadowUnlocked(start, shadowEnd))
+            const Epoch *blocker = nullptr;
+            const int why = ClutFromShadowUnlocked(start, shadowEnd, &blocker);
+            if (why == 0)
             {
                 g_perfGsClutShadow.fetch_add(1u, std::memory_order_relaxed);
                 LoadClutUnlocked(tex0, texclut, m_shadowVram.data());
@@ -834,24 +820,47 @@ void GSCpuBackend::LoadClut(const GSTex0Reg &tex0, const GSTexClutReg &texclut)
                 }
                 return;
             }
+            static const bool s_clutDebug = std::getenv("GS_CLUT_DEBUG") != nullptr;
+            static int s_clutLogs = 0;
+            if (s_gsHazDebug || (s_clutDebug && s_clutLogs++ < 2000))
+            {
+                std::fprintf(stderr, "SYNC clut cbp=%x csm=%u psm=%x cpsm=%x [%x,%x) target=%llu done=%llu w=%llu why=%d", tex0.cbp, tex0.csm, tex0.psm, tex0.cpsm, start, end,
+                             (unsigned long long)clutTarget, (unsigned long long)MinDone(), (unsigned long long)m_writeIdx.load(), why);
+                if (blocker)
+                    std::fprintf(stderr, " by epoch %llu kind=%u dbp=%x dbw=%u dpsm=%x %ux%u at %u,%u sbp=%x chunk=%u copied=%u shadow=%d",
+                                 (unsigned long long)blocker->globalIdx, blocker->kind, blocker->xfer.bitbltbuf.dbp, blocker->xfer.bitbltbuf.dbw,
+                                 blocker->xfer.bitbltbuf.dpsm, blocker->xfer.trxreg.rrw, blocker->xfer.trxreg.rrh, blocker->xfer.trxpos.dsax,
+                                 blocker->xfer.trxpos.dsay, blocker->xfer.bitbltbuf.sbp, blocker->chunkBytes, blocker->copiedBefore, (int)blocker->shadowUpload);
+                std::fprintf(stderr, "\n");
+                for (const DirtyRange &r : m_dirty)
+                    if (r.start < end && start < r.end)
+                        std::fprintf(stderr, "   dirty key=%llx [%x,%x)\n", (unsigned long long)r.key, r.start, r.end);
+                const uint64_t done = MinDone();
+                for (const Epoch &e : m_epochs)
+                    if (e.globalIdx >= done)
+                        for (const DirtyRange &r : e.ranges)
+                            if (r.start < end && start < r.end && r.key != 0u)
+                                std::fprintf(stderr, "   epoch %llu (w=%llu) key=%llx [%x,%x)\n", (unsigned long long)e.globalIdx, (unsigned long long)m_writeIdx.load(), (unsigned long long)r.key, r.start, r.end);
+            }
             SyncToUnlocked(clutTarget, 1);
         }
     }
     LoadClutUnlocked(tex0, texclut);
 }
 
-bool GSCpuBackend::ClutFromShadowUnlocked(uint32_t start, uint32_t end) const
+int GSCpuBackend::ClutFromShadowUnlocked(uint32_t start, uint32_t end, const Epoch **blocker) const
 {
+    *blocker = nullptr;
     // The CLUT bytes may come from the shadow when, going from the newest pending command
     // backwards, the first one that writes them is a mirrored upload that wrote every one of
     // their blocks. Anything older is overwritten by it; any newer writer means real VRAM.
-    if (m_shadowVram.empty() || end <= start)
-        return false;
+    if (end <= start)
+        return 5;
     auto hit = [&](const DirtyRange &range)
     { return range.start < end && start < range.end; };
     for (const DirtyRange &range : m_dirty)
         if (range.key != 0u && hit(range))
-            return false;
+            return 1;
     const uint64_t done = MinDone();
     for (auto it = m_epochs.rbegin(); it != m_epochs.rend(); ++it)
     {
@@ -870,17 +879,21 @@ bool GSCpuBackend::ClutFromShadowUnlocked(uint32_t start, uint32_t end) const
         }
         if (commandHit)
         {
+            *blocker = &epoch;
             if (!epoch.shadowUpload)
-                return false;
+                return 2;
             for (uint32_t column = start >> 6u; column < ((end + 63u) >> 6u); ++column)
                 if (m_shadowOwner[column] != epoch.globalIdx)
-                    return false;
-            return true;
+                    return 3;
+            return 0;
         }
         if (drawHit)
-            return false;
+        {
+            *blocker = &epoch;
+            return 4;
+        }
     }
-    return false;
+    return 5;
 }
 
 void GSCpuBackend::LoadClutUnlocked(const GSTex0Reg &tex0, const GSTexClutReg &texclut, const uint8_t *vram)
@@ -3395,6 +3408,8 @@ void GSCpuBackend::BeginTransfer(const GSTransferCommand &command)
         EnqueueGlobalUnlocked([this, command]()
                               { CopyLocalToLocal(command); },
                               std::min(src.start, dst.start), std::max(src.end, dst.end));
+        m_epochs.back().kind = 2;
+        m_epochs.back().xfer = command;
         return;
     }
     if (threaded() && command.direction != 0u)
@@ -3515,6 +3530,13 @@ void GSCpuBackend::UploadImage(const uint8_t *data, uint32_t sizeBytes)
                                   GSTransferSnapshot st = start;
                                   UploadImageImpl(xfer, st, copy->data(), static_cast<uint32_t>(copy->size()), m_vram); },
                               r.start, r.end);
+        {
+            Epoch &epoch = m_epochs.back();
+            epoch.kind = 1;
+            epoch.xfer = xfer;
+            epoch.chunkBytes = sizeBytes;
+            epoch.copiedBefore = start.copiedPixels;
+        }
         if (shadow)
         {
             Epoch &epoch = m_epochs.back();
