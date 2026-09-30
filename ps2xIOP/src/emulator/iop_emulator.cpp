@@ -844,6 +844,11 @@ namespace ps2x::iop::detail
         return m_impl->rpc.handleRpc(request, *m_impl);
     }
 
+    bool IopEmulator::deliverSifCommand(const uint8_t *packet, uint32_t size)
+    {
+        return m_impl->rpc.deliverCommand(packet, size, *m_impl);
+    }
+
     bool IopEmulator::hasRpcServer(uint32_t sid) const noexcept
     {
         return m_impl->rpc.hasServer(sid);

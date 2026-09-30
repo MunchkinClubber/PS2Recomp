@@ -20,6 +20,8 @@ namespace ps2x::iop::detail
 
     void IopRpcBridge::reset()
     {
+        m_cmdHandlers.clear();
+        m_cmdPacketBuffer = 0u;
         m_servers.clear();
         m_nextDmaId = 1u;
         m_sifInitialized = false;
@@ -139,14 +141,20 @@ namespace ps2x::iop::detail
         };
         switch (ordinal)
         {
+        case 10: // sceSifAddCmdHandler(cid, handler, data)
+            m_cmdHandlers[cpu.gpr[4]] = CmdHandler{cpu.gpr[5], cpu.gpr[6], cpu.gpr[28]};
+            setV0(0);
+            return true;
+        case 11: // sceSifRemoveCmdHandler(cid)
+            m_cmdHandlers.erase(cpu.gpr[4]);
+            setV0(0);
+            return true;
         case 4: // InitCmd
         case 5:
         case 6:
         case 7:
         case 8:
         case 9:
-        case 10:
-        case 11:
         case 14: // InitRpc
         case 15:
         case 16:
@@ -318,6 +326,23 @@ namespace ps2x::iop::detail
         result.signalNowaitCompletion = true;
         result.signalCompletion = true;
         return result;
+    }
+
+    bool IopRpcBridge::deliverCommand(const uint8_t *packet, uint32_t size, IopGuestExecutor &executor)
+    {
+        if (!packet || size < 16u || size > 128u)
+            return false;
+        uint32_t cid = 0u;
+        std::memcpy(&cid, packet + 8u, sizeof(cid));
+        const auto it = m_cmdHandlers.find(cid);
+        if (it == m_cmdHandlers.end() || it->second.function == 0u)
+            return false;
+        if (m_cmdPacketBuffer == 0u)
+            m_cmdPacketBuffer = m_memory.allocate(128u, 16u);
+        if (m_cmdPacketBuffer == 0u || !m_memory.writeRam(m_cmdPacketBuffer, packet, size))
+            return false;
+        (void)executor.executeGuestFunction(it->second.function, m_cmdPacketBuffer, it->second.data, 0u, 0u, it->second.gp);
+        return true;
     }
 
     void IopRpcBridge::onSifTransfer(const SifTransfer &transfer)

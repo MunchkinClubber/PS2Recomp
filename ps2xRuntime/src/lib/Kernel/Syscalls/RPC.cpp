@@ -1,3 +1,6 @@
+#include <cstring>
+#include <vector>
+#include <cstdio>
 #include "Common.h"
 #include "RPC.h"
 #include "../../ps2_iop_transport.h"
@@ -981,9 +984,57 @@ namespace ps2_syscalls
         readStackU32(rdram, sp, 0x10, destExtra);
         readStackU32(rdram, sp, 0x14, sizeExtra);
 
-        if (sizeExtra > 0 && srcExtra && destExtra)
+        // The extra data goes to IOP memory (it used to be copied within EE RAM, to an IOP address).
+        if (sizeExtra > 0 && sizeExtra <= 0x100000u && srcExtra && destExtra && runtime)
         {
-            rpcCopyToRdram(rdram, destExtra, srcExtra, sizeExtra);
+            std::vector<uint8_t> payload(sizeExtra);
+            bool readable = true;
+            for (uint32_t i = 0; i < sizeExtra; ++i)
+            {
+                const uint8_t *src = getConstMemPtr(rdram, srcExtra + i);
+                if (!src)
+                {
+                    readable = false;
+                    break;
+                }
+                payload[i] = *src;
+            }
+            if (readable)
+                (void)runtime->writeIopMemory(destExtra, payload.data(), payload.size());
+        }
+
+        // Deliver the command to the IOP module that registered a handler for it (e.g. the EA
+        // sound driver's command handler, which receives the EE's sound requests).
+        if (packetAddr != 0u && packetSize >= 16u && packetSize <= 128u)
+        {
+            uint8_t packet[128] = {};
+            bool readable = true;
+            for (uint32_t i = 0; i < packetSize; ++i)
+            {
+                const uint8_t *src = getConstMemPtr(rdram, packetAddr + i);
+                if (!src)
+                {
+                    readable = false;
+                    break;
+                }
+                packet[i] = *src;
+            }
+            if (readable)
+            {
+                const uint32_t sizeWord = (packetSize & 0xFFu) | (sizeExtra << 8u);
+                std::memcpy(packet + 0u, &sizeWord, 4u);
+                std::memcpy(packet + 4u, &destExtra, 4u);
+                std::memcpy(packet + 8u, &cid, 4u);
+                extern bool ps2DeliverSifCommandToIop(uint8_t *, R5900Context *, const uint8_t *, uint32_t);
+                const bool delivered = ps2DeliverSifCommandToIop(rdram, ctx, packet, packetSize);
+                static int s_cmdLogs = 0;
+                if (s_cmdLogs < 20)
+                {
+                    ++s_cmdLogs;
+                    std::fprintf(stderr, "[sif] EE->IOP cmd 0x%x psize %u extra %u -> %s\n", cid, packetSize, sizeExtra,
+                                 delivered ? "delivered" : "no IOP handler");
+                }
+            }
         }
 
         static int logCount = 0;

@@ -31,6 +31,9 @@ namespace ps2x::iop
         [[nodiscard]] RpcAbi selectRpcAbi(const RpcAbiRequest &request) const;
         [[nodiscard]] bool canBindRpc(uint32_t sid) const noexcept;
         [[nodiscard]] RpcResult handleRpc(const RpcRequest &request);
+        // Delivers an EE->IOP SIF command packet (16-byte header + payload) to the handler an IOP
+        // module registered with sceSifAddCmdHandler. False if there is none.
+        bool deliverSifCommand(const uint8_t *packet, uint32_t size);
         void onSifTransfer(const SifTransfer &transfer);
 
         // Physical IOP RAM access shared by the emulator, SIF DMA, and HLE services. Addresses are IOP addresses.

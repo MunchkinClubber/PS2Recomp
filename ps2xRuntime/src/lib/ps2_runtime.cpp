@@ -30,6 +30,9 @@
 #include <unordered_map>
 #include <sstream>
 
+static ps2x::iop::IopSubsystem *s_iopSubsystemForCmds = nullptr;
+static PS2IopHostAdapter *s_iopHostForCmds = nullptr;
+
 namespace
 {
     // Host playback of the SPU2 auto-DMA PCM (see ps2x::iop::setAdmaSink): SSX 3's sound driver
@@ -708,6 +711,8 @@ PS2Runtime::PS2Runtime()
 {
     m_iopHost = std::make_unique<PS2IopHostAdapter>(*this);
     m_iopSubsystem = std::make_unique<ps2x::iop::IopSubsystem>(*m_iopHost);
+    s_iopSubsystemForCmds = m_iopSubsystem.get();
+    s_iopHostForCmds = m_iopHost.get();
 
     m_eeScheduler = std::make_unique<EeScheduler>(*this);
 
@@ -804,6 +809,17 @@ static void flushIopCyclesFor(ps2x::iop::IopSubsystem *iop) noexcept
     const uint64_t cycles = s_iopPendingEeCycles;
     s_iopPendingEeCycles = 0u;
     iop->runEeCycles(cycles);
+}
+
+// EE->IOP SIF command (sceSifSendCmd): run the handler an IOP module registered for it.
+// (A free function so ps2_runtime.h, included by all recompiled code, stays unchanged.)
+bool ps2DeliverSifCommandToIop(uint8_t *rdram, R5900Context *ctx, const uint8_t *packet, uint32_t size)
+{
+    if (!s_iopSubsystemForCmds || !s_iopHostForCmds)
+        return false;
+    flushIopCyclesFor(s_iopSubsystemForCmds);
+    auto scope = s_iopHostForCmds->enterCall(ctx, rdram);
+    return s_iopSubsystemForCmds->deliverSifCommand(packet, size);
 }
 
 ps2x::iop::ModuleLoadResult PS2Runtime::loadIopModule(std::string_view path, const void *arguments, uint32_t argumentSize)
