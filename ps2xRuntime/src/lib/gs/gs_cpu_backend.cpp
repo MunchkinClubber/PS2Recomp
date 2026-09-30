@@ -2520,6 +2520,34 @@ namespace
         {
             Tr::Write(*table, vram, bp, bw, x, y, static_cast<typename Tr::PackedT>(v));
         }
+        // Byte address of a pixel, then read/write there: the same as read()/write() for the
+        // byte-aligned framebuffer and Z formats, with the swizzle computed once per pixel.
+        GS_FORCEINLINE uint32_t addr(uint32_t x, uint32_t y) const
+        {
+            const uint32_t pixel = Tr::Address(*table, bp, bw, x, y);
+            const uint32_t bits = pixel * static_cast<uint32_t>(GSMem::UnpackedBitWidth(M)) + static_cast<uint32_t>(Tr::BitOffset());
+            return (bits / 8u) & static_cast<uint32_t>(GSMem::MEMORY_SIZE - sizeof(typename Tr::PackedT));
+        }
+        GS_FORCEINLINE uint32_t readAt(const uint8_t *vram, uint32_t a) const
+        {
+            typename Tr::PackedT v;
+            std::memcpy(&v, vram + a, sizeof(v));
+            if constexpr (M == GSMem::C24 || M == GSMem::Z24)
+                return static_cast<uint32_t>(v) & 0x00FFFFFFu;
+            else
+                return static_cast<uint32_t>(v);
+        }
+        GS_FORCEINLINE void writeAt(uint8_t *vram, uint32_t a, uint32_t value) const
+        {
+            typename Tr::PackedT v = static_cast<typename Tr::PackedT>(value);
+            if constexpr (M == GSMem::C24 || M == GSMem::Z24)
+            {
+                typename Tr::PackedT old;
+                std::memcpy(&old, vram + a, sizeof(old));
+                v = (old & 0xFF000000u) | (v & 0x00FFFFFFu);
+            }
+            std::memcpy(vram + a, &v, sizeof(v));
+        }
     };
 
     struct SpanPx
@@ -2572,9 +2600,10 @@ namespace
 
             u32 rawFramebufferPixel = 0;
             u32 fbrgba = 0;
+            const uint32_t fbAddr = (frmw || writesFb) ? fbs.addr(static_cast<uint32_t>(x), static_cast<uint32_t>(y)) : 0u;
             if (frmw)
             {
-                rawFramebufferPixel = fbs.read(vram, static_cast<uint32_t>(x), static_cast<uint32_t>(y));
+                rawFramebufferPixel = fbs.readAt(vram, fbAddr);
                 fbrgba = rawFramebufferPixel;
                 if (p.fb16)
                     fbrgba = Rgba5551ToRgba8888(static_cast<u16>(fbrgba));
@@ -2586,18 +2615,22 @@ namespace
             if (p.date && !passesDestinationAlphaTest(p.test, static_cast<uint8_t>(p.fpsm), rawFramebufferPixel))
                 continue;
 
+            uint32_t zAddr = 0u;
             if constexpr (ZT == 0)
                 continue;
             else if constexpr (ZT == 2)
             {
-                if (!(z >= zbs.read(vram, static_cast<uint32_t>(x), static_cast<uint32_t>(y))))
+                zAddr = zbs.addr(static_cast<uint32_t>(x), static_cast<uint32_t>(y));
+                if (!(z >= zbs.readAt(vram, zAddr)))
                     continue;
             }
             else if constexpr (ZT == 3)
             {
-                if (!(z > zbs.read(vram, static_cast<uint32_t>(x), static_cast<uint32_t>(y))))
+                zAddr = zbs.addr(static_cast<uint32_t>(x), static_cast<uint32_t>(y));
+                if (!(z > zbs.readAt(vram, zAddr)))
                     continue;
             }
+
 
             if (writesFb)
             {
@@ -2623,11 +2656,11 @@ namespace
                     pixel = (pixel & 0x00FFFFFFu) | (fbrgba & 0xFF000000u);
                 if (p.fb16)
                     pixel = Rgba8888ToRgba5551(pixel);
-                fbs.write(vram, static_cast<uint32_t>(x), static_cast<uint32_t>(y), pixel);
+                fbs.writeAt(vram, fbAddr, pixel);
             }
 
             if (writeMask.writeDepth && !p.zmask)
-                zbs.write(vram, static_cast<uint32_t>(x), static_cast<uint32_t>(y), z);
+                zbs.writeAt(vram, ZT == 1 ? zbs.addr(static_cast<uint32_t>(x), static_cast<uint32_t>(y)) : zAddr, z);
         }
     }
 
@@ -2707,7 +2740,20 @@ namespace
             const float fx = sampleU - static_cast<float>(u0);
             const float fy = sampleV - static_cast<float>(v0);
 
+            // A zero weight makes the other row/column drop out exactly (x + (y - x) * 0 == x).
             const uint32_t c00 = fetch(s, vram, u0, v0);
+            if (fy == 0.0f)
+            {
+                if (fx == 0.0f)
+                    return c00;
+                const uint32_t c10 = fetch(s, vram, u0 + 1, v0);
+                return c00 == c10 ? c00 : lerpTexel4(c00, c10, c00, c10, fx, 0.0f);
+            }
+            if (fx == 0.0f)
+            {
+                const uint32_t c01 = fetch(s, vram, u0, v0 + 1);
+                return c00 == c01 ? c00 : lerpTexel4(c00, c00, c01, c01, 0.0f, fy);
+            }
             const uint32_t c10 = fetch(s, vram, u0 + 1, v0);
             const uint32_t c01 = fetch(s, vram, u0, v0 + 1);
             const uint32_t c11 = fetch(s, vram, u0 + 1, v0 + 1);
