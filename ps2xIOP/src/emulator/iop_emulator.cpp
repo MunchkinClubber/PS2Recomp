@@ -133,6 +133,7 @@ namespace ps2x::iop::detail
             pendingDmaInterrupts.clear();
             admaIrqs.clear();
             admaHeldUntil = 0;
+            admaLastDue.clear();
             pendingGuestCallbacks.clear();
             nextModuleId = 1;
             moduleCursor = kModuleLoadBase;
@@ -202,7 +203,18 @@ namespace ps2x::iop::detail
                     admaIrqs.insert(dma->irq);
                 else
                     admaIrqs.erase(dma->irq);
-                pendingDmaInterrupts[dma->irq] = totalCycles + (pace ? dma->delayCycles : std::max<uint64_t>(dma->words * 2u, 64u));
+                uint64_t due = totalCycles + (pace ? dma->delayCycles : std::max<uint64_t>(dma->words * 2u, 64u));
+                if (pace)
+                {
+                    // Keep auto-DMA on a steady 48 kHz timeline: a completion the host held back
+                    // (waiting for EE sound data) delays the next ones only until they catch up,
+                    // instead of costing that much audio. At most four periods of catch-up.
+                    uint64_t &last = admaLastDue[dma->irq];
+                    if (last != 0u && last <= totalCycles && last + 4u * dma->delayCycles >= totalCycles)
+                        due = last + dma->delayCycles;
+                    last = due;
+                }
+                pendingDmaInterrupts[dma->irq] = due;
             }
         }
 
@@ -774,6 +786,7 @@ namespace ps2x::iop::detail
         std::map<int, uint64_t> pendingDmaInterrupts;
         std::set<int> admaIrqs; // DMA interrupts that belong to auto-DMA (host-gated) transfers
         uint64_t admaHeldUntil = 0;
+        std::map<int, uint64_t> admaLastDue; // scheduled completion of the previous auto-DMA transfer
         std::multimap<uint64_t, ScheduledGuestCallback> pendingGuestCallbacks;
         uint32_t nextModuleId = 1;
         uint32_t moduleCursor = kModuleLoadBase;
