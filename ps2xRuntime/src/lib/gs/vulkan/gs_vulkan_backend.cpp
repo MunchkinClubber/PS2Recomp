@@ -102,7 +102,7 @@ namespace
             return;
         }
         for (uint32_t r = r0; r <= r1; ++r)
-            for (uint32_t c = c0; c <= c1 && c < ppr + 1u; ++c)
+            for (uint32_t c = c0; c <= c1; ++c)
             {
                 const uint32_t p = base + r * ppr + c;
                 set.set(p & 511u);
@@ -589,6 +589,7 @@ private:
         PageSet dirtyPages;
         uint64_t lastUse = 0;
         uint64_t version = 1; // bumped whenever the image content changes
+        int maxRow = -1;      // lowest row any draw has reached
     };
 
     struct TexKey
@@ -616,7 +617,9 @@ private:
         uint64_t serial = 0;  // GS memory serial the texels were decoded at
         uint64_t rawHash = 0; // hash of its pages' raw GS memory at decode time
         uint64_t lastUse = 0; // m_submitSerial of the last command buffer using it
-        uint8_t maxAlpha = 0; // largest texel alpha
+        uint8_t maxAlpha = 0; // largest texel alpha (an upper bound until the GPU reports it)
+        uint32_t alphaSlot = ~0u; // m_alphaRes slot the GPU decode reports into
+        uint64_t alphaId = 0, alphaSerial = 0;
     };
 
     struct Batch
@@ -661,6 +664,14 @@ private:
     void appendPrimitive(const GSPrimitiveBatch &batch);
     void flushBatch();
     Texture *getTexture(const GSDrawState &st, uint32_t &decW, uint32_t &decH, uint32_t &texFlags);
+    void gpuDecode(const GSDrawState &st, Texture &tex, const PageSet &pages, const uint32_t *palette);
+    void resolveMaxAlpha(Texture &t);
+    void syncMirrorPages(const PageSet &pages);
+    void overlayTarget(Target &t);
+    uint8_t estimateMaxAlpha(const GSDrawState &st, const uint32_t *palette, bool overlay, const std::vector<uint16_t> &pages) const;
+    static int decodeKind(uint8_t psm);
+    VkDescriptorSet computeSet();
+    PageSet dirtyTargetPages() const;
     Texture *getAliasTexture(const GSDrawState &st, uint32_t w, uint32_t h, const PageSet &pages, uint32_t &texFlags);
     void cpuDraw(const GSPrimitiveBatch &batch, int reason);
     void printStats();
@@ -692,6 +703,26 @@ private:
     VkDeviceSize m_readbackSize = 0;
     VkSampler m_sampler = VK_NULL_HANDLE;
     VkDescriptorSetLayout m_setLayout = VK_NULL_HANDLE;
+    // GPU mirror of GS memory (texture decode on the GPU) and the swizzle tables.
+    VkBuffer m_vramBuf = VK_NULL_HANDLE, m_lutBuf = VK_NULL_HANDLE;
+    VkDeviceMemory m_vramMem = VK_NULL_HANDLE, m_lutMem = VK_NULL_HANDLE;
+    std::array<uint64_t, 512> m_mirrorSerial{}; // m_pageSerial the mirror page holds (~0 = stale)
+    uint32_t m_lutOffset[8]{};                  // first entry of each table (C32, C16, C16S, P8, P4, Z32, Z16, Z16S)
+    VkDescriptorSetLayout m_compLayout = VK_NULL_HANDLE;
+    VkPipelineLayout m_compPipeLayout = VK_NULL_HANDLE;
+    VkPipeline m_decodePipe = VK_NULL_HANDLE, m_overlayPipe = VK_NULL_HANDLE;
+    VkDescriptorPool m_compPool = VK_NULL_HANDLE;
+    VkDeviceSize m_ssboAlign = 256;
+    bool m_cpuDecode = false;
+    // Largest texel alpha of each GPU decode, written by the decode shader (host-visible).
+    static constexpr uint32_t kAlphaSlots = 4096u;
+    VkBuffer m_alphaRes = VK_NULL_HANDLE;
+    VkDeviceMemory m_alphaResMem = VK_NULL_HANDLE;
+    uint32_t *m_alphaResPtr = nullptr;
+    std::vector<uint64_t> m_alphaOwner;
+    uint32_t m_alphaNext = 0;
+    uint64_t m_alphaIds = 0;
+    bool createComputeObjects();
     GpuImage m_dstImg;                   // copy of the target for draws that read it (set 1)
     VkDescriptorSet m_dstSet = VK_NULL_HANDLE;
     bool ensureDstImage(uint32_t width);
@@ -749,7 +780,7 @@ private:
     uint64_t m_statUploads = 0, m_statUploadRows = 0, m_statTexUploads = 0, m_statTexHits = 0, m_statSubmits = 0;
     uint64_t m_statFallback[FB_COUNT]{};
     uint64_t m_statFlips = 0, m_ivFlips = 0;
-    uint64_t m_statDstCopies = 0, m_statAliasCopies = 0, m_statTexRehash = 0;
+    uint64_t m_statDstCopies = 0, m_statAliasCopies = 0, m_statTexRehash = 0, m_statOverlays = 0, m_statMirrorPages = 0;
     // Interval timings (ns) and counts, printed per frame with the stats.
     struct Interval
     {
@@ -805,6 +836,17 @@ GsVulkanBackend::~GsVulkanBackend()
     for (auto &kv : m_pipelines)
         m_dt.vkDestroyPipeline(m_device, kv.second, nullptr);
     if (m_descPool) m_dt.vkDestroyDescriptorPool(m_device, m_descPool, nullptr);
+    if (m_compPool) m_dt.vkDestroyDescriptorPool(m_device, m_compPool, nullptr);
+    if (m_decodePipe) m_dt.vkDestroyPipeline(m_device, m_decodePipe, nullptr);
+    if (m_overlayPipe) m_dt.vkDestroyPipeline(m_device, m_overlayPipe, nullptr);
+    if (m_compPipeLayout) m_dt.vkDestroyPipelineLayout(m_device, m_compPipeLayout, nullptr);
+    if (m_compLayout) m_dt.vkDestroyDescriptorSetLayout(m_device, m_compLayout, nullptr);
+    if (m_vramBuf) m_dt.vkDestroyBuffer(m_device, m_vramBuf, nullptr);
+    if (m_vramMem) m_dt.vkFreeMemory(m_device, m_vramMem, nullptr);
+    if (m_lutBuf) m_dt.vkDestroyBuffer(m_device, m_lutBuf, nullptr);
+    if (m_lutMem) m_dt.vkFreeMemory(m_device, m_lutMem, nullptr);
+    if (m_alphaRes) m_dt.vkDestroyBuffer(m_device, m_alphaRes, nullptr);
+    if (m_alphaResMem) m_dt.vkFreeMemory(m_device, m_alphaResMem, nullptr);
     if (m_vs) m_dt.vkDestroyShaderModule(m_device, m_vs, nullptr);
     if (m_fs) m_dt.vkDestroyShaderModule(m_device, m_fs, nullptr);
     if (m_pipeLayout) m_dt.vkDestroyPipelineLayout(m_device, m_pipeLayout, nullptr);
@@ -825,6 +867,7 @@ bool GsVulkanBackend::Create()
     m_stats = envFlag("PS2_GS_VK_STATS");
     m_noAlias = envFlag("PS2_GS_VK_NOALIAS");
     m_noBias = envFlag("PS2_GS_VK_NOBIAS");
+    m_cpuDecode = envFlag("PS2_GS_VK_CPUDECODE");
     m_noBigDst = envFlag("PS2_GS_VK_SPLITBLEND");
     m_cpu.SetSynchronous();
     m_presenter.SetSynchronous();
@@ -1061,7 +1104,7 @@ bool GsVulkanBackend::createDeviceObjects()
     if (m_dt.vkCreateFence(m_device, &fci, nullptr, &m_fence) != VK_SUCCESS)
         return false;
     void *mapped = nullptr;
-    if (!createBuffer(kRingSize, VK_BUFFER_USAGE_VERTEX_BUFFER_BIT | VK_BUFFER_USAGE_TRANSFER_SRC_BIT,
+    if (!createBuffer(kRingSize, VK_BUFFER_USAGE_VERTEX_BUFFER_BIT | VK_BUFFER_USAGE_TRANSFER_SRC_BIT | VK_BUFFER_USAGE_STORAGE_BUFFER_BIT,
                       VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT, m_ring, m_ringMem, &mapped))
         return false;
     m_ringPtr = static_cast<uint8_t *>(mapped);
@@ -1131,6 +1174,11 @@ bool GsVulkanBackend::createDeviceObjects()
     m_dt.vkUpdateDescriptorSets(m_device, 1, &w, 0, nullptr);
     if (m_dt.vkAllocateDescriptorSets(m_device, &dai, &m_dstSet) != VK_SUCCESS || !ensureDstImage(1024u))
         return false;
+    if (!m_cpuDecode && !createComputeObjects())
+    {
+        std::fprintf(stderr, "[gs:vk] GPU texture decode unavailable, decoding on the CPU\n");
+        m_cpuDecode = true;
+    }
     submitAndWait();
     return true;
 }
@@ -1206,6 +1254,8 @@ void GsVulkanBackend::submitAndWait()
     m_ringOffset = 0;
     ++m_submitSerial;
     ++m_statSubmits;
+    if (m_compPool)
+        m_dt.vkResetDescriptorPool(m_device, m_compPool, 0);
     for (GpuImage &img : m_deferredImages)
         destroyImage(img);
     m_deferredImages.clear();
@@ -1339,11 +1389,11 @@ GsVulkanBackend::Target &GsVulkanBackend::getTarget(uint32_t fbp, uint32_t fbw, 
     const uint32_t w = fbw * 64u;
     if (t->depth)
         createImage(t->img, w, kTargetHeight, VK_FORMAT_D32_SFLOAT,
-                    VK_IMAGE_USAGE_DEPTH_STENCIL_ATTACHMENT_BIT | VK_IMAGE_USAGE_TRANSFER_SRC_BIT | VK_IMAGE_USAGE_TRANSFER_DST_BIT,
+                    VK_IMAGE_USAGE_DEPTH_STENCIL_ATTACHMENT_BIT | VK_IMAGE_USAGE_TRANSFER_SRC_BIT | VK_IMAGE_USAGE_TRANSFER_DST_BIT | VK_IMAGE_USAGE_SAMPLED_BIT,
                     VK_IMAGE_ASPECT_DEPTH_BIT);
     else
         createImage(t->img, w, kTargetHeight, VK_FORMAT_R8G8B8A8_UNORM,
-                    VK_IMAGE_USAGE_COLOR_ATTACHMENT_BIT | VK_IMAGE_USAGE_TRANSFER_SRC_BIT | VK_IMAGE_USAGE_TRANSFER_DST_BIT,
+                    VK_IMAGE_USAGE_COLOR_ATTACHMENT_BIT | VK_IMAGE_USAGE_TRANSFER_SRC_BIT | VK_IMAGE_USAGE_TRANSFER_DST_BIT | VK_IMAGE_USAGE_SAMPLED_BIT,
                     VK_IMAGE_ASPECT_COLOR_BIT);
     const uint32_t groups = kTargetHeight / pageDims(psm).h;
     t->stale = groups >= 64u ? ~0ull : ((1ull << groups) - 1ull);
@@ -1965,6 +2015,421 @@ void GsVulkanBackend::cpuDraw(const GSPrimitiveBatch &batch, int reason)
     markCpuWrite(fb | z);
 }
 
+// ------------------------------------------------------------------------------------------
+// GPU mirror of GS memory: texture decode without GPU->CPU round trips
+// ------------------------------------------------------------------------------------------
+
+namespace
+{
+    // Table index in m_lutOffset for a PSM, and its page size.
+    int lutIndex(uint8_t psm)
+    {
+        switch (psm)
+        {
+        case GS_PSM_CT32: case GS_PSM_CT24: case GS_PSM_T8H: case GS_PSM_T4HL: case GS_PSM_T4HH: return 0;
+        case GS_PSM_CT16: return 1;
+        case GS_PSM_CT16S: return 2;
+        case GS_PSM_T8: return 3;
+        case GS_PSM_T4: return 4;
+        case GS_PSM_Z32: case GS_PSM_Z24: return 5;
+        case GS_PSM_Z16: return 6;
+        case GS_PSM_Z16S: return 7;
+        default: return -1;
+        }
+    }
+
+    struct DecodePush
+    {
+        uint32_t kind, tableOff, pw, ph, bp, bw, w, h, texa, slot;
+    };
+    struct OverlayPush
+    {
+        uint32_t kind, tableOff, pw, ph, bp, bw, x0, y0, w, h;
+    };
+}
+
+int GsVulkanBackend::decodeKind(uint8_t psm)
+{
+    switch (psm)
+    {
+    case GS_PSM_CT32: return 0;
+    case GS_PSM_CT24: return 1;
+    case GS_PSM_CT16: case GS_PSM_CT16S: return 2;
+    case GS_PSM_Z32: return 3;
+    case GS_PSM_Z24: return 4;
+    case GS_PSM_Z16: case GS_PSM_Z16S: return 5;
+    case GS_PSM_T8: return 6;
+    case GS_PSM_T8H: return 7;
+    case GS_PSM_T4: return 8;
+    case GS_PSM_T4HL: return 9;
+    case GS_PSM_T4HH: return 10;
+    default: return -1;
+    }
+}
+
+bool GsVulkanBackend::createComputeObjects()
+{
+    VkPhysicalDeviceProperties props{};
+    m_it.vkGetPhysicalDeviceProperties(m_phys, &props);
+    m_ssboAlign = std::max<VkDeviceSize>(props.limits.minStorageBufferOffsetAlignment, 16u);
+
+    // Swizzle tables, 16-bit entries back to back.
+    static const uint8_t tablePsm[8] = {GS_PSM_CT32, GS_PSM_CT16, GS_PSM_CT16S, GS_PSM_T8, GS_PSM_T4, GS_PSM_Z32, GS_PSM_Z16, GS_PSM_Z16S};
+    std::vector<uint16_t> lut;
+    for (int i = 0; i < 8; ++i)
+    {
+        const PageDims d = pageDims(tablePsm[i]);
+        const size_t entries = 32u * d.w * d.h;
+        m_lutOffset[i] = static_cast<uint32_t>(lut.size());
+        const uint16_t *src = static_cast<const uint16_t *>(GSMem::PageTableData(tablePsm[i]));
+        if (!src)
+            return false;
+        lut.insert(lut.end(), src, src + entries);
+    }
+    if (lut.size() & 1u)
+        lut.push_back(0);
+    const VkDeviceSize lutBytes = lut.size() * sizeof(uint16_t);
+    if (!createBuffer(lutBytes, VK_BUFFER_USAGE_STORAGE_BUFFER_BIT | VK_BUFFER_USAGE_TRANSFER_DST_BIT, VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT, m_lutBuf, m_lutMem, nullptr) ||
+        !createBuffer(GSMem::MEMORY_SIZE, VK_BUFFER_USAGE_STORAGE_BUFFER_BIT | VK_BUFFER_USAGE_TRANSFER_DST_BIT, VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT, m_vramBuf, m_vramMem, nullptr))
+        return false;
+    {
+        const uint32_t off = ringAlloc(static_cast<uint32_t>(lutBytes), 16u);
+        std::memcpy(m_ringPtr + off, lut.data(), lutBytes);
+        VkBufferCopy bc{off, 0, lutBytes};
+        m_dt.vkCmdCopyBuffer(m_cmd, m_ring, m_lutBuf, 1, &bc);
+        barrier();
+    }
+    m_mirrorSerial.fill(~0ull);
+    {
+        void *mapped = nullptr;
+        if (!createBuffer(kAlphaSlots * 4u, VK_BUFFER_USAGE_STORAGE_BUFFER_BIT, VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT, m_alphaRes,
+                          m_alphaResMem, &mapped))
+            return false;
+        m_alphaResPtr = static_cast<uint32_t *>(mapped);
+        std::memset(m_alphaResPtr, 0, kAlphaSlots * 4u);
+        m_alphaOwner.assign(kAlphaSlots, 0);
+    }
+
+    VkDescriptorSetLayoutBinding b[6]{};
+    for (uint32_t i = 0; i < 6; ++i)
+    {
+        b[i].binding = i;
+        b[i].descriptorCount = 1;
+        b[i].stageFlags = VK_SHADER_STAGE_COMPUTE_BIT;
+    }
+    b[0].descriptorType = VK_DESCRIPTOR_TYPE_STORAGE_BUFFER;
+    b[1].descriptorType = VK_DESCRIPTOR_TYPE_STORAGE_BUFFER;
+    b[2].descriptorType = VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER;
+    b[2].pImmutableSamplers = &m_sampler;
+    b[3].descriptorType = VK_DESCRIPTOR_TYPE_STORAGE_IMAGE;
+    b[4].descriptorType = VK_DESCRIPTOR_TYPE_STORAGE_BUFFER;
+    b[5].descriptorType = VK_DESCRIPTOR_TYPE_STORAGE_BUFFER;
+    VkDescriptorSetLayoutCreateInfo dli{VK_STRUCTURE_TYPE_DESCRIPTOR_SET_LAYOUT_CREATE_INFO};
+    dli.bindingCount = 6;
+    dli.pBindings = b;
+    if (m_dt.vkCreateDescriptorSetLayout(m_device, &dli, nullptr, &m_compLayout) != VK_SUCCESS)
+        return false;
+    VkPushConstantRange pcr{VK_SHADER_STAGE_COMPUTE_BIT, 0, 64};
+    VkPipelineLayoutCreateInfo pli{VK_STRUCTURE_TYPE_PIPELINE_LAYOUT_CREATE_INFO};
+    pli.setLayoutCount = 1;
+    pli.pSetLayouts = &m_compLayout;
+    pli.pushConstantRangeCount = 1;
+    pli.pPushConstantRanges = &pcr;
+    if (m_dt.vkCreatePipelineLayout(m_device, &pli, nullptr, &m_compPipeLayout) != VK_SUCCESS)
+        return false;
+    auto makePipe = [&](const uint32_t *code, size_t bytes, VkPipeline &pipe)
+    {
+        VkShaderModuleCreateInfo smi{VK_STRUCTURE_TYPE_SHADER_MODULE_CREATE_INFO};
+        smi.codeSize = bytes;
+        smi.pCode = code;
+        VkShaderModule mod = VK_NULL_HANDLE;
+        if (m_dt.vkCreateShaderModule(m_device, &smi, nullptr, &mod) != VK_SUCCESS)
+            return false;
+        VkComputePipelineCreateInfo cpi{VK_STRUCTURE_TYPE_COMPUTE_PIPELINE_CREATE_INFO};
+        cpi.stage.sType = VK_STRUCTURE_TYPE_PIPELINE_SHADER_STAGE_CREATE_INFO;
+        cpi.stage.stage = VK_SHADER_STAGE_COMPUTE_BIT;
+        cpi.stage.module = mod;
+        cpi.stage.pName = "main";
+        cpi.layout = m_compPipeLayout;
+        const bool ok = m_dt.vkCreateComputePipelines(m_device, VK_NULL_HANDLE, 1, &cpi, nullptr, &pipe) == VK_SUCCESS;
+        m_dt.vkDestroyShaderModule(m_device, mod, nullptr);
+        return ok;
+    };
+    if (!makePipe(kGsDecodeSpv, sizeof(kGsDecodeSpv), m_decodePipe) || !makePipe(kGsOverlaySpv, sizeof(kGsOverlaySpv), m_overlayPipe))
+        return false;
+    VkDescriptorPoolSize ps[3] = {{VK_DESCRIPTOR_TYPE_STORAGE_BUFFER, 4 * 2048}, {VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, 2048}, {VK_DESCRIPTOR_TYPE_STORAGE_IMAGE, 2048}};
+    VkDescriptorPoolCreateInfo dpi{VK_STRUCTURE_TYPE_DESCRIPTOR_POOL_CREATE_INFO};
+    dpi.maxSets = 2048;
+    dpi.poolSizeCount = 3;
+    dpi.pPoolSizes = ps;
+    return m_dt.vkCreateDescriptorPool(m_device, &dpi, nullptr, &m_compPool) == VK_SUCCESS;
+}
+
+VkDescriptorSet GsVulkanBackend::computeSet()
+{
+    VkDescriptorSetAllocateInfo dai{VK_STRUCTURE_TYPE_DESCRIPTOR_SET_ALLOCATE_INFO};
+    dai.descriptorPool = m_compPool;
+    dai.descriptorSetCount = 1;
+    dai.pSetLayouts = &m_compLayout;
+    VkDescriptorSet set = VK_NULL_HANDLE;
+    if (m_dt.vkAllocateDescriptorSets(m_device, &dai, &set) != VK_SUCCESS)
+    {
+        submitAndWait(); // resets the pool
+        beginCmd();
+        m_dt.vkAllocateDescriptorSets(m_device, &dai, &set);
+    }
+    VkDescriptorBufferInfo vb{m_vramBuf, 0, VK_WHOLE_SIZE}, lb{m_lutBuf, 0, VK_WHOLE_SIZE};
+    VkWriteDescriptorSet w[2]{};
+    for (int i = 0; i < 2; ++i)
+    {
+        w[i].sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET;
+        w[i].dstSet = set;
+        w[i].dstBinding = static_cast<uint32_t>(i);
+        w[i].descriptorCount = 1;
+        w[i].descriptorType = VK_DESCRIPTOR_TYPE_STORAGE_BUFFER;
+    }
+    w[0].pBufferInfo = &vb;
+    w[1].pBufferInfo = &lb;
+    m_dt.vkUpdateDescriptorSets(m_device, 2, w, 0, nullptr);
+    return set;
+}
+
+// Brings the mirror pages up to date with GS memory where GS memory changed since.
+void GsVulkanBackend::syncMirrorPages(const PageSet &pages)
+{
+    bool any = false;
+    for (uint32_t p = 0; p < 512u; ++p)
+    {
+        if (!pages.test(p) || m_mirrorSerial[p] == m_pageSerial[p])
+            continue;
+        const uint32_t off = ringAlloc(8192u, 16u);
+        std::memcpy(m_ringPtr + off, m_vram + static_cast<size_t>(p) * 8192u, 8192u);
+        if (!any)
+            barrier(); // after earlier readers of the mirror
+        any = true;
+        endRendering();
+        const VkBufferCopy bc{off, static_cast<VkDeviceSize>(p) * 8192u, 8192u};
+        m_dt.vkCmdCopyBuffer(m_cmd, m_ring, m_vramBuf, 1, &bc);
+        m_mirrorSerial[p] = m_pageSerial[p];
+        ++m_statMirrorPages;
+    }
+    if (any)
+        barrier();
+}
+
+// Writes the dirty rectangle of a render target into the mirror (GPU-side "download").
+void GsVulkanBackend::overlayTarget(Target &t)
+{
+    if (!t.dirty)
+        return;
+    const int x0 = std::max(t.dx0, 0), y0 = std::max(t.dy0, 0);
+    const int x1 = std::min<int>(t.dx1, static_cast<int>(t.img.width) - 1), y1 = std::min<int>(t.dy1, static_cast<int>(t.img.height) - 1);
+    if (x1 < x0 || y1 < y0)
+        return;
+    // Pages of the rectangle not yet in the mirror first (the target only covers part of them).
+    syncMirrorPages(t.dirtyPages);
+    const int li = lutIndex(t.psm);
+    if (li < 0)
+        return;
+    VkDescriptorSet set = computeSet();
+    VkDescriptorImageInfo ii{VK_NULL_HANDLE, t.img.view, VK_IMAGE_LAYOUT_GENERAL};
+    VkWriteDescriptorSet w{VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET};
+    w.dstSet = set;
+    w.dstBinding = 2;
+    w.descriptorCount = 1;
+    w.descriptorType = VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER;
+    w.pImageInfo = &ii;
+    m_dt.vkUpdateDescriptorSets(m_device, 1, &w, 0, nullptr);
+    const PageDims d = pageDims(t.psm);
+    OverlayPush pc{};
+    switch (t.psm)
+    {
+    case GS_PSM_CT32: pc.kind = 0; break;
+    case GS_PSM_CT24: pc.kind = 1; break;
+    case GS_PSM_CT16: case GS_PSM_CT16S: pc.kind = 2; break;
+    case GS_PSM_Z32: pc.kind = 3; break;
+    case GS_PSM_Z24: pc.kind = 4; break;
+    default: pc.kind = 5; break;
+    }
+    pc.tableOff = m_lutOffset[li];
+    pc.pw = d.w;
+    pc.ph = d.h;
+    pc.bp = t.fbp << 5;
+    pc.bw = t.fbw;
+    pc.x0 = static_cast<uint32_t>(x0);
+    pc.y0 = static_cast<uint32_t>(y0);
+    pc.w = static_cast<uint32_t>(x1 - x0 + 1);
+    pc.h = static_cast<uint32_t>(y1 - y0 + 1);
+    beginCmd();
+    endRendering();
+    barrier();
+    m_dt.vkCmdBindPipeline(m_cmd, VK_PIPELINE_BIND_POINT_COMPUTE, m_overlayPipe);
+    m_dt.vkCmdBindDescriptorSets(m_cmd, VK_PIPELINE_BIND_POINT_COMPUTE, m_compPipeLayout, 0, 1, &set, 0, nullptr);
+    m_dt.vkCmdPushConstants(m_cmd, m_compPipeLayout, VK_SHADER_STAGE_COMPUTE_BIT, 0, sizeof(pc), &pc);
+    m_dt.vkCmdDispatch(m_cmd, (pc.w + 7u) / 8u, (pc.h + 7u) / 8u, 1);
+    barrier();
+    m_curPipeline = VK_NULL_HANDLE;
+    // The mirror now differs from GS memory on these pages.
+    for (uint32_t p = 0; p < 512u; ++p)
+        if (t.dirtyPages.test(p))
+            m_mirrorSerial[p] = ~0ull;
+    ++m_statOverlays;
+}
+
+void GsVulkanBackend::gpuDecode(const GSDrawState &st, Texture &texture, const PageSet &pages, const uint32_t *palette)
+{
+    const GpuImage &img = texture.img;
+    const GSTex0Reg &tex = st.context.tex0;
+    syncMirrorPages(pages);
+    for (size_t i = 0; i < m_targets.size(); ++i)
+    {
+        Target &t = *m_targets[i];
+        if (t.dirty && (t.dirtyPages & pages).any())
+        {
+            overlayTarget(t);
+            // Pages overlaid for an earlier texture are still in the mirror: fine, the target
+            // is written again every time.
+        }
+    }
+    // Pages of the texture outside those targets must match GS memory again (an overlay above
+    // marked them stale only if they belong to a target rectangle).
+    syncMirrorPages(pages & ~dirtyTargetPages());
+    const uint32_t palOff = ringAlloc(1024u, static_cast<uint32_t>(m_ssboAlign));
+    if (palette)
+        std::memcpy(m_ringPtr + palOff, palette, 1024u);
+    VkDescriptorSet set = computeSet();
+    VkDescriptorImageInfo ii{VK_NULL_HANDLE, img.view, VK_IMAGE_LAYOUT_GENERAL};
+    VkDescriptorBufferInfo pb{m_ring, palOff, 1024u};
+    VkDescriptorBufferInfo rb{m_alphaRes, 0, VK_WHOLE_SIZE};
+    VkWriteDescriptorSet w[3]{};
+    w[0].sType = w[1].sType = w[2].sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET;
+    w[0].dstSet = w[1].dstSet = w[2].dstSet = set;
+    w[2].dstBinding = 5;
+    w[2].descriptorCount = 1;
+    w[2].descriptorType = VK_DESCRIPTOR_TYPE_STORAGE_BUFFER;
+    w[2].pBufferInfo = &rb;
+    w[0].dstBinding = 3;
+    w[0].descriptorCount = 1;
+    w[0].descriptorType = VK_DESCRIPTOR_TYPE_STORAGE_IMAGE;
+    w[0].pImageInfo = &ii;
+    w[1].dstBinding = 4;
+    w[1].descriptorCount = 1;
+    w[1].descriptorType = VK_DESCRIPTOR_TYPE_STORAGE_BUFFER;
+    w[1].pBufferInfo = &pb;
+    m_dt.vkUpdateDescriptorSets(m_device, 3, w, 0, nullptr);
+    const PageDims d = pageDims(tex.psm);
+    DecodePush pc{};
+    // Result slot: zeroed now (host-coherent, visible to the submit that follows).
+    const uint32_t slot = m_alphaNext;
+    m_alphaNext = (m_alphaNext + 1u) % kAlphaSlots;
+    m_alphaResPtr[slot] = 0u;
+    m_alphaOwner[slot] = ++m_alphaIds;
+    texture.alphaSlot = slot;
+    texture.alphaId = m_alphaIds;
+    texture.alphaSerial = m_submitSerial;
+    pc.slot = slot;
+    pc.kind = static_cast<uint32_t>(decodeKind(tex.psm));
+    pc.tableOff = m_lutOffset[lutIndex(tex.psm)];
+    pc.pw = d.w;
+    pc.ph = d.h;
+    // The CT32-layout formats (T8H, T4HL/HH) use the CT32 page size.
+    if (tex.psm == GS_PSM_T8H || tex.psm == GS_PSM_T4HL || tex.psm == GS_PSM_T4HH)
+    {
+        pc.pw = 64u;
+        pc.ph = 32u;
+    }
+    pc.bp = tex.tbp0;
+    pc.bw = tex.tbw;
+    pc.w = img.width;
+    pc.h = img.height;
+    pc.texa = st.texa.ta0 | (static_cast<uint32_t>(st.texa.ta1) << 8) | (st.texa.aem ? 0x10000u : 0u);
+    beginCmd();
+    endRendering();
+    barrier();
+    m_dt.vkCmdBindPipeline(m_cmd, VK_PIPELINE_BIND_POINT_COMPUTE, m_decodePipe);
+    m_dt.vkCmdBindDescriptorSets(m_cmd, VK_PIPELINE_BIND_POINT_COMPUTE, m_compPipeLayout, 0, 1, &set, 0, nullptr);
+    m_dt.vkCmdPushConstants(m_cmd, m_compPipeLayout, VK_SHADER_STAGE_COMPUTE_BIT, 0, sizeof(pc), &pc);
+    m_dt.vkCmdDispatch(m_cmd, (pc.w + 7u) / 8u, (pc.h + 7u) / 8u, 1);
+    barrier();
+    m_curPipeline = VK_NULL_HANDLE;
+}
+
+// Once the decode has executed, the GPU's largest texel alpha replaces the estimate.
+void GsVulkanBackend::resolveMaxAlpha(Texture &t)
+{
+    if (t.alphaSlot == ~0u || m_submitSerial <= t.alphaSerial)
+        return;
+    if (m_alphaOwner[t.alphaSlot] == t.alphaId)
+        t.maxAlpha = static_cast<uint8_t>(std::min<uint32_t>(m_alphaResPtr[t.alphaSlot], 255u));
+    t.alphaSlot = ~0u;
+}
+
+PageSet GsVulkanBackend::dirtyTargetPages() const
+{
+    PageSet s;
+    for (const Target *t : m_targets)
+        if (t->dirty)
+            s |= t->dirtyPages;
+    return s;
+}
+
+// Upper bound of the texel alpha a GPU-decoded texture can have (for the blend factor check).
+uint8_t GsVulkanBackend::estimateMaxAlpha(const GSDrawState &st, const uint32_t *palette, bool overlay, const std::vector<uint16_t> &pages) const
+{
+    const GSTex0Reg &tex = st.context.tex0;
+    switch (tex.psm)
+    {
+    case GS_PSM_CT24:
+        return st.texa.ta0;
+    case GS_PSM_CT16:
+    case GS_PSM_CT16S:
+        return std::max(st.texa.ta0, st.texa.ta1);
+    case GS_PSM_CT32:
+    {
+        if (overlay)
+            return 255u;
+        uint32_t ma = 0;
+        for (uint16_t p : pages)
+        {
+            const uint8_t *b = m_vram + static_cast<size_t>(p) * 8192u;
+            for (uint32_t i = 3; i < 8192u; i += 4u)
+                ma = std::max<uint32_t>(ma, b[i]);
+        }
+        return static_cast<uint8_t>(ma);
+    }
+    default:
+        if (isIndexedPsm(tex.psm) && palette)
+        {
+            const bool four = tex.psm == GS_PSM_T4 || tex.psm == GS_PSM_T4HL || tex.psm == GS_PSM_T4HH;
+            const uint32_t n = four ? 16u : 256u;
+            // Indices present in the texture's pages (a superset of the texels): the palette
+            // entries they select bound the alpha. Unknown with render-target data: all entries.
+            bool used[256] = {};
+            if (overlay)
+                std::fill(used, used + n, true);
+            else
+                for (uint16_t p : pages)
+                {
+                    const uint8_t *b = m_vram + static_cast<size_t>(p) * 8192u;
+                    switch (tex.psm)
+                    {
+                    case GS_PSM_T8: for (uint32_t i = 0; i < 8192u; ++i) used[b[i]] = true; break;
+                    case GS_PSM_T4: for (uint32_t i = 0; i < 8192u; ++i) { used[b[i] & 15u] = true; used[b[i] >> 4] = true; } break;
+                    case GS_PSM_T8H: for (uint32_t i = 3; i < 8192u; i += 4u) used[b[i]] = true; break;
+                    case GS_PSM_T4HL: for (uint32_t i = 3; i < 8192u; i += 4u) used[b[i] & 15u] = true; break;
+                    default: for (uint32_t i = 3; i < 8192u; i += 4u) used[b[i] >> 4] = true; break;
+                    }
+                }
+            uint32_t ma = 0;
+            for (uint32_t i = 0; i < n; ++i)
+                if (used[i])
+                    ma = std::max(ma, palette[i] >> 24);
+            return static_cast<uint8_t>(ma);
+        }
+        return 255u;
+    }
+}
+
 // A texture that is exactly a colour render target (same PSM, base and width): copied on the GPU
 // instead of going through GS memory. Only used while the target holds data GS memory lacks.
 GsVulkanBackend::Texture *GsVulkanBackend::getAliasTexture(const GSDrawState &st, uint32_t w, uint32_t h, const PageSet &pages, uint32_t &texFlags)
@@ -1981,14 +2446,13 @@ GsVulkanBackend::Texture *GsVulkanBackend::getAliasTexture(const GSDrawState &st
         }
     if (!src || !src->dirty)
         return nullptr;
-    const uint32_t cw = std::min(w, src->img.width), ch = std::min(h, src->img.height);
+    // Rows no draw ever reached are not render-target data: leave them out (they would pull in
+    // whatever lies below the frame in GS memory, e.g. the Z buffer).
+    const uint32_t cw = std::min(w, src->img.width), ch = std::min<uint32_t>({h, src->img.height, static_cast<uint32_t>(src->maxRow + 1)});
+    // Other targets' newer data inside this target's rows made those rows stale when they were
+    // drawn, and uploadStale brings it in; what lies outside the target is not in the alias.
+    (void)pages;
     m_why = "texture";
-    for (size_t i = 0; i < m_targets.size(); ++i)
-    {
-        Target &o = *m_targets[i];
-        if (&o != src && o.dirty && (o.dirtyPages & pages).any())
-            download(o);
-    }
     uploadStale(*src, 0, static_cast<int>(ch) - 1);
     Texture &a = m_alias[src];
     if (!a.img.image)
@@ -2023,6 +2487,7 @@ GsVulkanBackend::Texture *GsVulkanBackend::getAliasTexture(const GSDrawState &st
         ++m_statAliasCopies;
     }
     a.lastUse = m_submitSerial;
+    a.maxAlpha = tex.psm == GS_PSM_CT32 ? 255u : tex.psm == GS_PSM_CT16 ? std::max(st.texa.ta0, st.texa.ta1) : st.texa.ta0;
     texFlags = tex.psm == GS_PSM_CT16 ? F_TEXA16 : tex.psm == GS_PSM_CT24 ? F_TEXA24 : 0u;
     return &a;
 }
@@ -2093,10 +2558,18 @@ GsVulkanBackend::Texture *GsVulkanBackend::getTexture(const GSDrawState &st, uin
                              tex.tbp0, tex.tbw, tex.psm, w, h, (unsigned long long)ctx.clamp, st.linearFilter, t->fbp, t->fbw, t->psm, t->dx0, t->dy0, t->dx1, t->dy1);
             }
     }
-    ensureVramCurrent(pages);
+    // GPU decode (default): texels come from the GPU mirror of GS memory, with any render target
+    // holding newer data for these pages written into it first - no GPU->CPU round trip.
+    bool overlay = false;
+    if (m_cpuDecode)
+        ensureVramCurrent(pages);
+    else
+        for (Target *t : m_targets)
+            if (t->dirty && (t->dirtyPages & pages).any())
+                overlay = true;
 
     auto it = m_textures.find(key);
-    if (it != m_textures.end())
+    if (it != m_textures.end() && !overlay)
     {
         Texture &t = it->second;
         bool valid = true;
@@ -2117,14 +2590,20 @@ GsVulkanBackend::Texture *GsVulkanBackend::getTexture(const GSDrawState &st, uin
         {
             t.lastUse = m_submitSerial;
             ++m_statTexHits;
+            resolveMaxAlpha(t);
             return &t;
         }
     }
 
-    m_decodeBuf.resize(static_cast<size_t>(w) * h);
     ScopeTimer decodeTimer(m_iv.decodeNs);
     ++m_iv.decodes;
-    if (!m_cpu.DecodeTexture(st, w, h, isIndexedPsm(tex.psm) ? palette : nullptr, m_decodeBuf.data()))
+    if (m_cpuDecode)
+    {
+        m_decodeBuf.resize(static_cast<size_t>(w) * h);
+        if (!m_cpu.DecodeTexture(st, w, h, isIndexedPsm(tex.psm) ? palette : nullptr, m_decodeBuf.data()))
+            return nullptr;
+    }
+    else if (decodeKind(tex.psm) < 0)
         return nullptr;
 
     if (it == m_textures.end())
@@ -2153,7 +2632,8 @@ GsVulkanBackend::Texture *GsVulkanBackend::getTexture(const GSDrawState &st, uin
         if (t.img.image)
             m_deferredImages.push_back(t.img);
         t.img = GpuImage{};
-        createImage(t.img, w, h, VK_FORMAT_R8G8B8A8_UINT, VK_IMAGE_USAGE_SAMPLED_BIT | VK_IMAGE_USAGE_TRANSFER_DST_BIT, VK_IMAGE_ASPECT_COLOR_BIT);
+        createImage(t.img, w, h, VK_FORMAT_R8G8B8A8_UINT, VK_IMAGE_USAGE_SAMPLED_BIT | VK_IMAGE_USAGE_TRANSFER_DST_BIT | VK_IMAGE_USAGE_STORAGE_BIT,
+                    VK_IMAGE_ASPECT_COLOR_BIT);
         if (!t.set)
         {
             VkDescriptorSetAllocateInfo dai{VK_STRUCTURE_TYPE_DESCRIPTOR_SET_ALLOCATE_INFO};
@@ -2176,30 +2656,67 @@ GsVulkanBackend::Texture *GsVulkanBackend::getTexture(const GSDrawState &st, uin
         m_dt.vkUpdateDescriptorSets(m_device, 1, &wds, 0, nullptr);
     }
     Texture &tt = it->second;
-    // Re-uploading an image the recorded commands still sample is fine: the copy is ordered
-    // after them by the barrier.
-    const uint32_t bytes = w * h * 4u;
-    const uint32_t off = ringAlloc(bytes, 16u);
-    std::memcpy(m_ringPtr + off, m_decodeBuf.data(), bytes);
-    barrier();
-    VkBufferImageCopy region{};
-    region.bufferOffset = off;
-    region.imageSubresource = {VK_IMAGE_ASPECT_COLOR_BIT, 0, 0, 1};
-    region.imageExtent = {w, h, 1};
-    m_dt.vkCmdCopyBufferToImage(m_cmd, m_ring, tt.img.image, VK_IMAGE_LAYOUT_GENERAL, 1, &region);
-    barrier();
     tt.pages.clear();
     for (uint32_t p = 0; p < 512u; ++p)
         if (pages.test(p))
             tt.pages.push_back(static_cast<uint16_t>(p));
-    tt.serial = m_serial;
-    tt.rawHash = pagesHash(tt.pages);
+    // Re-writing an image the recorded commands still sample is fine: the write is ordered
+    // after them by the barrier.
+    if (m_cpuDecode)
     {
+        const uint32_t bytes = w * h * 4u;
+        const uint32_t off = ringAlloc(bytes, 16u);
+        std::memcpy(m_ringPtr + off, m_decodeBuf.data(), bytes);
+        barrier();
+        VkBufferImageCopy region{};
+        region.bufferOffset = off;
+        region.imageSubresource = {VK_IMAGE_ASPECT_COLOR_BIT, 0, 0, 1};
+        region.imageExtent = {w, h, 1};
+        m_dt.vkCmdCopyBufferToImage(m_cmd, m_ring, tt.img.image, VK_IMAGE_LAYOUT_GENERAL, 1, &region);
+        barrier();
         uint32_t ma = 0;
         for (uint32_t v : m_decodeBuf)
             ma = std::max(ma, v >> 24);
         tt.maxAlpha = static_cast<uint8_t>(ma);
     }
+    else
+    {
+        gpuDecode(st, tt, pages, palette);
+        tt.maxAlpha = estimateMaxAlpha(st, palette, overlay, tt.pages);
+        static const bool s_check = envFlag("PS2_GS_VK_CHECKDECODE");
+        if (s_check)
+        {
+            // Debug: compare with the CPU decode of GS memory brought up to date.
+            ensureVramCurrent(pages);
+            std::vector<uint32_t> ref(static_cast<size_t>(w) * h);
+            m_cpu.DecodeTexture(st, w, h, isIndexedPsm(tex.psm) ? palette : nullptr, ref.data());
+            if (m_readbackSize < ref.size() * 4u)
+            {
+                Target dummy;
+                (void)dummy;
+            }
+            if (m_readbackSize >= ref.size() * 4u)
+            {
+                barrier();
+                VkBufferImageCopy region{};
+                region.imageSubresource = {VK_IMAGE_ASPECT_COLOR_BIT, 0, 0, 1};
+                region.imageExtent = {w, h, 1};
+                m_dt.vkCmdCopyImageToBuffer(m_cmd, tt.img.image, VK_IMAGE_LAYOUT_GENERAL, m_readback, 1, &region);
+                submitAndWait();
+                const uint32_t *got = reinterpret_cast<const uint32_t *>(m_readbackPtr);
+                size_t bad = 0, first = 0;
+                for (size_t i = 0; i < ref.size(); ++i)
+                    if (got[i] != ref[i] && bad++ == 0)
+                        first = i;
+                static int reports = 0;
+                if (bad && reports++ < 30)
+                    std::fprintf(stderr, "[gs:vk] DECODE MISMATCH tbp=%x tbw=%u psm=%x %ux%u: %zu texels, first (%zu,%zu) gpu %08x cpu %08x overlay=%d\n", tex.tbp0,
+                                 tex.tbw, tex.psm, w, h, bad, first % w, first / w, got[first], ref[first], overlay);
+            }
+        }
+    }
+    tt.serial = overlay ? 0u : m_serial; // decoded from render-target data: redo on the next use
+    tt.rawHash = overlay ? 0u : pagesHash(tt.pages);
     tt.lastUse = m_submitSerial;
     ++m_statTexUploads;
     return &tt;
@@ -2274,6 +2791,13 @@ void GsVulkanBackend::flushBatch()
     if (setup.blend.enable && cBound > 128u)
     {
         ++m_statBigFactor[ctx.alpha & 0xFFu];
+        if (m_stats && (ctx.alpha & 0xFFu) == 0x44u)
+        {
+            static int n = 0;
+            if (n++ < 12)
+                std::fprintf(stderr, "[gs:vk] big factor 0x44: tex psm=%x tbp=%x maxA=%u tcc=%d tfx=%d vA=%u cBound=%u\n", ctx.tex0.psm, ctx.tex0.tbp0,
+                             tex ? tex->maxAlpha : 0u, ctx.tex0.tcc, ctx.tex0.tfx, b.maxVA, cBound);
+        }
         if ((setup.blend.flags & F_BLEND_SCALE) && !m_noBigDst)
         {
             // A blend factor above one cannot be done with fixed-function blending: blend in the
@@ -2518,6 +3042,7 @@ void GsVulkanBackend::flushBatch()
             t.dy1 = std::max(t.dy1, ry1);
         }
         t.dirtyPages |= pages;
+        t.maxRow = std::max(t.maxRow, ry1);
     };
     if (writesColor)
     {
@@ -2761,8 +3286,8 @@ void GsVulkanBackend::printStats()
         m_ivFlips = m_statFlips;
     }
     std::fprintf(stderr,
-                 "[gs:vk] alias copies=%llu dst copies=%llu prims=%llu batches=%llu draws=%llu submits=%llu downloads=%llu (%llu px) uploads=%llu (%llu rows) tex uploads=%llu hits=%llu (rehash %llu) targets=%zu textures=%zu\n",
-                 (unsigned long long)m_statAliasCopies, (unsigned long long)m_statDstCopies, (unsigned long long)m_statPrims, (unsigned long long)m_statBatches, (unsigned long long)m_statDraws,
+                 "[gs:vk] mirror pages=%llu overlays=%llu alias copies=%llu dst copies=%llu prims=%llu batches=%llu draws=%llu submits=%llu downloads=%llu (%llu px) uploads=%llu (%llu rows) tex uploads=%llu hits=%llu (rehash %llu) targets=%zu textures=%zu\n",
+                 (unsigned long long)m_statMirrorPages, (unsigned long long)m_statOverlays, (unsigned long long)m_statAliasCopies, (unsigned long long)m_statDstCopies, (unsigned long long)m_statPrims, (unsigned long long)m_statBatches, (unsigned long long)m_statDraws,
                  (unsigned long long)m_statSubmits, (unsigned long long)m_statDownloads, (unsigned long long)m_statDownloadPx,
                  (unsigned long long)m_statUploads, (unsigned long long)m_statUploadRows, (unsigned long long)m_statTexUploads,
                  (unsigned long long)m_statTexHits, (unsigned long long)m_statTexRehash, m_targets.size(), m_textures.size());

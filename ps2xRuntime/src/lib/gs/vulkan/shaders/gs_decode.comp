@@ -1,0 +1,98 @@
+#version 450
+#extension GL_GOOGLE_include_directive : require
+// Decodes a texture from the GS memory mirror into an RGBA8UI image (as GSCpuBackend::DecodeTexture).
+layout(local_size_x = 8, local_size_y = 8) in;
+#include "gs_mem.glsl"
+layout(set = 0, binding = 3, rgba8ui) uniform writeonly uimage2D outImg;
+layout(std430, set = 0, binding = 4) readonly buffer Pal { uint pal[256]; };
+layout(std430, set = 0, binding = 5) buffer Res { uint res[]; }; // per-decode max texel alpha
+shared uint wgMaxAlpha;
+
+layout(push_constant) uniform PC
+{
+    uint kind; // 0 C32, 1 C24, 2 C16, 3 Z32, 4 Z24, 5 Z16, 6 P8, 7 P8H, 8 P4, 9 P4HL, 10 P4HH
+    uint tableOff;
+    uint pw;
+    uint ph;
+    uint bp;
+    uint bw;
+    uint w;
+    uint h;
+    uint texa; // ta0 | ta1 << 8 | aem << 16
+    uint slot; // res[] entry for the largest alpha
+} pc;
+
+uint expand5551(uint c)
+{
+    return ((c & 0x1Fu) << 3) | (((c >> 5) & 0x1Fu) << 11) | (((c >> 10) & 0x1Fu) << 19) | (((c >> 15) & 1u) << 31);
+}
+
+uint texaAlpha(uint rgba, bool sixteen)
+{
+    const bool rgbZero = (rgba & 0x00FFFFFFu) == 0u;
+    uint a;
+    if (sixteen && (rgba & 0x80000000u) != 0u)
+        a = (pc.texa >> 8) & 0xFFu;
+    else
+        a = (((pc.texa >> 16) & 1u) != 0u && rgbZero) ? 0u : (pc.texa & 0xFFu);
+    return (rgba & 0x00FFFFFFu) | (a << 24);
+}
+
+uint readByte(uint byteAddr)
+{
+    byteAddr &= 0x3FFFFFu;
+    return (vram[byteAddr >> 2] >> ((byteAddr & 3u) * 8u)) & 0xFFu;
+}
+
+void decodeTexel(uvec2 p);
+
+void main()
+{
+    if (gl_LocalInvocationIndex == 0u)
+        wgMaxAlpha = 0u;
+    barrier();
+    const uvec2 p = gl_GlobalInvocationID.xy;
+    const bool inside = p.x < pc.w && p.y < pc.h;
+    if (inside)
+        decodeTexel(p);
+    barrier();
+    if (gl_LocalInvocationIndex == 0u)
+        atomicMax(res[pc.slot], wgMaxAlpha);
+}
+
+void decodeTexel(uvec2 p)
+{
+    const uint a = pixelAddr(pc.tableOff, pc.pw, pc.ph, pc.bp, pc.bw, p.x, p.y);
+    uint c;
+    switch (pc.kind)
+    {
+    case 0u: c = vram[a & 0xFFFFFu]; break;
+    case 1u: c = texaAlpha(vram[a & 0xFFFFFu] & 0x00FFFFFFu, false); break;
+    case 2u:
+    {
+        const uint byteAddr = (a * 2u) & 0x3FFFFEu;
+        c = texaAlpha(expand5551((vram[byteAddr >> 2] >> ((byteAddr & 2u) * 8u)) & 0xFFFFu), true);
+        break;
+    }
+    case 3u: c = vram[a & 0xFFFFFu]; break;
+    case 4u: c = vram[a & 0xFFFFFu] & 0x00FFFFFFu; break;
+    case 5u:
+    {
+        const uint byteAddr = (a * 2u) & 0x3FFFFEu;
+        c = expand5551((vram[byteAddr >> 2] >> ((byteAddr & 2u) * 8u)) & 0xFFFFu);
+        break;
+    }
+    case 6u: c = pal[readByte(a)]; break;
+    case 7u: c = pal[vram[a & 0xFFFFFu] >> 24]; break;
+    case 8u:
+    {
+        const uint bits = a * 4u;
+        c = pal[(readByte(bits >> 3) >> (bits & 7u)) & 0xFu];
+        break;
+    }
+    case 9u: c = pal[(vram[a & 0xFFFFFu] >> 24) & 0xFu]; break;
+    default: c = pal[(vram[a & 0xFFFFFu] >> 28) & 0xFu]; break;
+    }
+    imageStore(outImg, ivec2(p), uvec4(c & 0xFFu, (c >> 8) & 0xFFu, (c >> 16) & 0xFFu, c >> 24));
+    atomicMax(wgMaxAlpha, c >> 24);
+}

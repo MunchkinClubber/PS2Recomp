@@ -1,0 +1,57 @@
+#version 450
+#extension GL_GOOGLE_include_directive : require
+// Writes a rectangle of a render target into the GS memory mirror, swizzled as the GS stores it.
+layout(local_size_x = 8, local_size_y = 8) in;
+#include "gs_mem.glsl"
+layout(set = 0, binding = 2) uniform sampler2D src;
+
+layout(push_constant) uniform PC
+{
+    uint kind; // 0 CT32, 1 CT24, 2 CT16, 3 Z32, 4 Z24, 5 Z16
+    uint tableOff;
+    uint pw;
+    uint ph;
+    uint bp;
+    uint bw;
+    uint x0;
+    uint y0;
+    uint w;
+    uint h;
+} pc;
+
+void main()
+{
+    const uvec2 g = gl_GlobalInvocationID.xy;
+    if (g.x >= pc.w || g.y >= pc.h)
+        return;
+    const uvec2 p = g + uvec2(pc.x0, pc.y0);
+    const vec4 v = texelFetch(src, ivec2(p), 0);
+    uint px;
+    if (pc.kind < 3u)
+    {
+        const uvec4 c = uvec4(round(clamp(v, 0.0, 1.0) * 255.0));
+        px = c.r | (c.g << 8) | (c.b << 16) | (c.a << 24);
+    }
+    else if (pc.kind == 3u)
+        px = uint(min(max(v.r, 0.0) * 4294967296.0, 4294967295.0));
+    else
+    {
+        const float zmax = pc.kind == 4u ? 16777215.0 : 65535.0;
+        px = uint(clamp(floor(v.r * 16777216.0 + 0.5), 0.0, zmax));
+    }
+    const uint a = pixelAddr(pc.tableOff, pc.pw, pc.ph, pc.bp, pc.bw, p.x, p.y);
+    if (pc.kind == 0u || pc.kind == 3u)
+        vram[a & 0xFFFFFu] = px;
+    else if (pc.kind == 1u || pc.kind == 4u)
+        vram[a & 0xFFFFFu] = (vram[a & 0xFFFFFu] & 0xFF000000u) | (px & 0x00FFFFFFu);
+    else
+    {
+        uint v16 = px & 0xFFFFu;
+        if (pc.kind == 2u)
+            v16 = ((px & 0xFFu) >> 3) | ((((px >> 8) & 0xFFu) >> 3) << 5) | ((((px >> 16) & 0xFFu) >> 3) << 10) | ((px >> 31) << 15);
+        const uint byteAddr = (a * 2u) & 0x3FFFFEu;
+        const uint shift = (byteAddr & 2u) * 8u;
+        atomicAnd(vram[byteAddr >> 2], ~(0xFFFFu << shift));
+        atomicOr(vram[byteAddr >> 2], v16 << shift);
+    }
+}
