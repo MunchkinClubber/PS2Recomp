@@ -373,6 +373,43 @@ namespace
         }
     }
 
+    // Diagnostics: call counters for the functions on the way to the front-end sound bank load.
+    struct Ssx3TraceFn
+    {
+        uint32_t addr;
+        const char *what;
+        PS2Runtime::RecompiledFunction orig;
+        int logs;
+    };
+    Ssx3TraceFn g_ssx3Trace[] = {
+        {0x00285FB0u, "FE audio init (banks.inf [FE])", nullptr, 0},
+        {0x002862A8u, "world audio init (banks.inf [WORLD])", nullptr, 0},
+        {0x0018BEF8u, "apply audio options A", nullptr, 0},
+        {0x001D64C0u, "apply audio options B", nullptr, 0},
+        {0x001A1EC0u, "FE state enter (vtbl 0x46d7d4)", nullptr, 0},
+    };
+    template <int I>
+    void ssx3TraceCall(uint8_t *rdram, R5900Context *ctx, PS2Runtime *runtime)
+    {
+        Ssx3TraceFn &t = g_ssx3Trace[I];
+        if (t.logs < 20)
+        {
+            ++t.logs;
+            std::fprintf(stderr, "[ssx3:trace] %s (0x%x) a0 0x%x a1 0x%x a2 0x%x ra 0x%x\n", t.what, t.addr, getRegU32(ctx, 4),
+                         getRegU32(ctx, 5), getRegU32(ctx, 6), getRegU32(ctx, 31));
+        }
+        t.orig(rdram, ctx, runtime);
+    }
+    template <int I>
+    void ssx3InstallTrace(PS2Runtime &runtime)
+    {
+        g_ssx3Trace[I].orig = runtime.lookupFunction(g_ssx3Trace[I].addr);
+        if (g_ssx3Trace[I].orig)
+            runtime.replaceFunction(g_ssx3Trace[I].addr, ssx3TraceCall<I>);
+        else
+            std::fprintf(stderr, "[ssx3:trace] no function at 0x%x\n", g_ssx3Trace[I].addr);
+    }
+
     void ssx3RendererSubmit(uint8_t *rdram, R5900Context *ctx, PS2Runtime *runtime)
     {
         const uint32_t obj = getRegU32(ctx, 4);
@@ -618,6 +655,11 @@ namespace
         g_ssx3OrigBankCheck = runtime.lookupFunction(kBankSlotCheck);
         if (g_ssx3OrigBankCheck)
             runtime.replaceFunction(kBankSlotCheck, ssx3BankCheck);
+        ssx3InstallTrace<0>(runtime);
+        ssx3InstallTrace<1>(runtime);
+        ssx3InstallTrace<2>(runtime);
+        ssx3InstallTrace<3>(runtime);
+        ssx3InstallTrace<4>(runtime);
         runtime.replaceFunction(kRendererVif1Done, ssx3RendererVif1Done);
         // The game's allocator (init at 0x31AED0) takes [malloc(0x400)+0x800, EndOfHeap()), i.e. all RAM
         // from SetupHeap's base -- exactly where the runtime put its own heap (sceMpegCreate buffers,
