@@ -1094,6 +1094,89 @@ namespace
         return {static_cast<uint32_t>(std::min<uint64_t>(start, kVram)), static_cast<uint32_t>(std::min<uint64_t>(end, kVram))};
     }
 
+    bool ct32LayoutPsm(uint32_t psm)
+    {
+        return psm == GS_PSM_CT32 || psm == GS_PSM_CT24 || psm == 0x1Bu || psm == 0x24u || psm == 0x2Cu;
+    }
+
+    // Texels a textured FST sprite can sample (conservatively, with a one-texel margin), using
+    // DrawSprite's own coordinate formulas at the first and last drawn pixel (texture coordinates
+    // are linear in x and y). rowLocal: nearest sampling where every drawn row y samples texel row
+    // y only (checked row by row with a safety margin). False when the texels are not a simple
+    // rectangle inside the texture (wrapping), so callers keep the whole-texture range.
+    bool spriteTexRect(const GSPrimitiveBatch &batch, int &umin, int &umax, int &vmin, int &vmax, bool &rowLocal)
+    {
+        rowLocal = false;
+        const GSDrawState &state = batch.state;
+        if (!state.prim.tme || !state.prim.fst || state.prim.type != GS_PRIM_SPRITE)
+            return false;
+        const GSVertex &v0 = batch.vertices[0];
+        const GSVertex &v1 = batch.vertices[1];
+        const auto &ctx = state.context;
+        const int ofx = ctx.xyoffset.ofx >> 4, ofy = ctx.xyoffset.ofy >> 4;
+        int x0 = static_cast<int>(v0.x) - ofx, y0 = static_cast<int>(v0.y) - ofy;
+        int x1 = static_cast<int>(v1.x) - ofx, y1 = static_cast<int>(v1.y) - ofy;
+        if (x0 > x1)
+            std::swap(x0, x1);
+        if (y0 > y1)
+            std::swap(y0, y1);
+        const int spanX = std::max(1, x1 - x0), spanY = std::max(1, y1 - y0);
+        const int ux1 = x0 + spanX - 1, uy1 = y0 + spanY - 1;
+        if (ux1 < ctx.scissor.x0 || x0 > ctx.scissor.x1 || uy1 < ctx.scissor.y0 || y0 > ctx.scissor.y1)
+            return false;
+        const int dx0 = clampInt(x0, ctx.scissor.x0, ctx.scissor.x1), dx1 = clampInt(ux1, ctx.scissor.x0, ctx.scissor.x1);
+        const int dy0 = clampInt(y0, ctx.scissor.y0, ctx.scissor.y1), dy1 = clampInt(uy1, ctx.scissor.y0, ctx.scissor.y1);
+        const float u0f = static_cast<float>(v0.u >> 4), v0f = static_cast<float>(v0.v >> 4);
+        const float u1f = static_cast<float>(v1.u >> 4), v1f = static_cast<float>(v1.v >> 4);
+        const float spriteW = static_cast<float>(spanX), spriteH = static_cast<float>(spanY);
+        auto texU = [&](int x)
+        { return u0f + (u1f - u0f) * ((static_cast<float>(x - x0) + 0.5f) / spriteW); };
+        auto texV = [&](int y)
+        { return v0f + (v1f - v0f) * ((static_cast<float>(y - y0) + 0.5f) / spriteH); };
+        const float uA = texU(dx0), uB = texU(dx1), vA = texV(dy0), vB = texV(dy1);
+        const float uLo = std::min(uA, uB), uHi = std::max(uA, uB), vLo = std::min(vA, vB), vHi = std::max(vA, vB);
+        // Nearest reads trunc(t); bilinear floor(t - 0.5) and the next texel. One extra texel of
+        // margin on each side covers the 1/16 FST rounding and float differences.
+        const bool linear = state.linearFilter;
+        umin = static_cast<int>(std::floor(uLo - (linear ? 0.5f : 0.0f))) - 1;
+        vmin = static_cast<int>(std::floor(vLo - (linear ? 0.5f : 0.0f))) - 1;
+        umax = static_cast<int>(std::floor(uHi)) + 2;
+        vmax = static_cast<int>(std::floor(vHi)) + 2;
+        const int texW = state.textureWidth, texH = state.textureHeight;
+        const uint32_t wms = static_cast<uint32_t>(ctx.clamp & 3u), wmt = static_cast<uint32_t>((ctx.clamp >> 2) & 3u);
+        if (wms == 1u)
+        {
+            umin = std::max(umin, 0);
+            umax = std::min(umax, texW - 1);
+        }
+        if (wmt == 1u)
+        {
+            vmin = std::max(vmin, 0);
+            vmax = std::min(vmax, texH - 1);
+        }
+        umin = std::max(umin, 0);
+        vmin = std::max(vmin, 0);
+        if (umax >= texW || vmax >= texH || umin > umax || vmin > vmax || uLo < 0.0f || vLo < 0.0f)
+        {
+            // Taps could wrap (REPEAT / region modes): not a plain rectangle.
+            if (wms != 1u || wmt != 1u)
+                return false;
+        }
+        if (!linear && ct32LayoutPsm(ctx.tex0.psm))
+        {
+            rowLocal = true;
+            for (int y = dy0; y <= dy1 && rowLocal; ++y)
+            {
+                const float t = texV(y);
+                const int fixedV = static_cast<int>((t * 16.0f) + 0.5f);
+                const float v = static_cast<float>(clampInt(fixedV, 0, 0xFFFF)) / 16.0f;
+                const float frac = v - static_cast<float>(y);
+                rowLocal = frac >= 0.02f && frac <= 0.98f;
+            }
+        }
+        return true;
+    }
+
     uint64_t gsNowNs()
     {
         return static_cast<uint64_t>(std::chrono::duration_cast<std::chrono::nanoseconds>(
@@ -1505,7 +1588,7 @@ void GSCpuBackend::SyncUnlocked(int reason) const
     g_perfGsSyncNs[r].fetch_add(waited, std::memory_order_relaxed);
 }
 
-uint64_t GSCpuBackend::DrawDepUnlocked(const GSDrawState &state, uint32_t texStart, uint32_t texEnd, bool sameState) const
+uint64_t GSCpuBackend::DrawDepUnlocked(const GSDrawState &state, uint32_t texStart, uint32_t texEnd, bool sameState, uint32_t localTbp) const
 {
     // With soft barriers, workers do not stop at a barrier: a draw that reads what an earlier
     // epoch (its draws or its barrier command) wrote, writes what it read or wrote under another
@@ -1518,8 +1601,22 @@ uint64_t GSCpuBackend::DrawDepUnlocked(const GSDrawState &state, uint32_t texSta
         m_depCacheSerial = ~0ull;
         return 0u;
     }
-    if (m_depCacheSerial == m_epochSerial && (sameState || std::memcmp(&m_depCacheState, &state, sizeof(GSDrawState)) == 0))
+    if (m_depCacheSerial == m_epochSerial && texStart == m_depCacheTexStart && texEnd == m_depCacheTexEnd && localTbp == m_depCacheLocal &&
+        (sameState || std::memcmp(&m_depCacheState, &state, sizeof(GSDrawState)) == 0))
         return m_depCacheValue > done ? m_depCacheValue : 0u;
+    const uint32_t localTbw = std::max<uint32_t>(state.context.tex0.tbw, 1u);
+    // This draw's row-local reads need no ordering against writes to the same buffer.
+    auto readLocalTo = [&](uint64_t key)
+    {
+        return localTbp != UINT32_MAX && ((key >> 40) & 1u) == 0u && static_cast<uint32_t>(key & 0xFFFFu) * 32u == localTbp &&
+               static_cast<uint32_t>((key >> 16) & 0xFFFFu) == localTbw && ct32LayoutPsm(static_cast<uint32_t>((key >> 32) & 0xFFu));
+    };
+    // An earlier row-local read vs this draw's target (same rows, same worker).
+    auto earlierLocalTo = [&](const DirtyRange &read, uint64_t key)
+    {
+        return read.localTbp != UINT32_MAX && ((key >> 40) & 1u) == 0u && static_cast<uint32_t>(key & 0xFFFFu) * 32u == read.localTbp &&
+               static_cast<uint32_t>((key >> 16) & 0xFFFFu) == read.localTbw && ct32LayoutPsm(static_cast<uint32_t>((key >> 32) & 0xFFu));
+    };
     const GSContext &ctx = state.context;
     const uint32_t fbw = std::max<uint32_t>(ctx.frame.fbw, 1u);
     const uint32_t rows = static_cast<uint32_t>(ctx.scissor.y1) + 1u, row0 = static_cast<uint32_t>(ctx.scissor.y0);
@@ -1554,11 +1651,11 @@ uint64_t GSCpuBackend::DrawDepUnlocked(const GSDrawState &state, uint32_t texSta
             else if (range.key == 0u)
             {
                 for (uint32_t t = 0; t < targetCount && !hit; ++t)
-                    hit = range.start < targets[t].end && targets[t].start < range.end;
+                    hit = range.start < targets[t].end && targets[t].start < range.end && !earlierLocalTo(range, targets[t].key);
             }
             else
             {
-                hit = reads && range.start < texEnd && texStart < range.end;
+                hit = reads && range.start < texEnd && texStart < range.end && !readLocalTo(range.key);
                 for (uint32_t t = 0; t < targetCount && !hit; ++t)
                     hit = range.key != targets[t].key && range.start < targets[t].end && targets[t].start < range.end;
             }
@@ -1570,6 +1667,9 @@ uint64_t GSCpuBackend::DrawDepUnlocked(const GSDrawState &state, uint32_t texSta
         }
     }
     m_depCacheSerial = m_epochSerial;
+    m_depCacheTexStart = texStart;
+    m_depCacheTexEnd = texEnd;
+    m_depCacheLocal = localTbp;
     std::memcpy(&m_depCacheState, &state, sizeof(GSDrawState));
     m_depCacheValue = dep;
     return dep;
@@ -1635,7 +1735,24 @@ void GSCpuBackend::NoteDrawHazardsUnlocked(const GSPrimitiveBatch &batch, bool s
 
     bool barrier = m_dirty.size() >= 16u;
     DirtyRange tex{0u, 0u, 0u};
-    if (state.prim.tme)
+    int su0 = 0, su1 = 0, sv0 = 0, sv1 = 0;
+    bool rowLocal = false;
+    if (state.prim.tme && spriteTexRect(batch, su0, su1, sv0, sv1, rowLocal))
+    {
+        // Sprites: the texels actually sampled instead of the whole texture.
+        const GsByteRange r = gsBufferRange(ctx.tex0.tbp0, ctx.tex0.tbw, ctx.tex0.psm, static_cast<uint32_t>(sv1) + 1u,
+                                            static_cast<uint32_t>(sv0), static_cast<uint32_t>(su0), static_cast<uint32_t>(su1));
+        tex = {0u, r.start, r.end};
+        if (rowLocal)
+        {
+            tex.localTbp = ctx.tex0.tbp0;
+            tex.localTbw = std::max<uint32_t>(ctx.tex0.tbw, 1u);
+        }
+        m_lastTexStart = 0u; // the per-state cache below no longer describes the last primitive
+        m_lastTexEnd = 0u;
+        sameState = false;
+    }
+    else if (state.prim.tme)
     {
         if (!sameState)
         {
@@ -1645,10 +1762,18 @@ void GSCpuBackend::NoteDrawHazardsUnlocked(const GSPrimitiveBatch &batch, bool s
         }
         tex = {0u, m_lastTexStart, m_lastTexEnd};
     }
+    // Whether a write range (dirty key) is the buffer this row-local sprite reads, row for row.
+    auto localTo = [](const DirtyRange &read, uint64_t key)
+    {
+        return read.localTbp != UINT32_MAX && ((key >> 40) & 1u) == 0u &&
+               static_cast<uint32_t>(key & 0xFFFFu) * 32u == read.localTbp &&
+               static_cast<uint32_t>((key >> 16) & 0xFFFFu) == read.localTbw &&
+               ct32LayoutPsm(static_cast<uint32_t>((key >> 32) & 0xFFu));
+    };
     if (!barrier && state.prim.tme)
     {
         for (const DirtyRange &dirty : m_dirty)
-            if (overlaps(dirty, tex))
+            if (overlaps(dirty, tex) && !localTo(tex, dirty.key))
             {
                 barrier = true;
                 if (s_gsHazDebug) std::fprintf(stderr, "HAZ tex tbp=%x tbw=%u psm=%x th=%u [%x,%x) vs key=%llx [%x,%x) fbp=%x\n", ctx.tex0.tbp0, ctx.tex0.tbw, ctx.tex0.psm, state.textureHeight, tex.start, tex.end, (unsigned long long)dirty.key, dirty.start, dirty.end, ctx.frame.fbp);
@@ -1668,7 +1793,7 @@ void GSCpuBackend::NoteDrawHazardsUnlocked(const GSPrimitiveBatch &batch, bool s
         g_perfGsHazards.fetch_add(1u, std::memory_order_relaxed);
         EnqueueGlobalUnlocked(nullptr, 0u, 0u, true);
     }
-    m_nextDep = DrawDepUnlocked(state, tex.start, tex.end, sameState);
+    m_nextDep = DrawDepUnlocked(state, tex.start, tex.end, sameState, tex.localTbp);
 
     // This draw goes into the pending batch, which lands at the current write index or - if an
     // older batch is flushed first - the next one.
@@ -1700,6 +1825,12 @@ void GSCpuBackend::NoteDrawHazardsUnlocked(const GSPrimitiveBatch &batch, bool s
             {
                 read.start = std::min(read.start, tex.start);
                 read.end = std::max(read.end, tex.end);
+                // A merged read stays row-local only if both parts are for the same buffer.
+                if (read.localTbp != tex.localTbp || read.localTbw != tex.localTbw)
+                {
+                    read.localTbp = UINT32_MAX;
+                    read.localTbw = 0u;
+                }
                 merged = true;
                 break;
             }
@@ -1709,6 +1840,8 @@ void GSCpuBackend::NoteDrawHazardsUnlocked(const GSPrimitiveBatch &batch, bool s
             {
                 m_reads.back().start = std::min(m_reads.back().start, tex.start);
                 m_reads.back().end = std::max(m_reads.back().end, tex.end);
+                m_reads.back().localTbp = UINT32_MAX;
+                m_reads.back().localTbw = 0u;
             }
             else
                 m_reads.push_back(tex);
