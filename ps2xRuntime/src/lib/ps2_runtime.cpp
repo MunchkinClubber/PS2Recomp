@@ -658,6 +658,15 @@ static void UploadFrame(Texture2D &tex, PS2Runtime *rt, uint32_t &outWidth, uint
     static std::vector<uint8_t> s_scratch;
     static std::vector<uint8_t> s_uploadBuffer(DEFAULT_FB_SIZE, 0u);
 
+    // The Vulkan renderer hands its frames to the host directly: nothing to copy here.
+    if (rt->gs().presentsOnGpu())
+    {
+        outWidth = (s_lastWidth != 0u) ? s_lastWidth : FB_WIDTH;
+        outHeight = (s_lastHeight != 0u) ? s_lastHeight : DEFAULT_DISPLAY_HEIGHT;
+        s_hasLatchedInitialFrame = false; // latch afresh if the CPU path takes over again
+        return;
+    }
+
     const uint64_t currentTick = rt->eeScheduler().currentVSyncTick();
     const bool needsLatch = !s_hasLatchedInitialFrame || currentTick != s_lastPresentationTick;
     if (needsLatch)
@@ -1099,19 +1108,6 @@ bool PS2Runtime::syncCoreSubsystems()
     }
 
     m_gs.init(gsVram, static_cast<uint32_t>(PS2_GS_VRAM_SIZE), &m_memory.gs());
-#if defined(PS2X_GS_VULKAN)
-    // PS2_GS_BACKEND=vulkan: draw on the GPU (the CPU renderer stays the default).
-    if (const char *gsBackend = std::getenv("PS2_GS_BACKEND"); gsBackend && (gsBackend[0] == 'v' || gsBackend[0] == 'V'))
-    {
-        if (auto vk = ps2CreateVulkanGsBackend())
-        {
-            m_gs.setRasterBackend(std::move(vk));
-            std::fprintf(stderr, "[gs] Vulkan renderer enabled\n");
-        }
-        else
-            std::fprintf(stderr, "[gs] Vulkan renderer unavailable, using the CPU renderer\n");
-    }
-#endif
     {
         extern void (*g_ps2GsSyncHook)();
         static GS *s_gsForSync = nullptr;
@@ -1245,6 +1241,22 @@ bool PS2Runtime::initialize(const char *title)
         startAdmaPlayback();
 #endif
         SetTargetFPS(60);
+#if defined(PS2X_GS_VULKAN)
+        // The Vulkan renderer is the default (PS2_GS_BACKEND=cpu for the CPU renderer). Created
+        // after the window so it can share the window's device and show its frames directly.
+        if (const char *gsBackend = std::getenv("PS2_GS_BACKEND"); !(gsBackend && (gsBackend[0] == 'c' || gsBackend[0] == 'C')))
+        {
+            if (auto vk = ps2CreateVulkanGsBackend())
+            {
+                m_gs.setRasterBackend(std::move(vk));
+                std::fprintf(stderr, "[gs] Vulkan renderer enabled\n");
+            }
+            else
+                std::fprintf(stderr, "[gs] Vulkan renderer unavailable, using the CPU renderer\n");
+        }
+        else
+            std::fprintf(stderr, "[gs] CPU renderer (PS2_GS_BACKEND=cpu)\n");
+#endif
 #if defined(PS2X_HOST_SDL3)
         // The debug panel is built on raylib/rlImGui, which the SDL3 host does not run.
         if (m_debugUiInitCallback)

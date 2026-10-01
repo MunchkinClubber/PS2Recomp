@@ -130,6 +130,8 @@ public:
     void setDebugHistoryPaused(bool paused);
     bool getPreferredDisplaySource(GSFrameReg &outSource, uint32_t &outDestFbp) const;
     void latchHostPresentationFrame();
+    // The backend shows its flips straight from the GPU: no frame to latch for the host.
+    bool presentsOnGpu() const;
     // Called in command order when the game writes DISPFB1/2 (its flip): the backend captures the
     // displayed frame at exactly this point.
     void notePresentPoint();

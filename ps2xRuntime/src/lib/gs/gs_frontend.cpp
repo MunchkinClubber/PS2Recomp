@@ -598,6 +598,12 @@ void GS::notePresentPoint()
         m_backend->QueuePresentSnapshot(request);
 }
 
+bool GS::presentsOnGpu() const
+{
+    std::lock_guard<std::mutex> backendLock(m_backendLifetimeMutex);
+    return m_backend && m_backend->PresentsOnGpu();
+}
+
 void GS::latchHostPresentationFrame()
 {
     GSPresentationRequest request{};

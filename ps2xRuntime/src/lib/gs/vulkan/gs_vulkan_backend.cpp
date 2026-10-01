@@ -27,6 +27,11 @@
 #include "runtime/gs/ps2_gs_common.h"
 #include "runtime/gs/ps2_gs_memory.h"
 #include "shaders/gs_shaders.h"
+#if defined(PS2X_HOST_SDL3)
+#include "ps2_host_vulkan.h"
+#endif
+struct HostVulkanShared;
+struct HostGpuFrame;
 
 #include <algorithm>
 #include <array>
@@ -584,7 +589,7 @@ class GsVulkanBackend final : public GSRasterBackend
 public:
     GsVulkanBackend() = default;
     ~GsVulkanBackend() override;
-    bool Create();
+    bool Create(const struct HostVulkanShared *shared);
 
     void Initialize(uint8_t *vram, uint32_t vramSize) override;
     void Reset() override;
@@ -603,6 +608,7 @@ public:
     void WriteVram(uint32_t psm, uint32_t base, uint32_t bw, uint32_t x, uint32_t y, uint32_t value) override;
     void SnapshotVram(std::vector<uint8_t> &out) const override;
     GSTransferSnapshot GetTransferSnapshot() const override;
+    bool PresentsOnGpu() const override;
 
 private:
     struct GpuImage
@@ -747,12 +753,24 @@ private:
         bool hasPresent = false;
         std::vector<uint16_t> presentPages;
         GSPresentationRequest presentReq{};
+        // GPU presentation: the display pass of this submission writes m_presentImg[gpuImage]
+        // (published at submit, ready when m_readySem reaches gpuValue).
+        int gpuImage = -1;
+        uint64_t gpuValue = 0;
+        uint32_t gpuW = 0, gpuH = 0;
+        // PS2_GS_VK_CHECKPRESENT: the display image read back, compared with the CPU picture.
+        VkBuffer checkBuf = VK_NULL_HANDLE;
+        VkDeviceMemory checkMem = VK_NULL_HANDLE;
+        uint8_t *checkPtr = nullptr;
+        bool checkCoherent = true;
+        bool hasCheck = false;
     };
     Slot m_slots[2];
     uint32_t m_cur = 0;
     uint32_t m_poolUsed = 0;
     uint64_t m_completedSerial = 0; // every command buffer with a lower serial has completed
     void submitAsync();
+    void queueSubmit();
     void completeSlot(uint32_t i);
     void reserve(uint32_t ringBytes, uint32_t sets);
     bool m_cmdOpen = false;
@@ -839,6 +857,50 @@ private:
     std::unordered_map<uint64_t, PaletteEntry> m_palCache; // decoded palettes for the current CLUT
     uint64_t m_palVersion = ~0ull;
 
+    // GPU presentation: at each flip the displayed picture is built from the mirror into one of
+    // these images, which the host blits to the swapchain (no trip through the CPU).
+    struct DispSrc
+    {
+        uint32_t valid = 0, bp = 0, bw = 0, psm = 0, ox = 0, oy = 0, w = 0, h = 0;
+    };
+    struct DispParams // matches Params in shaders/gs_display.comp (std430)
+    {
+        DispSrc src[6];
+        uint32_t circuits = 0, fallback = 0, outW = 0, outH = 0;
+        uint32_t mmod = 0, amod = 0, slbg = 0, alp = 0;
+        uint32_t bgcolor = 0, bob = 0, oddField = 0;
+        uint32_t tables[3]{};
+    };
+    static constexpr uint32_t kPresentImages = 4u; // published + up to two being shown + one to draw
+    static constexpr uint32_t kPresentW = 640u, kPresentH = 512u;
+    bool buildDisplayParams(const GSPresentationRequest &request, DispParams &dp) const;
+    int pickPresentImage();
+    void recordDisplay(const DispParams &dp, int image);
+    void checkPresent(Slot &sl, const std::vector<uint8_t> &snap);
+    static bool provideFrame(void *user, struct HostGpuFrame &out, uint64_t releaseValue);
+    bool m_gpuPresent = false;   // build the picture on the GPU at flips
+    bool m_hostPresent = false;  // ... and the host shows it
+    bool m_checkPresent = false;
+    bool m_sharedDevice = false;
+    std::mutex *m_queueMutex = nullptr; // the host's queue lock when the device is shared
+    VkSemaphore m_releaseSem = VK_NULL_HANDLE; // host's: images it has finished reading
+    VkSemaphore m_readySem = VK_NULL_HANDLE;   // ours: display passes done
+    uint64_t m_readyValue = 0;
+    GpuImage m_presentImg[kPresentImages];
+    VkBuffer m_dispCount = VK_NULL_HANDLE;
+    VkDeviceMemory m_dispCountMem = VK_NULL_HANDLE;
+    VkPipeline m_displayPipe = VK_NULL_HANDLE;
+    mutable std::mutex m_gpuFrameMutex; // the published frame and m_presentLastUse
+    uint64_t m_presentLastUse[kPresentImages]{};
+    uint32_t m_presentNext = 0;
+    int m_pubImage = -1;
+    uint32_t m_pubW = 0, m_pubH = 0;
+    uint64_t m_pubValue = 0;
+    bool m_pubGpu = false; // the last flip went through the GPU display pass
+    uint64_t m_pubNs = 0;
+    mutable bool m_hostUseGpu = true; // PresentsOnGpu()'s last answer: the host frame follows it
+    uint64_t m_statGpuFlips = 0, m_statCheckBad = 0, m_statChecks = 0;
+
     // Presentation
     std::mutex m_presentMutex;
     std::vector<uint8_t> m_snapLatest;
@@ -883,15 +945,31 @@ private:
 
 GsVulkanBackend::~GsVulkanBackend()
 {
+#if defined(PS2X_HOST_SDL3)
+    if (m_hostPresent)
+        HostVulkanSetFrameProvider(nullptr, nullptr);
+#endif
     if (!m_device)
     {
-        if (m_instance)
+        if (m_instance && !m_sharedDevice)
             m_it.vkDestroyInstance ? m_it.vkDestroyInstance(m_instance, nullptr) : void();
         return;
     }
     if (m_stats)
         printStats();
-    m_dt.vkDeviceWaitIdle(m_device);
+    if (m_queueMutex)
+    {
+        std::lock_guard<std::mutex> qlock(*m_queueMutex);
+        m_dt.vkDeviceWaitIdle(m_device);
+    }
+    else
+        m_dt.vkDeviceWaitIdle(m_device);
+    for (GpuImage &img : m_presentImg)
+        destroyImage(img);
+    if (m_displayPipe) m_dt.vkDestroyPipeline(m_device, m_displayPipe, nullptr);
+    if (m_dispCount) m_dt.vkDestroyBuffer(m_device, m_dispCount, nullptr);
+    if (m_dispCountMem) m_dt.vkFreeMemory(m_device, m_dispCountMem, nullptr);
+    if (m_readySem) m_dt.vkDestroySemaphore(m_device, m_readySem, nullptr);
     for (Target *t : m_targets)
     {
         destroyImage(t->img);
@@ -937,17 +1015,27 @@ GsVulkanBackend::~GsVulkanBackend()
         if (sl.compPool) m_dt.vkDestroyDescriptorPool(m_device, sl.compPool, nullptr);
         if (sl.presentBuf) m_dt.vkDestroyBuffer(m_device, sl.presentBuf, nullptr);
         if (sl.presentMem) m_dt.vkFreeMemory(m_device, sl.presentMem, nullptr);
+        if (sl.checkBuf) m_dt.vkDestroyBuffer(m_device, sl.checkBuf, nullptr);
+        if (sl.checkMem) m_dt.vkFreeMemory(m_device, sl.checkMem, nullptr);
         for (GpuImage &img : sl.defImages)
             destroyImage(img);
     }
     if (m_cmdPool) m_dt.vkDestroyCommandPool(m_device, m_cmdPool, nullptr);
+    if (m_sharedDevice)
+    {
+#if defined(PS2X_HOST_SDL3)
+        HostVulkanRelease(); // the host's device: it goes when the host is done with it too
+#endif
+        return;
+    }
     m_dt.vkDestroyDevice(m_device, nullptr);
     m_it.vkDestroyInstance(m_instance, nullptr);
 }
 
-bool GsVulkanBackend::Create()
+bool GsVulkanBackend::Create(const HostVulkanShared *shared)
 {
     m_stats = envFlag("PS2_GS_VK_STATS");
+    m_checkPresent = envFlag("PS2_GS_VK_CHECKPRESENT");
     m_noAlias = envFlag("PS2_GS_VK_NOALIAS");
     m_noBias = envFlag("PS2_GS_VK_NOBIAS");
     m_cpuDecode = envFlag("PS2_GS_VK_CPUDECODE");
@@ -955,6 +1043,40 @@ bool GsVulkanBackend::Create()
     m_syncPresent = envFlag("PS2_GS_VK_SYNCPRESENT");
     m_cpu.SetSynchronous();
     m_presenter.SetSynchronous();
+#if defined(PS2X_HOST_SDL3)
+    if (shared && !envFlag("PS2_GS_VK_OWNDEVICE"))
+    {
+        // The host's device: what is drawn here can be shown without leaving the GPU.
+        m_sharedDevice = true;
+        HostVulkanRetain();
+        m_instance = shared->instance;
+        m_phys = shared->physical;
+        m_device = shared->device;
+        m_queue = shared->queue;
+        m_queueFamily = shared->queueFamily;
+        m_queueMutex = shared->queueMutex;
+        m_releaseSem = shared->releaseSemaphore;
+        m_depthClamp = shared->depthClamp;
+        m_dualSrc = shared->dualSrcBlend && envFlag("PS2_GS_VK_DUALSRC");
+        volkLoadInstanceTable(&m_it, m_instance);
+        volkLoadDeviceTable(&m_dt, m_device);
+        VkPhysicalDeviceProperties props{};
+        m_it.vkGetPhysicalDeviceProperties(m_phys, &props);
+        std::fprintf(stderr, "[gs:vk] using %s (shared with the window)%s\n", props.deviceName, m_dualSrc ? " (dual-source blending)" : "");
+        m_it.vkGetPhysicalDeviceMemoryProperties(m_phys, &m_memProps);
+        m_gpuPresent = !envFlag("PS2_GS_VK_CPUPRESENT");
+        if (!createDeviceObjects())
+            return false;
+        if (m_gpuPresent)
+        {
+            m_hostPresent = true;
+            HostVulkanSetFrameProvider(&GsVulkanBackend::provideFrame, this);
+        }
+        return true;
+    }
+#else
+    (void)shared;
+#endif
     if (volkInitialize() != VK_SUCCESS)
     {
         std::fprintf(stderr, "[gs:vk] no Vulkan loader\n");
@@ -1072,6 +1194,8 @@ bool GsVulkanBackend::Create()
     }
     volkLoadDeviceTable(&m_dt, m_device);
     m_dt.vkGetDeviceQueue(m_device, m_queueFamily, 0, &m_queue);
+    // Own device (no window to show on): the display pass only runs to be checked.
+    m_gpuPresent = m_checkPresent || envFlag("PS2_GS_VK_GPUPRESENT");
     return createDeviceObjects();
 }
 
@@ -1264,6 +1388,37 @@ bool GsVulkanBackend::createDeviceObjects()
         std::fprintf(stderr, "[gs:vk] GPU texture decode unavailable, decoding on the CPU\n");
         m_cpuDecode = true;
     }
+    if (m_gpuPresent && (m_cpuDecode || !m_displayPipe))
+        m_gpuPresent = false;
+    if (m_gpuPresent)
+    {
+        // Display images, the display pass's counters and its "done" timeline semaphore.
+        bool ok = true;
+        for (GpuImage &img : m_presentImg)
+            ok = ok && createImage(img, kPresentW, kPresentH, VK_FORMAT_R8G8B8A8_UNORM,
+                                   VK_IMAGE_USAGE_STORAGE_BIT | VK_IMAGE_USAGE_TRANSFER_SRC_BIT, VK_IMAGE_ASPECT_COLOR_BIT);
+        ok = ok && createBuffer(64u, VK_BUFFER_USAGE_STORAGE_BUFFER_BIT | VK_BUFFER_USAGE_TRANSFER_DST_BIT, VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT,
+                                m_dispCount, m_dispCountMem, nullptr);
+        VkSemaphoreTypeCreateInfo tci{VK_STRUCTURE_TYPE_SEMAPHORE_TYPE_CREATE_INFO};
+        tci.semaphoreType = VK_SEMAPHORE_TYPE_TIMELINE;
+        VkSemaphoreCreateInfo sci{VK_STRUCTURE_TYPE_SEMAPHORE_CREATE_INFO};
+        sci.pNext = &tci;
+        ok = ok && m_dt.vkCreateSemaphore(m_device, &sci, nullptr, &m_readySem) == VK_SUCCESS;
+        if (m_checkPresent)
+            for (Slot &sl : m_slots)
+            {
+                void *mapped = nullptr;
+                ok = ok && createBuffer(kPresentW * kPresentH * 4u, VK_BUFFER_USAGE_TRANSFER_DST_BIT,
+                                        VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_CACHED_BIT, sl.checkBuf, sl.checkMem, &mapped,
+                                        &sl.checkCoherent);
+                sl.checkPtr = static_cast<uint8_t *>(mapped);
+            }
+        if (!ok)
+        {
+            std::fprintf(stderr, "[gs:vk] GPU presentation unavailable, presenting through the CPU\n");
+            m_gpuPresent = false;
+        }
+    }
     submitAndWait();
     return true;
 }
@@ -1327,18 +1482,7 @@ void GsVulkanBackend::barrier()
 void GsVulkanBackend::submitAndWait()
 {
     if (m_cmdOpen)
-    {
-        endRendering();
-        m_dt.vkEndCommandBuffer(m_cmd);
-        VkSubmitInfo si{VK_STRUCTURE_TYPE_SUBMIT_INFO};
-        si.commandBufferCount = 1;
-        si.pCommandBuffers = &m_cmd;
-        m_dt.vkQueueSubmit(m_queue, 1, &si, m_fence);
-        m_slots[m_cur].pending = true;
-        m_slots[m_cur].serial = m_submitSerial++;
-        m_cmdOpen = false;
-        ++m_statSubmits;
-    }
+        queueSubmit();
     {
         ScopeTimer timer(m_iv.waitNs);
         ++m_iv.waits;
@@ -1354,18 +1498,7 @@ void GsVulkanBackend::submitAndWait()
 void GsVulkanBackend::submitAsync()
 {
     if (m_cmdOpen)
-    {
-        endRendering();
-        m_dt.vkEndCommandBuffer(m_cmd);
-        VkSubmitInfo si{VK_STRUCTURE_TYPE_SUBMIT_INFO};
-        si.commandBufferCount = 1;
-        si.pCommandBuffers = &m_cmd;
-        m_dt.vkQueueSubmit(m_queue, 1, &si, m_fence);
-        m_slots[m_cur].pending = true;
-        m_slots[m_cur].serial = m_submitSerial++;
-        m_cmdOpen = false;
-        ++m_statSubmits;
-    }
+        queueSubmit();
     m_cur ^= 1u;
     {
         ScopeTimer timer(m_iv.waitNs);
@@ -1376,6 +1509,53 @@ void GsVulkanBackend::submitAsync()
     m_compPool = m_slots[m_cur].compPool;
     m_ringOffset = 0;
     m_poolUsed = 0;
+}
+
+// Ends and submits the current command buffer. A display pass in it signals m_readySem and is
+// published (to the host) once submitted.
+void GsVulkanBackend::queueSubmit()
+{
+    endRendering();
+    m_dt.vkEndCommandBuffer(m_cmd);
+    Slot &sl = m_slots[m_cur];
+    VkSubmitInfo si{VK_STRUCTURE_TYPE_SUBMIT_INFO};
+    si.commandBufferCount = 1;
+    si.pCommandBuffers = &m_cmd;
+    VkTimelineSemaphoreSubmitInfo tsi{VK_STRUCTURE_TYPE_TIMELINE_SEMAPHORE_SUBMIT_INFO};
+    if (sl.gpuImage >= 0)
+    {
+        sl.gpuValue = ++m_readyValue;
+        tsi.signalSemaphoreValueCount = 1;
+        tsi.pSignalSemaphoreValues = &sl.gpuValue;
+        si.signalSemaphoreCount = 1;
+        si.pSignalSemaphores = &m_readySem;
+        si.pNext = &tsi;
+    }
+    VkResult r;
+    if (m_queueMutex)
+    {
+        std::lock_guard<std::mutex> qlock(*m_queueMutex);
+        r = m_dt.vkQueueSubmit(m_queue, 1, &si, m_fence);
+    }
+    else
+        r = m_dt.vkQueueSubmit(m_queue, 1, &si, m_fence);
+    if (r != VK_SUCCESS)
+        std::fprintf(stderr, "[gs:vk] vkQueueSubmit failed (%d)\n", static_cast<int>(r));
+    sl.pending = true;
+    sl.serial = m_submitSerial++;
+    m_cmdOpen = false;
+    ++m_statSubmits;
+    if (sl.gpuImage >= 0)
+    {
+        std::lock_guard<std::mutex> lock(m_gpuFrameMutex);
+        m_pubImage = sl.gpuImage;
+        m_pubW = sl.gpuW;
+        m_pubH = sl.gpuH;
+        m_pubValue = sl.gpuValue;
+        m_pubGpu = true;
+        m_pubNs = nowNs();
+        sl.gpuImage = -1;
+    }
 }
 
 void GsVulkanBackend::completeSlot(uint32_t i)
@@ -1412,6 +1592,8 @@ void GsVulkanBackend::completeSlot(uint32_t i)
         std::vector<uint8_t> snap(m_vram, m_vram + m_vramSize);
         for (uint16_t p : sl.presentPages)
             std::memcpy(snap.data() + static_cast<size_t>(p) * 8192u, sl.presentPtr + static_cast<size_t>(p) * 8192u, 8192u);
+        if (sl.hasCheck)
+            checkPresent(sl, snap);
         std::lock_guard<std::mutex> plock(m_presentMutex);
         m_snapLatest.swap(snap);
         m_snapRequest = sl.presentReq;
@@ -2438,6 +2620,8 @@ bool GsVulkanBackend::createComputeObjects()
     if (!makePipe(kGsDecodeSpv, sizeof(kGsDecodeSpv), m_decodePipe) || !makePipe(kGsOverlaySpv, sizeof(kGsOverlaySpv), m_overlayPipe) ||
         !makePipe(kGsUnswizzleSpv, sizeof(kGsUnswizzleSpv), m_unswizzlePipe))
         return false;
+    if (!makePipe(kGsDisplaySpv, sizeof(kGsDisplaySpv), m_displayPipe))
+        m_displayPipe = VK_NULL_HANDLE;
     VkDescriptorPoolSize ps[3] = {{VK_DESCRIPTOR_TYPE_STORAGE_BUFFER, 4 * kCompSets}, {VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, kCompSets}, {VK_DESCRIPTOR_TYPE_STORAGE_IMAGE, kCompSets}};
     VkDescriptorPoolCreateInfo dpi{VK_STRUCTURE_TYPE_DESCRIPTOR_POOL_CREATE_INFO};
     dpi.maxSets = kCompSets;
@@ -3528,6 +3712,27 @@ void GsVulkanBackend::QueuePresentSnapshot(const GSPresentationRequest &request)
     if (m_stats && (m_statFlips % 300u) == 0u)
         printStats();
     const PageSet pages = displayPages(request);
+    DispParams dp;
+    const bool gpuFlip = m_gpuPresent && gpuMem() && buildDisplayParams(request, dp);
+    if (!gpuFlip && m_gpuPresent)
+    {
+        std::lock_guard<std::mutex> lock(m_gpuFrameMutex);
+        m_pubGpu = false; // this picture goes through the CPU
+    }
+    if (gpuFlip && !m_checkPresent)
+    {
+        // Build the picture on the GPU; the host shows it once this submission has run.
+        ensureMirrorCurrent(pages);
+        const int image = pickPresentImage();
+        recordDisplay(dp, image);
+        Slot &sl = m_slots[m_cur];
+        sl.gpuImage = image;
+        sl.gpuW = dp.outW;
+        sl.gpuH = dp.outH;
+        ++m_statGpuFlips;
+        submitAsync();
+        return;
+    }
     if (gpuMem() && !m_syncPresent)
     {
         // Copy the display pages out of the mirror at this point of the command stream, submit
@@ -3552,6 +3757,25 @@ void GsVulkanBackend::QueuePresentSnapshot(const GSPresentationRequest &request)
         m_dt.vkCmdPipelineBarrier(m_cmd, VK_PIPELINE_STAGE_TRANSFER_BIT, VK_PIPELINE_STAGE_HOST_BIT, 0, 1, &mb, 0, nullptr, 0, nullptr);
         sl.presentReq = request;
         sl.hasPresent = true;
+        if (gpuFlip)
+        {
+            // PS2_GS_VK_CHECKPRESENT: the display pass too, read back and compared with the CPU
+            // picture of the same snapshot when this slot completes.
+            const int image = pickPresentImage();
+            recordDisplay(dp, image);
+            Slot &cs = m_slots[m_cur];
+            VkBufferImageCopy region{};
+            region.imageSubresource = {VK_IMAGE_ASPECT_COLOR_BIT, 0, 0, 1};
+            region.imageExtent = {kPresentW, kPresentH, 1};
+            m_dt.vkCmdCopyImageToBuffer(m_cmd, m_presentImg[image].image, VK_IMAGE_LAYOUT_TRANSFER_SRC_OPTIMAL, cs.checkBuf, 1, &region);
+            m_dt.vkCmdPipelineBarrier(m_cmd, VK_PIPELINE_STAGE_TRANSFER_BIT, VK_PIPELINE_STAGE_HOST_BIT, 0, 1, &mb, 0, nullptr, 0, nullptr);
+            cs.hasCheck = true;
+            cs.gpuW = dp.outW;
+            cs.gpuH = dp.outH;
+            if (m_hostPresent)
+                cs.gpuImage = image;
+            ++m_statGpuFlips;
+        }
         submitAsync();
         return;
     }
@@ -3561,6 +3785,304 @@ void GsVulkanBackend::QueuePresentSnapshot(const GSPresentationRequest &request)
     m_snapRequest = request;
     m_haveSnap = true;
     m_lastFlipNs.store(nowNs(), std::memory_order_relaxed);
+}
+
+// The CPU presenter's choice of picture (GSCpuBackend::PresentFromLocalMemory) as display pass
+// parameters. False when that path would show nothing: the flip then goes through the CPU.
+bool GsVulkanBackend::buildDisplayParams(const GSPresentationRequest &request, DispParams &dp) const
+{
+    dp = DispParams{};
+    auto kindOf = [](uint32_t psm) -> int
+    {
+        switch (psm)
+        {
+        case GS_PSM_CT32: return 0;
+        case GS_PSM_CT24: return 1;
+        case GS_PSM_CT16: return 2;
+        case GS_PSM_CT16S: return 3;
+        default: return -1;
+        }
+    };
+    struct Circuit
+    {
+        bool valid = false;
+        uint32_t fbp = 0, fbw = 0, psm = 0, ox = 0, oy = 0, w = 0, h = 0;
+    } crt[2];
+    const uint64_t pmode = request.pmode;
+    const uint64_t dispfb[2] = {request.dispfb1, request.dispfb2};
+    const uint64_t display[2] = {request.display1, request.display2};
+    for (int c = 0; c < 2; ++c)
+    {
+        Circuit &k = crt[c];
+        k.fbp = static_cast<uint32_t>(dispfb[c] & 0x1FFu);
+        k.fbw = static_cast<uint32_t>((dispfb[c] >> 9) & 0x3Fu);
+        k.psm = static_cast<uint32_t>((dispfb[c] >> 15) & 0x1Fu);
+        k.ox = static_cast<uint32_t>((dispfb[c] >> 32) & 0x7FFu);
+        k.oy = static_cast<uint32_t>((dispfb[c] >> 43) & 0x7FFu);
+        const uint32_t dw = static_cast<uint32_t>((display[c] >> 32) & 0x0FFFu);
+        const uint32_t dh = static_cast<uint32_t>((display[c] >> 44) & 0x07FFu);
+        const uint32_t magh = static_cast<uint32_t>((display[c] >> 23) & 0x0Fu);
+        k.w = (dw + 1u) / (magh + 1u);
+        k.h = dh + 1u;
+        if (k.w < 64u || k.h < 64u)
+        {
+            k.w = 640u;
+            k.h = 448u;
+        }
+        k.w = std::min(k.w, kPresentW);
+        k.h = std::min(k.h, kPresentH);
+        k.valid = ((pmode >> c) & 1u) != 0u && (k.fbw != 0u || dw != 0u || dh != 0u || magh != 0u);
+    }
+    if (!crt[0].valid && !crt[1].valid)
+        return false;
+
+    // Circuit c's display buffer (or the preferred source), and its fallbacks.
+    auto setCircuit = [&](int c, bool allowPreferred) -> bool
+    {
+        const Circuit &k = crt[c];
+        DispSrc *s = &dp.src[c * 3];
+        bool usedPreferred = false;
+        const GSFrameReg &pref = request.preferredSource;
+        if (allowPreferred && request.hasPreferredSource && request.preferredDestFbp == k.fbp && (pref.fbw != 0u || pref.fbp != k.fbp) &&
+            kindOf(pref.psm) >= 0)
+        {
+            // CopyFrameToHostRgba(preferredSource, ..., frameBaseIsPages = false): its fbp is a block address.
+            s[0] = {1u, pref.fbp, pref.fbw ? pref.fbw : 10u, static_cast<uint32_t>(kindOf(pref.psm)), 0u, 0u, k.w, k.h};
+            usedPreferred = true;
+        }
+        if (!usedPreferred)
+        {
+            if (kindOf(k.psm) < 0)
+                return false;
+            s[0] = {1u, k.fbp << 5, k.fbw ? k.fbw : 10u, static_cast<uint32_t>(kindOf(k.psm)), k.ox, k.oy, k.w, k.h};
+        }
+        if (!usedPreferred && k.fbp == 0u)
+        {
+            dp.fallback |= 1u << c;
+            int n = 1;
+            for (const GSFrameReg &f : request.contextFrames)
+            {
+                if ((f.fbp == k.fbp && f.fbw == k.fbw && f.psm == k.psm) || kindOf(f.psm) < 0)
+                    continue;
+                s[n++] = {1u, f.fbp << 5, f.fbw ? f.fbw : 10u, static_cast<uint32_t>(kindOf(f.psm)), 0u, 0u, k.w, k.h};
+            }
+        }
+        return true;
+    };
+    bool merged = false;
+    if (crt[0].valid && crt[1].valid)
+    {
+        if (setCircuit(0, false) && setCircuit(1, false))
+        {
+            merged = true;
+            dp.circuits = 3u;
+            dp.outW = std::max(crt[0].w, crt[1].w);
+            dp.outH = std::max(crt[0].h, crt[1].h);
+        }
+        else
+            dp = DispParams{};
+    }
+    if (!merged)
+    {
+        const int c = crt[0].valid ? 0 : 1;
+        if (!setCircuit(c, true))
+            return false;
+        dp.circuits = 1u << c;
+        dp.outW = crt[c].w;
+        dp.outH = crt[c].h;
+    }
+    dp.mmod = static_cast<uint32_t>((pmode >> 5) & 1u);
+    dp.amod = static_cast<uint32_t>((pmode >> 6) & 1u);
+    dp.slbg = static_cast<uint32_t>((pmode >> 7) & 1u);
+    dp.alp = static_cast<uint32_t>((pmode >> 8) & 0xFFu);
+    dp.bgcolor = static_cast<uint32_t>(request.bgcolor & 0xFFFFFFu);
+    static const bool s_bob = []
+    {
+        const char *v = std::getenv("PS2_FIELD_PRESENT");
+        return v && (v[0] == 'b' || v[0] == 'B');
+    }();
+    const bool interlaced = (request.smode2 & 1u) != 0u, frameMode = ((request.smode2 >> 1) & 1u) != 0u;
+    dp.bob = (s_bob && interlaced && !frameMode) ? 1u : 0u;
+    dp.oddField = static_cast<uint32_t>(request.vsyncTick & 1u);
+    dp.tables[0] = m_lutOffset[0];
+    dp.tables[1] = m_lutOffset[1];
+    dp.tables[2] = m_lutOffset[2];
+    return true;
+}
+
+// A display image the host is not reading and will not pick up (not the published one).
+int GsVulkanBackend::pickPresentImage()
+{
+    for (int attempt = 0; attempt < 2; ++attempt)
+    {
+        uint64_t released = 0;
+        if (m_releaseSem)
+            m_dt.vkGetSemaphoreCounterValue(m_device, m_releaseSem, &released);
+        uint64_t oldest = ~0ull;
+        {
+            std::lock_guard<std::mutex> lock(m_gpuFrameMutex);
+            for (uint32_t k = 0; k < kPresentImages; ++k)
+            {
+                const uint32_t i = (m_presentNext + k) % kPresentImages;
+                if (static_cast<int>(i) == m_pubImage)
+                    continue;
+                if (m_presentLastUse[i] <= released)
+                {
+                    m_presentNext = (i + 1u) % kPresentImages;
+                    return static_cast<int>(i);
+                }
+                oldest = std::min(oldest, m_presentLastUse[i]);
+            }
+        }
+        // All being shown (should not happen with four): wait for the oldest, briefly.
+        ScopeTimer timer(m_iv.waitNs);
+        VkSemaphoreWaitInfo wi{VK_STRUCTURE_TYPE_SEMAPHORE_WAIT_INFO};
+        wi.semaphoreCount = 1;
+        wi.pSemaphores = &m_releaseSem;
+        wi.pValues = &oldest;
+        m_dt.vkWaitSemaphores(m_device, &wi, 100000000ull);
+    }
+    const uint32_t i = m_presentNext;
+    m_presentNext = (i + 1u) % kPresentImages;
+    return static_cast<int>(i == static_cast<uint32_t>(m_pubImage) ? (i + 1u) % kPresentImages : i);
+}
+
+void GsVulkanBackend::recordDisplay(const DispParams &dp, int image)
+{
+    reserve(static_cast<uint32_t>(sizeof(DispParams)) + static_cast<uint32_t>(m_ssboAlign), 1u);
+    const uint32_t off = ringAlloc(static_cast<uint32_t>(sizeof(DispParams)), static_cast<uint32_t>(m_ssboAlign));
+    std::memcpy(m_ringPtr + off, &dp, sizeof(DispParams));
+    VkDescriptorSet set = computeSet();
+    GpuImage &img = m_presentImg[image];
+    VkDescriptorImageInfo ii{VK_NULL_HANDLE, img.view, VK_IMAGE_LAYOUT_GENERAL};
+    VkDescriptorBufferInfo pb{m_ring, off, sizeof(DispParams)}, cb{m_dispCount, 0, VK_WHOLE_SIZE};
+    VkWriteDescriptorSet w[3]{};
+    for (int i = 0; i < 3; ++i)
+    {
+        w[i].sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET;
+        w[i].dstSet = set;
+        w[i].descriptorCount = 1;
+    }
+    w[0].dstBinding = 3;
+    w[0].descriptorType = VK_DESCRIPTOR_TYPE_STORAGE_IMAGE;
+    w[0].pImageInfo = &ii;
+    w[1].dstBinding = 4;
+    w[1].descriptorType = VK_DESCRIPTOR_TYPE_STORAGE_BUFFER;
+    w[1].pBufferInfo = &pb;
+    w[2].dstBinding = 5;
+    w[2].descriptorType = VK_DESCRIPTOR_TYPE_STORAGE_BUFFER;
+    w[2].pBufferInfo = &cb;
+    m_dt.vkUpdateDescriptorSets(m_device, 3, w, 0, nullptr);
+
+    barrier();
+    m_dt.vkCmdBindPipeline(m_cmd, VK_PIPELINE_BIND_POINT_COMPUTE, m_displayPipe);
+    m_dt.vkCmdBindDescriptorSets(m_cmd, VK_PIPELINE_BIND_POINT_COMPUTE, m_compPipeLayout, 0, 1, &set, 0, nullptr);
+    uint32_t pass = 0;
+    if (dp.fallback)
+    {
+        m_dt.vkCmdFillBuffer(m_cmd, m_dispCount, 0, VK_WHOLE_SIZE, 0u);
+        barrier();
+        m_dt.vkCmdPushConstants(m_cmd, m_compPipeLayout, VK_SHADER_STAGE_COMPUTE_BIT, 0, sizeof(pass), &pass);
+        m_dt.vkCmdDispatch(m_cmd, kPresentW / 8u, kPresentH / 8u, 1);
+        barrier();
+    }
+    VkImageMemoryBarrier ib{VK_STRUCTURE_TYPE_IMAGE_MEMORY_BARRIER};
+    ib.srcAccessMask = VK_ACCESS_MEMORY_WRITE_BIT;
+    ib.dstAccessMask = VK_ACCESS_SHADER_WRITE_BIT;
+    ib.oldLayout = VK_IMAGE_LAYOUT_UNDEFINED; // whatever the last picture left is not needed
+    ib.newLayout = VK_IMAGE_LAYOUT_GENERAL;
+    ib.srcQueueFamilyIndex = ib.dstQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED;
+    ib.image = img.image;
+    ib.subresourceRange = {VK_IMAGE_ASPECT_COLOR_BIT, 0, 1, 0, 1};
+    m_dt.vkCmdPipelineBarrier(m_cmd, VK_PIPELINE_STAGE_ALL_COMMANDS_BIT, VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT, 0, 0, nullptr, 0, nullptr, 1, &ib);
+    pass = 1;
+    m_dt.vkCmdPushConstants(m_cmd, m_compPipeLayout, VK_SHADER_STAGE_COMPUTE_BIT, 0, sizeof(pass), &pass);
+    m_dt.vkCmdDispatch(m_cmd, kPresentW / 8u, kPresentH / 8u, 1);
+    // Ready for the host's blit (or the check readback).
+    ib.srcAccessMask = VK_ACCESS_SHADER_WRITE_BIT;
+    ib.dstAccessMask = VK_ACCESS_TRANSFER_READ_BIT;
+    ib.oldLayout = VK_IMAGE_LAYOUT_GENERAL;
+    ib.newLayout = VK_IMAGE_LAYOUT_TRANSFER_SRC_OPTIMAL;
+    m_dt.vkCmdPipelineBarrier(m_cmd, VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT, VK_PIPELINE_STAGE_TRANSFER_BIT, 0, 0, nullptr, 0, nullptr, 1, &ib);
+    m_curPipeline = VK_NULL_HANDLE;
+}
+
+// PS2_GS_VK_CHECKPRESENT: compares the display pass's picture with the CPU presenter's.
+void GsVulkanBackend::checkPresent(Slot &sl, const std::vector<uint8_t> &snap)
+{
+    sl.hasCheck = false;
+    if (!sl.checkCoherent)
+    {
+        VkMappedMemoryRange r{VK_STRUCTURE_TYPE_MAPPED_MEMORY_RANGE};
+        r.memory = sl.checkMem;
+        r.size = VK_WHOLE_SIZE;
+        m_dt.vkInvalidateMappedMemoryRanges(m_device, 1, &r);
+    }
+    std::vector<uint8_t> copy = snap;
+    m_presenter.Initialize(copy.data(), static_cast<uint32_t>(copy.size()));
+    const PresentationFrame ref = m_presenter.Present(sl.presentReq);
+    ++m_statChecks;
+    uint32_t bad = 0, firstX = 0, firstY = 0;
+    const bool sizeOk = ref.width == sl.gpuW && ref.height == sl.gpuH;
+    if (ref && sizeOk)
+        for (uint32_t y = 0; y < ref.height; ++y)
+            for (uint32_t x = 0; x < ref.width; ++x)
+            {
+                const uint8_t *a = ref.pixels.data() + (static_cast<size_t>(y) * 640u + x) * 4u;
+                const uint8_t *b = sl.checkPtr + (static_cast<size_t>(y) * kPresentW + x) * 4u;
+                if (a[0] != b[0] || a[1] != b[1] || a[2] != b[2])
+                {
+                    if (bad++ == 0)
+                    {
+                        firstX = x;
+                        firstY = y;
+                    }
+                }
+            }
+    if (!ref || !sizeOk || bad)
+    {
+        ++m_statCheckBad;
+        if (m_statCheckBad <= 20u)
+            std::fprintf(stderr, "[gs:vk] present check: cpu %ux%u gpu %ux%u, %u pixels differ (first %u,%u)\n", ref.width, ref.height, sl.gpuW,
+                         sl.gpuH, bad, firstX, firstY);
+    }
+}
+
+bool GsVulkanBackend::provideFrame(void *user, HostGpuFrame &out, uint64_t releaseValue)
+{
+#if defined(PS2X_HOST_SDL3)
+    GsVulkanBackend *self = static_cast<GsVulkanBackend *>(user);
+    std::lock_guard<std::mutex> lock(self->m_gpuFrameMutex);
+    // Follow the runtime's choice for this host frame (it skipped or made the CPU picture).
+    if (!self->m_hostUseGpu || self->m_pubImage < 0)
+        return false;
+    const int i = self->m_pubImage;
+    out.image = self->m_presentImg[i].image;
+    out.imageWidth = kPresentW;
+    out.imageHeight = kPresentH;
+    out.width = self->m_pubW;
+    out.height = self->m_pubH;
+    out.ready = self->m_readySem;
+    out.readyValue = self->m_pubValue;
+    self->m_presentLastUse[i] = releaseValue;
+    return true;
+#else
+    (void)user;
+    (void)out;
+    (void)releaseValue;
+    return false;
+#endif
+}
+
+bool GsVulkanBackend::PresentsOnGpu() const
+{
+    if (!m_hostPresent)
+        return false;
+    // While the game flips, the picture of its last flip; when it stops flipping (or a flip
+    // needs the CPU path), Present() snapshots on the CPU as before.
+    std::lock_guard<std::mutex> lock(m_gpuFrameMutex);
+    m_hostUseGpu = m_pubGpu && m_pubImage >= 0 && nowNs() - m_pubNs <= 250000000ull;
+    return m_hostUseGpu;
 }
 
 PresentationFrame GsVulkanBackend::Present(const GSPresentationRequest &request)
@@ -3668,6 +4190,11 @@ void GsVulkanBackend::printStats()
                  (unsigned long long)m_statSubmits, (unsigned long long)m_statDownloads, (unsigned long long)m_statDownloadPx,
                  (unsigned long long)m_statUploads, (unsigned long long)m_statUploadRows, (unsigned long long)m_statTexUploads,
                  (unsigned long long)m_statTexHits, (unsigned long long)m_statTexRehash, m_targets.size(), m_textures.size());
+    std::fprintf(stderr, "[gs:vk] flips=%llu shown from the GPU=%llu%s", (unsigned long long)m_statFlips, (unsigned long long)m_statGpuFlips,
+                 m_hostPresent ? "" : " (not shown: no window)");
+    if (m_checkPresent)
+        std::fprintf(stderr, ", present checks=%llu mismatched=%llu", (unsigned long long)m_statChecks, (unsigned long long)m_statCheckBad);
+    std::fprintf(stderr, "\n");
     std::fprintf(stderr, "[gs:vk] cpu fallbacks:");
     for (int i = 0; i < FB_COUNT; ++i)
         if (m_statFallback[i])
@@ -3684,8 +4211,12 @@ void GsVulkanBackend::printStats()
 
 std::unique_ptr<GSRasterBackend> ps2CreateVulkanGsBackend()
 {
+    const HostVulkanShared *shared = nullptr;
+#if defined(PS2X_HOST_SDL3)
+    shared = HostVulkanGetShared();
+#endif
     auto backend = std::make_unique<GsVulkanBackend>();
-    if (!backend->Create())
+    if (!backend->Create(shared))
         return nullptr;
     return backend;
 }

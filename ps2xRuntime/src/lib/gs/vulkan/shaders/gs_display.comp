@@ -1,0 +1,117 @@
+#version 450
+#extension GL_GOOGLE_include_directive : require
+// The displayed picture, read out of the GS memory mirror: GSCpuBackend::PresentFromLocalMemory
+// on the GPU (one or both read circuits, the PMODE merge, the "display buffer 0 is black, show a
+// context frame buffer instead" fallback, optional field bob). Alpha is always 255.
+//   pass 0: count the non-black pixels of each source that has a fallback (into res[])
+//   pass 1: write the picture into outImg
+layout(local_size_x = 8, local_size_y = 8) in;
+#include "gs_mem.glsl"
+layout(set = 0, binding = 3, rgba8) uniform writeonly image2D outImg;
+
+struct Src
+{
+    uint valid; // 0: unused
+    uint bp;    // base block
+    uint bw;    // width, 64-pixel units
+    uint psm;   // 0 CT32, 1 CT24, 2 CT16, 3 CT16S
+    uint ox, oy;
+    uint w, h;
+};
+layout(std430, set = 0, binding = 4) readonly buffer Params
+{
+    // per read circuit c (0, 1): src[c * 3] the display buffer, src[c * 3 + 1..2] fallbacks
+    Src src[6];
+    uint circuits;   // bit 0: circuit 1 shown, bit 1: circuit 2 shown (both: merge)
+    uint fallback;   // bit c: circuit c may fall back
+    uint outW, outH; // picture size
+    uint mmod, amod, slbg, alp;
+    uint bgcolor;
+    uint bob, oddField;
+    uint tables[3];  // C32, C16, C16S table offsets
+} P;
+layout(std430, set = 0, binding = 5) buffer Res { uint res[]; }; // non-black counts per source
+
+layout(push_constant) uniform PC { uint pass; } pc;
+
+// Pixel (x, y) of a source as RGBA (alpha as the CPU path's preserveAlpha gives it).
+uvec4 fetchPixel(Src s, uint x, uint y)
+{
+    const uint sx = s.ox + x, sy = s.oy + y;
+    if (s.psm <= 1u)
+    {
+        const uint a = pixelAddr(P.tables[0], 64u, 32u, s.bp, s.bw, sx, sy);
+        const uint c = vram[a & 0xFFFFFu];
+        return uvec4(c & 0xFFu, (c >> 8) & 0xFFu, (c >> 16) & 0xFFu, s.psm == 1u ? 255u : (c >> 24));
+    }
+    const uint a = pixelAddr(s.psm == 2u ? P.tables[1] : P.tables[2], 64u, 64u, s.bp, s.bw, sx, sy);
+    const uint byteAddr = (a * 2u) & 0x3FFFFEu;
+    const uint c = (vram[byteAddr >> 2] >> ((byteAddr & 2u) * 8u)) & 0xFFFFu;
+    const uint r = c & 31u, g = (c >> 5) & 31u, b = (c >> 10) & 31u;
+    return uvec4((r << 3) | (r >> 2), (g << 3) | (g >> 2), (b << 3) | (b >> 2), (c & 0x8000u) != 0u ? 0x80u : 0u);
+}
+
+// The source a circuit shows: its display buffer, or (fallback) the first candidate with any
+// non-black pixel when the display buffer has none.
+uint pickSource(uint c)
+{
+    const uint s0 = c * 3u;
+    if ((P.fallback & (1u << c)) == 0u || res[s0] != 0u)
+        return s0;
+    for (uint k = 1u; k < 3u; ++k)
+        if (P.src[s0 + k].valid != 0u && res[s0 + k] != 0u)
+            return s0 + k;
+    return s0;
+}
+
+uint blendChannel(uint src, uint dst, uint factor)
+{
+    const int delta = int(src) - int(dst);
+    return uint(clamp(int(dst) + (delta * int(factor)) / 255, 0, 255));
+}
+
+void main()
+{
+    const uvec2 g = gl_GlobalInvocationID.xy;
+    if (pc.pass == 0u)
+    {
+        for (uint i = 0u; i < 6u; ++i)
+        {
+            const Src s = P.src[i];
+            if (s.valid == 0u || (P.fallback & (1u << (i / 3u))) == 0u || g.x >= s.w || g.y >= s.h)
+                continue;
+            if (any(notEqual(fetchPixel(s, g.x, g.y).rgb, uvec3(0u))))
+                atomicAdd(res[i], 1u);
+        }
+        return;
+    }
+    if (g.x >= imageSize(outImg).x || g.y >= imageSize(outImg).y)
+        return;
+    uint y = g.y;
+    if (P.bob != 0u && P.outH >= 2u)
+        y = min(((y >> 1) << 1) + P.oddField, P.outH - 1u);
+    uvec3 rgb = uvec3(0u);
+    if (g.x < P.outW && y < P.outH)
+    {
+        if (P.circuits == 3u)
+        {
+            rgb = uvec3(P.bgcolor & 0xFFu, (P.bgcolor >> 8) & 0xFFu, (P.bgcolor >> 16) & 0xFFu);
+            const Src s2 = P.src[pickSource(1u)];
+            if (P.slbg == 0u && g.x < s2.w && y < s2.h)
+                rgb = fetchPixel(s2, g.x, y).rgb;
+            const Src s1 = P.src[pickSource(0u)];
+            if (g.x < s1.w && y < s1.h)
+            {
+                const uvec4 c = fetchPixel(s1, g.x, y);
+                const uint factor = P.mmod != 0u ? P.alp : min(255u, c.a * 2u);
+                rgb = uvec3(blendChannel(c.r, rgb.r, factor), blendChannel(c.g, rgb.g, factor), blendChannel(c.b, rgb.b, factor));
+            }
+        }
+        else
+        {
+            const Src s = P.src[pickSource(P.circuits == 2u ? 1u : 0u)];
+            rgb = fetchPixel(s, g.x, y).rgb;
+        }
+    }
+    imageStore(outImg, ivec2(g), vec4(vec3(rgb) / 255.0, 1.0));
+}

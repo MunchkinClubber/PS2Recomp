@@ -5,8 +5,12 @@
 #include <memory>
 
 // Vulkan GS backend: draws on the GPU (one render target per GS frame/Z buffer, textures decoded
-// from GS memory and cached), everything else (transfers, CLUT, readbacks, presentation) on the
-// CPU backend's code with GS memory kept coherent by downloading/uploading render targets as
-// needed. It creates its own Vulkan instance and device. Returns nullptr when no suitable device
-// is available (Vulkan 1.3 with dynamic rendering and dual-source blending).
+// from a GPU mirror of GS memory and cached); transfers, CLUT loads and readbacks run on the CPU
+// backend's code over GS memory, kept coherent with the mirror. With the SDL3 host it shares the
+// window's Vulkan device and builds the displayed picture on the GPU at each flip, which the host
+// shows directly (see ps2_host_vulkan.h); otherwise it creates its own device and presents through
+// the CPU. Returns nullptr when no suitable device is available (Vulkan 1.3 with dynamic rendering).
+//
+// Environment: PS2_GS_VK_CPUPRESENT=1 present through the CPU, PS2_GS_VK_OWNDEVICE=1 do not share
+// the window's device, PS2_GS_VK_CHECKPRESENT=1 compare each GPU picture with the CPU one (slow).
 std::unique_ptr<GSRasterBackend> ps2CreateVulkanGsBackend();

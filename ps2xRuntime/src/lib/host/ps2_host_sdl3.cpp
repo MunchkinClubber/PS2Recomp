@@ -1,16 +1,19 @@
 // SDL3 + Vulkan implementation of the raylib-compatible host API in ps2_host_sdl3.h.
 //
-// Window, input and audio come from SDL3. Frames are presented with Vulkan: the runtime's one
-// frame texture is copied into a GPU image and blitted (scaled) into the swapchain image. This is
-// the foundation the Vulkan renderer builds on; for now it shows exactly what the CPU renderer drew.
+// Window, input and audio come from SDL3. Frames are presented with Vulkan: either a frame the
+// Vulkan GS renderer drew on the same device (HostVulkanSetFrameProvider, see ps2_host_vulkan.h),
+// or the runtime's frame texture, copied into a GPU image; either is blitted (scaled) into the
+// swapchain image.
 //
 // Environment switches:
 //   PS2_VSYNC=1          present with FIFO (vsync) instead of MAILBOX/IMMEDIATE
 //   PS2_FILTER=linear    bilinear scaling of the game image (default: nearest, as before)
 //   PS2_VK_VALIDATION=1  enable the Khronos validation layer if installed
+//   PS2_VK_GPU=<n>       use the n-th Vulkan device
 //   Alt+Enter            toggle fullscreen
 
 #include "ps2_host_sdl3.h"
+#include "ps2_host_vulkan.h"
 
 #include <volk.h>
 #include <SDL3/SDL.h>
@@ -103,7 +106,24 @@ namespace
         uint32_t frameIndex = 0;
         bool linearFilter = false;
         bool vsync = false;
+        uint32_t apiVersion = VK_API_VERSION_1_1;
+        // Sharing the device with the GS renderer.
+        bool shareable = false;
+        HostVulkanShared shared{};
+        VkSemaphore releaseSem = VK_NULL_HANDLE;
+        uint64_t releaseValue = 0;
+        HostGpuFrameProvider provider = nullptr;
+        void *providerUser = nullptr;
     } g_vk;
+    std::mutex g_queueMutex;      // see HostVulkanShared::queueMutex; also guards the provider
+#if defined(PS2X_HOST_TEST_HOOKS)
+    // Offline tests: a copy of the last presented swapchain image (BGRA or RGBA as the swapchain).
+    VkBuffer g_testBuf = VK_NULL_HANDLE;
+    VkDeviceMemory g_testMem = VK_NULL_HANDLE;
+    void *g_testPtr = nullptr;
+    VkFence g_testFence = VK_NULL_HANDLE;
+#endif
+    std::atomic<int> g_vkRefs{0}; // host + renderer users of the device
 
     bool envIs(const char *name, const char *value)
     {
@@ -141,7 +161,12 @@ namespace
         VkApplicationInfo app{VK_STRUCTURE_TYPE_APPLICATION_INFO};
         app.pApplicationName = "PS2Recomp";
         app.pEngineName = "ps2xRuntime";
-        app.apiVersion = VK_API_VERSION_1_1;
+        // Vulkan 1.3 when the loader has it (the GS renderer needs it); presenting alone needs 1.1.
+        uint32_t loaderVersion = VK_API_VERSION_1_0;
+        if (vkEnumerateInstanceVersion)
+            vkEnumerateInstanceVersion(&loaderVersion);
+        g_vk.apiVersion = loaderVersion >= VK_API_VERSION_1_3 ? VK_API_VERSION_1_3 : VK_API_VERSION_1_1;
+        app.apiVersion = g_vk.apiVersion;
         VkInstanceCreateInfo ci{VK_STRUCTURE_TYPE_INSTANCE_CREATE_INFO};
         ci.pApplicationInfo = &app;
         ci.enabledExtensionCount = static_cast<uint32_t>(exts.size());
@@ -171,8 +196,11 @@ namespace
         std::vector<VkPhysicalDevice> devices(count);
         vkEnumeratePhysicalDevices(g_vk.instance, &count, devices.data());
         int bestScore = -1;
-        for (VkPhysicalDevice d : devices)
+        const char *forcedEnv = std::getenv("PS2_VK_GPU");
+        const int forced = forcedEnv ? std::atoi(forcedEnv) : -1;
+        for (size_t di = 0; di < devices.size(); ++di)
         {
+            VkPhysicalDevice d = devices[di];
             uint32_t qCount = 0;
             vkGetPhysicalDeviceQueueFamilyProperties(d, &qCount, nullptr);
             std::vector<VkQueueFamilyProperties> qs(qCount);
@@ -188,6 +216,8 @@ namespace
                 int score = props.deviceType == VK_PHYSICAL_DEVICE_TYPE_DISCRETE_GPU     ? 3
                             : props.deviceType == VK_PHYSICAL_DEVICE_TYPE_INTEGRATED_GPU ? 2
                                                                                          : 1;
+                if (static_cast<int>(di) == forced)
+                    score = 100;
                 if (score > bestScore)
                 {
                     bestScore = score;
@@ -224,7 +254,43 @@ namespace
         ci.pQueueCreateInfos = &qci;
         ci.enabledExtensionCount = 1;
         ci.ppEnabledExtensionNames = exts;
-        const VkResult r = vkCreateDevice(g_vk.physical, &ci, nullptr, &g_vk.device);
+
+        // What the GS renderer needs to share this device: Vulkan 1.3 dynamic rendering and
+        // timeline semaphores (+ depth clamp and dual-source blending when available).
+        VkPhysicalDeviceProperties props{};
+        vkGetPhysicalDeviceProperties(g_vk.physical, &props);
+        VkPhysicalDeviceVulkan12Features have12{VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_VULKAN_1_2_FEATURES};
+        VkPhysicalDeviceVulkan13Features have13{VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_VULKAN_1_3_FEATURES};
+        VkPhysicalDeviceFeatures2 have{VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_FEATURES_2};
+        const bool v13 = g_vk.apiVersion >= VK_API_VERSION_1_3 && props.apiVersion >= VK_API_VERSION_1_3;
+        if (v13)
+        {
+            have.pNext = &have12;
+            have12.pNext = &have13;
+        }
+        vkGetPhysicalDeviceFeatures2(g_vk.physical, &have);
+        VkPhysicalDeviceVulkan12Features want12{VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_VULKAN_1_2_FEATURES};
+        VkPhysicalDeviceVulkan13Features want13{VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_VULKAN_1_3_FEATURES};
+        VkPhysicalDeviceFeatures2 want{VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_FEATURES_2};
+        g_vk.shareable = v13 && have13.dynamicRendering && have12.timelineSemaphore;
+        if (g_vk.shareable)
+        {
+            want12.timelineSemaphore = VK_TRUE;
+            want13.dynamicRendering = VK_TRUE;
+            want.features.depthClamp = have.features.depthClamp;
+            want.features.dualSrcBlend = have.features.dualSrcBlend;
+            want.pNext = &want12;
+            want12.pNext = &want13;
+            ci.pNext = &want;
+        }
+        VkResult r = vkCreateDevice(g_vk.physical, &ci, nullptr, &g_vk.device);
+        if (r != VK_SUCCESS && g_vk.shareable)
+        {
+            logVk("vkCreateDevice (with renderer features)", r);
+            g_vk.shareable = false;
+            ci.pNext = nullptr;
+            r = vkCreateDevice(g_vk.physical, &ci, nullptr, &g_vk.device);
+        }
         if (r != VK_SUCCESS)
         {
             logVk("vkCreateDevice", r);
@@ -232,6 +298,30 @@ namespace
         }
         volkLoadDevice(g_vk.device);
         vkGetDeviceQueue(g_vk.device, g_vk.queueFamily, 0, &g_vk.queue);
+        if (g_vk.shareable)
+        {
+            VkSemaphoreTypeCreateInfo tci{VK_STRUCTURE_TYPE_SEMAPHORE_TYPE_CREATE_INFO};
+            tci.semaphoreType = VK_SEMAPHORE_TYPE_TIMELINE;
+            VkSemaphoreCreateInfo sci{VK_STRUCTURE_TYPE_SEMAPHORE_CREATE_INFO};
+            sci.pNext = &tci;
+            if (vkCreateSemaphore(g_vk.device, &sci, nullptr, &g_vk.releaseSem) != VK_SUCCESS)
+                g_vk.shareable = false;
+        }
+        if (g_vk.shareable)
+        {
+            HostVulkanShared &s = g_vk.shared;
+            s.instance = g_vk.instance;
+            s.physical = g_vk.physical;
+            s.device = g_vk.device;
+            s.queue = g_vk.queue;
+            s.queueFamily = g_vk.queueFamily;
+            s.queueMutex = &g_queueMutex;
+            s.depthClamp = want.features.depthClamp != VK_FALSE;
+            s.dualSrcBlend = want.features.dualSrcBlend != VK_FALSE;
+            s.releaseSemaphore = g_vk.releaseSem;
+        }
+        else
+            std::fprintf(stderr, "[host:vk] device lacks Vulkan 1.3 dynamic rendering / timeline semaphores: the GS renderer cannot share it\n");
         return true;
     }
 
@@ -344,7 +434,10 @@ namespace
         if (pw <= 0 || ph <= 0)
             return false; // minimised
 
-        vkDeviceWaitIdle(g_vk.device);
+        {
+            std::lock_guard<std::mutex> qlock(g_queueMutex);
+            vkDeviceWaitIdle(g_vk.device);
+        }
         VkSurfaceCapabilitiesKHR caps{};
         vkGetPhysicalDeviceSurfaceCapabilitiesKHR(g_vk.physical, g_vk.surface, &caps);
         if (caps.currentExtent.width == 0 || caps.currentExtent.height == 0)
@@ -399,6 +492,9 @@ namespace
         sci.imageExtent = extent;
         sci.imageArrayLayers = 1;
         sci.imageUsage = VK_IMAGE_USAGE_TRANSFER_DST_BIT | VK_IMAGE_USAGE_COLOR_ATTACHMENT_BIT;
+#if defined(PS2X_HOST_TEST_HOOKS)
+        sci.imageUsage |= VK_IMAGE_USAGE_TRANSFER_SRC_BIT;
+#endif
         sci.imageSharingMode = VK_SHARING_MODE_EXCLUSIVE;
         sci.preTransform = (caps.supportedTransforms & VK_SURFACE_TRANSFORM_IDENTITY_BIT_KHR) ? VK_SURFACE_TRANSFORM_IDENTITY_BIT_KHR : caps.currentTransform;
         sci.compositeAlpha = VK_COMPOSITE_ALPHA_OPAQUE_BIT_KHR;
@@ -455,14 +551,40 @@ namespace
             return false;
         createSwapchain(); // may be deferred if the window starts minimised
         g_vk.ok = true;
+        g_vkRefs.store(1);
         return true;
+    }
+
+    void releaseDevice()
+    {
+        if (g_vkRefs.fetch_sub(1) != 1)
+            return;
+        if (g_vk.releaseSem)
+            vkDestroySemaphore(g_vk.device, g_vk.releaseSem, nullptr);
+        vkDestroyDevice(g_vk.device, nullptr);
+        if (g_vk.instance)
+            vkDestroyInstance(g_vk.instance, nullptr);
+        // Only plain fields: this can run after g_vk's own destructor (the renderer may be a
+        // static destroyed later).
+        g_vk.releaseSem = VK_NULL_HANDLE;
+        g_vk.device = VK_NULL_HANDLE;
+        g_vk.instance = VK_NULL_HANDLE;
+        g_vk.physical = VK_NULL_HANDLE;
+        g_vk.queue = VK_NULL_HANDLE;
+        g_vk.shareable = false;
+        g_vk.shared = HostVulkanShared{};
+        g_vk.ok = false;
     }
 
     void shutdownVulkan()
     {
         if (!g_vk.device)
             return;
-        vkDeviceWaitIdle(g_vk.device);
+        {
+            std::lock_guard<std::mutex> qlock(g_queueMutex);
+            vkDeviceWaitIdle(g_vk.device);
+            g_vk.ok = false;
+        }
         for (FrameResources &f : g_vk.frames)
         {
             destroyFrameImage(f);
@@ -476,12 +598,13 @@ namespace
         }
         destroySwapchain(g_vk.swapchain);
         g_vk.swapchain = VK_NULL_HANDLE;
-        vkDestroyDevice(g_vk.device, nullptr);
         if (g_vk.surface)
             SDL_Vulkan_DestroySurface(g_vk.instance, g_vk.surface, nullptr);
-        if (g_vk.instance)
-            vkDestroyInstance(g_vk.instance, nullptr);
-        g_vk = Vk{};
+        g_vk.surface = VK_NULL_HANDLE;
+        // The device (and instance) go when the GS renderer is done with them too.
+        if (g_vkRefs.load() == 0)
+            g_vkRefs.store(1); // initialised without the reference (failed half way)
+        releaseDevice();
     }
 
     void imageBarrier(VkCommandBuffer cmd, VkImage image, VkImageLayout from, VkImageLayout to,
@@ -524,9 +647,15 @@ namespace
         }
         vkResetFences(g_vk.device, 1, &f.fence);
 
-        // Upload the game frame.
+        // From here to the present the queue is ours (the GS renderer submits on it too).
+        std::unique_lock<std::mutex> qlock(g_queueMutex);
+
+        // A frame the GS renderer drew on this device, if it offers one; else the runtime's texture.
+        HostGpuFrame gpu{};
+        const uint64_t releaseValue = g_vk.releaseValue + 1u;
+        const bool useGpu = g_vk.provider && g_vk.provider(g_vk.providerUser, gpu, releaseValue) && gpu.image && gpu.width && gpu.height;
         const HostTexture *tex = nullptr;
-        if (g_draw.valid)
+        if (!useGpu && g_draw.valid)
             if (auto it = g_textures.find(g_draw.texture); it != g_textures.end() && it->second.width > 0)
                 tex = &it->second;
         bool haveImage = false;
@@ -565,44 +694,113 @@ namespace
         const VkImageSubresourceRange range{VK_IMAGE_ASPECT_COLOR_BIT, 0, 1, 0, 1};
         vkCmdClearColorImage(cmd, swapImage, VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL, &clear, 1, &range);
 
-        if (haveImage)
+        if (haveImage || useGpu)
         {
-            // The runtime computed the destination rectangle from GetScreenWidth/Height, which report
-            // the swapchain size, so it maps directly. Clamp to be safe.
             auto clampi = [](float v, int lo, int hi) { return std::clamp(static_cast<int>(v + 0.5f), lo, hi); };
             const int ew = static_cast<int>(g_vk.swapExtent.width), eh = static_cast<int>(g_vk.swapExtent.height);
+            Rectangle src = g_draw.src, dst = g_draw.dst;
+            int iw = f.imageWidth, ih = f.imageHeight;
+            VkImage srcImage = f.image;
+            if (useGpu)
+            {
+                // Same layout as the runtime's: the whole picture, scaled to fit, centred.
+                srcImage = gpu.image;
+                iw = static_cast<int>(gpu.imageWidth);
+                ih = static_cast<int>(gpu.imageHeight);
+                const float sw = static_cast<float>(gpu.width), sh = static_cast<float>(gpu.height);
+                const float scale = std::min(static_cast<float>(ew) / sw, static_cast<float>(eh) / sh);
+                src = {0.0f, 0.0f, sw, sh};
+                dst = {(static_cast<float>(ew) - sw * scale) * 0.5f, (static_cast<float>(eh) - sh * scale) * 0.5f, sw * scale, sh * scale};
+            }
+            // Otherwise the runtime computed the destination rectangle from GetScreenWidth/Height,
+            // which report the swapchain size, so it maps directly. Clamp to be safe.
             VkImageBlit blit{};
             blit.srcSubresource = {VK_IMAGE_ASPECT_COLOR_BIT, 0, 0, 1};
             blit.dstSubresource = {VK_IMAGE_ASPECT_COLOR_BIT, 0, 0, 1};
-            blit.srcOffsets[0] = {clampi(g_draw.src.x, 0, f.imageWidth), clampi(g_draw.src.y, 0, f.imageHeight), 0};
-            blit.srcOffsets[1] = {clampi(g_draw.src.x + g_draw.src.width, 0, f.imageWidth), clampi(g_draw.src.y + g_draw.src.height, 0, f.imageHeight), 1};
-            blit.dstOffsets[0] = {clampi(g_draw.dst.x, 0, ew), clampi(g_draw.dst.y, 0, eh), 0};
-            blit.dstOffsets[1] = {clampi(g_draw.dst.x + g_draw.dst.width, 0, ew), clampi(g_draw.dst.y + g_draw.dst.height, 0, eh), 1};
+            blit.srcOffsets[0] = {clampi(src.x, 0, iw), clampi(src.y, 0, ih), 0};
+            blit.srcOffsets[1] = {clampi(src.x + src.width, 0, iw), clampi(src.y + src.height, 0, ih), 1};
+            blit.dstOffsets[0] = {clampi(dst.x, 0, ew), clampi(dst.y, 0, eh), 0};
+            blit.dstOffsets[1] = {clampi(dst.x + dst.width, 0, ew), clampi(dst.y + dst.height, 0, eh), 1};
             if (blit.srcOffsets[1].x > blit.srcOffsets[0].x && blit.srcOffsets[1].y > blit.srcOffsets[0].y &&
                 blit.dstOffsets[1].x > blit.dstOffsets[0].x && blit.dstOffsets[1].y > blit.dstOffsets[0].y)
-                vkCmdBlitImage(cmd, f.image, VK_IMAGE_LAYOUT_TRANSFER_SRC_OPTIMAL, swapImage, VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL,
+                vkCmdBlitImage(cmd, srcImage, VK_IMAGE_LAYOUT_TRANSFER_SRC_OPTIMAL, swapImage, VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL,
                                1, &blit, g_vk.linearFilter ? VK_FILTER_LINEAR : VK_FILTER_NEAREST);
         }
 
+#if defined(PS2X_HOST_TEST_HOOKS)
+        {
+            const VkDeviceSize bytes = static_cast<VkDeviceSize>(g_vk.swapExtent.width) * g_vk.swapExtent.height * 4u;
+            if (!g_testBuf)
+            {
+                VkBufferCreateInfo bci{VK_STRUCTURE_TYPE_BUFFER_CREATE_INFO};
+                bci.size = 4096u * 4096u * 4u;
+                bci.usage = VK_BUFFER_USAGE_TRANSFER_DST_BIT;
+                vkCreateBuffer(g_vk.device, &bci, nullptr, &g_testBuf);
+                VkMemoryRequirements req{};
+                vkGetBufferMemoryRequirements(g_vk.device, g_testBuf, &req);
+                VkMemoryAllocateInfo mai{VK_STRUCTURE_TYPE_MEMORY_ALLOCATE_INFO};
+                mai.allocationSize = req.size;
+                mai.memoryTypeIndex = findMemoryType(req.memoryTypeBits, VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT);
+                vkAllocateMemory(g_vk.device, &mai, nullptr, &g_testMem);
+                vkBindBufferMemory(g_vk.device, g_testBuf, g_testMem, 0);
+                vkMapMemory(g_vk.device, g_testMem, 0, VK_WHOLE_SIZE, 0, &g_testPtr);
+            }
+            (void)bytes;
+            imageBarrier(cmd, swapImage, VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL, VK_IMAGE_LAYOUT_TRANSFER_SRC_OPTIMAL,
+                         VK_ACCESS_TRANSFER_WRITE_BIT, VK_ACCESS_TRANSFER_READ_BIT, VK_PIPELINE_STAGE_TRANSFER_BIT, VK_PIPELINE_STAGE_TRANSFER_BIT);
+            VkBufferImageCopy copy{};
+            copy.imageSubresource = {VK_IMAGE_ASPECT_COLOR_BIT, 0, 0, 1};
+            copy.imageExtent = {g_vk.swapExtent.width, g_vk.swapExtent.height, 1u};
+            vkCmdCopyImageToBuffer(cmd, swapImage, VK_IMAGE_LAYOUT_TRANSFER_SRC_OPTIMAL, g_testBuf, 1, &copy);
+            imageBarrier(cmd, swapImage, VK_IMAGE_LAYOUT_TRANSFER_SRC_OPTIMAL, VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL,
+                         VK_ACCESS_TRANSFER_READ_BIT, VK_ACCESS_TRANSFER_WRITE_BIT, VK_PIPELINE_STAGE_TRANSFER_BIT, VK_PIPELINE_STAGE_TRANSFER_BIT);
+            g_testFence = f.fence;
+        }
+#endif
         imageBarrier(cmd, swapImage, VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL, VK_IMAGE_LAYOUT_PRESENT_SRC_KHR,
                      VK_ACCESS_TRANSFER_WRITE_BIT, 0, VK_PIPELINE_STAGE_TRANSFER_BIT, VK_PIPELINE_STAGE_BOTTOM_OF_PIPE_BIT);
         vkEndCommandBuffer(cmd);
 
-        const VkPipelineStageFlags waitStage = VK_PIPELINE_STAGE_TRANSFER_BIT;
+        // With a renderer frame: also wait for it to be drawn, and signal when it has been read.
+        const VkPipelineStageFlags waitStages[2] = {VK_PIPELINE_STAGE_TRANSFER_BIT, VK_PIPELINE_STAGE_TRANSFER_BIT};
+        const VkSemaphore waits[2] = {f.imageAvailable, gpu.ready};
+        const uint64_t waitValues[2] = {0u, gpu.readyValue};
+        const VkSemaphore signals[2] = {g_vk.renderDone[imageIndex], g_vk.releaseSem};
+        const uint64_t signalValues[2] = {0u, releaseValue};
+        VkTimelineSemaphoreSubmitInfo tsi{VK_STRUCTURE_TYPE_TIMELINE_SEMAPHORE_SUBMIT_INFO};
         VkSubmitInfo si{VK_STRUCTURE_TYPE_SUBMIT_INFO};
-        si.waitSemaphoreCount = 1;
-        si.pWaitSemaphores = &f.imageAvailable;
-        si.pWaitDstStageMask = &waitStage;
+        si.waitSemaphoreCount = useGpu ? 2u : 1u;
+        si.pWaitSemaphores = waits;
+        si.pWaitDstStageMask = waitStages;
         si.commandBufferCount = 1;
         si.pCommandBuffers = &cmd;
-        si.signalSemaphoreCount = 1;
-        si.pSignalSemaphores = &g_vk.renderDone[imageIndex];
+        si.signalSemaphoreCount = useGpu ? 2u : 1u;
+        si.pSignalSemaphores = signals;
+        if (useGpu)
+        {
+            tsi.waitSemaphoreValueCount = 2;
+            tsi.pWaitSemaphoreValues = waitValues;
+            tsi.signalSemaphoreValueCount = 2;
+            tsi.pSignalSemaphoreValues = signalValues;
+            si.pNext = &tsi;
+        }
         r = vkQueueSubmit(g_vk.queue, 1, &si, f.fence);
         if (r != VK_SUCCESS)
         {
             logVk("vkQueueSubmit", r);
+            if (useGpu)
+            {
+                // The renderer is told the image is free at releaseValue: get there anyway.
+                VkSemaphoreSignalInfo ssi{VK_STRUCTURE_TYPE_SEMAPHORE_SIGNAL_INFO};
+                ssi.semaphore = g_vk.releaseSem;
+                ssi.value = releaseValue;
+                vkSignalSemaphore(g_vk.device, &ssi);
+                g_vk.releaseValue = releaseValue;
+            }
             return;
         }
+        if (useGpu)
+            g_vk.releaseValue = releaseValue;
 
         VkPresentInfoKHR pi{VK_STRUCTURE_TYPE_PRESENT_INFO_KHR};
         pi.waitSemaphoreCount = 1;
@@ -786,6 +984,37 @@ namespace
         std::vector<uint8_t> data;
     };
 }
+
+// ================================================================ shared device
+const HostVulkanShared *HostVulkanGetShared()
+{
+    return g_vk.ok && g_vk.shareable ? &g_vk.shared : nullptr;
+}
+
+void HostVulkanRetain() { g_vkRefs.fetch_add(1); }
+void HostVulkanRelease() { releaseDevice(); }
+
+void HostVulkanSetFrameProvider(HostGpuFrameProvider provider, void *user)
+{
+    std::lock_guard<std::mutex> qlock(g_queueMutex);
+    g_vk.provider = provider;
+    g_vk.providerUser = user;
+}
+
+#if defined(PS2X_HOST_TEST_HOOKS)
+// The last presented picture (swapchain format, 4 bytes per pixel), after its submission completes.
+bool HostTestReadLastFrame(std::vector<uint8_t> &out, int &width, int &height, bool &bgr)
+{
+    if (!g_testPtr || !g_testFence)
+        return false;
+    vkWaitForFences(g_vk.device, 1, &g_testFence, VK_TRUE, UINT64_MAX);
+    width = static_cast<int>(g_vk.swapExtent.width);
+    height = static_cast<int>(g_vk.swapExtent.height);
+    bgr = g_vk.swapFormat == VK_FORMAT_B8G8R8A8_UNORM || g_vk.swapFormat == VK_FORMAT_B8G8R8A8_SRGB;
+    out.assign(static_cast<const uint8_t *>(g_testPtr), static_cast<const uint8_t *>(g_testPtr) + static_cast<size_t>(width) * height * 4u);
+    return true;
+}
+#endif
 
 // ================================================================ window / frame
 void SetConfigFlags(unsigned int flags) { g_configFlags |= flags; }
