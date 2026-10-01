@@ -1,0 +1,41 @@
+#version 450
+// The displayed picture straight from an upscaled render target (one read circuit showing a
+// colour buffer the GPU drew): the target's scale x scale pixels per GS pixel are kept. Alpha
+// is 255; 16-bit pixels are expanded as the GS does (5 bits -> 8, the top bits repeated).
+layout(local_size_x = 8, local_size_y = 8) in;
+layout(set = 0, binding = 2) uniform sampler2D src;
+layout(set = 0, binding = 3, rgba8) uniform writeonly image2D outImg;
+
+layout(push_constant) uniform PC
+{
+    uint ox, oy;  // display origin in the buffer (GS pixels)
+    uint w, h;    // picture size (output pixels)
+    uint scale;
+    uint ct16;
+    uint bob, oddField;
+} pc;
+
+void main()
+{
+    const uvec2 g = gl_GlobalInvocationID.xy;
+    if (g.x >= uint(imageSize(outImg).x) || g.y >= uint(imageSize(outImg).y))
+        return;
+    if (g.x >= pc.w || g.y >= pc.h)
+    {
+        imageStore(outImg, ivec2(g), vec4(0.0, 0.0, 0.0, 1.0));
+        return;
+    }
+    uint y = g.y;
+    if (pc.bob != 0u)
+    {
+        // Field bob on GS lines, each line repeated (scale rows per line).
+        const uint line = y / pc.scale, nLines = pc.h / pc.scale;
+        const uint src = min(((line >> 1) << 1) + pc.oddField, nLines - 1u);
+        y = src * pc.scale + (y % pc.scale);
+    }
+    const vec4 c = texelFetch(src, ivec2(pc.ox * pc.scale + g.x, pc.oy * pc.scale + y), 0);
+    uvec3 rgb = uvec3(round(clamp(c.rgb, 0.0, 1.0) * 255.0));
+    if (pc.ct16 != 0u)
+        rgb = (rgb & 0xF8u) | (rgb >> 5);
+    imageStore(outImg, ivec2(g), vec4(vec3(rgb) / 255.0, 1.0));
+}

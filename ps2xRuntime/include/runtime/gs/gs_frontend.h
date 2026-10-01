@@ -132,6 +132,9 @@ public:
     void latchHostPresentationFrame();
     // The backend shows its flips straight from the GPU: no frame to latch for the host.
     bool presentsOnGpu() const;
+    // Internal resolution of a GPU backend (render pixels per GS pixel); see GSRasterBackend.
+    void setResolutionScale(uint32_t scale);
+    uint32_t resolutionScale() const;
     // Called in command order when the game writes DISPFB1/2 (its flip): the backend captures the
     // displayed frame at exactly this point.
     void notePresentPoint();

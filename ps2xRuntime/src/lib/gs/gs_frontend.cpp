@@ -604,6 +604,19 @@ bool GS::presentsOnGpu() const
     return m_backend && m_backend->PresentsOnGpu();
 }
 
+void GS::setResolutionScale(uint32_t scale)
+{
+    std::lock_guard<std::mutex> backendLock(m_backendLifetimeMutex);
+    if (m_backend)
+        m_backend->SetResolutionScale(scale);
+}
+
+uint32_t GS::resolutionScale() const
+{
+    std::lock_guard<std::mutex> backendLock(m_backendLifetimeMutex);
+    return m_backend ? m_backend->ResolutionScale() : 1u;
+}
+
 void GS::latchHostPresentationFrame()
 {
     GSPresentationRequest request{};

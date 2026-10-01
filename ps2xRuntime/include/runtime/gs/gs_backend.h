@@ -28,6 +28,10 @@ public:
     // True while the flips are shown straight from the GPU (the host gets the picture from the
     // backend itself): Present() is then not needed.
     virtual bool PresentsOnGpu() const { return false; }
+    // Internal resolution: render-target pixels per GS pixel in each direction (1 = native).
+    // Backends that cannot upscale ignore it. Takes effect at the next flip.
+    virtual void SetResolutionScale(uint32_t) {}
+    virtual uint32_t ResolutionScale() const { return 1u; }
 
     virtual bool ClearFramebuffer(const GSContext &context, uint32_t rgba) = 0;
     virtual uint32_t ConsumeLocalToHostBytes(uint8_t *dst, uint32_t maxBytes) = 0;

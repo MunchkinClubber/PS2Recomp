@@ -3413,6 +3413,13 @@ void PS2Runtime::run()
             g_ssx3TransferLogged.store(120u); // allow 80 more [ssx3:xfer] lines (cap is 200)
             RUNTIME_LOG("[ssx3:prim] F10 pressed, logging a burst of 80 sampled primitives" << std::endl);
         }
+        if (IsKeyPressed(KEY_F8))
+        {
+            // Internal resolution (Vulkan renderer): 1x -> 2x -> 3x -> 4x -> 1x.
+            const uint32_t next = m_gs.resolutionScale() % 4u + 1u;
+            m_gs.setResolutionScale(next);
+            std::fprintf(stderr, "[gs] internal resolution %ux (F8)\n", m_gs.resolutionScale());
+        }
         if (IsKeyPressed(KEY_F9))
         {
             g_ssx3DumpRequested.store(true);

@@ -1,0 +1,74 @@
+#version 450
+#extension GL_GOOGLE_include_directive : require
+// Rows of a colour target rebuilt from another target over the same GS memory in the other
+// pixel size (a 32-bit buffer seen as 16-bit or back), at the targets' upscaled resolution:
+// each output pixel takes its bits from the pixel(s) that hold the same memory, at the same
+// sub-pixel position. Output as linear RGBA8 rows (w x h) in Out, copied into the target.
+layout(local_size_x = 8, local_size_y = 8) in;
+#include "gs_mem.glsl"
+layout(set = 0, binding = 2) uniform sampler2D src;
+layout(std430, set = 0, binding = 5) writeonly buffer Out { uint outData[]; };
+
+layout(push_constant) uniform PC
+{
+    uint mode;     // 0: 16-bit output from a 32-bit source, 1: 32-bit output from a 16-bit source
+    uint bp;       // base block (page aligned)
+    uint bw;       // width in 64-pixel units (the page width of both formats)
+    uint t32;      // C32 forward table
+    uint t16;      // forward table of the 16-bit format (C16 or C16S)
+    uint inv32;    // inverse tables: offset in page -> x | y << 6
+    uint inv16;
+    uint y0;       // first output row (GS pixels)
+    uint w, h;     // output size (upscaled pixels)
+    uint scale;
+    uint ct24;     // 32-bit output is CT24 (alpha byte not stored)
+} pc;
+
+uvec4 srcBytes(uint x, uint y, uvec2 sub)
+{
+    return uvec4(round(clamp(texelFetch(src, ivec2(uvec2(x, y) * pc.scale + sub), 0), 0.0, 1.0) * 255.0));
+}
+
+// Buffer pixel holding a page offset, from an inverse table (page relative to the base).
+uvec2 pixelOf(uint page, uint inv, uint off, uint ph)
+{
+    const uint rel = (page - pc.bp / 32u) & 511u;
+    const uint e = lutEntry(inv + off);
+    return uvec2((rel % pc.bw) * 64u + (e & 63u), (rel / pc.bw) * ph + (e >> 6));
+}
+
+void main()
+{
+    const uvec2 g = gl_GlobalInvocationID.xy;
+    if (g.x >= pc.w || g.y >= pc.h)
+        return;
+    const uvec2 sub = g % pc.scale;
+    const uint x = g.x / pc.scale, y = g.y / pc.scale + pc.y0;
+    uint px;
+    if (pc.mode == 0u)
+    {
+        const uint a16 = pixelAddr(pc.t16, 64u, 64u, pc.bp, pc.bw, x, y);
+        const uint word = (a16 >> 1) & 0xFFFFFu;
+        const uvec2 p = pixelOf(word / 2048u, pc.inv32, word % 2048u, 32u);
+        const uvec4 c = srcBytes(p.x, p.y, sub);
+        const uint v32 = c.r | (c.g << 8) | (c.b << 16) | (c.a << 24);
+        const uint v16 = (a16 & 1u) != 0u ? (v32 >> 16) : (v32 & 0xFFFFu);
+        px = ((v16 & 0x1Fu) << 3) | (((v16 >> 5) & 0x1Fu) << 11) | (((v16 >> 10) & 0x1Fu) << 19) | (((v16 >> 15) & 1u) << 31);
+    }
+    else
+    {
+        const uint word = pixelAddr(pc.t32, 64u, 32u, pc.bp, pc.bw, x, y) & 0xFFFFFu;
+        uint halves[2];
+        for (uint i = 0u; i < 2u; ++i)
+        {
+            const uint h16 = word * 2u + i;
+            const uvec2 p = pixelOf(h16 / 4096u, pc.inv16, h16 % 4096u, 64u);
+            const uvec4 c = srcBytes(p.x, p.y, sub);
+            halves[i] = (c.r >> 3) | ((c.g >> 3) << 5) | ((c.b >> 3) << 10) | ((c.a >> 7) << 15);
+        }
+        px = halves[0] | (halves[1] << 16);
+        if (pc.ct24 != 0u)
+            px = (px & 0x00FFFFFFu) | 0x80000000u;
+    }
+    outData[g.y * pc.w + g.x] = px;
+}

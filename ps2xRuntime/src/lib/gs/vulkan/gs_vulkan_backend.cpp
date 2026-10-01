@@ -249,6 +249,7 @@ namespace
         int32_t kD;
         int32_t dD;
         uint32_t texa; // ta0 | ta1 << 8 | aem << 16 (F_TEXA16 / F_TEXA24)
+        int32_t texScale; // F_TEXSCALED
     };
 
     enum : uint32_t
@@ -280,6 +281,7 @@ namespace
         F_ZFLAT = 67108864u,
         F_BIAS_DOWN = 134217728u,
         F_BIAS_UP = 268435456u,
+        F_TEXSCALED = 536870912u, // the texture is an upscaled render target
     };
 
     // Why a draw went to the CPU renderer (stats).
@@ -609,6 +611,8 @@ public:
     void SnapshotVram(std::vector<uint8_t> &out) const override;
     GSTransferSnapshot GetTransferSnapshot() const override;
     bool PresentsOnGpu() const override;
+    void SetResolutionScale(uint32_t scale) override;
+    uint32_t ResolutionScale() const override { return m_wantScale.load(std::memory_order_relaxed); }
 
 private:
     struct GpuImage
@@ -664,6 +668,7 @@ private:
         uint8_t maxAlpha = 0; // largest texel alpha (an upper bound until the GPU reports it)
         uint32_t alphaSlot = ~0u; // m_alphaRes slot the GPU decode reports into
         uint64_t alphaId = 0, alphaSerial = 0;
+        uint32_t scale = 1;   // texels per GS texel (an upscaled render target used as a texture)
     };
 
     struct Batch
@@ -765,6 +770,13 @@ private:
         uint8_t *checkPtr = nullptr;
         bool checkCoherent = true;
         bool hasCheck = false;
+        // PS2_GS_VK_DUMPPRESENT=prefix: the picture written to prefix_NNNN.ppm when this slot completes.
+        VkBuffer dumpBuf = VK_NULL_HANDLE;
+        VkDeviceMemory dumpMem = VK_NULL_HANDLE;
+        uint8_t *dumpPtr = nullptr;
+        VkDeviceSize dumpSize = 0;
+        uint32_t dumpW = 0, dumpH = 0;
+        int64_t dumpIndex = -1;
     };
     Slot m_slots[2];
     uint32_t m_cur = 0;
@@ -806,7 +818,11 @@ private:
     void readbackMirror(const PageSet &pages);
     bool ensureReadback(VkDeviceSize bytes);
     void uploadFromMirror(Target &t, uint32_t y0, uint32_t rows);
-    uint32_t m_lutOffset[8]{};                  // first entry of each table (C32, C16, C16S, P8, P4, Z32, Z16, Z16S)
+    uint32_t m_lutOffset[11]{};                 // first entry of each table (C32, C16, C16S, P8, P4, Z32, Z16, Z16S,
+                                                // then inverse C32, C16, C16S: page offset -> x | y << 6)
+    VkPipeline m_reinterpretPipe = VK_NULL_HANDLE;
+    Target *reinterpretSource(const Target &t, uint64_t groups) const;
+    void uploadFromTarget(Target &t, Target &src, uint32_t y0, uint32_t rows);
     VkDescriptorSetLayout m_compLayout = VK_NULL_HANDLE;
     VkPipelineLayout m_compPipeLayout = VK_NULL_HANDLE;
     VkPipeline m_decodePipe = VK_NULL_HANDLE, m_overlayPipe = VK_NULL_HANDLE;
@@ -883,6 +899,16 @@ private:
     void recordDisplay(const DispParams &dp, int image);
     void checkPresent(Slot &sl, const std::vector<uint8_t> &snap);
     static bool provideFrame(void *user, struct HostGpuFrame &out, uint64_t releaseValue);
+    // Upscaling: render targets hold m_scale x m_scale pixels per GS pixel. GS memory (and its
+    // GPU mirror) stays at GS resolution: data going there is sampled once per GS pixel, data
+    // coming from there is repeated over the block. Changed at flips (m_wantScale).
+    uint32_t m_scale = 1;
+    uint32_t m_maxScale = 8;
+    std::atomic<uint32_t> m_wantScale{1};
+    VkPipeline m_displayRtPipe = VK_NULL_HANDLE;
+    void applyScale();
+    bool createPresentImages();
+    bool recordDisplayRt(const DispParams &dp, int image, uint32_t &outW, uint32_t &outH);
     bool m_gpuPresent = false;   // build the picture on the GPU at flips
     bool m_hostPresent = false;  // ... and the host shows it
     bool m_checkPresent = false;
@@ -904,7 +930,7 @@ private:
     bool m_pubGpu = false; // the last flip went through the GPU display pass
     uint64_t m_pubNs = 0;
     mutable bool m_hostUseGpu = true; // PresentsOnGpu()'s last answer: the host frame follows it
-    uint64_t m_statGpuFlips = 0, m_statCheckBad = 0, m_statChecks = 0;
+    uint64_t m_statGpuFlips = 0, m_statCheckBad = 0, m_statChecks = 0, m_statHiResFlips = 0, m_statReinterprets = 0;
 
     // Presentation
     std::mutex m_presentMutex;
@@ -974,6 +1000,8 @@ GsVulkanBackend::~GsVulkanBackend()
     for (GpuImage &img : m_presentImg)
         destroyImage(img);
     if (m_displayPipe) m_dt.vkDestroyPipeline(m_device, m_displayPipe, nullptr);
+    if (m_displayRtPipe) m_dt.vkDestroyPipeline(m_device, m_displayRtPipe, nullptr);
+    if (m_reinterpretPipe) m_dt.vkDestroyPipeline(m_device, m_reinterpretPipe, nullptr);
     if (m_dispCount) m_dt.vkDestroyBuffer(m_device, m_dispCount, nullptr);
     if (m_dispCountMem) m_dt.vkFreeMemory(m_device, m_dispCountMem, nullptr);
     if (m_readySem) m_dt.vkDestroySemaphore(m_device, m_readySem, nullptr);
@@ -1024,6 +1052,8 @@ GsVulkanBackend::~GsVulkanBackend()
         if (sl.presentMem) m_dt.vkFreeMemory(m_device, sl.presentMem, nullptr);
         if (sl.checkBuf) m_dt.vkDestroyBuffer(m_device, sl.checkBuf, nullptr);
         if (sl.checkMem) m_dt.vkFreeMemory(m_device, sl.checkMem, nullptr);
+        if (sl.dumpBuf) m_dt.vkDestroyBuffer(m_device, sl.dumpBuf, nullptr);
+        if (sl.dumpMem) m_dt.vkFreeMemory(m_device, sl.dumpMem, nullptr);
         for (GpuImage &img : sl.defImages)
             destroyImage(img);
     }
@@ -1043,6 +1073,9 @@ bool GsVulkanBackend::Create(const HostVulkanShared *shared)
 {
     m_stats = envFlag("PS2_GS_VK_STATS");
     m_checkPresent = envFlag("PS2_GS_VK_CHECKPRESENT");
+    if (const char *v = std::getenv("PS2_GS_SCALE"))
+        m_scale = std::clamp<uint32_t>(static_cast<uint32_t>(std::atoi(v)), 1u, 8u);
+    m_wantScale.store(m_scale);
     if (const char *v = std::getenv("PS2_GS_VK_SUBMITUS"))
         m_submitIntervalNs = static_cast<uint64_t>(std::strtoull(v, nullptr, 10)) * 1000u;
     m_noAlias = envFlag("PS2_GS_VK_NOALIAS");
@@ -1306,6 +1339,20 @@ void GsVulkanBackend::destroyImage(GpuImage &img)
 
 bool GsVulkanBackend::createDeviceObjects()
 {
+    {
+        // Upscaled draws use a (4096 x scale)^2 viewport; targets are up to 4096 x scale wide.
+        VkPhysicalDeviceProperties props{};
+        m_it.vkGetPhysicalDeviceProperties(m_phys, &props);
+        const uint32_t lim = std::min({props.limits.maxViewportDimensions[0], props.limits.maxViewportDimensions[1],
+                                       props.limits.maxImageDimension2D, props.limits.maxFramebufferWidth, props.limits.maxFramebufferHeight});
+        m_maxScale = std::clamp<uint32_t>(lim / 4096u, 1u, 8u);
+        if (m_scale > m_maxScale)
+        {
+            std::fprintf(stderr, "[gs:vk] internal resolution %ux is above this GPU's limit, using %ux\n", m_scale, m_maxScale);
+            m_scale = m_maxScale;
+            m_wantScale.store(m_scale);
+        }
+    }
     VkCommandPoolCreateInfo cpi{VK_STRUCTURE_TYPE_COMMAND_POOL_CREATE_INFO};
     cpi.flags = VK_COMMAND_POOL_CREATE_RESET_COMMAND_BUFFER_BIT;
     cpi.queueFamilyIndex = m_queueFamily;
@@ -1399,13 +1446,18 @@ bool GsVulkanBackend::createDeviceObjects()
     }
     if (m_gpuPresent && (m_cpuDecode || !m_displayPipe))
         m_gpuPresent = false;
+    if (m_cpuDecode && m_scale != 1u)
+    {
+        std::fprintf(stderr, "[gs:vk] upscaling needs the GPU texture path: rendering at native resolution\n");
+        m_scale = 1u;
+        m_wantScale.store(1u);
+    }
+    if (m_scale != 1u)
+        std::fprintf(stderr, "[gs:vk] internal resolution %ux\n", m_scale);
     if (m_gpuPresent)
     {
         // Display images, the display pass's counters and its "done" timeline semaphore.
-        bool ok = true;
-        for (GpuImage &img : m_presentImg)
-            ok = ok && createImage(img, kPresentW, kPresentH, VK_FORMAT_R8G8B8A8_UNORM,
-                                   VK_IMAGE_USAGE_STORAGE_BIT | VK_IMAGE_USAGE_TRANSFER_SRC_BIT, VK_IMAGE_ASPECT_COLOR_BIT);
+        bool ok = createPresentImages();
         ok = ok && createBuffer(64u, VK_BUFFER_USAGE_STORAGE_BUFFER_BIT | VK_BUFFER_USAGE_TRANSFER_DST_BIT, VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT,
                                 m_dispCount, m_dispCountMem, nullptr);
         VkSemaphoreTypeCreateInfo tci{VK_STRUCTURE_TYPE_SEMAPHORE_TYPE_CREATE_INFO};
@@ -1434,12 +1486,12 @@ bool GsVulkanBackend::createDeviceObjects()
 
 bool GsVulkanBackend::ensureDstImage(uint32_t width)
 {
-    if (m_dstImg.image && m_dstImg.width >= width)
+    if (m_dstImg.image && m_dstImg.width >= width && m_dstImg.height >= kTargetHeight * m_scale)
         return true;
     submitAndWait(); // the descriptor set may be in use
     if (m_dstImg.image)
         destroyImage(m_dstImg);
-    if (!createImage(m_dstImg, std::max(width, 1024u), kTargetHeight, VK_FORMAT_R8G8B8A8_UINT,
+    if (!createImage(m_dstImg, std::max(width, 1024u), kTargetHeight * m_scale, VK_FORMAT_R8G8B8A8_UINT,
                      VK_IMAGE_USAGE_SAMPLED_BIT | VK_IMAGE_USAGE_TRANSFER_DST_BIT, VK_IMAGE_ASPECT_COLOR_BIT))
         return false;
     VkDescriptorImageInfo dii{VK_NULL_HANDLE, m_dstImg.view, VK_IMAGE_LAYOUT_GENERAL};
@@ -1588,6 +1640,30 @@ void GsVulkanBackend::completeSlot(uint32_t i)
     {
         m_dt.vkFreeDescriptorSets(m_device, m_descPool, static_cast<uint32_t>(sl.defSets.size()), sl.defSets.data());
         sl.defSets.clear();
+    }
+    if (sl.dumpIndex >= 0)
+    {
+        static const char *s_dump = std::getenv("PS2_GS_VK_DUMPPRESENT");
+        char name[512];
+        std::snprintf(name, sizeof(name), "%s_%04lld.ppm", s_dump, static_cast<long long>(sl.dumpIndex));
+        if (FILE *f = std::fopen(name, "wb"))
+        {
+            std::fprintf(f, "P6 %u %u 255\n", sl.dumpW, sl.dumpH);
+            std::vector<uint8_t> row(static_cast<size_t>(sl.dumpW) * 3u);
+            for (uint32_t y = 0; y < sl.dumpH; ++y)
+            {
+                const uint8_t *src = sl.dumpPtr + static_cast<size_t>(y) * sl.dumpW * 4u;
+                for (uint32_t x = 0; x < sl.dumpW; ++x)
+                {
+                    row[x * 3u] = src[x * 4u];
+                    row[x * 3u + 1u] = src[x * 4u + 1u];
+                    row[x * 3u + 2u] = src[x * 4u + 2u];
+                }
+                std::fwrite(row.data(), 1, row.size(), f);
+            }
+            std::fclose(f);
+        }
+        sl.dumpIndex = -1;
     }
     if (sl.hasPresent)
     {
@@ -1741,13 +1817,13 @@ GsVulkanBackend::Target &GsVulkanBackend::getTarget(uint32_t fbp, uint32_t fbw, 
     t->fbw = fbw;
     t->psm = psm;
     t->depth = isDepthPsm(psm);
-    const uint32_t w = fbw * 64u;
+    const uint32_t w = fbw * 64u * m_scale;
     if (t->depth)
-        createImage(t->img, w, kTargetHeight, VK_FORMAT_D32_SFLOAT,
+        createImage(t->img, w, kTargetHeight * m_scale, VK_FORMAT_D32_SFLOAT,
                     VK_IMAGE_USAGE_DEPTH_STENCIL_ATTACHMENT_BIT | VK_IMAGE_USAGE_TRANSFER_SRC_BIT | VK_IMAGE_USAGE_TRANSFER_DST_BIT | VK_IMAGE_USAGE_SAMPLED_BIT,
                     VK_IMAGE_ASPECT_DEPTH_BIT);
     else
-        createImage(t->img, w, kTargetHeight, VK_FORMAT_R8G8B8A8_UNORM,
+        createImage(t->img, w, kTargetHeight * m_scale, VK_FORMAT_R8G8B8A8_UNORM,
                     VK_IMAGE_USAGE_COLOR_ATTACHMENT_BIT | VK_IMAGE_USAGE_TRANSFER_SRC_BIT | VK_IMAGE_USAGE_TRANSFER_DST_BIT | VK_IMAGE_USAGE_SAMPLED_BIT,
                     VK_IMAGE_ASPECT_COLOR_BIT);
     const uint32_t groups = kTargetHeight / pageDims(psm).h;
@@ -1755,7 +1831,7 @@ GsVulkanBackend::Target &GsVulkanBackend::getTarget(uint32_t fbp, uint32_t fbw, 
     t->allPages = groupPages(*t, t->stale);
     m_targets.push_back(t);
     if (m_stats)
-        std::fprintf(stderr, "[gs:vk] target fbp=0x%x fbw=%u psm=0x%x (%ux%u)\n", fbp, fbw, psm, w, kTargetHeight);
+        std::fprintf(stderr, "[gs:vk] target fbp=0x%x fbw=%u psm=0x%x (%ux%u)\n", fbp, fbw, psm, w, kTargetHeight * m_scale);
     return *t;
 }
 
@@ -2057,7 +2133,11 @@ void GsVulkanBackend::uploadStale(Target &t, int y0, int y1)
             uint32_t g1 = g;
             while (g1 + 1u < groups && (stale & (1ull << (g1 + 1u))))
                 ++g1;
-            uploadFromMirror(t, g * d.h, (g1 - g + 1u) * d.h);
+            const uint64_t run = (g1 >= 63u ? ~0ull : ((1ull << (g1 + 1u)) - 1ull)) & ~((1ull << g) - 1ull);
+            if (Target *src = reinterpretSource(t, run))
+                uploadFromTarget(t, *src, g * d.h, (g1 - g + 1u) * d.h);
+            else
+                uploadFromMirror(t, g * d.h, (g1 - g + 1u) * d.h);
             g = g1 + 1u;
         }
         return;
@@ -2122,19 +2202,21 @@ void GsVulkanBackend::prepareDrawTarget(Target &t, const PageSet &drawPages, int
     for (size_t i = 0; i < m_targets.size(); ++i)
     {
         Target &o = *m_targets[i];
-        if (&o == &t)
-            continue;
-        const uint64_t g = groupsFor(o, drawPages);
-        if (!g && !(o.dirty && o.dirtyPages.intersects(drawPages)))
-            continue;
-        if (o.dirty && o.dirtyPages.intersects(drawPages))
+        if (&o != &t && o.dirty && o.dirtyPages.intersects(drawPages))
         {
             m_why = "overlap";
             download(o);
         }
-        o.stale |= g;
     }
+    // Before the others are marked stale: their data is still current and may be what this
+    // target's rows are rebuilt from (another pixel size over the same memory, upscaled).
     uploadStale(t, y0, y1);
+    for (size_t i = 0; i < m_targets.size(); ++i)
+    {
+        Target &o = *m_targets[i];
+        if (&o != &t)
+            o.stale |= groupsFor(o, drawPages);
+    }
 }
 
 // GS memory the presentation code may read for this request (display buffers, the preferred
@@ -2525,7 +2607,7 @@ namespace
     };
     struct OverlayPush
     {
-        uint32_t kind, tableOff, pw, ph, bp, bw, x0, y0, w, h;
+        uint32_t kind, tableOff, pw, ph, bp, bw, x0, y0, w, h, scale, sub;
     };
 }
 
@@ -2566,6 +2648,22 @@ bool GsVulkanBackend::createComputeObjects()
         if (!src)
             return false;
         lut.insert(lut.end(), src, src + entries);
+    }
+    for (int i = 0; i < 3; ++i)
+    {
+        // Inverse of the first block's table: which pixel of a page holds each page offset.
+        const PageDims d = pageDims(tablePsm[i]);
+        const uint16_t *src = static_cast<const uint16_t *>(GSMem::PageTableData(tablePsm[i]));
+        std::vector<uint16_t> inv(d.w * d.h, 0);
+        for (uint32_t y = 0; y < d.h; ++y)
+            for (uint32_t x = 0; x < d.w; ++x)
+            {
+                const uint16_t off = src[y * d.w + x];
+                if (off < inv.size())
+                    inv[off] = static_cast<uint16_t>(x | (y << 6));
+            }
+        m_lutOffset[8 + i] = static_cast<uint32_t>(lut.size());
+        lut.insert(lut.end(), inv.begin(), inv.end());
     }
     if (lut.size() & 1u)
         lut.push_back(0);
@@ -2642,6 +2740,10 @@ bool GsVulkanBackend::createComputeObjects()
         return false;
     if (!makePipe(kGsDisplaySpv, sizeof(kGsDisplaySpv), m_displayPipe))
         m_displayPipe = VK_NULL_HANDLE;
+    if (!makePipe(kGsDisplayRtSpv, sizeof(kGsDisplayRtSpv), m_displayRtPipe))
+        m_displayRtPipe = VK_NULL_HANDLE;
+    if (!makePipe(kGsReinterpretSpv, sizeof(kGsReinterpretSpv), m_reinterpretPipe))
+        m_reinterpretPipe = VK_NULL_HANDLE;
     VkDescriptorPoolSize ps[3] = {{VK_DESCRIPTOR_TYPE_STORAGE_BUFFER, 4 * kCompSets}, {VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, kCompSets}, {VK_DESCRIPTOR_TYPE_STORAGE_IMAGE, kCompSets}};
     VkDescriptorPoolCreateInfo dpi{VK_STRUCTURE_TYPE_DESCRIPTOR_POOL_CREATE_INFO};
     dpi.maxSets = kCompSets;
@@ -2712,59 +2814,164 @@ void GsVulkanBackend::syncMirrorPages(const PageSet &pages)
 }
 
 // Target rows [y0, y0 + rows) read out of the mirror (GPU-side upload).
+// A target over the same memory in the other colour pixel size (32 <-> 16 bits) holding current
+// data for these row groups (groups are page rows, the same for both sizes at one width): with
+// upscaling, rows are rebuilt from it at full resolution instead of from GS memory. A target
+// not stale over its rows has the newest data there: GS memory writes and other targets' draws
+// mark it stale.
+GsVulkanBackend::Target *GsVulkanBackend::reinterpretSource(const Target &t, uint64_t groups) const
+{
+    if (m_scale == 1u || !m_reinterpretPipe || t.depth)
+        return nullptr;
+    const bool t16 = t.psm == GS_PSM_CT16 || t.psm == GS_PSM_CT16S;
+    if (!t16 && t.psm != GS_PSM_CT32 && t.psm != GS_PSM_CT24)
+        return nullptr;
+    for (Target *o : m_targets)
+    {
+        if (o == &t || o->fbp != t.fbp || o->fbw != t.fbw || (o->stale & groups) || o->maxRow < 0)
+            continue;
+        // 16-bit from CT32 (a CT24 buffer's alpha byte is not in the target), 32-bit from 16-bit.
+        if (t16 ? o->psm == GS_PSM_CT32 : (o->psm == GS_PSM_CT16 || o->psm == GS_PSM_CT16S))
+            return o;
+    }
+    return nullptr;
+}
+
+void GsVulkanBackend::uploadFromTarget(Target &t, Target &src, uint32_t y0, uint32_t rows)
+{
+    static const bool s_log = envFlag("PS2_GS_VK_LOGCOHERENCY");
+    if (s_log)
+        std::fprintf(stderr, "[gs:vk] flip %llu: reload fbp=%x psm=%x rows %u-%u from psm=%x at %ux (%s)\n", (unsigned long long)m_statFlips, t.fbp, t.psm, y0,
+                     y0 + rows - 1u, src.psm, m_scale, m_why);
+    const bool t16 = t.psm == GS_PSM_CT16 || t.psm == GS_PSM_CT16S;
+    const uint8_t psm16 = t16 ? t.psm : src.psm;
+    const uint32_t k = m_scale;
+    const uint32_t w = t.fbw * 64u * k;
+    const uint32_t chunk = std::max<uint32_t>(1u, static_cast<uint32_t>((16u << 20) / (static_cast<VkDeviceSize>(w) * k * 4u)));
+    for (uint32_t done = 0; done < rows; done += chunk)
+    {
+        const uint32_t n = std::min(chunk, rows - done);
+        reserve(0u, 1u);
+        VkDescriptorSet set = computeSet();
+        VkDescriptorImageInfo ii{VK_NULL_HANDLE, src.img.view, VK_IMAGE_LAYOUT_GENERAL};
+        VkDescriptorBufferInfo ob{m_scratch, 0, VK_WHOLE_SIZE};
+        VkWriteDescriptorSet wd[2]{};
+        for (int i = 0; i < 2; ++i)
+        {
+            wd[i].sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET;
+            wd[i].dstSet = set;
+            wd[i].descriptorCount = 1;
+        }
+        wd[0].dstBinding = 2;
+        wd[0].descriptorType = VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER;
+        wd[0].pImageInfo = &ii;
+        wd[1].dstBinding = 5;
+        wd[1].descriptorType = VK_DESCRIPTOR_TYPE_STORAGE_BUFFER;
+        wd[1].pBufferInfo = &ob;
+        m_dt.vkUpdateDescriptorSets(m_device, 2, wd, 0, nullptr);
+        struct
+        {
+            uint32_t mode, bp, bw, t32, t16, inv32, inv16, y0, w, h, scale, ct24;
+        } pc{};
+        pc.mode = t16 ? 0u : 1u;
+        pc.bp = t.fbp << 5;
+        pc.bw = t.fbw;
+        pc.t32 = m_lutOffset[0];
+        pc.t16 = m_lutOffset[psm16 == GS_PSM_CT16S ? 2 : 1];
+        pc.inv32 = m_lutOffset[8];
+        pc.inv16 = m_lutOffset[psm16 == GS_PSM_CT16S ? 10 : 9];
+        pc.y0 = y0 + done;
+        pc.w = w;
+        pc.h = n * k;
+        pc.scale = k;
+        pc.ct24 = t.psm == GS_PSM_CT24 ? 1u : 0u;
+        beginCmd();
+        barrier();
+        m_dt.vkCmdBindPipeline(m_cmd, VK_PIPELINE_BIND_POINT_COMPUTE, m_reinterpretPipe);
+        m_dt.vkCmdBindDescriptorSets(m_cmd, VK_PIPELINE_BIND_POINT_COMPUTE, m_compPipeLayout, 0, 1, &set, 0, nullptr);
+        m_dt.vkCmdPushConstants(m_cmd, m_compPipeLayout, VK_SHADER_STAGE_COMPUTE_BIT, 0, sizeof(pc), &pc);
+        m_dt.vkCmdDispatch(m_cmd, (w + 7u) / 8u, (pc.h + 7u) / 8u, 1);
+        barrier();
+        VkBufferImageCopy region{};
+        region.bufferRowLength = w;
+        region.bufferImageHeight = pc.h;
+        region.imageSubresource = {VK_IMAGE_ASPECT_COLOR_BIT, 0, 0, 1};
+        region.imageOffset = {0, static_cast<int32_t>((y0 + done) * k), 0};
+        region.imageExtent = {w, pc.h, 1};
+        m_dt.vkCmdCopyBufferToImage(m_cmd, m_scratch, t.img.image, VK_IMAGE_LAYOUT_GENERAL, 1, &region);
+        barrier();
+    }
+    m_curPipeline = VK_NULL_HANDLE;
+    ++t.version;
+    ++m_statUploads;
+    ++m_statReinterprets;
+    m_statUploadRows += rows;
+}
+
 void GsVulkanBackend::uploadFromMirror(Target &t, uint32_t y0, uint32_t rows)
 {
     const int li = lutIndex(t.psm);
-    const uint32_t w = t.img.width;
-    if (li < 0 || static_cast<VkDeviceSize>(w) * rows * 4u > (16u << 20))
+    if (li < 0)
         return;
-    reserve(0u, 1u);
-    VkDescriptorSet set = computeSet();
-    VkDescriptorBufferInfo ob{m_scratch, 0, VK_WHOLE_SIZE};
-    VkWriteDescriptorSet wd{VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET};
-    wd.dstSet = set;
-    wd.dstBinding = 5;
-    wd.descriptorCount = 1;
-    wd.descriptorType = VK_DESCRIPTOR_TYPE_STORAGE_BUFFER;
-    wd.pBufferInfo = &ob;
-    m_dt.vkUpdateDescriptorSets(m_device, 1, &wd, 0, nullptr);
-    struct
+    static const bool s_log = envFlag("PS2_GS_VK_LOGCOHERENCY");
+    if (s_log)
+        std::fprintf(stderr, "[gs:vk] flip %llu: reload fbp=%x psm=%x rows %u-%u (%s)\n", (unsigned long long)m_statFlips, t.fbp, t.psm, y0, y0 + rows - 1u, m_why);
+    const uint32_t k = m_scale;
+    const uint32_t w = t.fbw * 64u * k; // upscaled row width
+    // Rows per pass that fit the 16 MiB scratch buffer (each GS row is k image rows).
+    const uint32_t chunk = std::max<uint32_t>(1u, static_cast<uint32_t>((16u << 20) / (static_cast<VkDeviceSize>(w) * k * 4u)));
+    for (uint32_t done = 0; done < rows; done += chunk)
     {
-        uint32_t kind, tableOff, pw, ph, bp, bw, y0, w, h;
-    } pc{};
-    switch (t.psm)
-    {
-    case GS_PSM_CT32: pc.kind = 0; break;
-    case GS_PSM_CT24: pc.kind = 1; break;
-    case GS_PSM_CT16: case GS_PSM_CT16S: pc.kind = 2; break;
-    case GS_PSM_Z32: pc.kind = 3; break;
-    case GS_PSM_Z24: pc.kind = 4; break;
-    default: pc.kind = 5; break;
+        const uint32_t n = std::min(chunk, rows - done);
+        reserve(0u, 1u);
+        VkDescriptorSet set = computeSet();
+        VkDescriptorBufferInfo ob{m_scratch, 0, VK_WHOLE_SIZE};
+        VkWriteDescriptorSet wd{VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET};
+        wd.dstSet = set;
+        wd.dstBinding = 5;
+        wd.descriptorCount = 1;
+        wd.descriptorType = VK_DESCRIPTOR_TYPE_STORAGE_BUFFER;
+        wd.pBufferInfo = &ob;
+        m_dt.vkUpdateDescriptorSets(m_device, 1, &wd, 0, nullptr);
+        struct
+        {
+            uint32_t kind, tableOff, pw, ph, bp, bw, y0, w, h, scale;
+        } pc{};
+        switch (t.psm)
+        {
+        case GS_PSM_CT32: pc.kind = 0; break;
+        case GS_PSM_CT24: pc.kind = 1; break;
+        case GS_PSM_CT16: case GS_PSM_CT16S: pc.kind = 2; break;
+        case GS_PSM_Z32: pc.kind = 3; break;
+        case GS_PSM_Z24: pc.kind = 4; break;
+        default: pc.kind = 5; break;
+        }
+        const PageDims d = pageDims(t.psm);
+        pc.tableOff = m_lutOffset[li];
+        pc.pw = d.w;
+        pc.ph = d.h;
+        pc.bp = t.fbp << 5;
+        pc.bw = t.fbw;
+        pc.y0 = y0 + done;
+        pc.w = w;
+        pc.h = n * k;
+        pc.scale = k;
+        beginCmd();
+        barrier();
+        m_dt.vkCmdBindPipeline(m_cmd, VK_PIPELINE_BIND_POINT_COMPUTE, m_unswizzlePipe);
+        m_dt.vkCmdBindDescriptorSets(m_cmd, VK_PIPELINE_BIND_POINT_COMPUTE, m_compPipeLayout, 0, 1, &set, 0, nullptr);
+        m_dt.vkCmdPushConstants(m_cmd, m_compPipeLayout, VK_SHADER_STAGE_COMPUTE_BIT, 0, sizeof(pc), &pc);
+        m_dt.vkCmdDispatch(m_cmd, (w + 7u) / 8u, (pc.h + 7u) / 8u, 1);
+        barrier();
+        VkBufferImageCopy region{};
+        region.bufferRowLength = w;
+        region.bufferImageHeight = pc.h;
+        region.imageSubresource = {static_cast<VkImageAspectFlags>(t.depth ? VK_IMAGE_ASPECT_DEPTH_BIT : VK_IMAGE_ASPECT_COLOR_BIT), 0, 0, 1};
+        region.imageOffset = {0, static_cast<int32_t>((y0 + done) * k), 0};
+        region.imageExtent = {w, pc.h, 1};
+        m_dt.vkCmdCopyBufferToImage(m_cmd, m_scratch, t.img.image, VK_IMAGE_LAYOUT_GENERAL, 1, &region);
+        barrier();
     }
-    const PageDims d = pageDims(t.psm);
-    pc.tableOff = m_lutOffset[li];
-    pc.pw = d.w;
-    pc.ph = d.h;
-    pc.bp = t.fbp << 5;
-    pc.bw = t.fbw;
-    pc.y0 = y0;
-    pc.w = w;
-    pc.h = rows;
-    beginCmd();
-    barrier();
-    m_dt.vkCmdBindPipeline(m_cmd, VK_PIPELINE_BIND_POINT_COMPUTE, m_unswizzlePipe);
-    m_dt.vkCmdBindDescriptorSets(m_cmd, VK_PIPELINE_BIND_POINT_COMPUTE, m_compPipeLayout, 0, 1, &set, 0, nullptr);
-    m_dt.vkCmdPushConstants(m_cmd, m_compPipeLayout, VK_SHADER_STAGE_COMPUTE_BIT, 0, sizeof(pc), &pc);
-    m_dt.vkCmdDispatch(m_cmd, (w + 7u) / 8u, (rows + 7u) / 8u, 1);
-    barrier();
-    VkBufferImageCopy region{};
-    region.bufferRowLength = w;
-    region.bufferImageHeight = rows;
-    region.imageSubresource = {static_cast<VkImageAspectFlags>(t.depth ? VK_IMAGE_ASPECT_DEPTH_BIT : VK_IMAGE_ASPECT_COLOR_BIT), 0, 0, 1};
-    region.imageOffset = {0, static_cast<int32_t>(y0), 0};
-    region.imageExtent = {w, rows, 1};
-    m_dt.vkCmdCopyBufferToImage(m_cmd, m_scratch, t.img.image, VK_IMAGE_LAYOUT_GENERAL, 1, &region);
-    barrier();
     m_curPipeline = VK_NULL_HANDLE;
     ++t.version;
     ++m_statUploads;
@@ -2777,9 +2984,12 @@ void GsVulkanBackend::overlayTarget(Target &t)
     if (!t.dirty)
         return;
     const int x0 = std::max(t.dx0, 0), y0 = std::max(t.dy0, 0);
-    const int x1 = std::min<int>(t.dx1, static_cast<int>(t.img.width) - 1), y1 = std::min<int>(t.dy1, static_cast<int>(t.img.height) - 1);
+    const int x1 = std::min<int>(t.dx1, static_cast<int>(t.fbw * 64u) - 1), y1 = std::min<int>(t.dy1, static_cast<int>(kTargetHeight) - 1);
     if (x1 < x0 || y1 < y0)
         return;
+    static const bool s_log = envFlag("PS2_GS_VK_LOGCOHERENCY");
+    if (s_log)
+        std::fprintf(stderr, "[gs:vk] flip %llu: to mirror fbp=%x psm=%x (%d,%d)-(%d,%d) (%s)\n", (unsigned long long)m_statFlips, t.fbp, t.psm, x0, y0, x1, y1, m_why);
     // Pages of the rectangle not yet in the mirror first (the target only covers part of them).
     syncMirrorPages(t.dirtyPages);
     reserve(0u, 1u);
@@ -2815,6 +3025,8 @@ void GsVulkanBackend::overlayTarget(Target &t)
     pc.y0 = static_cast<uint32_t>(y0);
     pc.w = static_cast<uint32_t>(x1 - x0 + 1);
     pc.h = static_cast<uint32_t>(y1 - y0 + 1);
+    pc.scale = m_scale;
+    pc.sub = m_scale / 2u; // the sample nearest the GS pixel's centre
     beginCmd();
     endRendering();
     barrier();
@@ -2994,7 +3206,7 @@ GsVulkanBackend::Texture *GsVulkanBackend::getAliasTexture(const GSDrawState &st
         return nullptr;
     // Rows no draw ever reached are not render-target data: leave them out (they would pull in
     // whatever lies below the frame in GS memory, e.g. the Z buffer).
-    const uint32_t cw = std::min(w, src->img.width), ch = std::min<uint32_t>({h, src->img.height, static_cast<uint32_t>(src->maxRow + 1)});
+    const uint32_t cw = std::min(w, src->fbw * 64u), ch = std::min<uint32_t>({h, kTargetHeight, static_cast<uint32_t>(src->maxRow + 1)});
     // Other targets' newer data inside this target's rows made those rows stale when they were
     // drawn, and uploadStale brings it in; what lies outside the target is not in the alias.
     (void)pages;
@@ -3003,6 +3215,7 @@ GsVulkanBackend::Texture *GsVulkanBackend::getAliasTexture(const GSDrawState &st
     Texture &a = m_alias[src];
     if (!a.img.image)
     {
+        a.scale = m_scale;
         createImage(a.img, src->img.width, src->img.height, VK_FORMAT_R8G8B8A8_UINT, VK_IMAGE_USAGE_SAMPLED_BIT | VK_IMAGE_USAGE_TRANSFER_DST_BIT,
                     VK_IMAGE_ASPECT_COLOR_BIT);
         VkDescriptorSetAllocateInfo dai{VK_STRUCTURE_TYPE_DESCRIPTOR_SET_ALLOCATE_INFO};
@@ -3026,7 +3239,7 @@ GsVulkanBackend::Texture *GsVulkanBackend::getAliasTexture(const GSDrawState &st
         VkImageCopy ic{};
         ic.srcSubresource = {VK_IMAGE_ASPECT_COLOR_BIT, 0, 0, 1};
         ic.dstSubresource = {VK_IMAGE_ASPECT_COLOR_BIT, 0, 0, 1};
-        ic.extent = {cw, ch, 1};
+        ic.extent = {cw * a.scale, ch * a.scale, 1};
         m_dt.vkCmdCopyImage(m_cmd, src->img.image, VK_IMAGE_LAYOUT_GENERAL, a.img.image, VK_IMAGE_LAYOUT_GENERAL, 1, &ic);
         barrier();
         a.serial = stamp;
@@ -3318,6 +3531,17 @@ void GsVulkanBackend::flushBatchImpl()
         return;
     }
 
+    static const long long s_logDrawFlip = std::getenv("PS2_GS_VK_LOGDRAW") ? std::atoll(std::getenv("PS2_GS_VK_LOGDRAW")) : -1;
+    if (s_logDrawFlip >= 0 && static_cast<long long>(m_statFlips) == s_logDrawFlip)
+    {
+        const GpuVertex &v0 = b.verts.front();
+        std::fprintf(stderr, "[gs:vk] draw fbp=%x fbw=%u psm=%x fbmsk=%08x z=%x/%x zmsk=%d type=%d n=%zu rect=(%d,%d)-(%d,%d) tme=%d tex=%x/%u/%x %dx%d tfx=%d tcc=%d lin=%d fst=%d abe=%d alpha=%llx test=%llx clamp=%llx v0=(%.1f,%.1f uv %.1f,%.1f q %.2f) col=%u,%u,%u,%u\n",
+                     ctx.frame.fbp, ctx.frame.fbw, ctx.frame.psm, ctx.frame.fbmsk, ctx.zbuf.zbp, ctx.zbuf.psm, ctx.zbuf.zmask, st.prim.type, vertexCount, rx0,
+                     ry0, rx1, ry1, st.prim.tme, ctx.tex0.tbp0, ctx.tex0.tbw, ctx.tex0.psm, st.textureWidth, st.textureHeight, ctx.tex0.tfx, ctx.tex0.tcc,
+                     st.linearFilter ? 1 : 0, st.prim.fst, st.prim.abe, (unsigned long long)ctx.alpha, (unsigned long long)ctx.test,
+                     (unsigned long long)ctx.clamp, v0.x, v0.y, v0.s, v0.t, v0.q, v0.r, v0.g, v0.b, v0.a);
+    }
+
     // Texture.
     Texture *tex = nullptr;
     uint32_t decW = 1, decH = 1, texFlags = 0;
@@ -3402,12 +3626,13 @@ void GsVulkanBackend::flushBatchImpl()
     {
         ensureDstImage(color.img.width);
         barrier();
+        const int k = static_cast<int>(m_scale);
         VkImageCopy ic{};
         ic.srcSubresource = {VK_IMAGE_ASPECT_COLOR_BIT, 0, 0, 1};
         ic.dstSubresource = {VK_IMAGE_ASPECT_COLOR_BIT, 0, 0, 1};
-        ic.srcOffset = {rx0, ry0, 0};
-        ic.dstOffset = {rx0, ry0, 0};
-        ic.extent = {static_cast<uint32_t>(rx1 - rx0 + 1), static_cast<uint32_t>(ry1 - ry0 + 1), 1};
+        ic.srcOffset = {rx0 * k, ry0 * k, 0};
+        ic.dstOffset = {rx0 * k, ry0 * k, 0};
+        ic.extent = {static_cast<uint32_t>((rx1 - rx0 + 1) * k), static_cast<uint32_t>((ry1 - ry0 + 1) * k), 1};
         m_dt.vkCmdCopyImage(m_cmd, color.img.image, VK_IMAGE_LAYOUT_GENERAL, m_dstImg.image, VK_IMAGE_LAYOUT_GENERAL, 1, &ic);
         barrier();
         ++m_statDstCopies;
@@ -3453,9 +3678,12 @@ void GsVulkanBackend::flushBatchImpl()
         m_curDepth = depth;
         m_curPipeline = VK_NULL_HANDLE;
     }
-    const VkViewport vp{0.0f, 0.0f, 4096.0f, 4096.0f, 0.0f, 1.0f};
+    // GS pixel coordinates over a 4096x4096 GS-pixel viewport: upscaling only widens it.
+    const float vpSize = 4096.0f * static_cast<float>(m_scale);
+    const VkViewport vp{0.0f, 0.0f, vpSize, vpSize, 0.0f, 1.0f};
     m_dt.vkCmdSetViewport(m_cmd, 0, 1, &vp);
-    const VkRect2D sc{{sx0, sy0}, {static_cast<uint32_t>(sx1 - sx0 + 1), static_cast<uint32_t>(sy1 - sy0 + 1)}};
+    const int ks = static_cast<int>(m_scale);
+    const VkRect2D sc{{sx0 * ks, sy0 * ks}, {static_cast<uint32_t>((sx1 - sx0 + 1) * ks), static_cast<uint32_t>((sy1 - sy0 + 1) * ks)}};
     m_dt.vkCmdSetScissor(m_cmd, 0, 1, &sc);
     const VkDeviceSize vo = voff;
     m_dt.vkCmdBindVertexBuffers(m_cmd, 0, 1, &m_ring, &vo);
@@ -3467,6 +3695,11 @@ void GsVulkanBackend::flushBatchImpl()
     if (tex)
     {
         flags |= F_TME;
+        if (tex->scale > 1u)
+        {
+            flags |= F_TEXSCALED;
+            pc.texScale = static_cast<int32_t>(tex->scale);
+        }
         if (st.prim.fst)
             flags |= st.prim.type == GS_PRIM_SPRITE ? F_FST_ROUND : F_FST_TRUNC;
         if (st.linearFilter)
@@ -3770,6 +4003,8 @@ void GsVulkanBackend::QueuePresentSnapshot(const GSPresentationRequest &request)
     ++m_statFlips;
     if (m_stats && (m_statFlips % 300u) == 0u)
         printStats();
+    if (m_wantScale.load(std::memory_order_relaxed) != m_scale)
+        applyScale();
     const PageSet pages = displayPages(request);
     DispParams dp;
     const bool gpuFlip = m_gpuPresent && gpuMem() && buildDisplayParams(request, dp);
@@ -3781,13 +4016,45 @@ void GsVulkanBackend::QueuePresentSnapshot(const GSPresentationRequest &request)
     if (gpuFlip && !m_checkPresent)
     {
         // Build the picture on the GPU; the host shows it once this submission has run.
-        ensureMirrorCurrent(pages);
         const int image = pickPresentImage();
-        recordDisplay(dp, image);
+        uint32_t outW = dp.outW, outH = dp.outH;
+        if (m_scale == 1u || !recordDisplayRt(dp, image, outW, outH))
+        {
+            // From the mirror, at GS resolution (the host scales it up).
+            ensureMirrorCurrent(pages);
+            recordDisplay(dp, image);
+        }
         Slot &sl = m_slots[m_cur];
         sl.gpuImage = image;
-        sl.gpuW = dp.outW;
-        sl.gpuH = dp.outH;
+        sl.gpuW = outW;
+        sl.gpuH = outH;
+        static const char *s_dump = std::getenv("PS2_GS_VK_DUMPPRESENT");
+        if (s_dump && *s_dump)
+        {
+            // Debug: the picture as shown, read back (host-visible buffer per slot, grown as needed).
+            const VkDeviceSize bytes = static_cast<VkDeviceSize>(outW) * outH * 4u;
+            if (sl.dumpSize < bytes)
+            {
+                if (sl.dumpBuf)
+                {
+                    submitAndWait();
+                    m_dt.vkDestroyBuffer(m_device, sl.dumpBuf, nullptr);
+                    m_dt.vkFreeMemory(m_device, sl.dumpMem, nullptr);
+                }
+                void *mapped = nullptr;
+                createBuffer(bytes, VK_BUFFER_USAGE_TRANSFER_DST_BIT, VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT, sl.dumpBuf,
+                             sl.dumpMem, &mapped);
+                sl.dumpPtr = static_cast<uint8_t *>(mapped);
+                sl.dumpSize = bytes;
+            }
+            VkBufferImageCopy region{};
+            region.imageSubresource = {VK_IMAGE_ASPECT_COLOR_BIT, 0, 0, 1};
+            region.imageExtent = {outW, outH, 1};
+            m_dt.vkCmdCopyImageToBuffer(m_cmd, m_presentImg[image].image, VK_IMAGE_LAYOUT_TRANSFER_SRC_OPTIMAL, sl.dumpBuf, 1, &region);
+            sl.dumpW = outW;
+            sl.dumpH = outH;
+            sl.dumpIndex = static_cast<int64_t>(m_statFlips);
+        }
         ++m_statGpuFlips;
         submitAsync();
         return;
@@ -3969,6 +4236,165 @@ bool GsVulkanBackend::buildDisplayParams(const GSPresentationRequest &request, D
     return true;
 }
 
+bool GsVulkanBackend::createPresentImages()
+{
+    bool ok = true;
+    for (GpuImage &img : m_presentImg)
+        ok = ok && createImage(img, kPresentW * m_scale, kPresentH * m_scale, VK_FORMAT_R8G8B8A8_UNORM,
+                               VK_IMAGE_USAGE_STORAGE_BIT | VK_IMAGE_USAGE_TRANSFER_SRC_BIT, VK_IMAGE_ASPECT_COLOR_BIT);
+    return ok;
+}
+
+void GsVulkanBackend::SetResolutionScale(uint32_t scale)
+{
+    m_wantScale.store(std::clamp<uint32_t>(scale, 1u, m_cpuDecode ? 1u : m_maxScale), std::memory_order_relaxed);
+}
+
+// Switches the internal resolution (at a flip): render-target data goes into the GS memory
+// mirror, the targets (and render targets used as textures) are dropped and come back at the
+// new scale from the mirror as they are drawn to; the display images are remade.
+void GsVulkanBackend::applyScale()
+{
+    const uint32_t want = std::clamp<uint32_t>(m_wantScale.load(std::memory_order_relaxed), 1u, m_cpuDecode ? 1u : m_maxScale);
+    if (want == m_scale)
+        return;
+    flushBatch();
+    m_why = "scale";
+    for (Target *t : m_targets)
+        download(*t); // into the mirror
+    endRendering();
+    Slot &cur = m_slots[m_cur];
+    for (Target *t : m_targets)
+    {
+        cur.defImages.push_back(t->img); // freed once this command buffer has run
+        delete t;
+    }
+    m_targets.clear();
+    for (auto &kv : m_alias)
+    {
+        cur.defImages.push_back(kv.second.img);
+        cur.defSets.push_back(kv.second.set);
+    }
+    m_alias.clear();
+    if (m_gpuPresent)
+    {
+        // The host must be done with the display images before they are replaced.
+        uint64_t last = 0;
+        {
+            std::lock_guard<std::mutex> lock(m_gpuFrameMutex);
+            m_pubImage = -1;
+            m_pubGpu = false;
+            for (uint64_t v : m_presentLastUse)
+                last = std::max(last, v);
+            for (uint64_t &v : m_presentLastUse)
+                v = 0;
+        }
+        if (m_releaseSem && last)
+        {
+            VkSemaphoreWaitInfo wi{VK_STRUCTURE_TYPE_SEMAPHORE_WAIT_INFO};
+            wi.semaphoreCount = 1;
+            wi.pSemaphores = &m_releaseSem;
+            wi.pValues = &last;
+            m_dt.vkWaitSemaphores(m_device, &wi, 1000000000ull);
+        }
+        submitAndWait();
+        for (GpuImage &img : m_presentImg)
+            destroyImage(img);
+    }
+    else
+        submitAndWait();
+    const uint32_t old = m_scale;
+    m_scale = want;
+    if (m_gpuPresent && !createPresentImages())
+    {
+        std::fprintf(stderr, "[gs:vk] display images at %ux failed, presenting through the CPU\n", m_scale);
+        m_gpuPresent = false;
+    }
+    std::fprintf(stderr, "[gs:vk] internal resolution %ux -> %ux\n", old, m_scale);
+}
+
+// The picture straight from an upscaled render target, when one read circuit shows a colour
+// buffer the GPU has (no merge, no fallback). Sets the picture size; false = use the mirror.
+bool GsVulkanBackend::recordDisplayRt(const DispParams &dp, int image, uint32_t &outW, uint32_t &outH)
+{
+    if (!m_displayRtPipe || (dp.circuits != 1u && dp.circuits != 2u))
+        return false;
+    const uint32_t c = dp.circuits == 2u ? 1u : 0u;
+    if (dp.fallback & (1u << c))
+        return false;
+    const DispSrc &s = dp.src[c * 3u];
+    // The matching target; of a CT32 and a CT24 one, the one the other's later drawing has not
+    // made stale over the displayed rows.
+    Target *best = nullptr;
+    const uint32_t ph = pageDims(GS_PSM_CT32).h;
+    const uint32_t g0 = s.oy / ph, g1 = std::min<uint32_t>((s.oy + s.h - 1u) / ph, 63u);
+    const uint64_t range = (g1 >= 63u ? ~0ull : ((1ull << (g1 + 1u)) - 1ull)) & ~((1ull << g0) - 1ull);
+    for (Target *t : m_targets)
+    {
+        if (t->depth || (t->fbp << 5) != s.bp || t->fbw != s.bw)
+            continue;
+        const bool ok = s.psm <= 1u ? (t->psm == GS_PSM_CT32 || t->psm == GS_PSM_CT24) : s.psm == 2u ? t->psm == GS_PSM_CT16 : t->psm == GS_PSM_CT16S;
+        if (!ok)
+            continue;
+        if (!best || ((best->stale & range) && !(t->stale & range)))
+            best = t;
+    }
+    if (!best || s.ox + s.w > best->fbw * 64u || s.oy + s.h > kTargetHeight)
+        return false;
+    // Rows GS memory changed under the target (transfers, other formats) come in first.
+    m_why = "display";
+    uploadStale(*best, static_cast<int>(s.oy), static_cast<int>(s.oy + s.h) - 1);
+    reserve(0u, 1u);
+    VkDescriptorSet set = computeSet();
+    GpuImage &img = m_presentImg[image];
+    VkDescriptorImageInfo si{VK_NULL_HANDLE, best->img.view, VK_IMAGE_LAYOUT_GENERAL};
+    VkDescriptorImageInfo oi{VK_NULL_HANDLE, img.view, VK_IMAGE_LAYOUT_GENERAL};
+    VkWriteDescriptorSet w[2]{};
+    for (int i = 0; i < 2; ++i)
+    {
+        w[i].sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET;
+        w[i].dstSet = set;
+        w[i].descriptorCount = 1;
+    }
+    w[0].dstBinding = 2;
+    w[0].descriptorType = VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER;
+    w[0].pImageInfo = &si;
+    w[1].dstBinding = 3;
+    w[1].descriptorType = VK_DESCRIPTOR_TYPE_STORAGE_IMAGE;
+    w[1].pImageInfo = &oi;
+    m_dt.vkUpdateDescriptorSets(m_device, 2, w, 0, nullptr);
+    struct
+    {
+        uint32_t ox, oy, w, h, scale, ct16, bob, oddField;
+    } pc{s.ox, s.oy, s.w * m_scale, s.h * m_scale, m_scale, s.psm >= 2u ? 1u : 0u, dp.bob, dp.oddField};
+    beginCmd();
+    endRendering();
+    barrier();
+    VkImageMemoryBarrier ib{VK_STRUCTURE_TYPE_IMAGE_MEMORY_BARRIER};
+    ib.srcAccessMask = VK_ACCESS_MEMORY_WRITE_BIT;
+    ib.dstAccessMask = VK_ACCESS_SHADER_WRITE_BIT;
+    ib.oldLayout = VK_IMAGE_LAYOUT_UNDEFINED;
+    ib.newLayout = VK_IMAGE_LAYOUT_GENERAL;
+    ib.srcQueueFamilyIndex = ib.dstQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED;
+    ib.image = img.image;
+    ib.subresourceRange = {VK_IMAGE_ASPECT_COLOR_BIT, 0, 1, 0, 1};
+    m_dt.vkCmdPipelineBarrier(m_cmd, VK_PIPELINE_STAGE_ALL_COMMANDS_BIT, VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT, 0, 0, nullptr, 0, nullptr, 1, &ib);
+    m_dt.vkCmdBindPipeline(m_cmd, VK_PIPELINE_BIND_POINT_COMPUTE, m_displayRtPipe);
+    m_dt.vkCmdBindDescriptorSets(m_cmd, VK_PIPELINE_BIND_POINT_COMPUTE, m_compPipeLayout, 0, 1, &set, 0, nullptr);
+    m_dt.vkCmdPushConstants(m_cmd, m_compPipeLayout, VK_SHADER_STAGE_COMPUTE_BIT, 0, sizeof(pc), &pc);
+    m_dt.vkCmdDispatch(m_cmd, (img.width + 7u) / 8u, (img.height + 7u) / 8u, 1);
+    ib.srcAccessMask = VK_ACCESS_SHADER_WRITE_BIT;
+    ib.dstAccessMask = VK_ACCESS_TRANSFER_READ_BIT;
+    ib.oldLayout = VK_IMAGE_LAYOUT_GENERAL;
+    ib.newLayout = VK_IMAGE_LAYOUT_TRANSFER_SRC_OPTIMAL;
+    m_dt.vkCmdPipelineBarrier(m_cmd, VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT, VK_PIPELINE_STAGE_TRANSFER_BIT, 0, 0, nullptr, 0, nullptr, 1, &ib);
+    m_curPipeline = VK_NULL_HANDLE;
+    outW = pc.w;
+    outH = pc.h;
+    ++m_statHiResFlips;
+    return true;
+}
+
 // A display image the host is not reading and will not pick up (not the published one).
 int GsVulkanBackend::pickPresentImage()
 {
@@ -4117,8 +4543,8 @@ bool GsVulkanBackend::provideFrame(void *user, HostGpuFrame &out, uint64_t relea
         return false;
     const int i = self->m_pubImage;
     out.image = self->m_presentImg[i].image;
-    out.imageWidth = kPresentW;
-    out.imageHeight = kPresentH;
+    out.imageWidth = self->m_presentImg[i].width;
+    out.imageHeight = self->m_presentImg[i].height;
     out.width = self->m_pubW;
     out.height = self->m_pubH;
     out.ready = self->m_readySem;
@@ -4251,8 +4677,8 @@ void GsVulkanBackend::printStats()
                  (unsigned long long)m_statSubmits, (unsigned long long)m_statDownloads, (unsigned long long)m_statDownloadPx,
                  (unsigned long long)m_statUploads, (unsigned long long)m_statUploadRows, (unsigned long long)m_statTexUploads,
                  (unsigned long long)m_statTexHits, (unsigned long long)m_statTexRehash, m_targets.size(), m_textures.size());
-    std::fprintf(stderr, "[gs:vk] flips=%llu shown from the GPU=%llu%s", (unsigned long long)m_statFlips, (unsigned long long)m_statGpuFlips,
-                 m_hostPresent ? "" : " (not shown: no window)");
+    std::fprintf(stderr, "[gs:vk] flips=%llu shown from the GPU=%llu (at %ux from a render target: %llu), 32/16-bit target conversions=%llu%s", (unsigned long long)m_statFlips,
+                 (unsigned long long)m_statGpuFlips, m_scale, (unsigned long long)m_statHiResFlips, (unsigned long long)m_statReinterprets, m_hostPresent ? "" : " (not shown: no window)");
     if (m_checkPresent)
         std::fprintf(stderr, ", present checks=%llu mismatched=%llu", (unsigned long long)m_statChecks, (unsigned long long)m_statCheckBad);
     std::fprintf(stderr, "\n");

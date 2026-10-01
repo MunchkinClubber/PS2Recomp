@@ -1,7 +1,8 @@
 #version 450
 #extension GL_GOOGLE_include_directive : require
 // Reads rows of a render target out of the GS memory mirror into a linear buffer (RGBA8 for
-// colour, float depth z * scale), to be copied into the target image.
+// colour, float depth z * scale), to be copied into the target image; with an upscaled target
+// each GS pixel is repeated over its scale x scale block (w, h are the upscaled sizes).
 layout(local_size_x = 8, local_size_y = 8) in;
 #include "gs_mem.glsl"
 layout(std430, set = 0, binding = 5) writeonly buffer Out { uint outData[]; };
@@ -17,6 +18,7 @@ layout(push_constant) uniform PC
     uint y0;
     uint w;
     uint h;
+    uint scale;
 } pc;
 
 uint expand5551(uint c)
@@ -29,7 +31,7 @@ void main()
     const uvec2 g = gl_GlobalInvocationID.xy;
     if (g.x >= pc.w || g.y >= pc.h)
         return;
-    const uint a = pixelAddr(pc.tableOff, pc.pw, pc.ph, pc.bp, pc.bw, g.x, g.y + pc.y0);
+    const uint a = pixelAddr(pc.tableOff, pc.pw, pc.ph, pc.bp, pc.bw, g.x / pc.scale, g.y / pc.scale + pc.y0);
     uint v;
     if (pc.kind == 2u || pc.kind == 5u)
     {

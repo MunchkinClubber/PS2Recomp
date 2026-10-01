@@ -17,6 +17,8 @@ layout(push_constant) uniform PC
     uint y0;
     uint w;
     uint h;
+    uint scale; // the target holds scale x scale pixels per GS pixel: sample one of them
+    uint sub;
 } pc;
 
 void main()
@@ -25,7 +27,7 @@ void main()
     if (g.x >= pc.w || g.y >= pc.h)
         return;
     const uvec2 p = g + uvec2(pc.x0, pc.y0);
-    const vec4 v = texelFetch(src, ivec2(p), 0);
+    const vec4 v = texelFetch(src, ivec2(p * pc.scale + uvec2(pc.sub)), 0);
     uint px;
     if (pc.kind < 3u)
     {

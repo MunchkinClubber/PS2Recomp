@@ -35,6 +35,7 @@ layout(push_constant) uniform PC
     int kD;       // F_DSTREAD blend: destination coefficient of (A - B)
     int dD;       // F_DSTREAD blend: destination coefficient of D
     uint texa;    // ta0 | ta1 << 8 | aem << 16 (F_TEXA16 / F_TEXA24)
+    int texScale; // F_TEXSCALED: the texture is a render target drawn at this many pixels per GS pixel
 } pc;
 
 layout(set = 1, binding = 0) uniform usampler2D dstTex; // copy of the target (F_DSTREAD)
@@ -65,7 +66,8 @@ const uint F_TEXA24 = 16777216u;    // texture is a render target: apply TEXA as
 const uint F_TEXA16 = 33554432u;
 const uint F_ZFLAT = 67108864u;
 const uint F_BIAS_DOWN = 134217728u; // fixed-function blend rounds; bias the source so it truncates like the GS
-const uint F_BIAS_UP = 268435456u;     // constant-depth primitive (sprite, line, point): exact Z from the vertex    // ... as for PSMCT16 (alpha stored as 0x80 / 0)   // source term of a blend with Cd * 1: exact integer |(kS*Cs*C >> 7) + dS*Cs|
+const uint F_BIAS_UP = 268435456u;
+const uint F_TEXSCALED = 536870912u; // texture at pc.texScale x resolution: sample its finer texels     // constant-depth primitive (sprite, line, point): exact Z from the vertex    // ... as for PSMCT16 (alpha stored as 0x80 / 0)   // source term of a blend with Cd * 1: exact integer |(kS*Cs*C >> 7) + dS*Cs|
 
 int wrapCoord(int c, int size, uint mode, int mn, int mx)
 {
@@ -78,13 +80,16 @@ int wrapCoord(int c, int size, uint mode, int mn, int mx)
     return int((uint(c) & uint(mn)) | uint(mx));
 }
 
-uvec4 fetchTexel(int u, int v)
+// Texel (u, v) (GS texels, wrapped as the GS does) and, for an upscaled texture, its sub-texel
+// (su, sv) in 0..texScale-1.
+uvec4 fetchTexelSub(int u, int v, int su, int sv)
 {
     const uint wu = pc.wrap & 3u, wv = (pc.wrap >> 2) & 3u;
     u = wrapCoord(u, pc.texW, wu, int(pc.regionU & 0xFFFFu), int(pc.regionU >> 16));
     v = wrapCoord(v, pc.texH, wv, int(pc.regionV & 0xFFFFu), int(pc.regionV >> 16));
     const ivec2 size = textureSize(tex, 0);
-    uvec4 t = texelFetch(tex, clamp(ivec2(u, v), ivec2(0), size - 1), 0);
+    const int k = (pc.flags & F_TEXSCALED) != 0u ? pc.texScale : 1;
+    uvec4 t = texelFetch(tex, clamp(ivec2(u * k + su, v * k + sv), ivec2(0), size - 1), 0);
     if ((pc.flags & (F_TEXA16 | F_TEXA24)) != 0u)
     {
         const bool rgbZero = t.r == 0u && t.g == 0u && t.b == 0u;
@@ -97,20 +102,39 @@ uvec4 fetchTexel(int u, int v)
     return t;
 }
 
+uvec4 fetchTexel(int u, int v)
+{
+    return fetchTexelSub(u, v, 0, 0);
+}
+
+// A texel of an upscaled texture by its fine coordinates (texScale per GS texel).
+uvec4 fetchFine(int fu, int fv)
+{
+    const int k = pc.texScale;
+    const int u = fu >= 0 ? fu / k : -((k - 1 - fu) / k);
+    const int v = fv >= 0 ? fv / k : -((k - 1 - fv) / k);
+    return fetchTexelSub(u, v, fu - u * k, fv - v * k);
+}
+
 uvec4 sampleTexture(float u, float v)
 {
+    const bool fine = (pc.flags & F_TEXSCALED) != 0u;
     if ((pc.flags & F_LINEAR) == 0u)
+    {
+        if (fine)
+            return fetchFine(int(floor(u * float(pc.texScale))), int(floor(v * float(pc.texScale))));
         return fetchTexel(int(u), int(v));
-    precise float su = u - 0.5;
-    precise float sv = v - 0.5;
+    }
+    precise float su = (fine ? u * float(pc.texScale) : u) - 0.5;
+    precise float sv = (fine ? v * float(pc.texScale) : v) - 0.5;
     const int u0 = int(floor(su));
     const int v0 = int(floor(sv));
     precise float fx = su - float(u0);
     precise float fy = sv - float(v0);
-    const uvec4 c00 = fetchTexel(u0, v0);
-    const uvec4 c10 = fetchTexel(u0 + 1, v0);
-    const uvec4 c01 = fetchTexel(u0, v0 + 1);
-    const uvec4 c11 = fetchTexel(u0 + 1, v0 + 1);
+    const uvec4 c00 = fine ? fetchFine(u0, v0) : fetchTexel(u0, v0);
+    const uvec4 c10 = fine ? fetchFine(u0 + 1, v0) : fetchTexel(u0 + 1, v0);
+    const uvec4 c01 = fine ? fetchFine(u0, v0 + 1) : fetchTexel(u0, v0 + 1);
+    const uvec4 c11 = fine ? fetchFine(u0 + 1, v0 + 1) : fetchTexel(u0 + 1, v0 + 1);
     if (c00 == c10 && c00 == c01 && c00 == c11)
         return c00;
     precise vec4 a = vec4(c00), b = vec4(c10), c = vec4(c01), d = vec4(c11);
