@@ -37,7 +37,7 @@ void main()
     else
     {
         const float zmax = pc.kind == 4u ? 16777215.0 : 65535.0;
-        px = uint(clamp(floor(v.r * 16777216.0 + 0.5), 0.0, zmax));
+        px = uint(clamp(round(v.r * 16777216.0), 0.0, zmax));
     }
     const uint a = pixelAddr(pc.tableOff, pc.pw, pc.ph, pc.bp, pc.bw, p.x, p.y);
     if (pc.kind == 0u || pc.kind == 3u)

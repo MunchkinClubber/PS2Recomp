@@ -146,7 +146,7 @@ void main()
     if ((pc.flags & F_ZFLAT) != 0u)
         gl_FragDepth = vZ;
     else if ((pc.flags & F_ZROUND) != 0u)
-        gl_FragDepth = floor(gl_FragCoord.z * 16777216.0 + 0.5) / 16777216.0;
+        gl_FragDepth = round(gl_FragCoord.z * 16777216.0) / 16777216.0;
     else
         gl_FragDepth = gl_FragCoord.z;
 

@@ -1,0 +1,52 @@
+#version 450
+#extension GL_GOOGLE_include_directive : require
+// Reads rows of a render target out of the GS memory mirror into a linear buffer (RGBA8 for
+// colour, float depth z * scale), to be copied into the target image.
+layout(local_size_x = 8, local_size_y = 8) in;
+#include "gs_mem.glsl"
+layout(std430, set = 0, binding = 5) writeonly buffer Out { uint outData[]; };
+
+layout(push_constant) uniform PC
+{
+    uint kind; // 0 CT32, 1 CT24, 2 CT16, 3 Z32, 4 Z24, 5 Z16
+    uint tableOff;
+    uint pw;
+    uint ph;
+    uint bp;
+    uint bw;
+    uint y0;
+    uint w;
+    uint h;
+} pc;
+
+uint expand5551(uint c)
+{
+    return ((c & 0x1Fu) << 3) | (((c >> 5) & 0x1Fu) << 11) | (((c >> 10) & 0x1Fu) << 19) | (((c >> 15) & 1u) << 31);
+}
+
+void main()
+{
+    const uvec2 g = gl_GlobalInvocationID.xy;
+    if (g.x >= pc.w || g.y >= pc.h)
+        return;
+    const uint a = pixelAddr(pc.tableOff, pc.pw, pc.ph, pc.bp, pc.bw, g.x, g.y + pc.y0);
+    uint v;
+    if (pc.kind == 2u || pc.kind == 5u)
+    {
+        const uint byteAddr = (a * 2u) & 0x3FFFFEu;
+        const uint h16 = (vram[byteAddr >> 2] >> ((byteAddr & 2u) * 8u)) & 0xFFFFu;
+        v = pc.kind == 2u ? expand5551(h16) : floatBitsToUint(float(h16) / 16777216.0);
+    }
+    else
+    {
+        const uint word = vram[a & 0xFFFFFu];
+        switch (pc.kind)
+        {
+        case 0u: v = word; break;
+        case 1u: v = (word & 0x00FFFFFFu) | 0x80000000u; break;
+        case 3u: v = floatBitsToUint(float(word) / 4294967296.0); break;
+        default: v = floatBitsToUint(float(word & 0x00FFFFFFu) / 16777216.0); break;
+        }
+    }
+    outData[g.y * pc.w + g.x] = v;
+}
