@@ -32,6 +32,9 @@
 #include <array>
 #include <atomic>
 #include <bitset>
+#if defined(_MSC_VER)
+#include <intrin.h>
+#endif
 #include <cfenv>
 #include <cstddef>
 #include <chrono>
@@ -46,7 +49,38 @@
 
 namespace
 {
-    using PageSet = std::bitset<512>;
+    // Set of the 512 GS memory pages (8 KiB each).
+    struct PageSet
+    {
+        uint64_t w[8] = {};
+        void set(uint32_t p) { w[(p >> 6) & 7u] |= 1ull << (p & 63u); }
+        void set() { for (uint64_t &x : w) x = ~0ull; }
+        bool test(uint32_t p) const { return (w[(p >> 6) & 7u] >> (p & 63u)) & 1u; }
+        void reset() { for (uint64_t &x : w) x = 0; }
+        bool any() const { uint64_t a = 0; for (uint64_t x : w) a |= x; return a != 0; }
+        PageSet operator&(const PageSet &o) const { PageSet r; for (int i = 0; i < 8; ++i) r.w[i] = w[i] & o.w[i]; return r; }
+        PageSet operator|(const PageSet &o) const { PageSet r; for (int i = 0; i < 8; ++i) r.w[i] = w[i] | o.w[i]; return r; }
+        PageSet operator~() const { PageSet r; for (int i = 0; i < 8; ++i) r.w[i] = ~w[i]; return r; }
+        PageSet &operator&=(const PageSet &o) { for (int i = 0; i < 8; ++i) w[i] &= o.w[i]; return *this; }
+        PageSet &operator|=(const PageSet &o) { for (int i = 0; i < 8; ++i) w[i] |= o.w[i]; return *this; }
+        bool intersects(const PageSet &o) const { uint64_t a = 0; for (int i = 0; i < 8; ++i) a |= w[i] & o.w[i]; return a != 0; }
+        // Calls fn(page) for every page in the set, in order.
+        template <typename F>
+        void forEach(F &&fn) const
+        {
+            for (uint32_t i = 0; i < 8u; ++i)
+                for (uint64_t x = w[i]; x; x &= x - 1u)
+                {
+                    unsigned long b;
+#if defined(_MSC_VER)
+                    _BitScanForward64(&b, x);
+#else
+                    b = static_cast<unsigned long>(__builtin_ctzll(x));
+#endif
+                    fn(i * 64u + static_cast<uint32_t>(b));
+                }
+        }
+    };
     constexpr uint32_t kTargetHeight = 1024u;
     constexpr uint32_t kRingSize = 64u << 20; // two halves: one per command buffer in flight
     constexpr uint32_t kRingHalf = kRingSize / 2u;
@@ -591,6 +625,7 @@ private:
         PageSet dirtyPages;
         uint64_t lastUse = 0;
         uint64_t version = 1; // bumped whenever the image content changes
+        PageSet allPages;     // every page the target's rows cover
         int maxRow = -1;      // lowest row any draw has reached
     };
 
@@ -823,7 +858,7 @@ private:
     // Interval timings (ns) and counts, printed per frame with the stats.
     struct Interval
     {
-        uint64_t submitNs = 0, waitNs = 0, downloadNs = 0, decodeNs = 0, uploadNs = 0, flushNs = 0;
+        uint64_t submitNs = 0, waitNs = 0, downloadNs = 0, decodeNs = 0, uploadNs = 0, flushNs = 0, xferNs = 0, clutNs = 0, flipNs = 0;
         uint64_t downloads = 0, decodes = 0, uploads = 0, batches = 0, prims = 0, waits = 0;
     } m_iv;
     struct ScopeTimer
@@ -1524,6 +1559,7 @@ GsVulkanBackend::Target &GsVulkanBackend::getTarget(uint32_t fbp, uint32_t fbw, 
                     VK_IMAGE_ASPECT_COLOR_BIT);
     const uint32_t groups = kTargetHeight / pageDims(psm).h;
     t->stale = groups >= 64u ? ~0ull : ((1ull << groups) - 1ull);
+    t->allPages = groupPages(*t, t->stale);
     m_targets.push_back(t);
     if (m_stats)
         std::fprintf(stderr, "[gs:vk] target fbp=0x%x fbw=%u psm=0x%x (%ux%u)\n", fbp, fbw, psm, w, kTargetHeight);
@@ -1532,6 +1568,8 @@ GsVulkanBackend::Target &GsVulkanBackend::getTarget(uint32_t fbp, uint32_t fbw, 
 
 uint64_t GsVulkanBackend::groupsFor(const Target &t, const PageSet &pages) const
 {
+    if (!t.allPages.intersects(pages))
+        return 0;
     const PageDims d = pageDims(t.psm);
     const uint32_t ppr = std::max<uint32_t>(1u, t.fbw * 64u / d.w);
     const uint32_t groups = kTargetHeight / d.h;
@@ -1564,9 +1602,7 @@ PageSet GsVulkanBackend::groupPages(const Target &t, uint64_t groups) const
 void GsVulkanBackend::bumpPages(const PageSet &pages)
 {
     ++m_serial;
-    for (uint32_t p = 0; p < 512u; ++p)
-        if (pages.test(p))
-            m_pageSerial[p] = m_serial;
+    pages.forEach([&](uint32_t p) { m_pageSerial[p] = m_serial; });
 }
 
 // GS memory pages about to be read or written on the CPU: bring in newer render-target data.
@@ -1575,7 +1611,7 @@ void GsVulkanBackend::ensureVramCurrent(const PageSet &pages)
     for (size_t i = 0; i < m_targets.size(); ++i)
     {
         Target &t = *m_targets[i];
-        if (t.dirty && (t.dirtyPages & pages).any())
+        if (t.dirty && t.dirtyPages.intersects(pages))
             download(t);
     }
     if (gpuMem())
@@ -1593,7 +1629,7 @@ void GsVulkanBackend::ensureMirrorCurrent(const PageSet &pages)
     for (size_t i = 0; i < m_targets.size(); ++i)
     {
         Target &t = *m_targets[i];
-        if (t.dirty && (t.dirtyPages & pages).any())
+        if (t.dirty && t.dirtyPages.intersects(pages))
             download(t);
     }
     syncMirrorPages(pages);
@@ -1638,9 +1674,7 @@ void GsVulkanBackend::readbackMirror(const PageSet &pages)
     if (!ensureReadback(GSMem::MEMORY_SIZE))
         return;
     std::vector<VkBufferCopy> copies;
-    for (uint32_t p = 0; p < 512u; ++p)
-        if (pages.test(p))
-            copies.push_back({static_cast<VkDeviceSize>(p) * 8192u, static_cast<VkDeviceSize>(copies.size()) * 8192u, 8192u});
+    pages.forEach([&](uint32_t p) { copies.push_back({static_cast<VkDeviceSize>(p) * 8192u, static_cast<VkDeviceSize>(copies.size()) * 8192u, 8192u}); });
     barrier();
     m_dt.vkCmdCopyBuffer(m_cmd, m_vramBuf, m_readback, static_cast<uint32_t>(copies.size()), copies.data());
     VkMemoryBarrier mb{VK_STRUCTURE_TYPE_MEMORY_BARRIER};
@@ -1889,9 +1923,9 @@ void GsVulkanBackend::prepareDrawTarget(Target &t, const PageSet &drawPages, int
         if (&o == &t)
             continue;
         const uint64_t g = groupsFor(o, drawPages);
-        if (!g && !(o.dirty && (o.dirtyPages & drawPages).any()))
+        if (!g && !(o.dirty && o.dirtyPages.intersects(drawPages)))
             continue;
-        if (o.dirty && (o.dirtyPages & drawPages).any())
+        if (o.dirty && o.dirtyPages.intersects(drawPages))
         {
             m_why = "overlap";
             download(o);
@@ -2453,10 +2487,10 @@ VkDescriptorSet GsVulkanBackend::computeSet()
 void GsVulkanBackend::syncMirrorPages(const PageSet &pages)
 {
     bool any = false;
-    for (uint32_t p = 0; p < 512u; ++p)
+    (pages & ~m_mirrorNewer).forEach([&](uint32_t p)
     {
-        if (!pages.test(p) || m_mirrorSerial[p] == m_pageSerial[p] || m_mirrorNewer.test(p))
-            continue;
+        if (m_mirrorSerial[p] == m_pageSerial[p])
+            return;
         const uint32_t off = ringAlloc(8192u, 16u);
         std::memcpy(m_ringPtr + off, m_vram + static_cast<size_t>(p) * 8192u, 8192u);
         if (!any)
@@ -2468,7 +2502,7 @@ void GsVulkanBackend::syncMirrorPages(const PageSet &pages)
         m_mirrorSerial[p] = m_pageSerial[p];
         m_mirrorGen[p] = ++m_mirrorGenCounter;
         ++m_statMirrorPages;
-    }
+    });
     if (any)
         barrier();
 }
@@ -2859,7 +2893,7 @@ GsVulkanBackend::Texture *GsVulkanBackend::getTexture(const GSDrawState &st, uin
     {
         static int logged = 0;
         for (Target *t : m_targets)
-            if (t->dirty && (t->dirtyPages & pages).any() && logged < 40)
+            if (t->dirty && t->dirtyPages.intersects(pages) && logged < 40)
             {
                 ++logged;
                 std::fprintf(stderr, "[gs:vk] rt-as-texture: tex tbp=%x tbw=%u psm=%x %ux%u clamp=%llx linear=%d <- target fbp=%x fbw=%u psm=%x dirty=(%d,%d)-(%d,%d)\n",
@@ -2874,7 +2908,7 @@ GsVulkanBackend::Texture *GsVulkanBackend::getTexture(const GSDrawState &st, uin
     else
     {
         ensureMirrorCurrent(pages);
-        overlay = (m_mirrorNewer & pages).any();
+        overlay = m_mirrorNewer.intersects(pages);
     }
 
     auto it = m_textures.find(key);
@@ -2967,9 +3001,7 @@ GsVulkanBackend::Texture *GsVulkanBackend::getTexture(const GSDrawState &st, uin
     }
     Texture &tt = it->second;
     tt.pages.clear();
-    for (uint32_t p = 0; p < 512u; ++p)
-        if (pages.test(p))
-            tt.pages.push_back(static_cast<uint16_t>(p));
+    pages.forEach([&](uint32_t p) { tt.pages.push_back(static_cast<uint16_t>(p)); });
     // Re-writing an image the recorded commands still sample is fine: the write is ordered
     // after them by the barrier.
     if (m_cpuDecode)
@@ -3398,6 +3430,7 @@ void GsVulkanBackend::LoadClut(const GSTex0Reg &tex0, const GSTexClutReg &texclu
     std::lock_guard<std::recursive_mutex> lock(m_mutex);
     if (!isIndexedPsm(tex0.psm) || tex0.cld == 0u || tex0.cld >= 6u)
         return; // no CLUT load (the CPU backend ignores these too)
+    ScopeTimer timer(m_iv.clutNs);
     flushBatch();
     PageSet pages;
     // CSM1: a 16x16 (or 8x2) block-ordered CLUT occupies at most four blocks from CBP.
@@ -3410,7 +3443,7 @@ void GsVulkanBackend::LoadClut(const GSTex0Reg &tex0, const GSTexClutReg &texclu
     {
         static int logged = 0;
         for (Target *t : m_targets)
-            if (t->dirty && (t->dirtyPages & pages).any() && logged < 30)
+            if (t->dirty && t->dirtyPages.intersects(pages) && logged < 30)
             {
                 ++logged;
                 std::fprintf(stderr, "[gs:vk] clut cbp=%x cpsm=%x csm=%u csa=%u psm=%x <- target fbp=%x fbw=%u psm=%x dirty=(%d,%d)-(%d,%d)\n", tex0.cbp, tex0.cpsm, tex0.csm,
@@ -3424,6 +3457,7 @@ void GsVulkanBackend::LoadClut(const GSTex0Reg &tex0, const GSTexClutReg &texclu
 void GsVulkanBackend::BeginTransfer(const GSTransferCommand &command)
 {
     std::lock_guard<std::recursive_mutex> lock(m_mutex);
+    ScopeTimer timer(m_iv.xferNs);
     flushBatch();
     const auto &bb = command.bitbltbuf;
     const auto &pos = command.trxpos;
@@ -3461,6 +3495,7 @@ void GsVulkanBackend::BeginTransfer(const GSTransferCommand &command)
 void GsVulkanBackend::UploadImage(const uint8_t *data, uint32_t sizeBytes)
 {
     std::lock_guard<std::recursive_mutex> lock(m_mutex);
+    ScopeTimer timer(m_iv.xferNs);
     flushBatch();
     ensureVramCurrent(m_uploadPages);
     m_cpu.UploadImage(data, sizeBytes);
@@ -3487,6 +3522,7 @@ void GsVulkanBackend::QueuePresentSnapshot(const GSPresentationRequest &request)
 {
     std::lock_guard<std::recursive_mutex> lock(m_mutex);
     flushBatch();
+    ScopeTimer flipTimer(m_iv.flipNs);
     m_why = "flip";
     ++m_statFlips;
     if (m_stats && (m_statFlips % 300u) == 0u)
@@ -3620,9 +3656,9 @@ void GsVulkanBackend::printStats()
         const auto pf = [&](uint64_t n) { return static_cast<double>(n) / f; };
         std::fprintf(stderr,
                      "[gs:vk] per frame: submit %.2f ms (flush %.2f), GPU waits %.1fx %.2f ms, downloads %.1fx %.2f ms, texture decodes %.1fx %.2f ms, "
-                     "target uploads %.1fx %.2f ms | %.0f prims, %.0f batches\n",
+                     "target uploads %.1fx %.2f ms, transfers %.2f ms, CLUT %.2f ms, flip %.2f ms | %.0f prims, %.0f batches\n",
                      ms(m_iv.submitNs), ms(m_iv.flushNs), pf(m_iv.waits), ms(m_iv.waitNs), pf(m_iv.downloads), ms(m_iv.downloadNs), pf(m_iv.decodes),
-                     ms(m_iv.decodeNs), pf(m_iv.uploads), ms(m_iv.uploadNs), pf(m_iv.prims), pf(m_iv.batches));
+                     ms(m_iv.decodeNs), pf(m_iv.uploads), ms(m_iv.uploadNs), ms(m_iv.xferNs), ms(m_iv.clutNs), ms(m_iv.flipNs), pf(m_iv.prims), pf(m_iv.batches));
         m_iv = Interval{};
         m_ivFlips = m_statFlips;
     }
