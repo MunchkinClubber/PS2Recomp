@@ -1959,11 +1959,18 @@ void EeScheduler::processDueDeadlines()
         {
             if (scheduled.event.type == EeEventType::VBlankStart)
             {
+                // Keep VBlanks on a steady 60 Hz grid, but when the game fell behind (a slow
+                // frame) do not let the missed ones fire back to back afterwards: that ran the
+                // game visibly fast for a moment ("catching up"). Allow at most one late period.
+                auto hostBase = scheduled.hostDeadline;
+                const auto hostNow = std::chrono::steady_clock::now();
+                if (hostBase + kVBlankPeriod < hostNow)
+                    hostBase = hostNow - kVBlankPeriod;
                 scheduleEvent(scheduled.deadlineCycle + kVBlankDurationCycles,
-                              scheduled.hostDeadline + kVBlankDuration,
+                              hostBase + kVBlankDuration,
                               EeEvent{EeEventType::VBlankEnd, 0, m_vsyncTick + 1u});
                 scheduleEvent(scheduled.deadlineCycle + kVBlankPeriodCycles,
-                              scheduled.hostDeadline + kVBlankPeriod,
+                              hostBase + kVBlankPeriod,
                               EeEvent{EeEventType::VBlankStart, 0, 0});
             }
             processEvent(scheduled.event);
