@@ -1925,6 +1925,20 @@ void PS2Runtime::reportMissingFunction(uint8_t *rdram,
     }
 }
 
+namespace
+{
+    // Set while guest code is leaving its native call chain to let the EE scheduler continue at
+    // ctx->pc (a dispatch returned false, or a backward-edge checkpoint fired). Guest code runs
+    // on the scheduler thread only.
+    thread_local bool g_guestUnwinding = false;
+
+    inline bool unwindGuest()
+    {
+        g_guestUnwinding = true;
+        return false;
+    }
+}
+
 bool PS2Runtime::dispatchGuestBranch(uint8_t *rdram,
                                      R5900Context *ctx,
                                      uint32_t targetPc,
@@ -1934,6 +1948,7 @@ bool PS2Runtime::dispatchGuestBranch(uint8_t *rdram,
                                      const char *debugName)
 {
     ctx->pc = targetPc;
+    g_guestUnwinding = false;
     const bool isCall = (kind == GuestBranchKind::DirectCall || kind == GuestBranchKind::IndirectCall);
 
     // Every inter-function transfer is also a deterministic EE safe point.
@@ -1941,7 +1956,7 @@ bool PS2Runtime::dispatchGuestBranch(uint8_t *rdram,
     // this charge bounds straight-line call chains that have no local loop.
     if (m_eeScheduler && m_eeScheduler->checkpointDue(EeScheduler::kGuestDispatchCycles))
     {
-        return false;
+        return unwindGuest();
     }
 
     if (!isCall)
@@ -1952,7 +1967,7 @@ bool PS2Runtime::dispatchGuestBranch(uint8_t *rdram,
         }
 
         ctx->pc = targetPc;
-        return false;
+        return unwindGuest();
     }
 
     if (!hasFunction(targetPc))
@@ -1971,10 +1986,10 @@ bool PS2Runtime::dispatchGuestBranch(uint8_t *rdram,
         {
             ctx->pc = targetPc;
             // if you need the app to keep open to open debug pannel change this to false
-            return false;
+            return unwindGuest();
         }
 
-        return false;
+        return unwindGuest();
     }
 
     RecompiledFunction targetFn = lookupFunction(targetPc);
@@ -1987,6 +2002,10 @@ bool PS2Runtime::dispatchGuestBranch(uint8_t *rdram,
         std::fflush(stderr);
     }
     targetFn(rdram, ctx, this);
+    // The callee left through a checkpoint, a jump or a nested transfer that is unwinding to the
+    // scheduler (which resumes at ctx->pc): not a return, even when ctx->pc happens to be the
+    // callee's entry (a recursive call to it that hit a checkpoint, a jump back to it).
+    const bool calleeUnwound = g_guestUnwinding;
     if (ssx3Watch)
     {
         std::fprintf(stderr, "[ssx3:call] 0x%x -> 0x%x back pc=0x%x sp=0x%x ra=0x%x (fallthrough 0x%x)\n", sourcePc, targetPc,
@@ -1996,9 +2015,16 @@ bool PS2Runtime::dispatchGuestBranch(uint8_t *rdram,
 
     if (isStopRequested() || ctx->pc == 0u)
     {
-        return false;
+        return unwindGuest();
     }
 
+    if (calleeUnwound)
+    {
+        return unwindGuest();
+    }
+
+    // A callee that left ctx->pc at its own entry without unwinding (a native stub or override
+    // that does not set pc) has returned.
     if (ctx->pc == entryPc)
     {
         {
@@ -2015,7 +2041,11 @@ bool PS2Runtime::dispatchGuestBranch(uint8_t *rdram,
         ctx->pc = fallthroughPc;
     }
 
-    return ctx->pc == fallthroughPc;
+    if (ctx->pc != fallthroughPc)
+    {
+        return unwindGuest();
+    }
+    return true;
 }
 
 void PS2Runtime::SignalException(R5900Context *ctx, PS2Exception exception)
@@ -2902,7 +2932,10 @@ void PS2Runtime::postEeEvent(EeEvent event)
 
 bool PS2Runtime::eeCheckpointDue(uint32_t cycles) noexcept
 {
-    return m_eeScheduler->checkpointDue(cycles);
+    if (!m_eeScheduler->checkpointDue(cycles))
+        return false;
+    g_guestUnwinding = true; // generated code returns to the scheduler now
+    return true;
 }
 
 [[noreturn]] void PS2Runtime::eeWaitVSyncTicks(uint32_t ticks, uint32_t resumePc)

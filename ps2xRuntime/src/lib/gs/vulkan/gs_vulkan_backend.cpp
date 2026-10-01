@@ -3277,7 +3277,9 @@ void GsVulkanBackend::flushBatch()
     if (!m_batch.active)
         return;
     flushBatchImpl();
-    if (m_submitIntervalNs && m_cmdOpen && ++m_batchesSinceSubmit >= 8u && nowNs() - m_cmdStartNs >= m_submitIntervalNs)
+    // Only when the other command buffer has finished, so this never waits for the GPU.
+    if (m_submitIntervalNs && m_cmdOpen && ++m_batchesSinceSubmit >= 8u && nowNs() - m_cmdStartNs >= m_submitIntervalNs &&
+        (!m_slots[m_cur ^ 1u].pending || m_dt.vkGetFenceStatus(m_device, m_slots[m_cur ^ 1u].fence) == VK_SUCCESS))
     {
         ++m_statMidSubmits;
         ++m_iv.midSubmits;
