@@ -707,6 +707,7 @@ private:
     // ---- drawing ----
     void appendPrimitive(const GSPrimitiveBatch &batch);
     void flushBatch();
+    void flushBatchImpl();
     Texture *getTexture(const GSDrawState &st, uint32_t &decW, uint32_t &decH, uint32_t &texFlags);
     void gpuDecode(const GSDrawState &st, Texture &tex, const PageSet &pages, const uint32_t *palette);
     void resolveMaxAlpha(Texture &t);
@@ -774,6 +775,10 @@ private:
     void completeSlot(uint32_t i);
     void reserve(uint32_t ringBytes, uint32_t sets);
     bool m_cmdOpen = false;
+    uint64_t m_cmdStartNs = 0;
+    uint32_t m_batchesSinceSubmit = 0;
+    uint64_t m_submitIntervalNs = 1000000; // PS2_GS_VK_SUBMITUS (0: only at flips / when full)
+    uint64_t m_statMidSubmits = 0;
     uint64_t m_submitSerial = 1;
     VkBuffer m_ring = VK_NULL_HANDLE;
     VkDeviceMemory m_ringMem = VK_NULL_HANDLE;
@@ -921,6 +926,8 @@ private:
     struct Interval
     {
         uint64_t submitNs = 0, waitNs = 0, downloadNs = 0, decodeNs = 0, uploadNs = 0, flushNs = 0, xferNs = 0, clutNs = 0, flipNs = 0;
+        uint64_t xferFlushNs = 0, xferSyncNs = 0, xferCpuNs = 0, xferMarkNs = 0, xfers = 0, midSubmits = 0;
+        uint64_t readbackSubmitNs = 0, readbackWaitNs = 0, readbacks[3] = {}; // by cause: xfer-down, xfer-up, other
         uint64_t downloads = 0, decodes = 0, uploads = 0, batches = 0, prims = 0, waits = 0;
     } m_iv;
     struct ScopeTimer
@@ -1036,6 +1043,8 @@ bool GsVulkanBackend::Create(const HostVulkanShared *shared)
 {
     m_stats = envFlag("PS2_GS_VK_STATS");
     m_checkPresent = envFlag("PS2_GS_VK_CHECKPRESENT");
+    if (const char *v = std::getenv("PS2_GS_VK_SUBMITUS"))
+        m_submitIntervalNs = static_cast<uint64_t>(std::strtoull(v, nullptr, 10)) * 1000u;
     m_noAlias = envFlag("PS2_GS_VK_NOALIAS");
     m_noBias = envFlag("PS2_GS_VK_NOBIAS");
     m_cpuDecode = envFlag("PS2_GS_VK_CPUDECODE");
@@ -1451,6 +1460,8 @@ void GsVulkanBackend::beginCmd()
     bi.flags = VK_COMMAND_BUFFER_USAGE_ONE_TIME_SUBMIT_BIT;
     m_dt.vkBeginCommandBuffer(m_cmd, &bi);
     m_cmdOpen = true;
+    m_cmdStartNs = nowNs();
+    m_batchesSinceSubmit = 0;
     m_curPipeline = VK_NULL_HANDLE;
     // Everything in the previous command buffer happens before anything in this one.
     VkMemoryBarrier mb{VK_STRUCTURE_TYPE_MEMORY_BARRIER};
@@ -1863,7 +1874,16 @@ void GsVulkanBackend::readbackMirror(const PageSet &pages)
     mb.srcAccessMask = VK_ACCESS_TRANSFER_WRITE_BIT;
     mb.dstAccessMask = VK_ACCESS_HOST_READ_BIT;
     m_dt.vkCmdPipelineBarrier(m_cmd, VK_PIPELINE_STAGE_TRANSFER_BIT, VK_PIPELINE_STAGE_HOST_BIT, 0, 1, &mb, 0, nullptr, 0, nullptr);
-    submitAndWait();
+    {
+        const int cause = std::strcmp(m_why, "xfer-down") == 0 ? 0 : std::strcmp(m_why, "xfer-up") == 0 ? 1 : 2;
+        ++m_iv.readbacks[cause];
+        const uint64_t t0 = nowNs();
+        const uint64_t waitBefore = m_iv.waitNs;
+        submitAndWait();
+        const uint64_t waited = m_iv.waitNs - waitBefore;
+        m_iv.readbackWaitNs += waited;
+        m_iv.readbackSubmitNs += (nowNs() - t0) - waited;
+    }
     if (!m_readbackCoherent)
     {
         VkMappedMemoryRange r{VK_STRUCTURE_TYPE_MAPPED_MEMORY_RANGE};
@@ -3249,10 +3269,24 @@ GsVulkanBackend::Texture *GsVulkanBackend::getTexture(const GSDrawState &st, uin
     return &tt;
 }
 
+// Records the pending batch. The command buffer is also handed to the GPU every
+// m_submitIntervalNs of recording, so that the GPU works through the frame as it is built: a
+// readback the game asks for (a GPU round trip) then only waits for the last stretch of work.
 void GsVulkanBackend::flushBatch()
 {
     if (!m_batch.active)
         return;
+    flushBatchImpl();
+    if (m_submitIntervalNs && m_cmdOpen && ++m_batchesSinceSubmit >= 8u && nowNs() - m_cmdStartNs >= m_submitIntervalNs)
+    {
+        ++m_statMidSubmits;
+        ++m_iv.midSubmits;
+        submitAsync();
+    }
+}
+
+void GsVulkanBackend::flushBatchImpl()
+{
     m_batch.active = false;
     Batch &b = m_batch;
     if (b.verts.empty())
@@ -3642,7 +3676,11 @@ void GsVulkanBackend::BeginTransfer(const GSTransferCommand &command)
 {
     std::lock_guard<std::recursive_mutex> lock(m_mutex);
     ScopeTimer timer(m_iv.xferNs);
-    flushBatch();
+    ++m_iv.xfers;
+    {
+        ScopeTimer t(m_iv.xferFlushNs);
+        flushBatch();
+    }
     const auto &bb = command.bitbltbuf;
     const auto &pos = command.trxpos;
     const auto &reg = command.trxreg;
@@ -3654,6 +3692,15 @@ void GsVulkanBackend::BeginTransfer(const GSTransferCommand &command)
     }
     m_uploadPages.reset();
     m_why = command.direction == 0u ? "xfer-up" : command.direction == 1u ? "xfer-down" : "xfer-copy";
+    static const bool s_logXfer = envFlag("PS2_GS_VK_LOGXFER");
+    static uint32_t s_downLogged = 0;
+    if (s_logXfer || (m_stats && command.direction == 1u && s_downLogged++ < 48u))
+    {
+        const bool newer = gpuMem() && ((m_mirrorNewer & (command.direction == 0u ? dst : src)).any());
+        std::fprintf(stderr, "[gs:vk] xfer dir=%u sbp=%x sbw=%u spsm=%x dbp=%x dbw=%u dpsm=%x pos=%u,%u->%u,%u size=%ux%u gpu-newer=%d flip=%llu\n", command.direction,
+                     bb.sbp, bb.sbw, bb.spsm, bb.dbp, bb.dbw, bb.dpsm, pos.ssax, pos.ssay, pos.dsax, pos.dsay, reg.rrw, reg.rrh, newer ? 1 : 0,
+                     (unsigned long long)m_statFlips);
+    }
     switch (command.direction)
     {
     case 0u:
@@ -3680,9 +3727,19 @@ void GsVulkanBackend::UploadImage(const uint8_t *data, uint32_t sizeBytes)
 {
     std::lock_guard<std::recursive_mutex> lock(m_mutex);
     ScopeTimer timer(m_iv.xferNs);
-    flushBatch();
-    ensureVramCurrent(m_uploadPages);
-    m_cpu.UploadImage(data, sizeBytes);
+    {
+        ScopeTimer t(m_iv.xferFlushNs);
+        flushBatch();
+    }
+    {
+        ScopeTimer t(m_iv.xferSyncNs);
+        ensureVramCurrent(m_uploadPages);
+    }
+    {
+        ScopeTimer t(m_iv.xferCpuNs);
+        m_cpu.UploadImage(data, sizeBytes);
+    }
+    ScopeTimer t(m_iv.xferMarkNs);
     markCpuWrite(m_uploadPages);
 }
 
@@ -4178,9 +4235,11 @@ void GsVulkanBackend::printStats()
         const auto pf = [&](uint64_t n) { return static_cast<double>(n) / f; };
         std::fprintf(stderr,
                      "[gs:vk] per frame: submit %.2f ms (flush %.2f), GPU waits %.1fx %.2f ms, downloads %.1fx %.2f ms, texture decodes %.1fx %.2f ms, "
-                     "target uploads %.1fx %.2f ms, transfers %.2f ms, CLUT %.2f ms, flip %.2f ms | %.0f prims, %.0f batches\n",
+                     "target uploads %.1fx %.2f ms, transfers %.1fx %.2f ms (draw flush %.2f, sync %.2f, copy %.2f, mark %.2f), CLUT %.2f ms, flip %.2f ms | %.0f prims, %.0f batches"
+                     " | readbacks %.1f down %.1f up %.1f other: submit %.2f ms wait %.2f ms | mid-frame submits %.1f\n",
                      ms(m_iv.submitNs), ms(m_iv.flushNs), pf(m_iv.waits), ms(m_iv.waitNs), pf(m_iv.downloads), ms(m_iv.downloadNs), pf(m_iv.decodes),
-                     ms(m_iv.decodeNs), pf(m_iv.uploads), ms(m_iv.uploadNs), ms(m_iv.xferNs), ms(m_iv.clutNs), ms(m_iv.flipNs), pf(m_iv.prims), pf(m_iv.batches));
+                     ms(m_iv.decodeNs), pf(m_iv.uploads), ms(m_iv.uploadNs), pf(m_iv.xfers), ms(m_iv.xferNs), ms(m_iv.xferFlushNs), ms(m_iv.xferSyncNs), ms(m_iv.xferCpuNs), ms(m_iv.xferMarkNs), ms(m_iv.clutNs), ms(m_iv.flipNs), pf(m_iv.prims), pf(m_iv.batches), pf(m_iv.readbacks[0]), pf(m_iv.readbacks[1]), pf(m_iv.readbacks[2]), ms(m_iv.readbackSubmitNs),
+                     ms(m_iv.readbackWaitNs), pf(m_iv.midSubmits));
         m_iv = Interval{};
         m_ivFlips = m_statFlips;
     }
