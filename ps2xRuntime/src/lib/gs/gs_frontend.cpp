@@ -13,6 +13,9 @@
 // Set by PS2Memory once the asynchronous VIF1/GIF worker runs: GS entry points used by the EE
 // (library stubs, read-backs) wait until the worker has processed everything queued before them.
 extern void (*g_ps2GpuSyncHook)();
+// Set by PS2Memory with the worker: raises CSR.FINISH for a FINISH register write, unless the EE
+// has cleared FINISH since the packet was queued (ps2_memory.cpp, s_finishEpoch).
+void (*g_ps2GsFinishHook)(std::atomic<uint64_t> &csr) = nullptr;
 #define PS2_GPU_SYNC_FROM_EE()   \
     do                           \
     {                            \
@@ -1580,7 +1583,12 @@ void GS::writeRegisterUnlocked(uint8_t regAddr, uint64_t value)
         if (m_backend)
             m_backend->Flush();
         if (m_privRegs)
-            m_privRegs->csr.fetch_or(0x2);
+        {
+            if (g_ps2GsFinishHook)
+                g_ps2GsFinishHook(m_privRegs->csr);
+            else
+                m_privRegs->csr.fetch_or(0x2);
+        }
         break;
     }
     case GS_REG_LABEL:

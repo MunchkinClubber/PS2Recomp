@@ -13,6 +13,8 @@
 #include <string>
 #include <vector>
 #include <condition_variable>
+#include <mutex>
+#include <functional>
 #include <deque>
 #include <cstdlib>
 #include <thread>
@@ -62,7 +64,8 @@ namespace
 // programs, GS front end - runs on one worker thread in kick order. EE accesses that could observe
 // that state (VU1 memory, VIF1 registers, GS privileged registers other than CSR status, GS
 // library calls, synchronous transfers) wait for the worker first (gpuSync). PS2_ASYNC_GPU=0
-// processes everything on the EE thread as before.
+// processes everything on the EE thread as before. Small GS read-backs (lens flare depth probes)
+// do not wait: see asyncReadbackMode.
 struct PS2Memory::GpuJob
 {
     std::vector<std::vector<uint8_t>> gif;  // PATH3 packets
@@ -71,10 +74,12 @@ struct PS2Memory::GpuJob
     bool drain = true;
     bool countKick = false;
     uint64_t enqueueNs = 0; // for the worker's scheduling-latency statistic
+    uint32_t finishEpoch = 0; // see s_finishEpoch
 };
 
 void vif1Observe(uint32_t) {} // old overlap measurement hook (ps2_runtime.cpp still calls it)
 void (*g_ps2GpuSyncHook)() = nullptr; // called by GS entry points used from the EE (gs_frontend.cpp)
+extern void (*g_ps2GsFinishHook)(std::atomic<uint64_t> &csr); // gs_frontend.cpp: a FINISH register write
 void (*g_ps2FlipHook)() = nullptr;    // set by PS2Runtime: GS::notePresentPoint (a DISPFB write = the game's flip)
 // set by PS2Runtime: copies up to `bytes` of pending GS local->host (readback) data to dst, returns the count.
 uint32_t (*g_ps2GsReadbackHook)(uint8_t *dst, uint32_t bytes) = nullptr;
@@ -109,6 +114,8 @@ namespace
     std::atomic<uint64_t> s_gpuSyncCount[PS2Memory::kGpuSyncReasonCount]{};
     std::atomic<uint64_t> s_gpuBusyNs{0}, s_gpuBackpressureNs{0}, s_gpuJobs{0}, s_gpuLatencyNs{0};
     std::atomic<uint64_t> s_gsStageBusyNs{0}, s_gsStageWaitNs{0}, s_gsStageSyncNs{0}, s_gsStageSyncs{0};
+    std::atomic<uint64_t> s_finishDropped{0}, s_finishEarly{0};
+    std::atomic<uint64_t> s_rbServed{0}, s_rbMissed{0}, s_rbCovered{0}, s_rbDirect{0}, s_rbRefreshed{0}, s_rbAgeNs{0}, s_rbDist{0};
 
     inline uint64_t gpuNowNs()
     {
@@ -117,6 +124,17 @@ namespace
 
     thread_local bool t_onGpuWorker = false;
     thread_local bool t_onGsStage = false;
+
+    // CSR.FINISH without waiting. The EE clears FINISH (CSR write with bit 1) and then waits for
+    // the FINISH of a packet it sends afterwards; a FINISH still in the queue from before the
+    // clear must not count. The EE used to wait for the whole queue before every clear. Instead
+    // each clear starts a new "epoch", queued work carries the epoch it was queued in, and a
+    // FINISH register write from an older epoch is dropped - the same result as if the queue had
+    // been drained before the clear, without the wait.
+    std::mutex s_finishMutex;                // epoch change + CSR.FINISH updates
+    std::atomic<uint32_t> s_finishEpoch{0};  // bumped under s_finishMutex
+    thread_local uint32_t t_finishEpoch = 0; // epoch of the work this thread is processing
+    thread_local bool t_finishEpochSet = false;
     bool gpuAsyncEnabled();
     // The GS front end's packet entry (set by PS2Runtime before any DMA runs).
     std::function<void(const uint8_t *, uint32_t)> g_gsStageProcess;
@@ -134,6 +152,7 @@ namespace
         {
             std::vector<uint8_t> packets; // [u32 size][bytes padded to 4] ...
             std::function<void()> fn;
+            uint32_t epoch = 0; // FINISH epoch of the EE job this came from
         };
         std::function<void(const uint8_t *, uint32_t)> process;
         std::mutex mutex;
@@ -142,6 +161,7 @@ namespace
         std::atomic<uint64_t> enqueued{0}, done{0};
         std::atomic<uint32_t> queued{0};
         std::vector<uint8_t> cur; // chunk being filled (worker thread only)
+        uint32_t curEpoch = 0;
         std::thread thread;
         std::atomic<bool> started{false};
 
@@ -175,6 +195,8 @@ namespace
                     queued.fetch_sub(1u, std::memory_order_relaxed);
                 }
                 const uint64_t t0 = gpuNowNs();
+                t_finishEpoch = item.epoch;
+                t_finishEpochSet = true;
                 const uint8_t *p = item.packets.data();
                 const uint8_t *end = p + item.packets.size();
                 while (p + 4 <= end)
@@ -227,12 +249,18 @@ namespace
                 return;
             Item item;
             item.packets = std::move(cur);
+            item.epoch = curEpoch;
             cur = gpuTakeBuffer();
             push(std::move(item));
         }
 
         void addPacket(const uint8_t *data, uint32_t size)
         {
+            if (curEpoch != t_finishEpoch)
+            {
+                flush(); // a chunk holds packets of one FINISH epoch
+                curEpoch = t_finishEpoch;
+            }
             const size_t at = cur.size();
             cur.resize(at + 4u + ((size + 3u) & ~3u));
             std::memcpy(cur.data() + at, &size, 4);
@@ -328,6 +356,8 @@ namespace
                         s_gpuLatencyNs.fetch_add(startNs - readyNs, std::memory_order_relaxed);
                 }
                 const bool hadVif = job.countKick && !job.vif1.empty(); // matches gpuEnqueue's backpressure count
+                t_finishEpoch = job.finishEpoch;
+                t_finishEpochSet = true;
                 memory->runGpuJob(job);
                 gpuReturnBuffers(job.vif1);
                 gpuReturnBuffers(job.gif);
@@ -437,6 +467,14 @@ namespace
             }
             g_ps2GpuSyncHook = []()
             { gpuSyncGlobal(PS2Memory::kGpuSyncGsCall); };
+            g_ps2GsFinishHook = [](std::atomic<uint64_t> &csr)
+            {
+                std::lock_guard<std::mutex> lock(s_finishMutex);
+                if (!t_finishEpochSet || t_finishEpoch == s_finishEpoch.load(std::memory_order_relaxed))
+                    csr.fetch_or(0x2u);
+                else
+                    s_finishDropped.fetch_add(1u, std::memory_order_relaxed);
+            };
             g_gpuWorker->thread = std::thread([]()
                                               { g_gpuWorker->run(); });
             g_gpuWorker->thread.detach();
@@ -460,6 +498,7 @@ namespace
             w.pendingVif.fetch_add(1u, std::memory_order_relaxed);
         }
         job.enqueueNs = gpuNowNs();
+        job.finishEpoch = s_finishEpoch.load(std::memory_order_acquire);
         {
             std::lock_guard<std::mutex> lock(w.mutex);
             w.queue.push_back(std::move(job));
@@ -467,6 +506,237 @@ namespace
             w.queued.fetch_add(1u, std::memory_order_release);
         }
         w.cv.notify_one();
+    }
+}
+
+namespace
+{
+    // ---- GS read-backs without waiting ---------------------------------------------------------
+    // SSX 3 tests each lens flare's visibility by reading a 16x8 block of the Z buffer back from
+    // the GS, ten or more times per frame in some scenes:
+    //   CSR = FINISH (clear) / a GIF packet with just FINISH / wait for CSR.FINISH / clear it /
+    //   a GIF packet BITBLTBUF, TRXPOS, TRXREG, TRXDIR=1 / VIF1_STAT.FDR / BUSDIR=1 /
+    //   VIF1 DMA towards memory / VIF1_STAT=0 / BUSDIR=0
+    // Each of those made the EE wait until the worker and the GS thread had caught up with
+    // everything queued, so the three threads ran one after the other in those frames. Now:
+    //  - clearing FINISH does not wait (see s_finishEpoch);
+    //  - a packet that is only a FINISH write reports FINISH as soon as it is queued. FINISH means
+    //    "everything before this has been drawn", and whatever the EE does next that depends on
+    //    that (read-backs, GS memory, privileged registers) waits for the queue by itself;
+    //  - the VIF1_STAT write (only FDR is writable) is just stored;
+    //  - the download is answered from the most recent finished read of the same size at (almost)
+    //    the same position - one frame old in practice - and the read that was asked for runs in
+    //    queue order on the GS thread and becomes the answer for the next frame. With no such
+    //    earlier read (first frame of a light, a camera cut) a depth probe is answered as
+    //    "covered" (nearest depth everywhere: a flare starts one frame late rather than flashing
+    //    through terrain); other formats wait as before.
+    // PS2_ASYNC_READBACK=0 restores the waits; =1 also waits when there is no earlier read.
+    int asyncReadbackMode()
+    {
+        static const int mode = []()
+        {
+            const char *v = std::getenv("PS2_ASYNC_READBACK");
+            const int m = !gpuAsyncEnabled() ? 0 : (v && v[0] == '0') ? 0 : (v && v[0] == '1') ? 1 : 2;
+            std::fprintf(stderr, "[gpu] GS read-backs answered from the previous frame: %s (PS2_ASYNC_READBACK=0 off, 1 wait for a first read, 2 never wait)\n",
+                         m == 0 ? "off" : m == 1 ? "on, a first read waits" : "on, no waits");
+            return m;
+        }();
+        return mode;
+    }
+    inline bool asyncReadbackEnabled()
+    {
+        return asyncReadbackMode() != 0;
+    }
+
+    struct ReadbackRequest
+    {
+        bool valid = false;
+        uint32_t sbp = 0, sbw = 0, psm = 0, w = 0, h = 0;
+        int32_t x = 0, y = 0;
+        uint32_t pixelBytes = 0;
+    };
+    ReadbackRequest s_rbRequest; // the download the EE has set up (EE thread only)
+
+    struct ReadbackEntry
+    {
+        ReadbackRequest key;
+        uint64_t seq = 0, ns = 0;
+        bool ready = false;
+        std::vector<uint8_t> data;
+    };
+    constexpr size_t kRbEntries = 64u;
+    constexpr uint32_t kRbMaxPixels = 4096u;          // small probes only; big reads (screenshots) wait
+    constexpr int32_t kRbMaxDistance = 32;            // pixels the block may have moved since
+    // Results older than this are not used (PS2_ASYNC_READBACK_MAXAGE_MS, default 250).
+    uint64_t rbMaxAgeNs()
+    {
+        static const uint64_t ns = []()
+        {
+            const char *v = std::getenv("PS2_ASYNC_READBACK_MAXAGE_MS");
+            const long ms = v ? std::atol(v) : 250;
+            return static_cast<uint64_t>(ms > 0 ? ms : 250) * 1000000ull;
+        }();
+        return ns;
+    }
+    std::mutex s_rbMutex;
+    ReadbackEntry s_rb[kRbEntries];
+    uint64_t s_rbSeq = 0;
+
+    enum class RbPacket
+    {
+        None,
+        Finish,
+        Download
+    };
+
+    // Is this PATH3 DMA one of the two packets of the read-back sequence?
+    RbPacket rbClassify(const uint8_t *p, uint32_t qwc, ReadbackRequest &req)
+    {
+        if (qwc != 2u && qwc != 5u)
+            return RbPacket::None;
+        uint64_t q[10] = {};
+        std::memcpy(q, p, static_cast<size_t>(qwc) * 16u);
+        // GIF tag: NLOOP = qwc - 1, PACKED, one register, A+D.
+        if ((q[0] & 0x7FFFull) != qwc - 1u || ((q[0] >> 58) & 0x3ull) != 0ull || (q[0] >> 60) != 1ull || (q[1] & 0xFull) != 0xEull)
+            return RbPacket::None;
+        if (qwc == 2u)
+            return (q[3] & 0xFFull) == 0x61ull ? RbPacket::Finish : RbPacket::None;
+        if ((q[3] & 0xFFull) != 0x50ull || (q[5] & 0xFFull) != 0x51ull || (q[7] & 0xFFull) != 0x52ull || (q[9] & 0xFFull) != 0x53ull ||
+            (q[8] & 0x3ull) != 1ull)
+            return RbPacket::None;
+        req.sbp = static_cast<uint32_t>(q[2] & 0x3FFFull);
+        req.sbw = static_cast<uint32_t>((q[2] >> 16) & 0x3Full);
+        req.psm = static_cast<uint32_t>((q[2] >> 24) & 0x3Full);
+        req.x = static_cast<int32_t>(q[4] & 0x7FFull);
+        req.y = static_cast<int32_t>((q[4] >> 16) & 0x7FFull);
+        req.w = static_cast<uint32_t>(q[6] & 0xFFFull);
+        req.h = static_cast<uint32_t>((q[6] >> 32) & 0xFFFull);
+        uint32_t bpp = 0u;
+        switch (req.psm)
+        {
+        case 0x00u: // CT32
+        case 0x30u: // Z32
+            bpp = 32u;
+            break;
+        case 0x01u: // CT24
+        case 0x31u: // Z24
+            bpp = 24u;
+            break;
+        case 0x02u: // CT16
+        case 0x0Au: // CT16S
+        case 0x32u: // Z16
+        case 0x3Au: // Z16S
+            bpp = 16u;
+            break;
+        default:
+            return RbPacket::None;
+        }
+        const uint32_t pixels = req.w * req.h;
+        if (pixels == 0u || pixels > kRbMaxPixels)
+            return RbPacket::None;
+        req.pixelBytes = (pixels * bpp + 7u) / 8u;
+        req.valid = true;
+        return RbPacket::Download;
+    }
+
+    inline bool rbSameKind(const ReadbackRequest &a, const ReadbackRequest &b)
+    {
+        return a.sbp == b.sbp && a.sbw == b.sbw && a.psm == b.psm && a.w == b.w && a.h == b.h;
+    }
+
+    // Slot for a new entry: the oldest one (s_rbMutex held).
+    ReadbackEntry &rbNewEntry(const ReadbackRequest &req, uint64_t now)
+    {
+        ReadbackEntry *e = &s_rb[0];
+        for (ReadbackEntry &c : s_rb)
+            if (c.seq < e->seq)
+                e = &c;
+        e->key = req;
+        e->seq = ++s_rbSeq;
+        e->ns = now;
+        e->ready = false;
+        return *e;
+    }
+
+    // A read that was done directly (the EE waited, or nothing was queued): remember the result.
+    void rbStore(const ReadbackRequest &req, const uint8_t *data, uint32_t bytes)
+    {
+        std::lock_guard<std::mutex> lock(s_rbMutex);
+        ReadbackEntry &e = rbNewEntry(req, gpuNowNs());
+        e.data.assign(data, data + bytes);
+        e.ready = true;
+    }
+
+    // Answer the download `req` (`bytes` of DMA data) from an earlier read and queue the real
+    // read as the next answer. False: there is nothing to answer with, the caller reads directly.
+    bool rbServe(PS2Memory *memory, const ReadbackRequest &req, uint8_t *dst, uint32_t bytes)
+    {
+        const uint64_t now = gpuNowNs(), maxAge = rbMaxAgeNs();
+        uint64_t seq = 0u;
+        size_t slot = 0u;
+        {
+            std::lock_guard<std::mutex> lock(s_rbMutex);
+            const ReadbackEntry *best = nullptr;
+            uint64_t bestScore = ~0ull, bestAge = 0u;
+            int32_t bestDist = 0;
+            for (const ReadbackEntry &e : s_rb)
+            {
+                if (!e.ready || e.seq == 0u || !rbSameKind(e.key, req) || e.data.size() != bytes || now - e.ns > maxAge)
+                    continue;
+                const int32_t dist = std::max(std::abs(e.key.x - req.x), std::abs(e.key.y - req.y));
+                if (dist > kRbMaxDistance)
+                    continue;
+                // nearest first; among equally near ones the newest (2 pixels per 16 ms of age)
+                const uint64_t score = static_cast<uint64_t>(dist) * 8000000ull + (now - e.ns);
+                if (score < bestScore)
+                {
+                    bestScore = score;
+                    best = &e;
+                    bestAge = now - e.ns;
+                    bestDist = dist;
+                }
+            }
+            if (best)
+            {
+                std::memcpy(dst, best->data.data(), bytes);
+                s_rbServed.fetch_add(1u, std::memory_order_relaxed);
+                s_rbAgeNs.fetch_add(bestAge, std::memory_order_relaxed);
+                s_rbDist.fetch_add(static_cast<uint64_t>(bestDist), std::memory_order_relaxed);
+            }
+            else if (asyncReadbackMode() >= 2 && (req.psm & 0x30u) == 0x30u)
+            {
+                std::memset(dst, 0xFF, bytes); // depth probe with no earlier read: covered
+                s_rbCovered.fetch_add(1u, std::memory_order_relaxed);
+            }
+            else
+            {
+                s_rbMissed.fetch_add(1u, std::memory_order_relaxed);
+                return false;
+            }
+            ReadbackEntry &e = rbNewEntry(req, now);
+            seq = e.seq;
+            slot = static_cast<size_t>(&e - s_rb);
+        }
+        // The read itself, in queue order behind the packet that set it up.
+        PS2Memory::GpuJob job;
+        const uint32_t pixelBytes = req.pixelBytes;
+        job.fn = [slot, seq, bytes, pixelBytes]()
+        {
+            std::vector<uint8_t> buf(bytes, 0u);
+            const uint32_t got = g_ps2GsReadbackHook ? g_ps2GsReadbackHook(buf.data(), bytes) : 0u;
+            if (got < pixelBytes)
+                return; // the transfer was not what the EE had set up (e.g. the packet is still masked)
+            std::lock_guard<std::mutex> lock(s_rbMutex);
+            ReadbackEntry &e = s_rb[slot];
+            if (e.seq != seq)
+                return; // slot reused meanwhile
+            e.data = std::move(buf);
+            e.ready = true;
+            s_rbRefreshed.fetch_add(1u, std::memory_order_relaxed);
+        };
+        job.drain = false;
+        gpuEnqueue(memory, std::move(job));
+        return true;
     }
 }
 
@@ -486,6 +756,7 @@ void PS2Memory::runGpuJob(GpuJob &job)
             g_gsStage->flush();
             GsStage::Item item;
             item.fn = std::move(job.fn);
+            item.epoch = t_finishEpoch;
             g_gsStage->push(std::move(item));
         }
         else
@@ -536,6 +807,29 @@ void vif1ObsReport(double frames)
         std::fprintf(stderr, "[ssx3:perf]   GS thread: busy %.1f ms/frame; worker waited for it %.2f ms/frame (queue full) + %.1fx/%.2f ms (GS reads)\n",
                      (gsBusy - lastGsBusy) / 1e6 / frames, (gsWait - lastGsWait) / 1e6 / frames, (gsSyncs - lastGsSyncs) / frames,
                      (gsSync - lastGsSync) / 1e6 / frames);
+    {
+        static uint64_t lastServed = 0, lastMissed = 0, lastDirect = 0, lastRefreshed = 0, lastAge = 0, lastDist = 0, lastEarly = 0, lastDropped = 0, lastCovered = 0;
+        const uint64_t served = s_rbServed.load(), missed = s_rbMissed.load(), direct = s_rbDirect.load(), refreshed = s_rbRefreshed.load(),
+                       age = s_rbAgeNs.load(), dist = s_rbDist.load(), early = s_finishEarly.load(), dropped = s_finishDropped.load(),
+                       covered = s_rbCovered.load();
+        if (served != lastServed || direct != lastDirect || early != lastEarly || covered != lastCovered)
+        {
+            const uint64_t n = served - lastServed;
+            std::fprintf(stderr, "[ssx3:perf]   GS read-backs per frame: %.1f answered from an earlier read (on average %.0f ms old, %.1f px away), %.2f with no earlier read answered as covered, %.2f read directly (%.2f of them waited: no earlier read); %.1f refreshed | FINISH reported early %.1f, queued FINISH dropped %.1f\n",
+                         n / frames, n ? (age - lastAge) / 1e6 / n : 0.0, n ? static_cast<double>(dist - lastDist) / n : 0.0,
+                         (covered - lastCovered) / frames, (direct - lastDirect) / frames, (missed - lastMissed) / frames,
+                         (refreshed - lastRefreshed) / frames, (early - lastEarly) / frames, (dropped - lastDropped) / frames);
+        }
+        lastCovered = covered;
+        lastServed = served;
+        lastMissed = missed;
+        lastDirect = direct;
+        lastRefreshed = refreshed;
+        lastAge = age;
+        lastDist = dist;
+        lastEarly = early;
+        lastDropped = dropped;
+    }
     lastGsBusy = gsBusy;
     lastGsWait = gsWait;
     lastGsSync = gsSync;
@@ -1488,9 +1782,19 @@ void PS2Memory::write32(uint32_t address, uint32_t value)
         {
             // CSR: bits 0..1 of the low dword are write-one-to-clear status bits.
             // Done as a single atomic RMW -- see writeCsrHalf's comment.
-            // Clearing SIGNAL/FINISH or resetting the GS waits for the queued GS work first.
-            if (off == 0u && (value & 0x203u) != 0u && gpuBusy())
-                gpuSyncGlobal(kGpuSyncCsr);
+            // Clearing SIGNAL or resetting the GS waits for the queued GS work first; clearing
+            // only FINISH starts a new FINISH epoch instead (see s_finishEpoch).
+            std::unique_lock<std::mutex> finishLock;
+            if (off == 0u && (value & 0x203u) != 0u)
+            {
+                if ((value & 0x203u) == 0x2u && asyncReadbackEnabled())
+                {
+                    finishLock = std::unique_lock<std::mutex>(s_finishMutex);
+                    s_finishEpoch.fetch_add(1u, std::memory_order_release);
+                }
+                else if (gpuBusy())
+                    gpuSyncGlobal(kGpuSyncCsr);
+            }
             writeCsrHalf(gs_regs.csr, off, value);
         }
         else if (uint64_t *reg = gsRegPtr(gs_regs, address))
@@ -1565,8 +1869,17 @@ void PS2Memory::write64(uint32_t address, uint64_t value)
         {
             // CSR: bits 0..1 are write-one-to-clear status bits. Done as a single
             // atomic RMW -- see writeCsrFull's comment.
-            if ((value & 0x203u) != 0u && gpuBusy())
-                gpuSyncGlobal(kGpuSyncCsr);
+            std::unique_lock<std::mutex> finishLock;
+            if ((value & 0x203u) != 0u)
+            {
+                if ((value & 0x203u) == 0x2u && asyncReadbackEnabled())
+                {
+                    finishLock = std::unique_lock<std::mutex>(s_finishMutex);
+                    s_finishEpoch.fetch_add(1u, std::memory_order_release);
+                }
+                else if (gpuBusy())
+                    gpuSyncGlobal(kGpuSyncCsr);
+            }
             writeCsrFull(gs_regs.csr, value);
         }
         else if (uint64_t *reg = gsRegPtr(gs_regs, address))
@@ -1788,8 +2101,10 @@ bool PS2Memory::writeIORegister(uint32_t address, uint32_t value)
         return true;
     }
 
-    if (address >= 0x10003C00u && address < 0x10003E00u && gpuBusy())
-        gpuSyncGlobal(kGpuSyncVifReg); // VIF1 state belongs to the GPU worker while it runs
+    // VIF1 state belongs to the GPU worker while it runs. A VIF1_STAT write only sets FDR (the
+    // FIFO direction, for GS downloads), which the worker does not use: no wait for that one.
+    if (address >= 0x10003C00u && address < 0x10003E00u && gpuBusy() && !(address == 0x10003C00u && asyncReadbackEnabled()))
+        gpuSyncGlobal(kGpuSyncVifReg);
 
     m_ioRegisters[address] = value;
 
@@ -1915,7 +2230,6 @@ bool PS2Memory::writeIORegister(uint32_t address, uint32_t value)
                 // (flares shone through terrain).
                 if (channelBase == 0x10009000u && (value & 0x1u) == 0u && mode == 0u)
                 {
-                    gpuSyncGlobal(kGpuSyncDma); // the GS commands that started the transfer run first
                     const uint32_t bytes = (qwc & 0xFFFFu) * 16u;
                     uint32_t phys = 0u;
                     bool ok = bytes != 0u;
@@ -1927,12 +2241,31 @@ bool PS2Memory::writeIORegister(uint32_t address, uint32_t value)
                     {
                         ok = false;
                     }
-                    if (ok && !isScratchpad(madr) && phys < PS2_RAM_SIZE && bytes <= PS2_RAM_SIZE - phys)
+                    ok = ok && !isScratchpad(madr) && phys < PS2_RAM_SIZE && bytes <= PS2_RAM_SIZE - phys;
+                    // A small probe the EE set up with the usual packet: answered from the last
+                    // finished read at that place when there is queued work to wait for.
+                    const ReadbackRequest req = s_rbRequest;
+                    s_rbRequest.valid = false;
+                    const bool probe = ok && req.valid && bytes >= req.pixelBytes && bytes <= 4u * kRbMaxPixels + 16u;
+                    if (probe && gpuBusy() && rbServe(this, req, m_rdram + phys, bytes))
                     {
-                        const uint32_t got = g_ps2GsReadbackHook ? g_ps2GsReadbackHook(m_rdram + phys, bytes) : 0u;
-                        if (got < bytes)
-                            std::memset(m_rdram + phys + got, 0, bytes - got);
                         markModified(phys, bytes);
+                    }
+                    else
+                    {
+                        gpuSyncGlobal(kGpuSyncDma); // the GS commands that started the transfer run first
+                        if (ok)
+                        {
+                            const uint32_t got = g_ps2GsReadbackHook ? g_ps2GsReadbackHook(m_rdram + phys, bytes) : 0u;
+                            if (got < bytes)
+                                std::memset(m_rdram + phys + got, 0, bytes - got);
+                            markModified(phys, bytes);
+                            if (probe && got >= req.pixelBytes)
+                            {
+                                rbStore(req, m_rdram + phys, bytes);
+                                s_rbDirect.fetch_add(1u, std::memory_order_relaxed);
+                            }
+                        }
                     }
                     m_ioRegisters[channelBase + 0x10] = madr + bytes;
                     m_ioRegisters[channelBase + 0x20] = 0u;
@@ -1947,6 +2280,26 @@ bool PS2Memory::writeIORegister(uint32_t address, uint32_t value)
                     m_ioRegisters[kDStat] = dstat;
                     queueCompletedDmacCause(1u);
                     return true;
+                }
+
+                // Read-back sequence (see asyncReadbackEnabled): recognise its two PATH3 packets.
+                RbPacket rbPacket = RbPacket::None;
+                ReadbackRequest rbRequest;
+                if (channelBase != 0x10008000u)
+                    s_rbRequest.valid = false; // anything else sent to the GS ends a set-up download
+                if (channelBase == 0x1000A000u && mode == 0 && (qwc == 2u || qwc == 5u) && asyncReadbackEnabled())
+                {
+                    try
+                    {
+                        const uint32_t src = translateAddress(madr);
+                        const uint8_t *base = isScratchpad(madr) ? m_scratchpad : m_rdram;
+                        const uint32_t limit = isScratchpad(madr) ? PS2_SCRATCHPAD_SIZE : PS2_RAM_SIZE;
+                        if (src < limit && qwc * 16u <= limit - src)
+                            rbPacket = rbClassify(base + src, qwc, rbRequest);
+                    }
+                    catch (const std::exception &)
+                    {
+                    }
                 }
 
                 if (mode == 0 && qwc > 0)
@@ -2191,6 +2544,16 @@ bool PS2Memory::writeIORegister(uint32_t address, uint32_t value)
                     // VIF1 transfers towards memory (GS downloads) stay synchronous.
                     const bool toMemory = channelBase == 0x10009000u && (value & 0x1u) == 0u;
                     processPendingTransfers(!toMemory);
+                    if (rbPacket == RbPacket::Finish && gpuBusy())
+                    {
+                        // FINISH as soon as the packet is queued (the queued one is dropped if
+                        // the EE clears FINISH before the GS thread gets to it).
+                        std::lock_guard<std::mutex> lock(s_finishMutex);
+                        gs_regs.csr.fetch_or(0x2u);
+                        s_finishEarly.fetch_add(1u, std::memory_order_relaxed);
+                    }
+                    else if (rbPacket == RbPacket::Download)
+                        s_rbRequest = rbRequest;
                 }
             }
         }
