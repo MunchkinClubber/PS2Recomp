@@ -36,6 +36,7 @@ layout(push_constant) uniform PC
     int dD;       // F_DSTREAD blend: destination coefficient of D
     uint texa;    // ta0 | ta1 << 8 | aem << 16 (F_TEXA16 / F_TEXA24)
     int texScale; // F_TEXSCALED: the texture is a render target drawn at this many pixels per GS pixel
+    float vpHalf; // (vertex shader)
 } pc;
 
 layout(set = 1, binding = 0) uniform usampler2D dstTex; // copy of the target (F_DSTREAD)

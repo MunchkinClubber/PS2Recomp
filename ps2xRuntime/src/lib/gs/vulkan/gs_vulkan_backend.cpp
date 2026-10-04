@@ -250,7 +250,9 @@ namespace
         int32_t dD;
         uint32_t texa; // ta0 | ta1 << 8 | aem << 16 (F_TEXA16 / F_TEXA24)
         int32_t texScale; // F_TEXSCALED
+        float vpHalf;     // vertex shader: the viewport covers GS pixels 0 .. 2 * vpHalf
     };
+    static_assert(offsetof(PushConsts, vpHalf) == 64, "gs.vert reads vpHalf at offset 64");
 
     enum : uint32_t
     {
@@ -1340,12 +1342,13 @@ void GsVulkanBackend::destroyImage(GpuImage &img)
 bool GsVulkanBackend::createDeviceObjects()
 {
     {
-        // Upscaled draws use a (4096 x scale)^2 viewport; targets are up to 4096 x scale wide.
+        // Upscaled draws use a (range x scale)^2 viewport, range a power of two covering the
+        // target (1024 for the usual 640-pixel-wide buffers; 2048 assumed here).
         VkPhysicalDeviceProperties props{};
         m_it.vkGetPhysicalDeviceProperties(m_phys, &props);
         const uint32_t lim = std::min({props.limits.maxViewportDimensions[0], props.limits.maxViewportDimensions[1],
                                        props.limits.maxImageDimension2D, props.limits.maxFramebufferWidth, props.limits.maxFramebufferHeight});
-        m_maxScale = std::clamp<uint32_t>(lim / 4096u, 1u, 8u);
+        m_maxScale = std::clamp<uint32_t>(lim / 2048u, 1u, 8u);
         if (m_scale > m_maxScale)
         {
             std::fprintf(stderr, "[gs:vk] internal resolution %ux is above this GPU's limit, using %ux\n", m_scale, m_maxScale);
@@ -3678,8 +3681,13 @@ void GsVulkanBackend::flushBatchImpl()
         m_curDepth = depth;
         m_curPipeline = VK_NULL_HANDLE;
     }
-    // GS pixel coordinates over a 4096x4096 GS-pixel viewport: upscaling only widens it.
-    const float vpSize = 4096.0f * static_cast<float>(m_scale);
+    // GS pixel coordinates 0 .. range (a power of two covering the target) over the viewport,
+    // whose size is range x scale.
+    uint32_t range = 1024u;
+    while (range < color.fbw * 64u || range < kTargetHeight)
+        range *= 2u;
+    const float vpHalf = static_cast<float>(range / 2u);
+    const float vpSize = static_cast<float>(range * m_scale);
     const VkViewport vp{0.0f, 0.0f, vpSize, vpSize, 0.0f, 1.0f};
     m_dt.vkCmdSetViewport(m_cmd, 0, 1, &vp);
     const int ks = static_cast<int>(m_scale);
@@ -3691,6 +3699,7 @@ void GsVulkanBackend::flushBatchImpl()
     m_dt.vkCmdBindDescriptorSets(m_cmd, VK_PIPELINE_BIND_POINT_GRAPHICS, m_pipeLayout, 0, 2, sets, 0, nullptr);
 
     PushConsts pc{};
+    pc.vpHalf = vpHalf;
     uint32_t flags = setup.blend.flags | texFlags;
     if (tex)
     {

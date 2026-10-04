@@ -12,10 +12,16 @@ layout(location = 2) noperspective out vec3 vSTQ;
 layout(location = 3) noperspective out float vFog;
 layout(location = 4) flat out float vZ;
 
+// Half the GS-pixel range the viewport covers (a power of two, so the divisions are exact).
+layout(push_constant) uniform PC
+{
+    layout(offset = 64) float vpHalf;
+} pc;
+
 void main()
 {
-    // The viewport is 4096x4096 at the origin, so these divisions are exact.
-    gl_Position = vec4(inPos.x / 2048.0 - 1.0, inPos.y / 2048.0 - 1.0, inPos.z, 1.0);
+    // The viewport covers GS pixels 0 .. 2 * vpHalf (upscaled in the viewport's size).
+    gl_Position = vec4(inPos.x / pc.vpHalf - 1.0, inPos.y / pc.vpHalf - 1.0, inPos.z, 1.0);
     vColor = vec4(inColor);
     vColorFlat = inColor;
     vSTQ = inSTQ;
