@@ -5,6 +5,9 @@
 #include "runtime/gs/ps2_gs_psmct16.h"
 #include "runtime/ee_scheduler.h"
 
+// ps2_memory.cpp: false when GS read-backs are answered without waiting (PS2_ASYNC_READBACK).
+bool ps2GsSyncPathWaits();
+
 namespace ps2_stubs
 {
     namespace
@@ -1218,7 +1221,13 @@ namespace ps2_stubs
 
         if (mode == 0)
         {
-            mem.processPendingTransfers();
+            // "Wait until the DMA/VIF1/GIF paths are idle". With the queued pipeline the channels
+            // complete at the kick, and everything the EE could do next that depends on the
+            // queued work (VIF1 registers, VU1 memory, GS registers and memory, synchronous
+            // transfers) waits for it by itself - so waiting here only serialises the EE with
+            // the worker. SSX 3 calls this twice per lens-flare depth probe, which cost the EE
+            // 15-20 ms per frame in the race intro.
+            mem.processPendingTransfers(!ps2GsSyncPathWaits());
 
             uint32_t count = 0;
             constexpr uint32_t kTimeout = 0x1000000;

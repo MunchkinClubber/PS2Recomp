@@ -740,6 +740,13 @@ namespace
     }
 }
 
+// sceGsSyncPath (Kernel/Stubs/GS.cpp) waits for the queued work only when read-backs wait too.
+bool ps2GsSyncPathWaits();
+bool ps2GsSyncPathWaits()
+{
+    return !asyncReadbackEnabled();
+}
+
 void PS2Memory::runGpuJob(GpuJob &job)
 {
     for (const auto &packet : job.gif)
