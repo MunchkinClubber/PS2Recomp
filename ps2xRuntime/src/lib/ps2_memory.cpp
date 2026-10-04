@@ -1,6 +1,7 @@
 #include "runtime/ps2_memory.h"
 #include "runtime/ps2_address.h"
 #include "runtime/gs/gs_frontend.h"
+#include "runtime/gs/gs_interp_backend.h"
 #include "ps2_log.h"
 #include <atomic>
 #include <chrono>
@@ -81,6 +82,9 @@ void vif1Observe(uint32_t) {} // old overlap measurement hook (ps2_runtime.cpp s
 void (*g_ps2GpuSyncHook)() = nullptr; // called by GS entry points used from the EE (gs_frontend.cpp)
 extern void (*g_ps2GsFinishHook)(std::atomic<uint64_t> &csr); // gs_frontend.cpp: a FINISH register write
 void (*g_ps2FlipHook)() = nullptr;    // set by PS2Runtime: GS::notePresentPoint (a DISPFB write = the game's flip)
+// When the EE wrote the flip that g_ps2FlipHook is being called for (steady clock ns): how far the
+// GS thread is behind the game (frame interpolation drops its extra pictures when it falls behind).
+std::atomic<uint64_t> g_ps2FlipIssuedNs{0};
 // set by PS2Runtime: copies up to `bytes` of pending GS local->host (readback) data to dst, returns the count.
 uint32_t (*g_ps2GsReadbackHook)(uint8_t *dst, uint32_t bytes) = nullptr;
 
@@ -204,6 +208,17 @@ namespace
                     uint32_t size = 0;
                     std::memcpy(&size, p, 4);
                     p += 4;
+                    if (size == kObjectTag)
+                    {
+                        // which object the following primitives come from (frame interpolation)
+                        if (p + 8 > end)
+                            break;
+                        uint32_t tag[2];
+                        std::memcpy(tag, p, 8);
+                        p += 8;
+                        ps2GsInterpObjectTag(tag[0], tag[1]);
+                        continue;
+                    }
                     if (size == 0u || p + size > end)
                         break;
                     process(p, size);
@@ -252,6 +267,21 @@ namespace
             item.epoch = curEpoch;
             cur = gpuTakeBuffer();
             push(std::move(item));
+        }
+
+        static constexpr uint32_t kObjectTag = 0xFFFFFFFFu; // in place of a packet size
+
+        void addObjectTag(uint32_t pc, uint32_t hash)
+        {
+            if (curEpoch != t_finishEpoch)
+            {
+                flush();
+                curEpoch = t_finishEpoch;
+            }
+            const uint32_t words[3] = {kObjectTag, pc, hash};
+            const size_t at = cur.size();
+            cur.resize(at + 12u);
+            std::memcpy(cur.data() + at, words, 12);
         }
 
         void addPacket(const uint8_t *data, uint32_t size)
@@ -441,6 +471,36 @@ bool ps2GsStageSubmit(const uint8_t *data, uint32_t sizeBytes)
         return false;
     g_gsStage->addPacket(data, sizeBytes);
     return true;
+}
+
+// Frame interpolation: the GIF packets that follow come from this VU1 program call (pc; its input
+// buffer at `top` in VU1 data memory identifies the model), or - pc 0xFFFFFFFF - from no program
+// (packets sent directly). Travels to the GS thread in order with the packets. Declared at its use
+// (ps2_vif1_interpreter.cpp).
+void ps2GsMarkObject(const uint8_t *vu1Data, uint32_t pc, uint32_t top);
+void ps2GsMarkObject(const uint8_t *vu1Data, uint32_t pc, uint32_t top)
+{
+    if (ps2GsInterpFactor() <= 1u)
+        return;
+    uint32_t hash = 0u;
+    if (vu1Data && pc != 0xFFFFFFFFu)
+    {
+        // 1 KiB of the input buffer (header and the first vertices), eight bytes at a time
+        uint64_t h = 0x9E3779B97F4A7C15ull;
+        const uint32_t start = (top & 0x3FFu) * 16u;
+        for (uint32_t i = 0; i < 1024u; i += 8u)
+        {
+            uint64_t w = 0;
+            std::memcpy(&w, vu1Data + ((start + i) & (PS2_VU1_DATA_SIZE - 1u)), 8);
+            h = (h ^ w) * 0xFF51AFD7ED558CCDull;
+            h ^= h >> 29;
+        }
+        hash = static_cast<uint32_t>(h ^ (h >> 32));
+    }
+    if (g_gsStage && t_onGpuWorker)
+        g_gsStage->addObjectTag(pc, hash);
+    else
+        ps2GsInterpObjectTag(pc, hash);
 }
 
 void PS2Memory::gpuSync(uint32_t reason)
@@ -722,17 +782,25 @@ namespace
         const uint32_t pixelBytes = req.pixelBytes;
         job.fn = [slot, seq, bytes, pixelBytes]()
         {
+            auto store = [slot, seq, pixelBytes](std::vector<uint8_t> &&buf, uint32_t got)
+            {
+                if (got < pixelBytes)
+                    return; // the transfer was not what the EE had set up (e.g. the packet is still masked)
+                std::lock_guard<std::mutex> lock(s_rbMutex);
+                ReadbackEntry &e = s_rb[slot];
+                if (e.seq != seq)
+                    return; // slot reused meanwhile
+                e.data = std::move(buf);
+                e.ready = true;
+                s_rbRefreshed.fetch_add(1u, std::memory_order_relaxed);
+            };
+            // With frame interpolation the frame's drawing is held back until its flip: the read
+            // joins it there instead of forcing it out now.
+            if (ps2GsInterpDeferReadback(bytes, store))
+                return;
             std::vector<uint8_t> buf(bytes, 0u);
             const uint32_t got = g_ps2GsReadbackHook ? g_ps2GsReadbackHook(buf.data(), bytes) : 0u;
-            if (got < pixelBytes)
-                return; // the transfer was not what the EE had set up (e.g. the packet is still masked)
-            std::lock_guard<std::mutex> lock(s_rbMutex);
-            ReadbackEntry &e = s_rb[slot];
-            if (e.seq != seq)
-                return; // slot reused meanwhile
-            e.data = std::move(buf);
-            e.ready = true;
-            s_rbRefreshed.fetch_add(1u, std::memory_order_relaxed);
+            store(std::move(buf), got);
         };
         job.drain = false;
         gpuEnqueue(memory, std::move(job));
@@ -1807,12 +1875,16 @@ void PS2Memory::write32(uint32_t address, uint32_t value)
         else if (uint64_t *reg = gsRegPtr(gs_regs, address))
         {
             const bool flip = (regOff == 0x0070u || regOff == 0x0090u) && off == 4u; // DISPFBn high word completes it
-            auto apply = [reg, off, value, flip]()
+            const uint64_t issued = flip ? gpuNowNs() : 0u;
+            auto apply = [reg, off, value, flip, issued]()
             {
                 uint64_t mask = 0xFFFFFFFFULL << (off * 8);
                 *reg = (*reg & ~mask) | ((uint64_t)value << (off * 8));
                 if (flip && g_ps2FlipHook)
+                {
+                    g_ps2FlipIssuedNs.store(issued, std::memory_order_relaxed);
                     g_ps2FlipHook();
+                }
             };
             if (gpuBusy())
             {
@@ -1892,11 +1964,15 @@ void PS2Memory::write64(uint32_t address, uint64_t value)
         else if (uint64_t *reg = gsRegPtr(gs_regs, address))
         {
             const bool flip = regOff == 0x0070u || regOff == 0x0090u;
-            auto apply = [reg, value, flip]()
+            const uint64_t issued = flip ? gpuNowNs() : 0u;
+            auto apply = [reg, value, flip, issued]()
             {
                 *reg = value;
                 if (flip && g_ps2FlipHook)
+                {
+                    g_ps2FlipIssuedNs.store(issued, std::memory_order_relaxed);
                     g_ps2FlipHook();
+                }
             };
             if (gpuBusy())
             {

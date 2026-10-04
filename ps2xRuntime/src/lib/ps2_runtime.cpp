@@ -25,6 +25,7 @@
 #if defined(PS2X_GS_VULKAN)
 #include "runtime/gs/gs_vulkan_backend.h"
 #endif
+#include "runtime/gs/gs_interp_backend.h"
 #include <cstring>
 #include <limits>
 #include <chrono>
@@ -1259,7 +1260,9 @@ bool PS2Runtime::initialize(const char *title)
         {
             if (auto vk = ps2CreateVulkanGsBackend())
             {
-                m_gs.setRasterBackend(std::move(vk));
+                // With the frame interpolation layer in front (it only forwards until switched
+                // on: PS2_FRAME_INTERP=2..8 or F7).
+                m_gs.setRasterBackend(ps2CreateInterpGsBackend(std::move(vk)));
                 std::fprintf(stderr, "[gs] Vulkan renderer enabled\n");
             }
             else
@@ -3423,6 +3426,12 @@ void PS2Runtime::run()
             g_ssx3PrimBurst.store(80u);
             g_ssx3TransferLogged.store(120u); // allow 80 more [ssx3:xfer] lines (cap is 200)
             RUNTIME_LOG("[ssx3:prim] F10 pressed, logging a burst of 80 sampled primitives" << std::endl);
+        }
+        if (IsKeyPressed(KEY_F7))
+        {
+            // Frame interpolation: pictures shown per game frame, 1 (off) -> 2 -> 3 -> 4 -> 1.
+            ps2GsInterpSetFactor(ps2GsInterpFactor() % 4u + 1u);
+            std::fprintf(stderr, "[gs] frame interpolation %ux (F7)\n", ps2GsInterpFactor());
         }
         if (IsKeyPressed(KEY_F8))
         {

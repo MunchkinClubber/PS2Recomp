@@ -1001,6 +1001,20 @@ void HostVulkanSetFrameProvider(HostGpuFrameProvider provider, void *user)
     g_vk.providerUser = user;
 }
 
+namespace
+{
+    std::mutex g_pacerMutex; // the pacer pointer; held (shared use: one caller, the main thread) during a call
+    HostFramePacer g_pacer = nullptr;
+    void *g_pacerUser = nullptr;
+}
+
+void HostVulkanSetFramePacer(HostFramePacer pacer, void *user)
+{
+    std::lock_guard<std::mutex> lock(g_pacerMutex); // waits for a call in progress (bounded by its maxWaitNs)
+    g_pacer = pacer;
+    g_pacerUser = user;
+}
+
 #if defined(PS2X_HOST_TEST_HOOKS)
 // The last presented picture (swapchain format, 4 bytes per pixel), after its submission completes.
 bool HostTestReadLastFrame(std::vector<uint8_t> &out, int &width, int &height, bool &bgr)
@@ -1109,6 +1123,15 @@ void EndDrawing()
     pumpEvents();
     if (g_targetFps > 0)
     {
+        // A renderer that times its own pictures (frame interpolation) says when the next one is due.
+        {
+            std::lock_guard<std::mutex> lock(g_pacerMutex);
+            if (g_pacer && g_pacer(g_pacerUser, 1000000000ull / static_cast<uint64_t>(g_targetFps)))
+            {
+                g_nextFrameNs = SDL_GetTicksNS();
+                return;
+            }
+        }
         const uint64_t period = 1000000000ull / static_cast<uint64_t>(g_targetFps);
         g_nextFrameNs += period;
         const uint64_t now = SDL_GetTicksNS();

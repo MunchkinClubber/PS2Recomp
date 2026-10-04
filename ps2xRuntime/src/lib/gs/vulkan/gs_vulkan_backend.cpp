@@ -24,6 +24,7 @@
 
 #include "runtime/gs/gs_vulkan_backend.h"
 #include "runtime/gs/gs_cpu_backend.h"
+#include "runtime/gs/gs_interp_backend.h"
 #include "runtime/gs/ps2_gs_common.h"
 #include "runtime/gs/ps2_gs_memory.h"
 #include "shaders/gs_shaders.h"
@@ -48,7 +49,9 @@ struct HostGpuFrame;
 #include <cstdio>
 #include <cstdlib>
 #include <cstring>
+#include <condition_variable>
 #include <mutex>
+#include <thread>
 #include <unordered_map>
 #include <string>
 #include <vector>
@@ -766,6 +769,7 @@ private:
         // (published at submit, ready when m_readySem reaches gpuValue).
         int gpuImage = -1;
         uint64_t gpuValue = 0;
+        uint64_t gpuDue = 0; // when to show it (steady clock ns; 0 = as soon as it is ready)
         uint32_t gpuW = 0, gpuH = 0;
         // PS2_GS_VK_CHECKPRESENT: the display image read back, compared with the CPU picture.
         VkBuffer checkBuf = VK_NULL_HANDLE;
@@ -895,13 +899,16 @@ private:
         uint32_t bgcolor = 0, bob = 0, oddField = 0;
         uint32_t tables[3]{};
     };
-    static constexpr uint32_t kPresentImages = 4u; // published + up to two being shown + one to draw
+    // Display images: the pictures waiting for their time (several per game frame with frame
+    // interpolation), the one shown, up to two the host is still reading, one to draw into.
+    static constexpr uint32_t kPresentImages = 12u;
     static constexpr uint32_t kPresentW = 640u, kPresentH = 512u;
     bool buildDisplayParams(const GSPresentationRequest &request, DispParams &dp) const;
     int pickPresentImage();
     void recordDisplay(const DispParams &dp, int image);
     void checkPresent(Slot &sl, const std::vector<uint8_t> &snap);
     static bool provideFrame(void *user, struct HostGpuFrame &out, uint64_t releaseValue);
+    static bool paceFrame(void *user, uint64_t maxWaitNs);
     // Upscaling: render targets hold m_scale x m_scale pixels per GS pixel. GS memory (and its
     // GPU mirror) stays at GS resolution: data going there is sampled once per GS pixel, data
     // coming from there is repeated over the block. Changed at flips (m_wantScale).
@@ -927,9 +934,23 @@ private:
     mutable std::mutex m_gpuFrameMutex; // the published frame and m_presentLastUse
     uint64_t m_presentLastUse[kPresentImages]{};
     uint32_t m_presentNext = 0;
-    int m_pubImage = -1;
-    uint32_t m_pubW = 0, m_pubH = 0;
-    uint64_t m_pubValue = 0;
+    // Published pictures (under m_gpuFrameMutex): a queue in flip order, each shown from its due
+    // time on, and the one being shown.
+    struct PubFrame
+    {
+        int image = -1;
+        uint32_t w = 0, h = 0;
+        uint64_t value = 0;
+        uint64_t dueNs = 0;
+    };
+    static constexpr uint32_t kPubQueue = 8u;
+    PubFrame m_pubQueue[kPubQueue];
+    uint32_t m_pubHead = 0, m_pubCount = 0;
+    PubFrame m_shown;
+    bool m_pacing = false; // the published pictures carry times: the host waits for them
+    std::condition_variable m_pubCv;
+    uint64_t m_statLate = 0, m_statLateNs = 0, m_statTimed = 0, m_statDropped = 0;
+    void advanceShown(uint64_t now); // m_gpuFrameMutex held
     bool m_pubGpu = false; // the last flip went through the GPU display pass
     uint64_t m_pubNs = 0;
     mutable bool m_hostUseGpu = true; // PresentsOnGpu()'s last answer: the host frame follows it
@@ -995,6 +1016,7 @@ GsVulkanBackend::~GsVulkanBackend()
 {
 #if defined(PS2X_HOST_SDL3)
     if (m_hostPresent)
+        HostVulkanSetFramePacer(nullptr, nullptr);
         HostVulkanSetFrameProvider(nullptr, nullptr);
 #endif
     if (!m_device)
@@ -1128,6 +1150,7 @@ bool GsVulkanBackend::Create(const HostVulkanShared *shared)
         {
             m_hostPresent = true;
             HostVulkanSetFrameProvider(&GsVulkanBackend::provideFrame, this);
+            HostVulkanSetFramePacer(&GsVulkanBackend::paceFrame, this);
         }
         return true;
     }
@@ -1626,14 +1649,24 @@ void GsVulkanBackend::queueSubmit()
     ++m_statSubmits;
     if (sl.gpuImage >= 0)
     {
-        std::lock_guard<std::mutex> lock(m_gpuFrameMutex);
-        m_pubImage = sl.gpuImage;
-        m_pubW = sl.gpuW;
-        m_pubH = sl.gpuH;
-        m_pubValue = sl.gpuValue;
-        m_pubGpu = true;
-        m_pubNs = nowNs();
-        sl.gpuImage = -1;
+        {
+            std::lock_guard<std::mutex> lock(m_gpuFrameMutex);
+            if (m_pubCount == kPubQueue)
+            {
+                // the host is not keeping up: the oldest waiting picture is skipped
+                m_shown = m_pubQueue[m_pubHead];
+                m_pubHead = (m_pubHead + 1u) % kPubQueue;
+                --m_pubCount;
+                ++m_statDropped;
+            }
+            m_pubQueue[(m_pubHead + m_pubCount) % kPubQueue] = PubFrame{sl.gpuImage, sl.gpuW, sl.gpuH, sl.gpuValue, sl.gpuDue};
+            ++m_pubCount;
+            m_pacing = sl.gpuDue != 0u;
+            m_pubGpu = true;
+            m_pubNs = nowNs();
+            sl.gpuImage = -1;
+        }
+        m_pubCv.notify_all();
     }
 }
 
@@ -4053,6 +4086,7 @@ void GsVulkanBackend::QueuePresentSnapshot(const GSPresentationRequest &request)
         sl.gpuImage = image;
         sl.gpuW = outW;
         sl.gpuH = outH;
+        sl.gpuDue = ps2GsInterpNextPictureDueNs();
         static const char *s_dump = std::getenv("PS2_GS_VK_DUMPPRESENT");
         if (s_dump && *s_dump)
         {
@@ -4124,7 +4158,10 @@ void GsVulkanBackend::QueuePresentSnapshot(const GSPresentationRequest &request)
             cs.gpuW = dp.outW;
             cs.gpuH = dp.outH;
             if (m_hostPresent)
+            {
                 cs.gpuImage = image;
+                cs.gpuDue = ps2GsInterpNextPictureDueNs();
+            }
             ++m_statGpuFlips;
         }
         submitAsync();
@@ -4307,7 +4344,8 @@ void GsVulkanBackend::applyScale()
         uint64_t last = 0;
         {
             std::lock_guard<std::mutex> lock(m_gpuFrameMutex);
-            m_pubImage = -1;
+            m_shown = PubFrame{};
+            m_pubHead = m_pubCount = 0;
             m_pubGpu = false;
             for (uint64_t v : m_presentLastUse)
                 last = std::max(last, v);
@@ -4434,7 +4472,10 @@ int GsVulkanBackend::pickPresentImage()
             for (uint32_t k = 0; k < kPresentImages; ++k)
             {
                 const uint32_t i = (m_presentNext + k) % kPresentImages;
-                if (static_cast<int>(i) == m_pubImage)
+                bool waiting = static_cast<int>(i) == m_shown.image;
+                for (uint32_t q = 0; q < m_pubCount && !waiting; ++q)
+                    waiting = m_pubQueue[(m_pubHead + q) % kPubQueue].image == static_cast<int>(i);
+                if (waiting)
                     continue;
                 if (m_presentLastUse[i] <= released)
                 {
@@ -4444,7 +4485,9 @@ int GsVulkanBackend::pickPresentImage()
                 oldest = std::min(oldest, m_presentLastUse[i]);
             }
         }
-        // All being shown (should not happen with four): wait for the oldest, briefly.
+        if (oldest == ~0ull)
+            break; // every image is waiting to be shown
+        // All being shown (should not happen): wait for the oldest, briefly.
         ScopeTimer timer(m_iv.waitNs);
         VkSemaphoreWaitInfo wi{VK_STRUCTURE_TYPE_SEMAPHORE_WAIT_INFO};
         wi.semaphoreCount = 1;
@@ -4452,9 +4495,80 @@ int GsVulkanBackend::pickPresentImage()
         wi.pValues = &oldest;
         m_dt.vkWaitSemaphores(m_device, &wi, 100000000ull);
     }
+    // No free image: give up the oldest waiting picture (it is skipped) and draw into its image.
+    std::lock_guard<std::mutex> lock(m_gpuFrameMutex);
+    if (m_pubCount != 0u)
+    {
+        const int image = m_pubQueue[m_pubHead].image;
+        m_pubHead = (m_pubHead + 1u) % kPubQueue;
+        --m_pubCount;
+        ++m_statDropped;
+        return image;
+    }
     const uint32_t i = m_presentNext;
     m_presentNext = (i + 1u) % kPresentImages;
-    return static_cast<int>(i == static_cast<uint32_t>(m_pubImage) ? (i + 1u) % kPresentImages : i);
+    return static_cast<int>(i == static_cast<uint32_t>(m_shown.image) ? (i + 1u) % kPresentImages : i);
+}
+
+// The picture to show at `now`: the newest one whose time has come.
+void GsVulkanBackend::advanceShown(uint64_t now)
+{
+    while (m_pubCount != 0u && m_pubQueue[m_pubHead].dueNs <= now)
+    {
+        m_shown = m_pubQueue[m_pubHead];
+        m_pubHead = (m_pubHead + 1u) % kPubQueue;
+        --m_pubCount;
+        if (m_shown.dueNs != 0u)
+        {
+            ++m_statTimed;
+            if (now > m_shown.dueNs + 2000000ull)
+            {
+                ++m_statLate;
+                m_statLateNs += now - m_shown.dueNs;
+            }
+        }
+    }
+}
+
+// Host pacing (see HostFramePacer): wait until the next waiting picture is due.
+bool GsVulkanBackend::paceFrame(void *user, uint64_t maxWaitNs)
+{
+    GsVulkanBackend *self = static_cast<GsVulkanBackend *>(user);
+    std::unique_lock<std::mutex> lock(self->m_gpuFrameMutex);
+    if (!self->m_pacing)
+        return false;
+    const uint64_t start = nowNs();
+    const uint64_t deadline = start + maxWaitNs;
+    for (;;)
+    {
+        const uint64_t now = nowNs();
+        if (self->m_pubCount != 0u)
+        {
+            const uint64_t due = self->m_pubQueue[self->m_pubHead].dueNs;
+            if (due <= now)
+                return true;
+            if (due - now <= 1500000ull)
+            {
+                // the last stretch without the scheduler: timed waits are only good to about a millisecond
+                lock.unlock();
+                while (nowNs() < due)
+                    std::this_thread::yield();
+                return true;
+            }
+            const uint64_t until = std::min<uint64_t>(due - 1000000ull, deadline);
+            self->m_pubCv.wait_for(lock, std::chrono::nanoseconds(until - now));
+        }
+        else
+        {
+            if (now >= deadline)
+                return true;
+            self->m_pubCv.wait_for(lock, std::chrono::nanoseconds(deadline - now));
+        }
+        if (nowNs() >= deadline && (self->m_pubCount == 0u || self->m_pubQueue[self->m_pubHead].dueNs > deadline))
+            return true;
+        if (!self->m_pacing)
+            return true;
+    }
 }
 
 void GsVulkanBackend::recordDisplay(const DispParams &dp, int image)
@@ -4564,16 +4678,17 @@ bool GsVulkanBackend::provideFrame(void *user, HostGpuFrame &out, uint64_t relea
     GsVulkanBackend *self = static_cast<GsVulkanBackend *>(user);
     std::lock_guard<std::mutex> lock(self->m_gpuFrameMutex);
     // Follow the runtime's choice for this host frame (it skipped or made the CPU picture).
-    if (!self->m_hostUseGpu || self->m_pubImage < 0)
+    self->advanceShown(nowNs());
+    if (!self->m_hostUseGpu || self->m_shown.image < 0)
         return false;
-    const int i = self->m_pubImage;
+    const int i = self->m_shown.image;
     out.image = self->m_presentImg[i].image;
     out.imageWidth = self->m_presentImg[i].width;
     out.imageHeight = self->m_presentImg[i].height;
-    out.width = self->m_pubW;
-    out.height = self->m_pubH;
+    out.width = self->m_shown.w;
+    out.height = self->m_shown.h;
     out.ready = self->m_readySem;
-    out.readyValue = self->m_pubValue;
+    out.readyValue = self->m_shown.value;
     self->m_presentLastUse[i] = releaseValue;
     return true;
 #else
@@ -4591,7 +4706,7 @@ bool GsVulkanBackend::PresentsOnGpu() const
     // While the game flips, the picture of its last flip; when it stops flipping (or a flip
     // needs the CPU path), Present() snapshots on the CPU as before.
     std::lock_guard<std::mutex> lock(m_gpuFrameMutex);
-    m_hostUseGpu = m_pubGpu && m_pubImage >= 0 && nowNs() - m_pubNs <= 250000000ull;
+    m_hostUseGpu = m_pubGpu && (m_shown.image >= 0 || m_pubCount != 0u) && nowNs() - m_pubNs <= 250000000ull;
     return m_hostUseGpu;
 }
 
@@ -4682,6 +4797,16 @@ GSTransferSnapshot GsVulkanBackend::GetTransferSnapshot() const
 
 void GsVulkanBackend::printStats()
 {
+    {
+        std::lock_guard<std::mutex> lock(m_gpuFrameMutex);
+        if (m_statTimed != 0u || m_statDropped != 0u)
+        {
+            std::fprintf(stderr, "[gs:vk] timed pictures: %llu shown, %llu more than 2 ms late (by %.1f ms on average), %llu skipped\n",
+                         static_cast<unsigned long long>(m_statTimed), static_cast<unsigned long long>(m_statLate),
+                         m_statLate ? m_statLateNs / 1e6 / m_statLate : 0.0, static_cast<unsigned long long>(m_statDropped));
+            m_statTimed = m_statLate = m_statLateNs = m_statDropped = 0;
+        }
+    }
     {
         const double f = static_cast<double>(std::max<uint64_t>(m_statFlips - m_ivFlips, 1u));
         const auto ms = [&](uint64_t ns) { return static_cast<double>(ns) / 1e6 / f; };

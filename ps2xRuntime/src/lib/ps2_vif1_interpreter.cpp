@@ -308,6 +308,7 @@ extern std::atomic<uint32_t> g_ps2WatchHi;
 std::atomic<uint32_t> g_ssx3LightTraceLeft{0}; // SSX3 debug: F11 traces VU1 rows 7..16 traffic
 static uint32_t g_ssx3VifCaptureIndex = 0u;
 extern uint32_t g_path3ReleaseLimit; // ps2_memory.cpp
+void ps2GsMarkObject(const uint8_t *vu1Data, uint32_t pc, uint32_t top); // ps2_memory.cpp (frame interpolation)
 
 // SSX3 debug: F12 frame recorder. Records every VIF1 stream and PATH3 GIF packet for ~1.5 s,
 // starting with a snapshot of VU1 code/data, VIF1 registers and GS VRAM, so a frame can be
@@ -530,7 +531,11 @@ void PS2Memory::processVIF1Data(const uint8_t *data, uint32_t sizeBytes)
             vif1_regs.stat ^= (1u << 7); // toggle DBF
 
             if (m_vu1MscalCallback)
+            {
+                ps2GsMarkObject(m_vu1Data, startPC, runTop);
                 m_vu1MscalCallback(startPC, runTop, runItop);
+                ps2GsMarkObject(nullptr, 0xFFFFFFFFu, 0u); // what follows is not this program's
+            }
             continue;
         }
         else if (opcode == VIF_MSCNT)
@@ -548,7 +553,11 @@ void PS2Memory::processVIF1Data(const uint8_t *data, uint32_t sizeBytes)
             vif1_regs.stat ^= (1u << 7); // toggle DBF
 
             if (m_vu1MscntCallback)
+            {
+                ps2GsMarkObject(m_vu1Data, 0xFFFFFFFEu, runTop);
                 m_vu1MscntCallback(runTop, runItop);
+                ps2GsMarkObject(nullptr, 0xFFFFFFFFu, 0u);
+            }
             continue;
         }
         else if (opcode == VIF_STMASK)

@@ -44,3 +44,10 @@ struct HostGpuFrame
 // releaseSemaphore to `releaseValue` once it has finished reading the image.
 using HostGpuFrameProvider = bool (*)(void *user, HostGpuFrame &out, uint64_t releaseValue);
 void HostVulkanSetFrameProvider(HostGpuFrameProvider provider, void *user);
+
+// Pacing by the renderer (frame interpolation: several pictures per game frame, each with its own
+// time). Called by the host after each present instead of its fixed 60 Hz wait: block until the
+// next picture is due, at most maxWaitNs. Return false when the pictures carry no times (the host
+// then waits as usual). Setting it to nullptr returns once no call is in progress.
+using HostFramePacer = bool (*)(void *user, uint64_t maxWaitNs);
+void HostVulkanSetFramePacer(HostFramePacer pacer, void *user);

@@ -16,6 +16,9 @@ extern void (*g_ps2GpuSyncHook)();
 // Set by PS2Memory with the worker: raises CSR.FINISH for a FINISH register write, unless the EE
 // has cleared FINISH since the packet was queued (ps2_memory.cpp, s_finishEpoch).
 void (*g_ps2GsFinishHook)(std::atomic<uint64_t> &csr) = nullptr;
+// Offline analysis / frame interpolation experiments: sees (and may change) every primitive
+// just before it goes to the renderer.
+void (*g_gsPrimHook)(GSPrimitiveBatch &batch) = nullptr;
 #define PS2_GPU_SYNC_FROM_EE()   \
     do                           \
     {                            \
@@ -1714,6 +1717,8 @@ void GS::vertexKick(bool drawing)
             }
         }
         updatePreferredDisplaySourceForDraw(batch);
+        if (g_gsPrimHook)
+            g_gsPrimHook(batch);
         m_backend->Submit(batch);
         recordDrawDebugEventUnlocked(needed);
     }
