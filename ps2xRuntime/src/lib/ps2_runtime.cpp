@@ -1136,13 +1136,24 @@ bool PS2Runtime::syncCoreSubsystems()
             prevSky = sky;
         };
     }
-    m_gifArbiter.setProcessPacketFn([this](const uint8_t *data, uint32_t size)
+    // The GS front end's packet entry. Packets the GPU worker produces are queued for the GS
+    // thread (ps2GsStageSubmit); other callers have waited for it and process directly.
+    // (Declared here rather than in ps2_memory.h, which every recompiled function includes.)
+    extern void ps2GsStageSetProcess(std::function<void(const uint8_t *, uint32_t)> process);
+    extern bool ps2GsStageSubmit(const uint8_t *data, uint32_t sizeBytes);
+    auto gsProcess = [this](const uint8_t *data, uint32_t size)
+    {
+        extern std::atomic<uint64_t> g_perfGsNs;
+        const auto t0 = std::chrono::steady_clock::now();
+        m_gs.processGIFPacket(data, size);
+        g_perfGsNs.fetch_add(static_cast<uint64_t>(std::chrono::duration_cast<std::chrono::nanoseconds>(std::chrono::steady_clock::now() - t0).count()),
+                             std::memory_order_relaxed);
+    };
+    ps2GsStageSetProcess(gsProcess);
+    m_gifArbiter.setProcessPacketFn([gsProcess](const uint8_t *data, uint32_t size)
                                     {
-                                        extern std::atomic<uint64_t> g_perfGsNs;
-                                        const auto t0 = std::chrono::steady_clock::now();
-                                        m_gs.processGIFPacket(data, size);
-                                        g_perfGsNs.fetch_add(static_cast<uint64_t>(std::chrono::duration_cast<std::chrono::nanoseconds>(std::chrono::steady_clock::now() - t0).count()),
-                                                             std::memory_order_relaxed);
+                                        if (!ps2GsStageSubmit(data, size))
+                                            gsProcess(data, size);
                                     });
     m_memory.setGifArbiter(&m_gifArbiter);
     m_memory.setVu1MscalCallback([this](uint32_t startPC, uint32_t top, uint32_t itop)

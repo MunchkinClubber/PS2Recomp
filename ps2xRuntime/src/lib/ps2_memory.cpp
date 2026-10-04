@@ -108,6 +108,7 @@ namespace
     std::atomic<uint64_t> s_gpuSyncNs[PS2Memory::kGpuSyncReasonCount]{};
     std::atomic<uint64_t> s_gpuSyncCount[PS2Memory::kGpuSyncReasonCount]{};
     std::atomic<uint64_t> s_gpuBusyNs{0}, s_gpuBackpressureNs{0}, s_gpuJobs{0}, s_gpuLatencyNs{0};
+    std::atomic<uint64_t> s_gsStageBusyNs{0}, s_gsStageWaitNs{0}, s_gsStageSyncNs{0}, s_gsStageSyncs{0};
 
     inline uint64_t gpuNowNs()
     {
@@ -115,6 +116,157 @@ namespace
     }
 
     thread_local bool t_onGpuWorker = false;
+    thread_local bool t_onGsStage = false;
+    bool gpuAsyncEnabled();
+    // The GS front end's packet entry (set by PS2Runtime before any DMA runs).
+    std::function<void(const uint8_t *, uint32_t)> g_gsStageProcess;
+
+    // Second pipeline stage: the GIF packets the worker produces (VU1 XGKICKs, VIF1 DIRECT, PATH3)
+    // go to a "GS thread" that runs the GS front end and renderer, so VU1 geometry and GS drawing
+    // of a frame overlap instead of taking turns on the worker. Packets are copied into chunks
+    // (many small XGKICK packets per chunk); closures (privileged register writes, flips) are
+    // queued in order with them. Anything else that touches the GS waits for the queue to drain
+    // (gsStageSync), as the EE already does for the worker. PS2_ASYNC_GS=0 keeps the GS on the
+    // worker thread.
+    struct GsStage
+    {
+        struct Item
+        {
+            std::vector<uint8_t> packets; // [u32 size][bytes padded to 4] ...
+            std::function<void()> fn;
+        };
+        std::function<void(const uint8_t *, uint32_t)> process;
+        std::mutex mutex;
+        std::condition_variable cv;
+        std::deque<Item> queue;
+        std::atomic<uint64_t> enqueued{0}, done{0};
+        std::atomic<uint32_t> queued{0};
+        std::vector<uint8_t> cur; // chunk being filled (worker thread only)
+        std::thread thread;
+        std::atomic<bool> started{false};
+
+        static constexpr size_t kChunkBytes = 48u * 1024u;
+        static constexpr uint64_t kMaxPending = 96u; // chunks/closures the worker may be ahead
+
+        void run()
+        {
+            t_onGsStage = true;
+            ThreadNaming::SetCurrentThreadName("GS thread");
+#if defined(_WIN32)
+            SetThreadPriority(GetCurrentThread(), 1 /* THREAD_PRIORITY_ABOVE_NORMAL */);
+#endif
+            for (;;)
+            {
+                if (queued.load(std::memory_order_acquire) == 0u)
+                {
+                    for (int i = 0; i < 4000 && queued.load(std::memory_order_acquire) == 0u; ++i)
+                        _mm_pause();
+                    const uint64_t spinUntil = gpuNowNs() + 500000u;
+                    while (queued.load(std::memory_order_acquire) == 0u && gpuNowNs() < spinUntil)
+                        std::this_thread::yield();
+                }
+                Item item;
+                {
+                    std::unique_lock<std::mutex> lock(mutex);
+                    cv.wait(lock, [&]()
+                            { return !queue.empty(); });
+                    item = std::move(queue.front());
+                    queue.pop_front();
+                    queued.fetch_sub(1u, std::memory_order_relaxed);
+                }
+                const uint64_t t0 = gpuNowNs();
+                const uint8_t *p = item.packets.data();
+                const uint8_t *end = p + item.packets.size();
+                while (p + 4 <= end)
+                {
+                    uint32_t size = 0;
+                    std::memcpy(&size, p, 4);
+                    p += 4;
+                    if (size == 0u || p + size > end)
+                        break;
+                    process(p, size);
+                    p += (size + 3u) & ~3u;
+                }
+                if (item.fn)
+                    item.fn();
+                if (item.packets.capacity() != 0u)
+                {
+                    std::vector<std::vector<uint8_t>> one;
+                    one.push_back(std::move(item.packets));
+                    gpuReturnBuffers(one);
+                }
+                item = Item{};
+                s_gsStageBusyNs.fetch_add(gpuNowNs() - t0, std::memory_order_relaxed);
+                done.fetch_add(1u, std::memory_order_release);
+            }
+        }
+
+        void push(Item &&item)
+        {
+            // Keep the worker a bounded distance ahead of the GS thread.
+            if (enqueued.load(std::memory_order_relaxed) - done.load(std::memory_order_acquire) >= kMaxPending)
+            {
+                const uint64_t t0 = gpuNowNs();
+                while (enqueued.load(std::memory_order_relaxed) - done.load(std::memory_order_acquire) >= kMaxPending)
+                    std::this_thread::yield();
+                s_gsStageWaitNs.fetch_add(gpuNowNs() - t0, std::memory_order_relaxed);
+            }
+            {
+                std::lock_guard<std::mutex> lock(mutex);
+                queue.push_back(std::move(item));
+                enqueued.fetch_add(1u, std::memory_order_release);
+                queued.fetch_add(1u, std::memory_order_release);
+            }
+            cv.notify_one();
+        }
+
+        // Worker thread: hand the chunk being filled to the GS thread.
+        void flush()
+        {
+            if (cur.empty())
+                return;
+            Item item;
+            item.packets = std::move(cur);
+            cur = gpuTakeBuffer();
+            push(std::move(item));
+        }
+
+        void addPacket(const uint8_t *data, uint32_t size)
+        {
+            const size_t at = cur.size();
+            cur.resize(at + 4u + ((size + 3u) & ~3u));
+            std::memcpy(cur.data() + at, &size, 4);
+            std::memcpy(cur.data() + at + 4u, data, size);
+            if (cur.size() >= kChunkBytes)
+                flush();
+        }
+
+        bool idle() const
+        {
+            return done.load(std::memory_order_acquire) >= enqueued.load(std::memory_order_acquire);
+        }
+
+        void wait() const
+        {
+            for (int i = 0; i < 4000 && !idle(); ++i)
+                _mm_pause();
+            while (!idle())
+                std::this_thread::yield();
+        }
+    };
+    GsStage *g_gsStage = nullptr; // created with the worker, never destroyed
+
+    bool gsStageEnabled()
+    {
+        static const bool enabled = []()
+        {
+            const char *v = std::getenv("PS2_ASYNC_GS");
+            const bool on = gpuAsyncEnabled() && !(v && v[0] == '0');
+            std::fprintf(stderr, "[gpu] GS on its own thread %s (PS2_ASYNC_GS=0 disables)\n", on ? "on" : "off");
+            return on;
+        }();
+        return enabled;
+    }
 
     bool gpuAsyncEnabled()
     {
@@ -200,16 +352,36 @@ namespace
     void gpuSyncGlobal(uint32_t reason)
     {
         GpuWorker *w = g_gpuWorker;
-        if (!w || t_onGpuWorker)
+        if (!w || t_onGsStage)
             return;
+        GsStage *gs = g_gsStage;
+        if (t_onGpuWorker)
+        {
+            // The worker itself needs the GS (a read-back, a library call): let the GS thread
+            // catch up with what the worker has produced.
+            if (gs && gs->started.load(std::memory_order_acquire))
+            {
+                gs->flush();
+                if (!gs->idle())
+                {
+                    const uint64_t t0 = gpuNowNs();
+                    gs->wait();
+                    s_gsStageSyncNs.fetch_add(gpuNowNs() - t0, std::memory_order_relaxed);
+                    s_gsStageSyncs.fetch_add(1u, std::memory_order_relaxed);
+                }
+            }
+            return;
+        }
         const uint64_t target = w->enqueued.load(std::memory_order_acquire);
-        if (w->done.load(std::memory_order_acquire) >= target)
+        if (w->done.load(std::memory_order_acquire) >= target && (!gs || gs->idle()))
             return;
         const auto t0 = std::chrono::steady_clock::now();
         for (int i = 0; i < 4000 && w->done.load(std::memory_order_acquire) < target; ++i)
             _mm_pause();
         while (w->done.load(std::memory_order_acquire) < target)
             std::this_thread::yield();
+        if (gs)
+            gs->wait(); // the worker hands its last chunk over before a job counts as done
         s_gpuSyncCount[reason].fetch_add(1u, std::memory_order_relaxed);
         s_gpuSyncNs[reason].fetch_add(static_cast<uint64_t>(std::chrono::duration_cast<std::chrono::nanoseconds>(std::chrono::steady_clock::now() - t0).count()),
                                       std::memory_order_relaxed);
@@ -217,8 +389,28 @@ namespace
 
     bool gpuBusy()
     {
-        return g_gpuWorker && !g_gpuWorker->idle();
+        return g_gpuWorker && (!g_gpuWorker->idle() || (g_gsStage && !g_gsStage->idle()));
     }
+}
+
+// GS thread entry points for PS2Runtime (declared at their use: ps2_memory.h is included by all
+// recompiled code and stays unchanged).
+void ps2GsStageSetProcess(std::function<void(const uint8_t *, uint32_t)> process);
+bool ps2GsStageSubmit(const uint8_t *data, uint32_t sizeBytes);
+
+void ps2GsStageSetProcess(std::function<void(const uint8_t *, uint32_t)> process)
+{
+    g_gsStageProcess = std::move(process);
+}
+
+// A GIF packet produced on the GPU worker goes to the GS thread; false = the caller processes
+// it itself (no GS thread, or a caller that has already waited for it).
+bool ps2GsStageSubmit(const uint8_t *data, uint32_t sizeBytes)
+{
+    if (!g_gsStage || !t_onGpuWorker)
+        return false;
+    g_gsStage->addPacket(data, sizeBytes);
+    return true;
 }
 
 void PS2Memory::gpuSync(uint32_t reason)
@@ -234,6 +426,15 @@ namespace
         {
             g_gpuWorker = new GpuWorker();
             g_gpuWorker->memory = memory;
+            if (gsStageEnabled() && g_gsStageProcess)
+            {
+                g_gsStage = new GsStage();
+                g_gsStage->process = g_gsStageProcess;
+                g_gsStage->thread = std::thread([]()
+                                                { g_gsStage->run(); });
+                g_gsStage->thread.detach();
+                g_gsStage->started.store(true, std::memory_order_release);
+            }
             g_ps2GpuSyncHook = []()
             { gpuSyncGlobal(PS2Memory::kGpuSyncGsCall); };
             g_gpuWorker->thread = std::thread([]()
@@ -277,9 +478,23 @@ void PS2Memory::runGpuJob(GpuJob &job)
     for (const auto &stream : job.vif1)
         processVIF1Data(stream.data(), static_cast<uint32_t>(stream.size()));
     if (job.fn)
-        job.fn();
+    {
+        // Privileged register writes and flips take effect in order with the drawing: on the
+        // GS thread when it has the drawing.
+        if (t_onGpuWorker && g_gsStage)
+        {
+            g_gsStage->flush();
+            GsStage::Item item;
+            item.fn = std::move(job.fn);
+            g_gsStage->push(std::move(item));
+        }
+        else
+            job.fn();
+    }
     if (job.drain && m_gifArbiter)
         m_gifArbiter->drain();
+    if (t_onGpuWorker && g_gsStage)
+        g_gsStage->flush();
     if (job.countKick && !job.vif1.empty())
     {
         s_vif1Kicks.fetch_add(1u, std::memory_order_relaxed);
@@ -291,6 +506,8 @@ void PS2Memory::runGpuJob(GpuJob &job)
 void vif1ObsReport(double frames)
 {
     static uint64_t lastKicks = 0, lastKickNs = 0, lastBusy = 0, lastBp = 0, lastJobs = 0, lastLat = 0;
+    static uint64_t lastGsBusy = 0, lastGsWait = 0, lastGsSync = 0, lastGsSyncs = 0;
+    const uint64_t gsBusy = s_gsStageBusyNs.load(), gsWait = s_gsStageWaitNs.load(), gsSync = s_gsStageSyncNs.load(), gsSyncs = s_gsStageSyncs.load();
     static uint64_t lastSyncNs[PS2Memory::kGpuSyncReasonCount]{}, lastSyncCount[PS2Memory::kGpuSyncReasonCount]{};
     static const char *names[PS2Memory::kGpuSyncReasonCount] = {"dma", "privread", "csr", "vifreg", "vu1mem", "gscall", "other"};
     const uint64_t kicks = s_vif1Kicks.load(), kickNs = s_vif1KickNs.load(), busy = s_gpuBusyNs.load(),
@@ -315,6 +532,14 @@ void vif1ObsReport(double frames)
                  (kicks - lastKicks) / frames, (kickNs - lastKickNs) / 1e6 / frames, gpuAsyncEnabled() ? "async" : "off",
                  (busy - lastBusy) / 1e6 / frames, (jobs - lastJobs) / frames, (lat - lastLat) / 1e6 / frames, syncMs, text.empty() ? " none" : text.c_str(),
                  (bp - lastBp) / 1e6 / frames);
+    if (g_gsStage)
+        std::fprintf(stderr, "[ssx3:perf]   GS thread: busy %.1f ms/frame; worker waited for it %.2f ms/frame (queue full) + %.1fx/%.2f ms (GS reads)\n",
+                     (gsBusy - lastGsBusy) / 1e6 / frames, (gsWait - lastGsWait) / 1e6 / frames, (gsSyncs - lastGsSyncs) / frames,
+                     (gsSync - lastGsSync) / 1e6 / frames);
+    lastGsBusy = gsBusy;
+    lastGsWait = gsWait;
+    lastGsSync = gsSync;
+    lastGsSyncs = gsSyncs;
     lastKicks = kicks;
     lastKickNs = kickNs;
     lastBusy = busy;

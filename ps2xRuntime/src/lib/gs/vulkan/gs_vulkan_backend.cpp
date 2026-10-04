@@ -41,6 +41,7 @@ struct HostGpuFrame;
 #include <intrin.h>
 #endif
 #include <cfenv>
+#include <xmmintrin.h>
 #include <cstddef>
 #include <chrono>
 #include <cmath>
@@ -964,6 +965,18 @@ private:
         uint64_t t0;
         explicit ScopeTimer(uint64_t &a) : acc(a), t0(nowNs()) {}
         ~ScopeTimer() { acc += nowNs() - t0; }
+    };
+    // Times one call in 16 and counts it 16 times.
+    struct SampledTimer
+    {
+        uint64_t &acc;
+        uint64_t t0;
+        explicit SampledTimer(uint64_t &a, bool sample) : acc(a), t0(sample ? nowNs() : 0u) {}
+        ~SampledTimer()
+        {
+            if (t0)
+                acc += (nowNs() - t0) * 16u;
+        }
     };
     bool m_noAlias = false;
     bool m_noBias = false;
@@ -2494,15 +2507,18 @@ void GsVulkanBackend::appendPrimitive(const GSPrimitiveBatch &batch)
 void GsVulkanBackend::Submit(const GSPrimitiveBatch &batch)
 {
     std::lock_guard<std::recursive_mutex> lock(m_mutex);
-    ScopeTimer timer(m_iv.submitNs);
+    // Timed on one call in 16 (the clock costs as much as a small primitive).
+    SampledTimer timer(m_iv.submitNs, (m_iv.prims & 15u) == 0u);
     ++m_iv.prims;
     if (!m_vram || batch.vertexCount == 0u)
         return;
     if (primitiveOutsideScissor(batch))
         return;
-    const int rounding = std::fegetround();
-    if (rounding != FE_TONEAREST)
-        std::fesetround(FE_TONEAREST);
+    // Round-to-nearest for the float maths below (the caller may be a thread running VU code with
+    // another mode). MXCSR directly: fegetround/fesetround cost far more than the primitive.
+    const unsigned int mxcsr = _mm_getcsr();
+    if (mxcsr & 0x6000u)
+        _mm_setcsr(mxcsr & ~0x6000u);
     ++m_statPrims;
 
     const bool sameAsBatch = m_batch.active && std::memcmp(&m_batch.state, &batch.state, sizeof(GSDrawState)) == 0;
@@ -2535,8 +2551,8 @@ void GsVulkanBackend::Submit(const GSPrimitiveBatch &batch)
         if (m_batch.verts.size() >= kMaxBatchVertices)
             flushBatch();
     }
-    if (rounding != FE_TONEAREST)
-        std::fesetround(rounding);
+    if (mxcsr & 0x6000u)
+        _mm_setcsr(mxcsr);
 }
 
 void GsVulkanBackend::cpuDraw(const GSPrimitiveBatch &batch, int reason)

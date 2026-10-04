@@ -377,8 +377,8 @@ namespace
                 const uint64_t native = g_vu1NativeRuns.load(std::memory_order_relaxed);
                 const uint64_t miss = g_vu1NativeMisses.load(std::memory_order_relaxed);
                 const uint64_t handoff = g_vu1NativeHandoffs.load(std::memory_order_relaxed);
-                std::fprintf(stderr, "[ssx3:perf] %.1f fps, per frame: %.1f ms total, VIF1+VU1 %.1f ms (of which GS submit %.1f ms), rest %.1f ms | raster workers busy %.1f ms (summed), EE waited on GS %.1f ms | VU1 native %llu, interpreted %llu, handoffs %llu\n",
-                             frames / secs, frameMs, vifMs, gsMs, frameMs - vifMs, workerMs, waitMs,
+                std::fprintf(stderr, "[ssx3:perf] %.1f fps, per frame: %.1f ms total, VIF1+VU1 %.1f ms, GS front end + renderer %.1f ms | raster workers busy %.1f ms (summed), EE waited on GS %.1f ms | VU1 native %llu, interpreted %llu, handoffs %llu\n",
+                             frames / secs, frameMs, vifMs, gsMs, workerMs, waitMs,
                              static_cast<unsigned long long>(native - lastNative), static_cast<unsigned long long>(miss - lastMiss),
                              static_cast<unsigned long long>(handoff - lastHandoff));
                 lastNative = native;
