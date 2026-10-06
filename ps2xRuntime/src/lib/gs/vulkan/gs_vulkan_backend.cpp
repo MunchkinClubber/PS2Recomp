@@ -592,7 +592,7 @@ namespace
     }
 }
 
-class GsVulkanBackend final : public GSRasterBackend
+class GsVulkanBackend final : public GSRasterBackend, public GSRasterBackendEx
 {
 public:
     GsVulkanBackend() = default;
@@ -612,6 +612,8 @@ public:
     void QueuePresentSnapshot(const GSPresentationRequest &request) override;
     bool ClearFramebuffer(const GSContext &context, uint32_t rgba) override;
     uint32_t ConsumeLocalToHostBytes(uint8_t *dst, uint32_t maxBytes) override;
+    bool ReadbackAsync(const GSTransferCommand &command, std::function<void(std::vector<uint8_t> &&)> done) override;
+    void SyncPages(const std::bitset<512> &pages) override;
     uint32_t ReadVram(uint32_t psm, uint32_t base, uint32_t bw, uint32_t x, uint32_t y) const override;
     void WriteVram(uint32_t psm, uint32_t base, uint32_t bw, uint32_t x, uint32_t y, uint32_t value) override;
     void SnapshotVram(std::vector<uint8_t> &out) const override;
@@ -757,6 +759,22 @@ private:
         uint64_t serial = 0;
         std::vector<GpuImage> defImages;
         std::vector<VkDescriptorSet> defSets;
+        // Read-backs without waiting (ReadbackAsync): mirror pages copied out at that point of
+        // the command stream, handed over once the slot completes.
+        struct AsyncRead
+        {
+            GSTransferCommand cmd{};
+            std::function<void(std::vector<uint8_t> &&)> done;
+            std::vector<std::pair<uint16_t, uint32_t>> gpuPages; // page, offset in rbBuf
+            std::vector<uint16_t> cpuPages;                      // pages GS memory had current
+            std::vector<uint8_t> cpuData;
+        };
+        VkBuffer rbBuf = VK_NULL_HANDLE;
+        VkDeviceMemory rbMem = VK_NULL_HANDLE;
+        uint8_t *rbPtr = nullptr;
+        bool rbCoherent = true;
+        uint32_t rbUsed = 0;
+        std::vector<AsyncRead> reads;
         // Display pages copied out of the mirror at a flip, published once the slot completes.
         VkBuffer presentBuf = VK_NULL_HANDLE;
         VkDeviceMemory presentMem = VK_NULL_HANDLE;
@@ -787,6 +805,10 @@ private:
     };
     Slot m_slots[2];
     uint32_t m_cur = 0;
+    static constexpr uint32_t kAsyncReadBytes = 2u << 20; // per slot: 256 pages
+    std::vector<uint8_t> m_rbScratch;                     // GS memory image the read-back bytes are taken from
+    void deliverAsyncReads(Slot &sl);
+    static std::vector<uint8_t> localToHostBytes(uint8_t *mem, const GSTransferCommand &cmd);
     uint32_t m_poolUsed = 0;
     uint64_t m_completedSerial = 0; // every command buffer with a lower serial has completed
     void submitAsync();
@@ -978,7 +1000,7 @@ private:
         uint64_t submitNs = 0, waitNs = 0, downloadNs = 0, decodeNs = 0, uploadNs = 0, flushNs = 0, xferNs = 0, clutNs = 0, flipNs = 0;
         uint64_t xferFlushNs = 0, xferSyncNs = 0, xferCpuNs = 0, xferMarkNs = 0, xfers = 0, midSubmits = 0;
         uint64_t readbackSubmitNs = 0, readbackWaitNs = 0, readbacks[3] = {}; // by cause: xfer-down, xfer-up, other
-        uint64_t downloads = 0, decodes = 0, uploads = 0, batches = 0, prims = 0, waits = 0;
+        uint64_t downloads = 0, decodes = 0, uploads = 0, batches = 0, prims = 0, waits = 0, asyncReads = 0;
     } m_iv;
     struct ScopeTimer
     {
@@ -1016,8 +1038,10 @@ GsVulkanBackend::~GsVulkanBackend()
 {
 #if defined(PS2X_HOST_SDL3)
     if (m_hostPresent)
+    {
         HostVulkanSetFramePacer(nullptr, nullptr);
         HostVulkanSetFrameProvider(nullptr, nullptr);
+    }
 #endif
     if (!m_device)
     {
@@ -1087,6 +1111,8 @@ GsVulkanBackend::~GsVulkanBackend()
         if (sl.compPool) m_dt.vkDestroyDescriptorPool(m_device, sl.compPool, nullptr);
         if (sl.presentBuf) m_dt.vkDestroyBuffer(m_device, sl.presentBuf, nullptr);
         if (sl.presentMem) m_dt.vkFreeMemory(m_device, sl.presentMem, nullptr);
+        if (sl.rbBuf) m_dt.vkDestroyBuffer(m_device, sl.rbBuf, nullptr);
+        if (sl.rbMem) m_dt.vkFreeMemory(m_device, sl.rbMem, nullptr);
         if (sl.checkBuf) m_dt.vkDestroyBuffer(m_device, sl.checkBuf, nullptr);
         if (sl.checkMem) m_dt.vkFreeMemory(m_device, sl.checkMem, nullptr);
         if (sl.dumpBuf) m_dt.vkDestroyBuffer(m_device, sl.dumpBuf, nullptr);
@@ -1714,6 +1740,9 @@ void GsVulkanBackend::completeSlot(uint32_t i)
         }
         sl.dumpIndex = -1;
     }
+    if (!sl.reads.empty())
+        deliverAsyncReads(sl);
+    sl.rbUsed = 0;
     if (sl.hasPresent)
     {
         // The display pages as they were at the flip, over the rest of GS memory.
@@ -2810,6 +2839,12 @@ bool GsVulkanBackend::createComputeObjects()
                           sl.presentMem, &mapped, &sl.presentCoherent))
             return false;
         sl.presentPtr = static_cast<uint8_t *>(mapped);
+        mapped = nullptr;
+        if (createBuffer(kAsyncReadBytes, VK_BUFFER_USAGE_TRANSFER_DST_BIT, VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_CACHED_BIT, sl.rbBuf, sl.rbMem,
+                         &mapped, &sl.rbCoherent))
+            sl.rbPtr = static_cast<uint8_t *>(mapped);
+        else
+            sl.rbBuf = VK_NULL_HANDLE; // read-backs wait as before
     }
     m_compPool = m_slots[m_cur].compPool;
     return true;
@@ -4758,6 +4793,155 @@ uint32_t GsVulkanBackend::ConsumeLocalToHostBytes(uint8_t *dst, uint32_t maxByte
     return m_cpu.ConsumeLocalToHostBytes(dst, maxBytes);
 }
 
+// A local->host transfer without the wait: render targets over the source go into the mirror
+// (on the GPU, in command order), the source pages are copied from there into the slot's buffer
+// (pages GS memory has current are taken from it now), and the bytes are put together when the
+// submission has run (deliverAsyncReads). GS memory and the transfer state stay as they are.
+bool GsVulkanBackend::ReadbackAsync(const GSTransferCommand &command, std::function<void(std::vector<uint8_t> &&)> done)
+{
+    std::lock_guard<std::recursive_mutex> lock(m_mutex);
+    static const bool s_off = envFlag("PS2_GS_VK_SYNCREADBACK");
+    const auto &bb = command.bitbltbuf;
+    const auto &pos = command.trxpos;
+    const auto &reg = command.trxreg;
+    if (s_off || !gpuMem() || command.direction != 1u || reg.rrw == 0u || reg.rrh == 0u || static_cast<uint64_t>(reg.rrw) * reg.rrh > 65536u || !m_vram)
+        return false;
+    if (readFn(bb.spsm) == GSMem::ReadNull)
+        return false; // an indexed format: the usual way
+    PageSet src;
+    addRectPages(src, bb.sbp, bb.sbw, bb.spsm, pos.ssax, pos.ssay, pos.ssax + reg.rrw - 1, pos.ssay + reg.rrh - 1);
+    uint32_t count = 0;
+    src.forEach([&](uint32_t) { ++count; });
+    if (count == 0u || count * 8192u > kAsyncReadBytes / 4u)
+        return false;
+    ScopeTimer timer(m_iv.xferNs);
+    ++m_iv.xfers;
+    flushBatch();
+    m_why = "xfer-down";
+    for (size_t i = 0; i < m_targets.size(); ++i)
+    {
+        Target &t = *m_targets[i];
+        if (t.dirty && t.dirtyPages.intersects(src))
+            download(t); // into the mirror
+    }
+    Slot &sl = m_slots[m_cur]; // (after the above: they may have moved on to the other slot)
+    if (!sl.rbBuf || sl.rbUsed + count * 8192u > kAsyncReadBytes)
+        return false;
+    Slot::AsyncRead ar;
+    ar.cmd = command;
+    ar.done = std::move(done);
+    std::vector<VkBufferCopy> copies;
+    src.forEach([&](uint32_t p)
+                {
+                    if (static_cast<size_t>(p + 1u) * 8192u > m_vramSize)
+                        return;
+                    if (m_mirrorNewer.test(p))
+                    {
+                        copies.push_back({static_cast<VkDeviceSize>(p) * 8192u, static_cast<VkDeviceSize>(sl.rbUsed), 8192u});
+                        ar.gpuPages.push_back({static_cast<uint16_t>(p), sl.rbUsed});
+                        sl.rbUsed += 8192u;
+                    }
+                    else
+                    {
+                        ar.cpuPages.push_back(static_cast<uint16_t>(p));
+                        ar.cpuData.insert(ar.cpuData.end(), m_vram + static_cast<size_t>(p) * 8192u, m_vram + static_cast<size_t>(p + 1u) * 8192u);
+                    }
+                });
+    ++m_iv.asyncReads;
+    if (copies.empty())
+    {
+        // all of it is in GS memory already
+        if (ar.done)
+            ar.done(localToHostBytes(m_vram, command));
+        return true;
+    }
+    barrier();
+    m_dt.vkCmdCopyBuffer(m_cmd, m_vramBuf, sl.rbBuf, static_cast<uint32_t>(copies.size()), copies.data());
+    VkMemoryBarrier mb{VK_STRUCTURE_TYPE_MEMORY_BARRIER};
+    mb.srcAccessMask = VK_ACCESS_TRANSFER_WRITE_BIT;
+    mb.dstAccessMask = VK_ACCESS_HOST_READ_BIT;
+    m_dt.vkCmdPipelineBarrier(m_cmd, VK_PIPELINE_STAGE_TRANSFER_BIT, VK_PIPELINE_STAGE_HOST_BIT, 0, 1, &mb, 0, nullptr, 0, nullptr);
+    sl.reads.push_back(std::move(ar));
+    return true;
+}
+
+// The byte stream of a local->host transfer out of a GS memory image (as the CPU backend's
+// transfer makes it).
+std::vector<uint8_t> GsVulkanBackend::localToHostBytes(uint8_t *mem, const GSTransferCommand &cmd)
+{
+    const auto &bb = cmd.bitbltbuf;
+    const uint32_t rrw = cmd.trxreg.rrw, rrh = cmd.trxreg.rrh, sbw = std::max<uint32_t>(bb.sbw, 1u);
+    const uint32_t bpp = static_cast<uint32_t>(GSMem::BitsPerPixel(static_cast<GSMem::PixelStorageMode>(bb.spsm)));
+    const ReadFn read = readFn(bb.spsm);
+    const uint32_t total = rrw * rrh;
+    std::vector<uint8_t> out;
+    out.reserve((static_cast<size_t>(total) * bpp + 7u) / 8u);
+    for (uint32_t pixel = 0; pixel < total; ++pixel)
+    {
+        const uint32_t value = read(mem, bb.sbp, sbw, pixel % rrw + cmd.trxpos.ssax, pixel / rrw + cmd.trxpos.ssay);
+        switch (bpp)
+        {
+        case 32:
+            out.push_back(static_cast<uint8_t>(value));
+            out.push_back(static_cast<uint8_t>(value >> 8));
+            out.push_back(static_cast<uint8_t>(value >> 16));
+            out.push_back(static_cast<uint8_t>(value >> 24));
+            break;
+        case 24:
+            out.push_back(static_cast<uint8_t>(value));
+            out.push_back(static_cast<uint8_t>(value >> 8));
+            out.push_back(static_cast<uint8_t>(value >> 16));
+            break;
+        case 16:
+            out.push_back(static_cast<uint8_t>(value));
+            out.push_back(static_cast<uint8_t>(value >> 8));
+            break;
+        default:
+            break;
+        }
+    }
+    return out;
+}
+
+void GsVulkanBackend::deliverAsyncReads(Slot &sl)
+{
+    if (!sl.rbCoherent && sl.rbMem)
+    {
+        VkMappedMemoryRange r{VK_STRUCTURE_TYPE_MAPPED_MEMORY_RANGE};
+        r.memory = sl.rbMem;
+        r.size = VK_WHOLE_SIZE;
+        m_dt.vkInvalidateMappedMemoryRanges(m_device, 1, &r);
+    }
+    if (m_rbScratch.size() != GSMem::MEMORY_SIZE)
+        m_rbScratch.assign(GSMem::MEMORY_SIZE, 0u);
+    std::vector<Slot::AsyncRead> reads;
+    reads.swap(sl.reads);
+    for (Slot::AsyncRead &ar : reads)
+    {
+        for (const auto &gp : ar.gpuPages)
+            std::memcpy(m_rbScratch.data() + static_cast<size_t>(gp.first) * 8192u, sl.rbPtr + gp.second, 8192u);
+        for (size_t k = 0; k < ar.cpuPages.size(); ++k)
+            std::memcpy(m_rbScratch.data() + static_cast<size_t>(ar.cpuPages[k]) * 8192u, ar.cpuData.data() + k * 8192u, 8192u);
+        std::vector<uint8_t> out = localToHostBytes(m_rbScratch.data(), ar.cmd);
+        if (ar.done)
+            ar.done(std::move(out));
+    }
+}
+
+void GsVulkanBackend::SyncPages(const std::bitset<512> &pages)
+{
+    std::lock_guard<std::recursive_mutex> lock(m_mutex);
+    PageSet set;
+    for (uint32_t page = 0; page < 512u; ++page)
+        if (pages.test(page))
+            set.set(page);
+    if (!set.any())
+        return;
+    flushBatch();
+    m_why = "pages";
+    ensureVramCurrent(set);
+}
+
 uint32_t GsVulkanBackend::ReadVram(uint32_t psm, uint32_t base, uint32_t bw, uint32_t x, uint32_t y) const
 {
     auto *self = const_cast<GsVulkanBackend *>(this);
@@ -4814,10 +4998,10 @@ void GsVulkanBackend::printStats()
         std::fprintf(stderr,
                      "[gs:vk] per frame: submit %.2f ms (flush %.2f), GPU waits %.1fx %.2f ms, downloads %.1fx %.2f ms, texture decodes %.1fx %.2f ms, "
                      "target uploads %.1fx %.2f ms, transfers %.1fx %.2f ms (draw flush %.2f, sync %.2f, copy %.2f, mark %.2f), CLUT %.2f ms, flip %.2f ms | %.0f prims, %.0f batches"
-                     " | readbacks %.1f down %.1f up %.1f other: submit %.2f ms wait %.2f ms | mid-frame submits %.1f\n",
+                     " | readbacks %.1f down %.1f up %.1f other: submit %.2f ms wait %.2f ms, %.1f without waiting | mid-frame submits %.1f\n",
                      ms(m_iv.submitNs), ms(m_iv.flushNs), pf(m_iv.waits), ms(m_iv.waitNs), pf(m_iv.downloads), ms(m_iv.downloadNs), pf(m_iv.decodes),
                      ms(m_iv.decodeNs), pf(m_iv.uploads), ms(m_iv.uploadNs), pf(m_iv.xfers), ms(m_iv.xferNs), ms(m_iv.xferFlushNs), ms(m_iv.xferSyncNs), ms(m_iv.xferCpuNs), ms(m_iv.xferMarkNs), ms(m_iv.clutNs), ms(m_iv.flipNs), pf(m_iv.prims), pf(m_iv.batches), pf(m_iv.readbacks[0]), pf(m_iv.readbacks[1]), pf(m_iv.readbacks[2]), ms(m_iv.readbackSubmitNs),
-                     ms(m_iv.readbackWaitNs), pf(m_iv.midSubmits));
+                     ms(m_iv.readbackWaitNs), pf(m_iv.asyncReads), pf(m_iv.midSubmits));
         m_iv = Interval{};
         m_ivFlips = m_statFlips;
     }
@@ -4844,6 +5028,11 @@ void GsVulkanBackend::printStats()
         if (m_statBigFactor[i])
             std::fprintf(stderr, " %02x=%llu", i, (unsigned long long)m_statBigFactor[i]);
     std::fprintf(stderr, "\n");
+}
+
+GSRasterBackendEx *ps2VulkanGsBackendEx(GSRasterBackend *backend)
+{
+    return backend ? static_cast<GsVulkanBackend *>(backend) : nullptr;
 }
 
 std::unique_ptr<GSRasterBackend> ps2CreateVulkanGsBackend()

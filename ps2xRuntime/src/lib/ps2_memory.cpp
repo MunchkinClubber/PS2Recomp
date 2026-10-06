@@ -794,8 +794,9 @@ namespace
                 e.ready = true;
                 s_rbRefreshed.fetch_add(1u, std::memory_order_relaxed);
             };
-            // With frame interpolation the frame's drawing is held back until its flip: the read
-            // joins it there instead of forcing it out now.
+            // The data is for later reads: the renderer front can take it without waiting for
+            // the GPU (and with frame interpolation, where the frame's drawing is held back
+            // until its flip, the read joins it there instead of forcing it out now).
             if (ps2GsInterpDeferReadback(bytes, store))
                 return;
             std::vector<uint8_t> buf(bytes, 0u);

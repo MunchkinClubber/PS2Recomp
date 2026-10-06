@@ -1262,7 +1262,8 @@ bool PS2Runtime::initialize(const char *title)
             {
                 // With the frame interpolation layer in front (it only forwards until switched
                 // on: PS2_FRAME_INTERP=2..8 or F7).
-                m_gs.setRasterBackend(ps2CreateInterpGsBackend(std::move(vk)));
+                GSRasterBackendEx *ex = ps2VulkanGsBackendEx(vk.get());
+                m_gs.setRasterBackend(ps2CreateInterpGsBackend(std::move(vk), ex));
                 std::fprintf(stderr, "[gs] Vulkan renderer enabled\n");
             }
             else

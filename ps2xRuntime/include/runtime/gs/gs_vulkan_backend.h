@@ -18,3 +18,8 @@
 // Environment: PS2_GS_VK_CPUPRESENT=1 present through the CPU, PS2_GS_VK_OWNDEVICE=1 do not share
 // the window's device, PS2_GS_VK_CHECKPRESENT=1 compare each GPU picture with the CPU one (slow).
 std::unique_ptr<GSRasterBackend> ps2CreateVulkanGsBackend();
+
+// The extra calls of a backend made by ps2CreateVulkanGsBackend (for the frame interpolation
+// layer, see gs_interp_backend.h).
+class GSRasterBackendEx;
+GSRasterBackendEx *ps2VulkanGsBackendEx(GSRasterBackend *backend);
