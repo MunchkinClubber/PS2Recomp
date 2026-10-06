@@ -3979,9 +3979,13 @@ void GsVulkanBackend::LoadClut(const GSTex0Reg &tex0, const GSTexClutReg &texclu
     ScopeTimer timer(m_iv.clutNs);
     flushBatch();
     PageSet pages;
-    // CSM1: a 16x16 (or 8x2) block-ordered CLUT occupies at most four blocks from CBP.
+    // CSM1: a block-ordered CLUT at CBP - 16x16 (four blocks) for 8-bit textures, 8x2 (one block)
+    // for 4-bit ones. Not past the end of GS memory: SSX 3 keeps 16-colour palettes in its last
+    // blocks, and "three blocks further" wrapped to page 0 - the frame buffer - which made every
+    // such load wait for the GPU.
+    const bool small = tex0.psm == GS_PSM_T4 || tex0.psm == GS_PSM_T4HL || tex0.psm == GS_PSM_T4HH;
     pages.set((tex0.cbp >> 5) & 511u);
-    pages.set(((tex0.cbp + 3u) >> 5) & 511u);
+    pages.set((std::min<uint32_t>(tex0.cbp + (small ? 0u : 3u), 0x3FFFu) >> 5) & 511u);
     if (tex0.csm)
         addRectPages(pages, tex0.cbp, texclut.cbw, tex0.cpsm, texclut.cou * 16, texclut.cov, texclut.cou * 16 + 255, texclut.cov + 1);
     m_why = "clut";

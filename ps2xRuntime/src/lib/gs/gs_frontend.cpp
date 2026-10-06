@@ -606,8 +606,16 @@ void GS::notePresentPoint()
 
 bool GS::presentsOnGpu() const
 {
-    std::lock_guard<std::mutex> backendLock(m_backendLifetimeMutex);
-    return m_backend && m_backend->PresentsOnGpu();
+    // Asked by the host for every picture it shows. While the GS thread is in a flip (with frame
+    // interpolation that includes matching the frame), the last answer stands: the host must not
+    // wait for it, or the pictures are shown late.
+    static std::atomic<bool> s_last{false};
+    std::unique_lock<std::mutex> backendLock(m_backendLifetimeMutex, std::try_to_lock);
+    if (!backendLock.owns_lock())
+        return s_last.load(std::memory_order_relaxed);
+    const bool gpu = m_backend && m_backend->PresentsOnGpu();
+    s_last.store(gpu, std::memory_order_relaxed);
+    return gpu;
 }
 
 void GS::setResolutionScale(uint32_t scale)

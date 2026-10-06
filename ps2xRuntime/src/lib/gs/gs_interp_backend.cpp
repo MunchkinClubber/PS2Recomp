@@ -6,6 +6,7 @@
 #include <bitset>
 #include <chrono>
 #include <cmath>
+#include <condition_variable>
 #include <cstdio>
 #include <cstdlib>
 #include <cstring>
@@ -151,7 +152,6 @@ namespace
         uint32_t primStart = 0, primCount = 0;
         float sumX = 0.0f, sumY = 0.0f; // of its vertices (for "which instance is which")
         uint32_t vertices = 0;
-        bool taken = false; // matched by an object of the next frame
 
         float cx() const { return vertices ? sumX / static_cast<float>(vertices) : 0.0f; }
         float cy() const { return vertices ? sumY / static_cast<float>(vertices) : 0.0f; }
@@ -200,6 +200,10 @@ namespace
         std::vector<Readback> readbacks;
         std::vector<Object> objects;
         std::vector<uint32_t> byKey; // object indices sorted by key (built at the flip)
+        std::vector<GSVertex> synth; // last-frame positions made up for primitives without a partner
+        uint64_t matchNs = 0, phaseNs[4]{}; // what the matching took
+        bool haveModel = false;      // a camera model was found
+        float modelShare = 0.0f;     // ... explaining this share of the sampled matched vertices
         size_t doneOps = 0;     // ops already executed (a call needed the renderer's state)
         bool broken = false;    // ... and they included drawing or transfers: no in-between pictures
         bool complete = false;  // recorded from flip to flip without a gap
@@ -219,6 +223,11 @@ namespace
             readbacks.clear();
             objects.clear();
             byKey.clear();
+            synth.clear();
+            matchNs = 0;
+            phaseNs[0] = phaseNs[1] = phaseNs[2] = phaseNs[3] = 0;
+            haveModel = false;
+            modelShare = 0.0f;
             doneOps = 0;
             broken = false;
             complete = false;
@@ -258,7 +267,13 @@ namespace
                 s_wantFactor.store(envFactor());
             m_stats = std::getenv("PS2_GS_VK_STATS") != nullptr || std::getenv("PS2_FRAME_INTERP_STATS") != nullptr;
             m_active = s_wantFactor.load() > 1u;
-            m_cur.complete = true;
+            m_cur = acquireFrame();
+            m_cur->complete = true;
+            m_last = acquireFrame();
+            // The passes run on a thread of their own (PS2_FRAME_INTERP_THREAD=0: on the GS thread).
+            m_threaded = !(std::getenv("PS2_FRAME_INTERP_THREAD") && std::getenv("PS2_FRAME_INTERP_THREAD")[0] == '0');
+            if (m_threaded)
+                m_thread = std::thread(&GsInterpBackend::renderMain, this);
             if (const char *probe = std::getenv("PS2_FRAME_INTERP_PROBE"))
                 m_probe = std::sscanf(probe, "%f,%f", &m_probeX, &m_probeY) == 2;
             s_instance = this;
@@ -269,6 +284,19 @@ namespace
         {
             if (s_instance == this)
                 s_instance = nullptr;
+            if (m_thread.joinable())
+            {
+                {
+                    std::lock_guard<std::mutex> lock(m_jobMutex);
+                    m_quit = true;
+                }
+                m_jobCv.notify_all();
+                m_thread.join();
+            }
+            // the frames go back to the pool before it goes
+            m_job = Job{};
+            m_cur.reset();
+            m_last.reset();
         }
 
         void Initialize(uint8_t *vram, uint32_t vramSize) override
@@ -308,8 +336,8 @@ namespace
                 return;
             }
             std::lock_guard<SpinLock> lock(m_mutex);
-            m_cur.cluts.push_back({tex0, texclut});
-            pushOp(OpKind::LoadClut, static_cast<uint32_t>(m_cur.cluts.size() - 1u));
+            m_cur->cluts.push_back({tex0, texclut});
+            pushOp(OpKind::LoadClut, static_cast<uint32_t>(m_cur->cluts.size() - 1u));
         }
         void BeginTransfer(const GSTransferCommand &command) override
         {
@@ -331,8 +359,8 @@ namespace
                 return;
             }
             std::lock_guard<SpinLock> lock(m_mutex);
-            m_cur.transfers.push_back(command);
-            pushOp(OpKind::Transfer, static_cast<uint32_t>(m_cur.transfers.size() - 1u));
+            m_cur->transfers.push_back(command);
+            pushOp(OpKind::Transfer, static_cast<uint32_t>(m_cur->transfers.size() - 1u));
             m_transferBegun = true;
         }
         void UploadImage(const uint8_t *data, uint32_t sizeBytes) override
@@ -348,9 +376,9 @@ namespace
             // Image data of a transfer that began before the last flip: it can only be sent to
             // the renderer once, so this frame is drawn once.
             if (!m_transferBegun)
-                m_cur.broken = true;
-            const size_t at = m_cur.bytes.size();
-            m_cur.bytes.insert(m_cur.bytes.end(), data, data + sizeBytes);
+                m_cur->broken = true;
+            const size_t at = m_cur->bytes.size();
+            m_cur->bytes.insert(m_cur->bytes.end(), data, data + sizeBytes);
             pushOp(OpKind::Upload, static_cast<uint32_t>(at), sizeBytes);
         }
         void Flush() override
@@ -361,7 +389,7 @@ namespace
                 return;
             }
             std::lock_guard<SpinLock> lock(m_mutex);
-            if (m_cur.ops.empty() || m_cur.ops.back().kind != OpKind::Flush)
+            if (m_cur->ops.empty() || m_cur->ops.back().kind != OpKind::Flush)
                 pushOp(OpKind::Flush);
         }
         void TextureFlush() override
@@ -453,8 +481,8 @@ namespace
                 return false;
             }
             std::lock_guard<SpinLock> lock(m_mutex);
-            m_cur.readbacks.push_back({bytes, std::move(done)});
-            pushOp(OpKind::Readback, static_cast<uint32_t>(m_cur.readbacks.size() - 1u));
+            m_cur->readbacks.push_back({bytes, std::move(done)});
+            pushOp(OpKind::Readback, static_cast<uint32_t>(m_cur->readbacks.size() - 1u));
             return true;
         }
 
@@ -481,13 +509,13 @@ namespace
 
         void pushOp(OpKind kind, uint32_t a = 0, uint32_t b = 0)
         {
-            m_cur.ops.push_back({kind, a, b});
+            m_cur->ops.push_back({kind, a, b});
             m_runOpen = false;
         }
 
         void beginObject(uint64_t key)
         {
-            Frame &f = m_cur;
+            Frame &f = *m_cur;
             closeObject();
             Object obj;
             obj.key = key;
@@ -512,7 +540,7 @@ namespace
 
         void closeObject()
         {
-            Frame &f = m_cur;
+            Frame &f = *m_cur;
             if (f.objects.empty())
                 return;
             Object &obj = f.objects.back();
@@ -523,7 +551,7 @@ namespace
 
         void recordPrim(const GSPrimitiveBatch &batch)
         {
-            Frame &f = m_cur;
+            Frame &f = *m_cur;
             if (batch.vertexCount == 0u || batch.vertexCount > 3u)
                 return;
             if (f.objects.empty())
@@ -645,11 +673,11 @@ namespace
         // they stop agreeing, look a few primitives ahead in either for the next agreement.
         void matchPrims(const Object &co, const Object &po, bool sameData)
         {
-            Frame &f = m_cur;
+            Frame &f = *m_cur;
             Prim *cp = f.prims.data() + co.primStart;
-            const Prim *pp = m_prev.prims.data() + po.primStart;
-            const GSVertex *cverts = f.verts.data(), *pverts = m_prev.verts.data();
-            const XY *cpos = f.pos.data(), *ppos = m_prev.pos.data();
+            const Prim *pp = m_last->prims.data() + po.primStart;
+            const GSVertex *cverts = f.verts.data(), *pverts = m_last->verts.data();
+            const XY *cpos = f.pos.data(), *ppos = m_last->pos.data();
             constexpr uint32_t kWindow = 8u;
             // The usual case: nothing clipped, both lists have the same primitives at the same
             // places in the program's output - pair them in order. Only for the same model data:
@@ -726,7 +754,7 @@ namespace
         // them, the object keeps this frame's positions in the in-between pictures.
         void checkObject(const Object &co)
         {
-            Frame &f = m_cur;
+            Frame &f = *m_cur;
             Prim *cp = f.prims.data() + co.primStart;
             uint32_t triangles = 0, bad = 0;
             for (uint32_t i = 0; i < co.primCount; ++i)
@@ -734,7 +762,7 @@ namespace
                 if (!hasPrev(cp[i].prev) || cp[i].count != 3u)
                     continue;
                 const XY *c = f.pos.data() + cp[i].vtx;
-                const XY *q = m_prev.pos.data() + cp[i].prev;
+                const XY *q = m_last->pos.data() + cp[i].prev;
                 const float ac = (c[1].x - c[0].x) * (c[2].y - c[0].y) - (c[2].x - c[0].x) * (c[1].y - c[0].y);
                 const float ap = (q[1].x - q[0].x) * (q[2].y - q[0].y) - (q[2].x - q[0].x) * (q[1].y - q[0].y);
                 const float smaller = std::min(std::fabs(ac), std::fabs(ap));
@@ -884,7 +912,7 @@ namespace
 
         void fitCamera()
         {
-            Frame &f = m_cur;
+            Frame &f = *m_cur;
             m_haveModel = false;
             m_samples.clear();
             m_progFrame.assign(m_progPc.size(), ProgFrame{});
@@ -909,7 +937,7 @@ namespace
                     if (at.x < o.wx0 || at.x > o.wx1 || at.y < o.wy0 || at.y > o.wy1)
                         continue; // far corners are mostly made by clipping
                     const GSVertex &c = f.verts[p->vtx + v];
-                    const GSVertex &q = m_prev.verts[p->prev + v];
+                    const GSVertex &q = m_last->verts[p->prev + v];
                     if (!perspective(c.q) || !perspective(q.q))
                         continue;
                     Sample s{c.x, c.y, c.q, q.x, q.y, q.q, static_cast<float>(c.z), o.prog};
@@ -1022,7 +1050,7 @@ namespace
             if (!o.zSlopeDone)
             {
                 o.zSlopeDone = true;
-                Frame &f = m_cur;
+                Frame &f = *m_cur;
                 double sq = 0.0, sz = 0.0, sqq = 0.0, sqz = 0.0, szz = 0.0;
                 uint32_t n = 0;
                 for (uint32_t k = 0; k < o.primCount; ++k)
@@ -1080,7 +1108,7 @@ namespace
         //    primitives take the old positions of the pass that has them.
         void classifyObjects()
         {
-            Frame &f = m_cur;
+            Frame &f = *m_cur;
             for (const Pair &pair : m_pairs)
             {
                 Object &o = f.objects[pair.cur];
@@ -1110,7 +1138,7 @@ namespace
                     if (v == p[k].count)
                         continue;
                     const GSVertex &c = f.verts[p[k].vtx + v];
-                    const GSVertex &q = m_prev.verts[p[k].prev + v];
+                    const GSVertex &q = m_last->verts[p[k].prev + v];
                     dx += q.x - c.x;
                     dy += q.y - c.y;
                     ++seen;
@@ -1142,7 +1170,7 @@ namespace
                             if (!isNear(f.pos[p[k].vtx + v]))
                                 continue;
                             const GSVertex &c = f.verts[p[k].vtx + v];
-                            const GSVertex &q = m_prev.verts[p[k].prev + v];
+                            const GSVertex &q = m_last->verts[p[k].prev + v];
                             ok = !perspective(c.q) || !perspective(q.q) || agrees(m_model, Sample{c.x, c.y, c.q, q.x, q.y, q.q, 0.0f, 0u}, 0.5f);
                         }
                         if (!ok)
@@ -1185,7 +1213,7 @@ namespace
         // What none of these places (new things drawn over the scene, like HUD digits) stays.
         void recoverUnmatched()
         {
-            Frame &f = m_cur;
+            Frame &f = *m_cur;
             if (f.matched == 0u)
                 return;
             // One pass over everything: the primitives to work on (no partner, or far corners,
@@ -1226,7 +1254,7 @@ namespace
                     }
                     if (!none && !(farMask & 1u) && (index & 3u) == 0u) // (a sample is enough: the squares are the last resort)
                     {
-                        const XY *q = m_prev.pos.data() + p->prev;
+                        const XY *q = m_last->pos.data() + p->prev;
                         GridCell &cell = m_grid[gridIndex(c[0].x, c[0].y)];
                         cell.dx += q[0].x - c[0].x;
                         cell.dy += q[0].y - c[0].y;
@@ -1361,7 +1389,7 @@ namespace
                         if (!m_table[slot].used || (m_table[slot].prev != kNone && m_table[slot].persp))
                             continue;
                         const GSVertex &c = f.verts[p.vtx + v];
-                        const GSVertex &q = m_prev.verts[p.prev + v];
+                        const GSVertex &q = m_last->verts[p.prev + v];
                         if ((farMask & (1u << v)) && !farCornerIsReal(c, q))
                             continue;
                         offer(f.pos[p.vtx + v], p.prev + v, c, q);
@@ -1370,7 +1398,7 @@ namespace
             }
             auto source = [&](uint32_t ref) -> const GSVertex &
             {
-                return (ref & kSynth) ? m_synth[ref & ~kSynth] : m_prev.verts[ref];
+                return (ref & kSynth) ? f.synth[ref & ~kSynth] : m_last->verts[ref];
             };
             // takes the entry's old position for the corner `c`
             auto adopt = [&](const TableEntry &e, const GSVertex &c, GSVertex &old)
@@ -1409,7 +1437,7 @@ namespace
                     for (uint32_t v = 0; v < p.count; ++v)
                     {
                         const bool need = !matched || (farMask & (1u << v));
-                        old[v] = matched ? m_prev.verts[p.prev + v] : cv[v];
+                        old[v] = matched ? m_last->verts[p.prev + v] : cv[v];
                         if (!need)
                         {
                             placed |= static_cast<uint8_t>(1u << v);
@@ -1467,8 +1495,8 @@ namespace
                             }
                         }
                     }
-                    const uint32_t base = static_cast<uint32_t>(m_synth.size());
-                    m_synth.insert(m_synth.end(), old, old + p.count);
+                    const uint32_t base = static_cast<uint32_t>(f.synth.size());
+                    f.synth.insert(f.synth.end(), old, old + p.count);
                     p.prev = kSynth | base;
                     // later corners at the same places take the same positions
                     for (uint32_t v = 0; v < p.count; ++v)
@@ -1497,7 +1525,7 @@ namespace
                 bool changed = false;
                 for (uint32_t v = 0; v < p.count; ++v)
                 {
-                    old[v] = m_prev.verts[p.prev + v];
+                    old[v] = m_last->verts[p.prev + v];
                     const TableEntry &e = m_table[slotOf(f.pos[p.vtx + v])];
                     if (!e.used || e.prev == kNone || !e.persp)
                         continue;
@@ -1509,8 +1537,8 @@ namespace
                 }
                 if (!changed)
                     continue;
-                p.prev = kSynth | static_cast<uint32_t>(m_synth.size());
-                m_synth.insert(m_synth.end(), old, old + p.count);
+                p.prev = kSynth | static_cast<uint32_t>(f.synth.size());
+                f.synth.insert(f.synth.end(), old, old + p.count);
             }
         }
 
@@ -1539,12 +1567,12 @@ namespace
 
         void matchGroup(const uint32_t *cur, size_t curCount, const uint32_t *prev, size_t prevCount, bool sameData)
         {
-            Frame &f = m_cur;
+            Frame &f = *m_cur;
             if (curCount == 1u && prevCount == 1u && sameData)
             {
-                if (!sameDepthRange(f.objects[cur[0]], m_prev.objects[prev[0]]))
+                if (!sameDepthRange(f.objects[cur[0]], m_last->objects[prev[0]]))
                     return;
-                m_prev.objects[prev[0]].taken = true;
+                m_prevTaken[prev[0]] = 1u;
                 m_pairs.push_back({cur[0], prev[0], sameData});
                 return;
             }
@@ -1555,8 +1583,8 @@ namespace
                 const Object &co = f.objects[cur[i]];
                 for (size_t j = 0; j < prevCount; ++j)
                 {
-                    const Object &po = m_prev.objects[prev[j]];
-                    if (po.taken || (!sameData && po.primCount != co.primCount) || !sameDepthRange(co, po))
+                    const Object &po = m_last->objects[prev[j]];
+                    if (m_prevTaken[prev[j]] || (!sameData && po.primCount != co.primCount) || !sameDepthRange(co, po))
                         continue;
                     const float dx = co.cx() - po.cx(), dy = co.cy() - po.cy();
                     const float d = dx * dx + dy * dy;
@@ -1569,10 +1597,10 @@ namespace
                       { return a.distance != b.distance ? a.distance < b.distance : a.cur != b.cur ? a.cur < b.cur : a.prev < b.prev; });
             for (const Candidate &c : m_candidates)
             {
-                if (m_curTaken[c.cur] || m_prev.objects[c.prev].taken)
+                if (m_curTaken[c.cur] || m_prevTaken[c.prev])
                     continue;
                 m_curTaken[c.cur] = 1u;
-                m_prev.objects[c.prev].taken = true;
+                m_prevTaken[c.prev] = 1u;
                 m_pairs.push_back({c.cur, c.prev, sameData});
             }
         }
@@ -1594,9 +1622,8 @@ namespace
         // The pages a run's texture reads. A big texture is often a whole buffer of which the
         // run uses a part (the 512 x 448 picture declared as 1024 x 512): for those, the part
         // its texture coordinates span.
-        void texturePages(const Run &run, PageSet &set) const
+        static void texturePages(const Frame &f, const Run &run, PageSet &set)
         {
-            const Frame &f = m_cur;
             const GSDrawState &st = f.states[run.state];
             const GSContext &ctx = st.context;
             const uint32_t w = 1u << std::min<uint32_t>(ctx.tex0.tw, 10u), h = 1u << std::min<uint32_t>(ctx.tex0.th, 10u);
@@ -1652,10 +1679,21 @@ namespace
             }
         }
 
+        static inline bool indexedFormat(uint8_t psm)
+        {
+            return psm == GS_PSM_T8 || psm == GS_PSM_T4 || psm == GS_PSM_T8H || psm == GS_PSM_T4HL || psm == GS_PSM_T4HH;
+        }
+
         static void clutPages(const ClutLoad &c, PageSet &set)
         {
             if (c.tex0.csm == 0u)
-                addRectPages(set, c.tex0.cbp, 1u, c.tex0.cpsm, 0u, 0u, 15u, 15u);
+            {
+                // block-ordered at CBP: 16 x 16 (four blocks) for 8-bit textures, 8 x 2 (one) for 4-bit
+                const bool small = c.tex0.psm == GS_PSM_T4 || c.tex0.psm == GS_PSM_T4HL || c.tex0.psm == GS_PSM_T4HH;
+                const uint32_t last = std::min<uint32_t>(c.tex0.cbp + (small ? 0u : 3u), 0x3FFFu);
+                set.set((c.tex0.cbp >> 5) & 511u);
+                set.set((last >> 5) & 511u);
+            }
             else
                 addRectPages(set, c.tex0.cbp, c.texclut.cbw, c.tex0.cpsm, c.texclut.cou * 16u, c.texclut.cov, c.texclut.cou * 16u + 255u, c.texclut.cov);
         }
@@ -1673,9 +1711,8 @@ namespace
             return true;
         }
 
-        void findHazards()
+        void findHazards(Frame &f)
         {
-            Frame &f = m_cur;
             m_hazard.reset();
             m_drawn.reset();
             m_xferLate.assign(f.transfers.size(), 0u);
@@ -1695,7 +1732,7 @@ namespace
                     if (op.kind == OpKind::Prims)
                     {
                         if (f.states[f.runs[op.a].state].prim.tme)
-                            texturePages(f.runs[op.a], readLater);
+                            texturePages(f, f.runs[op.a], readLater);
                     }
                     else if (op.kind == OpKind::LoadClut)
                         clutPages(f.cluts[op.a], readLater);
@@ -1715,12 +1752,35 @@ namespace
                 }
             }
 
+            // Does the frame draw with the palette it found loaded (a paletted texture before its
+            // first palette load)? Only then is that palette read, and put back between passes.
+            m_needStartClut = false;
+            if (m_haveStartClut)
+                for (const Op &op : f.ops)
+                {
+                    if (op.kind == OpKind::LoadClut)
+                    {
+                        const GSTex0Reg &t = f.cluts[op.a].tex0;
+                        if (indexedFormat(t.psm) && t.cld != 0u && t.cld < 6u)
+                            break;
+                    }
+                    else if (op.kind == OpKind::Prims)
+                    {
+                        const GSDrawState &st = f.states[f.runs[op.a].state];
+                        if (st.prim.tme && indexedFormat(st.context.tex0.psm))
+                        {
+                            m_needStartClut = true;
+                            break;
+                        }
+                    }
+                }
+
             // Forwards: pages read, then written by a transfer that every pass does.
             PageSet read;
             if (all)
                 read.set();
-            if (m_haveStartClut)
-                clutPages(m_startClut, read); // the palette loaded when the frame begins (see restoreHazardPages)
+            if (m_needStartClut)
+                clutPages(m_startClut, read);
             for (const Op &op : f.ops)
             {
                 if (op.kind == OpKind::Prims)
@@ -1729,7 +1789,7 @@ namespace
                     const GSDrawState &st = f.states[run.state];
                     const GSContext &ctx = st.context;
                     if (st.prim.tme)
-                        texturePages(run, read);
+                        texturePages(f, run, read);
                     // what it draws into: the part of the buffers its vertices span (the scissor
                     // rectangle alone can be far larger than the buffer), depth only when written
                     const float ox = static_cast<float>(ctx.xyoffset.ofx >> 4), oy = static_cast<float>(ctx.xyoffset.ofy >> 4);
@@ -1820,7 +1880,7 @@ namespace
             }
             // ... and the palette as the frame found it: the one the last frame loaded last
             // (a texture drawn before the frame loads a palette of its own uses that one)
-            if (m_haveStartClut && !m_noClutRestore)
+            if (m_haveStartClut && m_needStartClut && !m_noClutRestore)
                 m_inner->LoadClut(m_startClut.tex0, m_startClut.texclut);
         }
 
@@ -1832,28 +1892,28 @@ namespace
         void matchFrame()
         {
             const uint64_t tStart = nowNs();
-            m_phaseNs[0] = m_phaseNs[1] = m_phaseNs[2] = m_phaseNs[3] = 0;
-            Frame &f = m_cur;
+            Frame &f = *m_cur;
+            f.phaseNs[0] = f.phaseNs[1] = f.phaseNs[2] = f.phaseNs[3] = 0;
+            ++m_matchCount;
             f.byKey.resize(f.objects.size());
             for (uint32_t i = 0; i < f.byKey.size(); ++i)
                 f.byKey[i] = i;
             std::sort(f.byKey.begin(), f.byKey.end(), [&](uint32_t a, uint32_t b)
                       { return f.objects[a].key != f.objects[b].key ? f.objects[a].key < f.objects[b].key : a < b; });
-            m_synth.clear();
+            f.synth.clear();
             m_haveModel = false;
-            if (m_prev.objects.empty())
+            if (m_last->objects.empty())
                 return;
             m_pairs.clear();
             m_curTaken.assign(f.objects.size(), 0u);
-            for (Object &o : m_prev.objects)
-                o.taken = false;
+            m_prevTaken.assign(m_last->objects.size(), 0u);
 
             // 1. equal keys
             size_t i = 0, j = 0;
-            const std::vector<uint32_t> &ck = f.byKey, &pk = m_prev.byKey;
+            const std::vector<uint32_t> &ck = f.byKey, &pk = m_last->byKey;
             while (i < ck.size() && j < pk.size())
             {
-                const uint64_t a = f.objects[ck[i]].key, b = m_prev.objects[pk[j]].key;
+                const uint64_t a = f.objects[ck[i]].key, b = m_last->objects[pk[j]].key;
                 if (a < b)
                     ++i;
                 else if (b < a)
@@ -1863,7 +1923,7 @@ namespace
                     size_t ie = i, je = j;
                     while (ie < ck.size() && f.objects[ck[ie]].key == a)
                         ++ie;
-                    while (je < pk.size() && m_prev.objects[pk[je]].key == a)
+                    while (je < pk.size() && m_last->objects[pk[je]].key == a)
                         ++je;
                     const size_t before = m_pairs.size();
                     matchGroup(ck.data() + i, ie - i, pk.data() + j, je - j, true);
@@ -1880,8 +1940,8 @@ namespace
             for (uint32_t k = 0; k < f.objects.size(); ++k)
                 if (!m_curTaken[k])
                     m_restCur.push_back(k);
-            for (uint32_t k = 0; k < m_prev.objects.size(); ++k)
-                if (!m_prev.objects[k].taken)
+            for (uint32_t k = 0; k < m_last->objects.size(); ++k)
+                if (!m_prevTaken[k])
                     m_restPrev.push_back(k);
             auto byGroup = [](const std::vector<Object> &objects)
             {
@@ -1891,11 +1951,11 @@ namespace
                 };
             };
             std::sort(m_restCur.begin(), m_restCur.end(), byGroup(f.objects));
-            std::sort(m_restPrev.begin(), m_restPrev.end(), byGroup(m_prev.objects));
+            std::sort(m_restPrev.begin(), m_restPrev.end(), byGroup(m_last->objects));
             i = j = 0;
             while (i < m_restCur.size() && j < m_restPrev.size())
             {
-                const uint64_t a = f.objects[m_restCur[i]].group, b = m_prev.objects[m_restPrev[j]].group;
+                const uint64_t a = f.objects[m_restCur[i]].group, b = m_last->objects[m_restPrev[j]].group;
                 if (a < b)
                     ++i;
                 else if (b < a)
@@ -1905,7 +1965,7 @@ namespace
                     size_t ie = i, je = j;
                     while (ie < m_restCur.size() && f.objects[m_restCur[ie]].group == a)
                         ++ie;
-                    while (je < m_restPrev.size() && m_prev.objects[m_restPrev[je]].group == a)
+                    while (je < m_restPrev.size() && m_last->objects[m_restPrev[je]].group == a)
                         ++je;
                     matchGroup(m_restCur.data() + i, ie - i, m_restPrev.data() + j, je - j, false);
                     i = ie;
@@ -1916,15 +1976,15 @@ namespace
             const uint64_t t0 = nowNs();
             for (const Pair &pair : m_pairs)
             {
-                matchPrims(f.objects[pair.cur], m_prev.objects[pair.prev], pair.sameData);
+                matchPrims(f.objects[pair.cur], m_last->objects[pair.prev], pair.sameData);
                 checkObject(f.objects[pair.cur]);
             }
             const uint64_t tm = nowNs();
             if (static_cast<size_t>(f.matched) * 2u < f.prims.size())
             {
                 // a new scene (the flip shows this frame once): nothing more to work out
-                m_phaseNs[0] = t0 - tStart;
-                m_phaseNs[1] = tm - t0;
+                f.phaseNs[0] = t0 - tStart;
+                f.phaseNs[1] = tm - t0;
                 return;
             }
             fitCamera();
@@ -1934,7 +1994,7 @@ namespace
             if (s_time)
                 std::fprintf(stderr, "[gs:interp] camera fit %.2f ms (%zu samples), classify %.2f ms\n", (tc - tm) / 1e6, m_samples.size(), (nowNs() - tc) / 1e6);
             const uint64_t t1 = nowNs();
-            m_phaseNs[3] = t1 - tm;
+            f.phaseNs[3] = t1 - tm;
             if (const char *dump = std::getenv("PS2_FRAME_INTERP_DUMPMATCH"))
             {
                 // every vertex of the frame with its match (debug: for studying the motion offline)
@@ -1949,8 +2009,8 @@ namespace
                             {
                                 const GSVertex &c = f.verts[pr.vtx + v];
                                 const bool has = hasPrev(pr.prev);
-                                const GSVertex &q = has ? m_prev.verts[pr.prev + v] : c;
-                                const float rec[12] = {static_cast<float>(m_flipCount), static_cast<float>(static_cast<uint32_t>(o.key)), has ? 1.0f : 0.0f, static_cast<float>(&o - f.objects.data()),
+                                const GSVertex &q = has ? m_last->verts[pr.prev + v] : c;
+                                const float rec[12] = {static_cast<float>(m_matchCount), static_cast<float>(static_cast<uint32_t>(o.key)), has ? 1.0f : 0.0f, static_cast<float>(&o - f.objects.data()),
                                                        c.x, c.y, static_cast<float>(c.z), c.q, q.x, q.y, static_cast<float>(q.z), q.q};
                                 std::fwrite(rec, sizeof(float), 12, out);
                             }
@@ -1959,9 +2019,11 @@ namespace
                 }
             }
             recoverUnmatched();
-            m_phaseNs[0] = t0 - tStart;
-            m_phaseNs[1] = tm - t0;
-            m_phaseNs[2] = nowNs() - t1;
+            f.haveModel = m_haveModel;
+            f.modelShare = m_modelShare;
+            f.phaseNs[0] = t0 - tStart;
+            f.phaseNs[1] = tm - t0;
+            f.phaseNs[2] = nowNs() - t1;
             static const bool s_dbg = std::getenv("PS2_FRAME_INTERP_DEBUG") != nullptr;
             if (s_dbg)
             {
@@ -2000,10 +2062,9 @@ namespace
         // Execute the buffered ops from `from`. t < 1: an in-between picture (matched vertices
         // part of the way from last frame's positions; nothing that leaves the GS).
         // `save`: the first of several passes (keeps the hazard pages as it goes, see findHazards).
-        void replay(size_t from, float t, bool save = false)
+        void replay(Frame &f, const Frame *prev, size_t from, float t, bool save = false)
         {
-            Frame &f = m_cur;
-            const bool between = t < 1.0f;
+            const bool between = t < 1.0f && prev != nullptr;
             GSPrimitiveBatch batch;
             bool skipUpload = false;
             for (size_t i = from; i < f.ops.size(); ++i)
@@ -2028,7 +2089,7 @@ namespace
                         batch.vertexCount = p->count;
                         if (between && hasPrev(p->prev) && (m_dbgOnly == 0u || p->count == m_dbgOnly))
                         {
-                            const GSVertex *pv = (p->prev & kSynth) ? m_synth.data() + (p->prev & ~kSynth) : m_prev.verts.data() + p->prev;
+                            const GSVertex *pv = (p->prev & kSynth) ? f.synth.data() + (p->prev & ~kSynth) : prev->verts.data() + p->prev;
                             for (uint32_t v = 0; v < p->count; ++v)
                             {
                                 GSVertex &o = batch.vertices[v];
@@ -2125,7 +2186,7 @@ namespace
                                         objIndex = primIndex - o.primStart;
                                         objPrims = o.primCount;
                                     }
-                                const GSVertex *pv = !hasPrev(p->prev) ? nullptr : (p->prev & kSynth) ? m_synth.data() + (p->prev & ~kSynth) : m_prev.verts.data() + p->prev;
+                                const GSVertex *pv = !hasPrev(p->prev) ? nullptr : (p->prev & kSynth) ? f.synth.data() + (p->prev & ~kSynth) : prev->verts.data() + p->prev;
                                 std::fprintf(stderr, "[gs:interp] probe: obj %llx prim %u/%u kick %u %s tbp %x abe %d | cur (%.1f,%.1f)(%.1f,%.1f)(%.1f,%.1f) st (%.3f,%.3f)(%.3f,%.3f)(%.3f,%.3f) z %.0f q %g %g %g",
                                              static_cast<unsigned long long>(key), objIndex, objPrims, p->kick,
                                              p->prev == kNone ? "alone" : p->prev == kRejected ? "rejected" : (p->prev & kSynth) ? "placed" : "matched",
@@ -2204,13 +2265,14 @@ namespace
         void drain()
         {
             flushHeld();
-            Frame &f = m_cur;
+            waitRenderIdle(); // the frames handed over come first
+            Frame &f = *m_cur;
             if (f.doneOps >= f.ops.size())
                 return;
             bool drawing = false;
             for (size_t i = f.doneOps; i < f.ops.size(); ++i)
                 drawing = drawing || (f.ops[i].kind != OpKind::Flush && f.ops[i].kind != OpKind::TextureFlush);
-            replay(f.doneOps, 1.0f);
+            replay(f, nullptr, f.doneOps, 1.0f);
             f.doneOps = f.ops.size();
             m_runOpen = false;
             if (drawing)
@@ -2220,10 +2282,103 @@ namespace
             }
         }
 
+        // -------------------------------------------------------------------------------------
+        // The flip, in two halves. On the GS thread (flip): the finished frame is matched with
+        // the last one and handed over. On the render thread (runJob; with
+        // PS2_FRAME_INTERP_THREAD=0 right there on the GS thread): the passes. So the GS thread
+        // takes in the next frame while this one is being drawn two or more times.
+        // What belongs to which half: the frame being recorded (m_cur), the last one (m_last)
+        // and everything the matching uses are the GS thread's; a frame handed over is only
+        // read by the matching of the next (never changed), while the render thread draws it;
+        // the schedule, the texture bookkeeping and the statistics are the render thread's.
+        // -------------------------------------------------------------------------------------
+        struct Job
+        {
+            std::shared_ptr<Frame> frame, prev;
+            GSPresentationRequest request{};
+            uint64_t flipNs = 0, issuedNs = 0;
+            uint32_t factor = 1;
+            bool canInterp = false; // matched well enough against a whole previous frame
+            bool cut = false;       // a new scene
+            bool plain = false;     // nothing to match: drawn and shown once
+        };
+
+        // A fresh frame to record into (its vectors keep their size from earlier use).
+        std::shared_ptr<Frame> acquireFrame()
+        {
+            Frame *frame = nullptr;
+            {
+                std::lock_guard<std::mutex> lock(m_poolMutex);
+                if (!m_pool.empty())
+                {
+                    frame = m_pool.back().release();
+                    m_pool.pop_back();
+                }
+            }
+            if (!frame)
+                frame = new Frame();
+            return std::shared_ptr<Frame>(frame, [this](Frame *done)
+                                          {
+                                              done->clear();
+                                              std::lock_guard<std::mutex> lock(m_poolMutex);
+                                              m_pool.emplace_back(done);
+                                          });
+        }
+
+        void renderMain()
+        {
+            std::unique_lock<std::mutex> lock(m_jobMutex);
+            for (;;)
+            {
+                m_jobCv.wait(lock, [this]
+                             { return m_jobQueued || m_quit; });
+                if (!m_jobQueued)
+                    return; // (quit, nothing left)
+                Job job = std::move(m_job);
+                m_job = Job{};
+                m_jobQueued = false;
+                m_jobRunning = true;
+                lock.unlock();
+                m_jobCv.notify_all(); // room for the next
+                runJob(job);
+                job = Job{}; // the frames, before saying so
+                lock.lock();
+                m_jobRunning = false;
+                m_jobCv.notify_all();
+            }
+        }
+
+        // Hands a frame to the render thread; waits while the one before is still waiting
+        // (so the GS thread is never more than one frame ahead of the one being drawn).
+        void submitJob(Job &&job)
+        {
+            if (!m_threaded)
+            {
+                runJob(job);
+                return;
+            }
+            {
+                std::unique_lock<std::mutex> lock(m_jobMutex);
+                m_jobCv.wait(lock, [this]
+                             { return !m_jobQueued; });
+                m_job = std::move(job);
+                m_jobQueued = true;
+            }
+            m_jobCv.notify_all();
+        }
+
+        void waitRenderIdle()
+        {
+            if (!m_threaded)
+                return;
+            std::unique_lock<std::mutex> lock(m_jobMutex);
+            m_jobCv.wait(lock, [this]
+                         { return !m_jobQueued && !m_jobRunning; });
+        }
+
         void flip(const GSPresentationRequest &request)
         {
             flushHeld();
-            const uint64_t flipNs = nowNs();
             if (!m_active)
             {
                 s_nextDueNs.store(0u, std::memory_order_relaxed);
@@ -2231,68 +2386,91 @@ namespace
                 if (g_gsInterpPassHook)
                     g_gsInterpPassHook(m_inner.get(), 1u, 1u, 1.0f);
                 m_active = s_wantFactor.load(std::memory_order_relaxed) > 1u;
-                m_cur.clear();
-                m_cur.complete = m_active;
-                m_prev.clear();
-                m_haveSchedule = false;
-                m_haveStartClut = false; // not recorded: unknown
+                if (m_active)
+                {
+                    // switched on: record from here
+                    waitRenderIdle();
+                    m_cur = acquireFrame();
+                    m_cur->complete = true;
+                    m_last = acquireFrame();
+                    m_runOpen = false;
+                    m_transferBegun = false;
+                    m_haveSchedule = false;
+                    m_haveStartClut = false; // not recorded: unknown
+                }
                 return;
             }
-            Frame &f = m_cur;
             closeObject();
-            if (f.prims.empty())
-            {
-                // A flip with nothing drawn since the last one (a second display register, a
-                // paused game): show it, and keep the last drawn frame as "last frame".
-                replay(f.doneOps, 1.0f);
-                s_nextDueNs.store(m_haveSchedule ? m_lastShowReal + 1u : 0u, std::memory_order_relaxed);
-                m_inner->QueuePresentSnapshot(request);
-                if (g_gsInterpPassHook)
-                    g_gsInterpPassHook(m_inner.get(), 1u, 1u, 1.0f);
-                g_ps2FlipIssuedNs.store(0u, std::memory_order_relaxed);
-                noteLastClut();
-                m_cur.clear();
-                m_runOpen = false;
-                m_transferBegun = false;
-                m_active = s_wantFactor.load(std::memory_order_relaxed) > 1u;
-                m_cur.complete = m_active;
-                if (!m_active)
-                    m_prev.clear();
-                return;
-            }
+            Frame &f = *m_cur;
+            Job job;
+            job.frame = m_cur;
+            job.request = request;
+            job.flipNs = nowNs();
+            job.issuedNs = g_ps2FlipIssuedNs.exchange(0u, std::memory_order_relaxed);
+            job.factor = std::clamp<uint32_t>(s_wantFactor.load(std::memory_order_relaxed), 1u, kMaxFactor);
+            const uint32_t factor = job.factor;
             // Test mode (PS2_FRAME_INTERP_TEST=1): every other game frame is only drawn, not
             // remembered, so the in-between picture of the next frame (made from the frames on
             // either side) can be compared with it.
             static const bool s_skipTest = std::getenv("PS2_FRAME_INTERP_TEST") != nullptr;
-            if (s_skipTest && (++m_testCount & 1u) == 0u)
+            if (f.prims.empty() || (s_skipTest && (++m_testCount & 1u) == 0u))
             {
-                replay(f.doneOps, 1.0f);
-                s_nextDueNs.store(0u, std::memory_order_relaxed);
-                m_inner->QueuePresentSnapshot(request);
+                // (Also a flip with nothing drawn since the last one - a second display register,
+                // a paused game: shown as it is, the last drawn frame stays "last frame".)
+                job.plain = true;
+            }
+            else
+            {
+                matchFrame();
+                f.matchNs = nowNs() - job.flipNs;
+                // In-between pictures need: the whole frame still buffered, a previous frame to
+                // move from, and most of the matches believable (a camera cut matches the same
+                // models at unrelated places; also when less than half of the frame found a
+                // partner: a new scene).
+                const uint32_t keyed = f.matched + f.rejected;
+                job.cut = (keyed != 0u && f.rejected * 4u > keyed) || static_cast<size_t>(f.matched) * 2u < f.prims.size();
+                job.canInterp = f.complete && !f.broken && m_last->complete && factor > 1u && f.matched != 0u && !job.cut;
+                job.prev = m_last;
+                f.complete = true;
+                m_last = m_cur; // this frame becomes "last frame" (its positions and objects)
+            }
+            submitJob(std::move(job));
+            m_cur = acquireFrame();
+            m_runOpen = false;
+            m_transferBegun = false;
+            m_active = factor > 1u;
+            m_cur->complete = m_active;
+            if (!m_active)
+            {
+                // switched off: what was handed over first, then straight to the renderer
+                waitRenderIdle();
+                m_last = acquireFrame();
+            }
+        }
+
+        // The passes of one frame (render thread).
+        void runJob(Job &job)
+        {
+            Frame &f = *job.frame;
+            const Frame *prev = job.prev.get();
+            const uint32_t factor = job.factor;
+            ++m_flipCount;
+            if (job.plain)
+            {
+                replay(f, nullptr, f.doneOps, 1.0f);
+                s_nextDueNs.store(m_haveSchedule ? m_lastShowReal + 1u : 0u, std::memory_order_relaxed);
+                m_inner->QueuePresentSnapshot(job.request);
                 if (g_gsInterpPassHook)
                     g_gsInterpPassHook(m_inner.get(), 1u, 1u, 1.0f);
-                noteLastClut();
-                m_cur.clear();
-                m_cur.complete = true;
-                m_runOpen = false;
-                m_transferBegun = false;
+                noteLastClut(f);
                 return;
             }
-            matchFrame();
-            const uint64_t matchNs = nowNs() - flipNs;
-            m_statMatchNs += matchNs;
-            const uint32_t factor = std::clamp<uint32_t>(s_wantFactor.load(std::memory_order_relaxed), 1u, kMaxFactor);
-            // In-between pictures need: the whole frame still buffered, a previous frame to move
-            // from, and most of the matches believable (a camera cut matches the same models at
-            // unrelated places).
-            // (Also when less than half of the frame found a partner: a new scene.)
-            const uint32_t keyed = f.matched + f.rejected;
-            const bool cut = (keyed != 0u && f.rejected * 4u > keyed) || static_cast<size_t>(f.matched) * 2u < f.prims.size();
-            // Falling behind the game (this flip reaches the GS thread long after the game issued
-            // it): no extra pictures for half a second, so that the game's own rate is kept.
-            const uint64_t issued = g_ps2FlipIssuedNs.exchange(0u, std::memory_order_relaxed);
-            const uint64_t lag = issued != 0u && issued <= flipNs ? flipNs - issued : 0u;
-            ++m_flipCount;
+            m_statMatchNs += f.matchNs;
+            const bool cut = job.cut;
+            // Falling behind the game (this frame is only being drawn long after the game issued
+            // its flip): no extra pictures for half a second, so that the game's own rate is kept.
+            const uint64_t startNs = nowNs();
+            const uint64_t lag = job.issuedNs != 0u && job.issuedNs <= startNs ? startNs - job.issuedNs : 0u;
             if (m_shedding && factor > 1u && lag > m_periodNs + m_periodNs * 6u / 10u)
             {
                 if (m_flipCount >= m_shedUntil)
@@ -2301,12 +2479,12 @@ namespace
             }
             const bool shed = m_flipCount < m_shedUntil;
             m_statLagNs += lag;
-            const bool usable = f.complete && !f.broken && m_prev.complete && factor > 1u && f.matched != 0u && !cut && !shed;
+            const bool usable = job.canInterp && !shed;
             const uint32_t passes = usable ? factor : 1u;
             static const bool s_log = std::getenv("PS2_FRAME_INTERP_LOG") != nullptr;
             if (s_log)
-                std::fprintf(stderr, "[gs:interp] flip (match %.2f ms = pair %.2f + prims %.2f + camera %.2f + place %.2f): %zu prims in %zu objects, %zu ops, matched %u (+%u placed exactly, +%u carried along) rejected %u, camera model %s (%.0f%% of matched samples), done ops %zu%s, prev complete %d -> %u pass(es)%s\n",
-                             matchNs / 1e6, m_phaseNs[0] / 1e6, m_phaseNs[1] / 1e6, m_phaseNs[3] / 1e6, m_phaseNs[2] / 1e6, f.prims.size(), f.objects.size(), f.ops.size(), f.matched, f.recovered, f.carried, f.rejected, m_haveModel ? "yes" : "no", m_haveModel ? 100.0f * m_modelShare : 0.0f, f.doneOps, f.broken ? " (broken)" : "", m_prev.complete ? 1 : 0, passes, cut ? " (cut)" : "");
+                std::fprintf(stderr, "[gs:interp] flip (match %.2f ms = pair %.2f + prims %.2f + camera %.2f + place %.2f): %zu prims in %zu objects, %zu ops, matched %u (+%u placed exactly, +%u carried along) rejected %u, camera model %s (%.0f%% of matched samples), done ops %zu%s -> %u pass(es)%s\n",
+                             f.matchNs / 1e6, f.phaseNs[0] / 1e6, f.phaseNs[1] / 1e6, f.phaseNs[3] / 1e6, f.phaseNs[2] / 1e6, f.prims.size(), f.objects.size(), f.ops.size(), f.matched, f.recovered, f.carried, f.rejected, f.haveModel ? "yes" : "no", f.haveModel ? 100.0f * f.modelShare : 0.0f, f.doneOps, f.broken ? " (broken)" : "", passes, cut ? " (cut)" : "");
 
             // When to show them. The pictures follow a steady schedule: the real one every game
             // frame period, the in-between ones at even steps before it. The schedule is only as
@@ -2314,13 +2492,13 @@ namespace
             // than its time (see below), the schedule moves back at once; when there is slack,
             // it creeps forward. So the delay settles a little above the longest the renderer
             // took lately, and the pictures come at even intervals instead of late.
-            const uint64_t period = updatePeriod(flipNs);
+            const uint64_t period = updatePeriod(job.flipNs);
             const uint64_t step = period / factor;
-            uint64_t showReal = flipNs + step * (factor - 1u) + 8000000ull; // a first guess
+            uint64_t showReal = job.flipNs + step * (factor - 1u) + 8000000ull; // a first guess
             if (m_haveSchedule)
             {
                 const uint64_t predicted = m_lastShowReal + period;
-                const int64_t off = static_cast<int64_t>(predicted) - static_cast<int64_t>(flipNs + step * (factor - 1u));
+                const int64_t off = static_cast<int64_t>(predicted) - static_cast<int64_t>(job.flipNs + step * (factor - 1u));
                 if (off > -static_cast<int64_t>(period) && off < static_cast<int64_t>(2u * period + period / 2u))
                     showReal = predicted; // (else: a hitch or a pause - start again)
             }
@@ -2328,7 +2506,7 @@ namespace
             m_xferLate.clear();
             m_hazard.reset();
             if (passes > 1u)
-                findHazards();
+                findHazards(f);
             for (uint32_t pass = 1; pass <= passes; ++pass)
             {
                 const float t = static_cast<float>(pass) / static_cast<float>(passes);
@@ -2363,7 +2541,7 @@ namespace
                         }
                     }
                 }
-                replay(real ? f.doneOps : 0u, real ? 1.0f : t, pass == 1u && passes > 1u);
+                replay(f, prev, real ? f.doneOps : 0u, real ? 1.0f : t, pass == 1u && passes > 1u);
                 if (pass == 1u && passes > 1u)
                 {
                     m_statHazardPages += m_undoPages.size();
@@ -2388,7 +2566,7 @@ namespace
                     const uint64_t first = showReal - step * (factor - 1u);
                     if (ready > first)
                     {
-                        const uint64_t latest = flipNs + step * (factor - 1u) + 2u * period; // (beyond this, late it is)
+                        const uint64_t latest = job.flipNs + step * (factor - 1u) + 2u * period; // (beyond this, late it is)
                         const uint64_t moved = std::min(showReal + (ready - first), std::max(latest, showReal));
                         if (moved != showReal)
                             ++m_statPushed;
@@ -2396,10 +2574,10 @@ namespace
                     }
                     else if (first - ready > m_slackNs)
                         showReal -= std::min<uint64_t>((first - ready - m_slackNs) / 32u, 100000ull);
-                    m_statDelayNs += showReal - flipNs;
+                    m_statDelayNs += showReal - job.flipNs;
                 }
                 s_nextDueNs.store(showReal - step * (passes - pass), std::memory_order_relaxed);
-                m_inner->QueuePresentSnapshot(request);
+                m_inner->QueuePresentSnapshot(job.request);
                 if (g_gsInterpPassHook)
                     g_gsInterpPassHook(m_inner.get(), pass, passes, real ? 1.0f : t);
             }
@@ -2443,28 +2621,16 @@ namespace
                 m_statMatchNs = m_statRecovered = 0;
             }
 
-            noteLastClut();
-            // This frame becomes "last frame" (its positions and objects; the ops are done).
-            std::swap(m_prev, m_cur);
-            m_prev.complete = true;
-            m_cur.clear();
-            m_runOpen = false;
-            m_transferBegun = false;
-            m_active = factor > 1u;
-            m_cur.complete = m_active;
-            if (!m_active)
-                m_prev.clear();
+            noteLastClut(f);
         }
 
         // The palette load the next frame starts with: the last one of this frame that loads.
-        void noteLastClut()
+        void noteLastClut(const Frame &f)
         {
-            const Frame &f = m_cur;
             for (size_t i = f.cluts.size(); i-- > 0u;)
             {
                 const GSTex0Reg &t = f.cluts[i].tex0;
-                const bool indexed = t.psm == GS_PSM_T8 || t.psm == GS_PSM_T4 || t.psm == GS_PSM_T8H || t.psm == GS_PSM_T4HL || t.psm == GS_PSM_T4HH;
-                if (!indexed || t.cld == 0u || t.cld >= 6u)
+                if (!indexedFormat(t.psm) || t.cld == 0u || t.cld >= 6u)
                     continue;
                 m_startClut = f.cluts[i];
                 m_haveStartClut = true;
@@ -2488,7 +2654,20 @@ namespace
         std::unique_ptr<GSRasterBackend> m_inner;
         GSRasterBackendEx *m_ex = nullptr; // m_inner's extra calls, if it has them
         SpinLock m_mutex;
-        Frame m_cur, m_prev;
+        // Frames not in use (their vectors keep their capacity). Declared before the frames:
+        // those go back in here when released.
+        std::mutex m_poolMutex;
+        std::vector<std::unique_ptr<Frame>> m_pool;
+        std::shared_ptr<Frame> m_cur, m_last; // being recorded; the one before (GS thread)
+        std::vector<uint8_t> m_prevTaken;     // per object of m_last: paired with one of m_cur
+        uint64_t m_matchCount = 0;
+        // the render thread and the frame waiting for it
+        bool m_threaded = true;
+        std::thread m_thread;
+        std::mutex m_jobMutex;
+        std::condition_variable m_jobCv;
+        Job m_job;
+        bool m_jobQueued = false, m_jobRunning = false, m_quit = false;
         bool m_active = false;
         bool m_runOpen = false;
         bool m_transferBegun = false; // a transfer was started since the last flip
@@ -2536,7 +2715,6 @@ namespace
         };
         std::vector<GridCell> m_grid;
         std::vector<uint32_t> m_gridQueue;
-        uint64_t m_phaseNs[4]{};
         std::vector<uint32_t> m_progPc;       // VU1 programs seen (Object::prog indexes this)
         std::vector<ProgFrame> m_progFrame;   // per program, this frame
         std::vector<Sample> m_samples;
@@ -2553,6 +2731,7 @@ namespace
         std::vector<uint8_t> m_verify;
         ClutLoad m_startClut{};
         bool m_haveStartClut = false;
+        bool m_needStartClut = false; // this frame draws with it before loading one of its own
         bool m_noClutRestore = std::getenv("PS2_FRAME_INTERP_NOCLUT") != nullptr;
         std::vector<uint8_t> m_undo;
         std::vector<uint16_t> m_undoPages;
@@ -2565,7 +2744,6 @@ namespace
         uint64_t m_statHazardPages = 0, m_statHazardFrames = 0;
         uint64_t m_flipCount = 0, m_shedUntil = 0, m_statLagNs = 0, m_statShedFrames = 0, m_statSheds = 0;
         bool m_shedding = !(std::getenv("PS2_FRAME_INTERP_SHED") && std::getenv("PS2_FRAME_INTERP_SHED")[0] == '0');
-        std::vector<GSVertex> m_synth; // last-frame positions made up for unmatched primitives
         float m_maxMove = 96.0f;
         uint32_t m_dbgSkip = std::getenv("PS2_FRAME_INTERP_SKIP") ? static_cast<uint32_t>(std::atoi(std::getenv("PS2_FRAME_INTERP_SKIP"))) : 0u;
         uint32_t m_dbgOnly = std::getenv("PS2_FRAME_INTERP_ONLY") ? static_cast<uint32_t>(std::atoi(std::getenv("PS2_FRAME_INTERP_ONLY"))) : 0u;
