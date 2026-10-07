@@ -25,6 +25,7 @@
 #include "runtime/gs/gs_vulkan_backend.h"
 #include "runtime/gs/gs_cpu_backend.h"
 #include "runtime/gs/gs_interp_backend.h"
+#include "runtime/ps2_hitch.h"
 #include "runtime/gs/ps2_gs_common.h"
 #include "runtime/gs/ps2_gs_memory.h"
 #include "shaders/gs_shaders.h"
@@ -96,6 +97,8 @@ namespace
     constexpr uint32_t kCompSets = 2048u;
     constexpr uint32_t kMaxBatchVertices = 3u * 20000u;
     constexpr size_t kMaxTextures = 1536u;
+    constexpr size_t kMaxSpareTextures = 1536u; // images kept for reuse (see m_texPool)
+    constexpr int kSpareTrimPerSubmit = 4;       // spare images freed per finished command buffer when over that
 
     bool envFlag(const char *name)
     {
@@ -664,6 +667,15 @@ private:
             return static_cast<size_t>(hashWords(w, 6, k.palette));
         }
     };
+    // A texture's image with the descriptor set that points at it. The two stay together, and when
+    // the texture leaves the cache they are kept for the next texture of the same size: the cache
+    // drops half its textures at a time, and freeing hundreds of images (and creating them again
+    // for the textures still in use) stalled the renderer for 0.1-0.2 s every time.
+    struct TexImage
+    {
+        GpuImage img;
+        VkDescriptorSet set = VK_NULL_HANDLE;
+    };
     struct Texture
     {
         GpuImage img;
@@ -701,6 +713,8 @@ private:
     void submitAndWait();
     uint32_t ringAlloc(uint32_t size, uint32_t align = 16u);
     VkPipeline getPipeline(uint32_t key);
+    void precompilePipelines();
+    bool m_pipelineListing = true; // new pipelines are added to the list file
 
     // ---- coherency ----
     Target &getTarget(uint32_t fbp, uint32_t fbw, uint8_t psm);
@@ -759,6 +773,7 @@ private:
         uint64_t serial = 0;
         std::vector<GpuImage> defImages;
         std::vector<VkDescriptorSet> defSets;
+        std::vector<TexImage> defTex; // evicted textures' images: spare once this buffer has run
         // Read-backs without waiting (ReadbackAsync): mirror pages copied out at that point of
         // the command stream, handed over once the slot completes.
         struct AsyncRead
@@ -890,6 +905,12 @@ private:
     uint32_t m_vramSize = 0;
     std::vector<Target *> m_targets;
     std::unordered_map<TexKey, Texture, TexKeyHash> m_textures;
+    std::unordered_map<uint32_t, std::vector<TexImage>> m_texPool; // spare texture images by (width << 16 | height)
+    size_t m_texPoolCount = 0;
+    size_t m_maxTextures = kMaxTextures; // (PS2_GS_VK_MAXTEX: tests)
+    uint64_t m_statTexCreated = 0, m_statTexReused = 0, m_statTexFreed = 0;
+    void retireTexture(Texture &t);
+    void trimTexPool(int limit);
     std::unordered_map<Target *, Texture> m_alias; // render targets sampled directly as textures
     std::array<uint64_t, 512> m_pageSerial{};
     uint64_t m_serial = 1;
@@ -1001,6 +1022,7 @@ private:
         uint64_t xferFlushNs = 0, xferSyncNs = 0, xferCpuNs = 0, xferMarkNs = 0, xfers = 0, midSubmits = 0;
         uint64_t readbackSubmitNs = 0, readbackWaitNs = 0, readbacks[3] = {}; // by cause: xfer-down, xfer-up, other
         uint64_t downloads = 0, decodes = 0, uploads = 0, batches = 0, prims = 0, waits = 0, asyncReads = 0;
+        uint64_t texCreated = 0, texCreateNs = 0, pipelines = 0, pipelineNs = 0;
     } m_iv;
     struct ScopeTimer
     {
@@ -1075,6 +1097,10 @@ GsVulkanBackend::~GsVulkanBackend()
     for (auto &kv : m_textures)
         destroyImage(kv.second.img);
     m_textures.clear();
+    for (auto &kv : m_texPool)
+        for (TexImage &ti : kv.second)
+            destroyImage(ti.img);
+    m_texPool.clear();
     for (auto &kv : m_alias)
         destroyImage(kv.second.img);
     m_alias.clear();
@@ -1119,6 +1145,8 @@ GsVulkanBackend::~GsVulkanBackend()
         if (sl.dumpMem) m_dt.vkFreeMemory(m_device, sl.dumpMem, nullptr);
         for (GpuImage &img : sl.defImages)
             destroyImage(img);
+        for (TexImage &ti : sl.defTex)
+            destroyImage(ti.img);
     }
     if (m_cmdPool) m_dt.vkDestroyCommandPool(m_device, m_cmdPool, nullptr);
     if (m_sharedDevice)
@@ -1135,6 +1163,8 @@ GsVulkanBackend::~GsVulkanBackend()
 bool GsVulkanBackend::Create(const HostVulkanShared *shared)
 {
     m_stats = envFlag("PS2_GS_VK_STATS");
+    if (const char *v = std::getenv("PS2_GS_VK_MAXTEX"))
+        m_maxTextures = std::clamp<size_t>(static_cast<size_t>(std::atoi(v)), 8u, kMaxTextures);
     m_checkPresent = envFlag("PS2_GS_VK_CHECKPRESENT");
     if (const char *v = std::getenv("PS2_GS_SCALE"))
         m_scale = std::clamp<uint32_t>(static_cast<uint32_t>(std::atoi(v)), 1u, 8u);
@@ -1401,6 +1431,45 @@ void GsVulkanBackend::destroyImage(GpuImage &img)
     img = GpuImage{};
 }
 
+// A texture leaves the cache (or gets another size): its image and set become spare ones once
+// the command buffer being recorded - which may still draw with them - has run.
+void GsVulkanBackend::retireTexture(Texture &t)
+{
+    if (t.img.image && t.set)
+        m_slots[m_cur].defTex.push_back(TexImage{t.img, t.set});
+    else
+    {
+        if (t.img.image)
+            m_slots[m_cur].defImages.push_back(t.img);
+        if (t.set)
+            m_slots[m_cur].defSets.push_back(t.set);
+    }
+    t.img = GpuImage{};
+    t.set = VK_NULL_HANDLE;
+}
+
+// More spare images than kMaxSpareTextures (sizes the game no longer uses): free a few, from the
+// size with the most. limit < 0: all of them.
+void GsVulkanBackend::trimTexPool(int limit)
+{
+    while (m_texPoolCount != 0u && (limit < 0 || (limit-- > 0 && m_texPoolCount > kMaxSpareTextures)))
+    {
+        std::vector<TexImage> *most = nullptr;
+        for (auto &kv : m_texPool)
+            if (!most || kv.second.size() > most->size())
+                most = &kv.second;
+        if (!most || most->empty())
+            break;
+        TexImage ti = most->back();
+        most->pop_back();
+        --m_texPoolCount;
+        destroyImage(ti.img);
+        if (ti.set)
+            m_dt.vkFreeDescriptorSets(m_device, m_descPool, 1, &ti.set);
+        ++m_statTexFreed;
+    }
+}
+
 bool GsVulkanBackend::createDeviceObjects()
 {
     {
@@ -1477,10 +1546,10 @@ bool GsVulkanBackend::createDeviceObjects()
     if (m_dt.vkCreateShaderModule(m_device, &smi, nullptr, &m_fs) != VK_SUCCESS)
         return false;
 
-    VkDescriptorPoolSize ps{VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, 4096};
+    VkDescriptorPoolSize ps{VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, 8192};
     VkDescriptorPoolCreateInfo dpi{VK_STRUCTURE_TYPE_DESCRIPTOR_POOL_CREATE_INFO};
     dpi.flags = VK_DESCRIPTOR_POOL_CREATE_FREE_DESCRIPTOR_SET_BIT;
-    dpi.maxSets = 4096;
+    dpi.maxSets = 8192; // textures in the cache + spare ones + render targets used as textures
     dpi.poolSizeCount = 1;
     dpi.pPoolSizes = &ps;
     if (m_dt.vkCreateDescriptorPool(m_device, &dpi, nullptr, &m_descPool) != VK_SUCCESS)
@@ -1546,7 +1615,49 @@ bool GsVulkanBackend::createDeviceObjects()
         }
     }
     submitAndWait();
+    precompilePipelines();
     return true;
+}
+
+// The draw states the game used in earlier runs (one pipeline each) are listed in a small file
+// next to the program and compiled here, before the game starts: compiling one takes the driver
+// several milliseconds, and a new scene needs a dozen at once in its first frames.
+// PS2_GS_VK_PIPELINEFILE=0: no file; =<path>: that file.
+static const char *pipelineListPath()
+{
+    static const char *path = []() -> const char *
+    {
+        const char *v = std::getenv("PS2_GS_VK_PIPELINEFILE");
+        if (v && v[0] == '0' && v[1] == 0)
+            return nullptr;
+        return v && *v ? v : "gs_vk_pipelines.txt";
+    }();
+    return path;
+}
+
+void GsVulkanBackend::precompilePipelines()
+{
+    const char *path = pipelineListPath();
+    FILE *f = path ? std::fopen(path, "r") : nullptr;
+    if (!f)
+        return;
+    const uint64_t t0 = nowNs();
+    m_pipelineListing = false; // (these are in the file already)
+    unsigned key = 0;
+    uint32_t count = 0;
+    while (count < 512u && std::fscanf(f, "%x", &key) == 1)
+    {
+        // (only keys getPipeline can have been given: 13 bits, blend operation 0-2)
+        if (key >= 0x2000u || ((key >> 1) & 3u) == 3u || m_pipelines.count(key))
+            continue;
+        getPipeline(key);
+        ++count;
+    }
+    std::fclose(f);
+    m_pipelineListing = true;
+    m_iv.pipelines = 0;
+    m_iv.pipelineNs = 0;
+    std::fprintf(stderr, "[gs:vk] %u pipelines (draw states of earlier runs, %s) compiled in %.1f ms\n", count, path, (nowNs() - t0) / 1e6);
 }
 
 bool GsVulkanBackend::ensureDstImage(uint32_t width)
@@ -1701,7 +1812,17 @@ void GsVulkanBackend::completeSlot(uint32_t i)
     Slot &sl = m_slots[i];
     if (!sl.pending)
         return;
-    m_dt.vkWaitForFences(m_device, 1, &sl.fence, VK_TRUE, UINT64_MAX);
+    {
+        const uint64_t t0 = nowNs();
+        m_dt.vkWaitForFences(m_device, 1, &sl.fence, VK_TRUE, UINT64_MAX);
+        const uint64_t waited = nowNs() - t0;
+        if (waited > kSlowNs)
+        {
+            char what[96];
+            std::snprintf(what, sizeof(what), "waited for the GPU to finish a command buffer (last cause noted: %s)", m_why ? m_why : "-");
+            ps2SlowLog("renderer", what, waited);
+        }
+    }
     m_dt.vkResetFences(m_device, 1, &sl.fence);
     m_dt.vkResetCommandBuffer(sl.cmd, 0);
     sl.pending = false;
@@ -1716,6 +1837,14 @@ void GsVulkanBackend::completeSlot(uint32_t i)
         m_dt.vkFreeDescriptorSets(m_device, m_descPool, static_cast<uint32_t>(sl.defSets.size()), sl.defSets.data());
         sl.defSets.clear();
     }
+    // Nothing recorded refers to these any more: spare images for new textures of their size.
+    for (TexImage &ti : sl.defTex)
+    {
+        m_texPool[(ti.img.width << 16) | ti.img.height].push_back(ti);
+        ++m_texPoolCount;
+    }
+    sl.defTex.clear();
+    trimTexPool(kSpareTrimPerSubmit);
     if (sl.dumpIndex >= 0)
     {
         static const char *s_dump = std::getenv("PS2_GS_VK_DUMPPRESENT");
@@ -1874,9 +2003,28 @@ VkPipeline GsVulkanBackend::getPipeline(uint32_t key)
     gpi.pDynamicState = &dy;
     gpi.layout = m_pipeLayout;
     VkPipeline pipe = VK_NULL_HANDLE;
-    if (m_dt.vkCreateGraphicsPipelines(m_device, VK_NULL_HANDLE, 1, &gpi, nullptr, &pipe) != VK_SUCCESS)
-        std::fprintf(stderr, "[gs:vk] pipeline creation failed (key %x)\n", key);
+    {
+        ++m_iv.pipelines;
+        const uint64_t t0 = nowNs();
+        if (m_dt.vkCreateGraphicsPipelines(m_device, VK_NULL_HANDLE, 1, &gpi, nullptr, &pipe) != VK_SUCCESS)
+            std::fprintf(stderr, "[gs:vk] pipeline creation failed (key %x)\n", key);
+        const uint64_t took = nowNs() - t0;
+        m_iv.pipelineNs += took;
+        if (took > kSlowNs / 2u && m_pipelineListing)
+        {
+            char what[64];
+            std::snprintf(what, sizeof(what), "a new pipeline (draw state %x) was compiled", key);
+            ps2SlowLog("renderer", what, took);
+        }
+    }
     m_pipelines[key] = pipe;
+    if (m_pipelineListing && pipe)
+        if (const char *path = pipelineListPath())
+            if (FILE *f = std::fopen(path, "a"))
+            {
+                std::fprintf(f, "%x\n", key);
+                std::fclose(f);
+            }
     return pipe;
 }
 
@@ -2364,6 +2512,7 @@ void GsVulkanBackend::dropAll()
         m_dt.vkFreeDescriptorSets(m_device, m_descPool, 1, &kv.second.set);
     }
     m_textures.clear();
+    trimTexPool(-1); // (submitAndWait has moved the retired ones there)
     for (auto &kv : m_alias)
     {
         destroyImage(kv.second.img);
@@ -3456,9 +3605,10 @@ GsVulkanBackend::Texture *GsVulkanBackend::getTexture(const GSDrawState &st, uin
 
     if (it == m_textures.end())
     {
-        if (m_textures.size() >= kMaxTextures)
+        if (m_textures.size() >= m_maxTextures)
         {
-            // Evict the least recently used half (their images are freed after the next submit).
+            // Evict the least recently used half (their images become spare ones after the next
+            // submit: see TexImage).
             std::vector<std::pair<uint64_t, TexKey>> order;
             order.reserve(m_textures.size());
             for (auto &kv : m_textures)
@@ -3466,9 +3616,12 @@ GsVulkanBackend::Texture *GsVulkanBackend::getTexture(const GSDrawState &st, uin
             std::sort(order.begin(), order.end(), [](const auto &a, const auto &b) { return a.first < b.first; });
             for (size_t i = 0; i < order.size() / 2; ++i)
             {
+                // (never one the command buffer being recorded uses: the batch being put
+                // together still refers to it)
+                if (order[i].first >= m_submitSerial)
+                    break;
                 auto e = m_textures.find(order[i].second);
-                m_slots[m_cur].defImages.push_back(e->second.img);
-                m_slots[m_cur].defSets.push_back(e->second.set);
+                retireTexture(e->second);
                 m_textures.erase(e);
             }
         }
@@ -3477,31 +3630,40 @@ GsVulkanBackend::Texture *GsVulkanBackend::getTexture(const GSDrawState &st, uin
     Texture &t = it->second;
     if (t.img.width != w || t.img.height != h || !t.img.image)
     {
+        // (image and descriptor set go together: recorded commands may still use the old pair)
         if (t.img.image)
-            m_slots[m_cur].defImages.push_back(t.img);
-        t.img = GpuImage{};
-        createImage(t.img, w, h, VK_FORMAT_R8G8B8A8_UINT, VK_IMAGE_USAGE_SAMPLED_BIT | VK_IMAGE_USAGE_TRANSFER_DST_BIT | VK_IMAGE_USAGE_STORAGE_BIT,
-                    VK_IMAGE_ASPECT_COLOR_BIT);
-        if (!t.set)
+            retireTexture(t);
+        auto spare = m_texPool.find((w << 16) | h);
+        static const bool s_noReuse = envFlag("PS2_GS_VK_NOTEXREUSE"); // (tests)
+        if (spare != m_texPool.end() && !spare->second.empty() && !s_noReuse)
         {
+            t.img = spare->second.back().img;
+            t.set = spare->second.back().set;
+            spare->second.pop_back();
+            --m_texPoolCount;
+            ++m_statTexReused;
+        }
+        else
+        {
+            ++m_statTexCreated;
+            ++m_iv.texCreated;
+            ScopeTimer createTimer(m_iv.texCreateNs);
+            createImage(t.img, w, h, VK_FORMAT_R8G8B8A8_UINT, VK_IMAGE_USAGE_SAMPLED_BIT | VK_IMAGE_USAGE_TRANSFER_DST_BIT | VK_IMAGE_USAGE_STORAGE_BIT,
+                        VK_IMAGE_ASPECT_COLOR_BIT);
             VkDescriptorSetAllocateInfo dai{VK_STRUCTURE_TYPE_DESCRIPTOR_SET_ALLOCATE_INFO};
             dai.descriptorPool = m_descPool;
             dai.descriptorSetCount = 1;
             dai.pSetLayouts = &m_setLayout;
             if (m_dt.vkAllocateDescriptorSets(m_device, &dai, &t.set) != VK_SUCCESS)
                 std::fprintf(stderr, "[gs:vk] descriptor set allocation failed\n");
+            VkDescriptorImageInfo dii{VK_NULL_HANDLE, t.img.view, VK_IMAGE_LAYOUT_GENERAL};
+            VkWriteDescriptorSet wds{VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET};
+            wds.dstSet = t.set;
+            wds.descriptorCount = 1;
+            wds.descriptorType = VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER;
+            wds.pImageInfo = &dii;
+            m_dt.vkUpdateDescriptorSets(m_device, 1, &wds, 0, nullptr); // (a new set: nothing recorded uses it)
         }
-        Texture &tt = it->second;
-        VkDescriptorImageInfo dii{VK_NULL_HANDLE, tt.img.view, VK_IMAGE_LAYOUT_GENERAL};
-        VkWriteDescriptorSet wds{VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET};
-        wds.dstSet = tt.set;
-        wds.descriptorCount = 1;
-        wds.descriptorType = VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER;
-        wds.pImageInfo = &dii;
-        // A set still referenced by recorded commands must not be updated: finish them first.
-        if (tt.lastUse == m_submitSerial)
-            submitAndWait();
-        m_dt.vkUpdateDescriptorSets(m_device, 1, &wds, 0, nullptr);
     }
     Texture &tt = it->second;
     tt.pages.clear();
@@ -5002,19 +5164,22 @@ void GsVulkanBackend::printStats()
         std::fprintf(stderr,
                      "[gs:vk] per frame: submit %.2f ms (flush %.2f), GPU waits %.1fx %.2f ms, downloads %.1fx %.2f ms, texture decodes %.1fx %.2f ms, "
                      "target uploads %.1fx %.2f ms, transfers %.1fx %.2f ms (draw flush %.2f, sync %.2f, copy %.2f, mark %.2f), CLUT %.2f ms, flip %.2f ms | %.0f prims, %.0f batches"
-                     " | readbacks %.1f down %.1f up %.1f other: submit %.2f ms wait %.2f ms, %.1f without waiting | mid-frame submits %.1f\n",
+                     " | readbacks %.1f down %.1f up %.1f other: submit %.2f ms wait %.2f ms, %.1f without waiting | mid-frame submits %.1f"
+                     " | new in this period: %llu texture images (%.1f ms), %llu pipelines (%.1f ms)\n",
                      ms(m_iv.submitNs), ms(m_iv.flushNs), pf(m_iv.waits), ms(m_iv.waitNs), pf(m_iv.downloads), ms(m_iv.downloadNs), pf(m_iv.decodes),
                      ms(m_iv.decodeNs), pf(m_iv.uploads), ms(m_iv.uploadNs), pf(m_iv.xfers), ms(m_iv.xferNs), ms(m_iv.xferFlushNs), ms(m_iv.xferSyncNs), ms(m_iv.xferCpuNs), ms(m_iv.xferMarkNs), ms(m_iv.clutNs), ms(m_iv.flipNs), pf(m_iv.prims), pf(m_iv.batches), pf(m_iv.readbacks[0]), pf(m_iv.readbacks[1]), pf(m_iv.readbacks[2]), ms(m_iv.readbackSubmitNs),
-                     ms(m_iv.readbackWaitNs), pf(m_iv.asyncReads), pf(m_iv.midSubmits));
+                     ms(m_iv.readbackWaitNs), pf(m_iv.asyncReads), pf(m_iv.midSubmits),
+                     static_cast<unsigned long long>(m_iv.texCreated), m_iv.texCreateNs / 1e6, static_cast<unsigned long long>(m_iv.pipelines), m_iv.pipelineNs / 1e6);
         m_iv = Interval{};
         m_ivFlips = m_statFlips;
     }
     std::fprintf(stderr,
-                 "[gs:vk] mirror pages=%llu overlays=%llu alias copies=%llu dst copies=%llu prims=%llu batches=%llu draws=%llu submits=%llu downloads=%llu (%llu px) uploads=%llu (%llu rows) tex uploads=%llu hits=%llu (rehash %llu) targets=%zu textures=%zu\n",
+                 "[gs:vk] mirror pages=%llu overlays=%llu alias copies=%llu dst copies=%llu prims=%llu batches=%llu draws=%llu submits=%llu downloads=%llu (%llu px) uploads=%llu (%llu rows) tex uploads=%llu hits=%llu (rehash %llu) targets=%zu textures=%zu (images created %llu, reused %llu, freed %llu, %zu spare)\n",
                  (unsigned long long)m_statMirrorPages, (unsigned long long)m_statOverlays, (unsigned long long)m_statAliasCopies, (unsigned long long)m_statDstCopies, (unsigned long long)m_statPrims, (unsigned long long)m_statBatches, (unsigned long long)m_statDraws,
                  (unsigned long long)m_statSubmits, (unsigned long long)m_statDownloads, (unsigned long long)m_statDownloadPx,
                  (unsigned long long)m_statUploads, (unsigned long long)m_statUploadRows, (unsigned long long)m_statTexUploads,
-                 (unsigned long long)m_statTexHits, (unsigned long long)m_statTexRehash, m_targets.size(), m_textures.size());
+                 (unsigned long long)m_statTexHits, (unsigned long long)m_statTexRehash, m_targets.size(), m_textures.size(),
+                 (unsigned long long)m_statTexCreated, (unsigned long long)m_statTexReused, (unsigned long long)m_statTexFreed, m_texPoolCount);
     std::fprintf(stderr, "[gs:vk] flips=%llu shown from the GPU=%llu (at %ux from a render target: %llu), 32/16-bit target conversions=%llu%s", (unsigned long long)m_statFlips,
                  (unsigned long long)m_statGpuFlips, m_scale, (unsigned long long)m_statHiResFlips, (unsigned long long)m_statReinterprets, m_hostPresent ? "" : " (not shown: no window)");
     if (m_checkPresent)

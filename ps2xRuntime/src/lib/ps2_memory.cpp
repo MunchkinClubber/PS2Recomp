@@ -2,6 +2,7 @@
 #include "runtime/ps2_address.h"
 #include "runtime/gs/gs_frontend.h"
 #include "runtime/gs/gs_interp_backend.h"
+#include "runtime/ps2_hitch.h"
 #include "ps2_log.h"
 #include <atomic>
 #include <chrono>
@@ -246,7 +247,10 @@ namespace
                 const uint64_t t0 = gpuNowNs();
                 while (enqueued.load(std::memory_order_relaxed) - done.load(std::memory_order_acquire) >= kMaxPending)
                     std::this_thread::yield();
-                s_gsStageWaitNs.fetch_add(gpuNowNs() - t0, std::memory_order_relaxed);
+                const uint64_t waited = gpuNowNs() - t0;
+                s_gsStageWaitNs.fetch_add(waited, std::memory_order_relaxed);
+                if (waited > kSlowNs)
+                    ps2SlowLog("VU1 thread", "waited for the GS thread (its queue was full)", waited);
             }
             {
                 std::lock_guard<std::mutex> lock(mutex);
@@ -392,8 +396,10 @@ namespace
                 gpuReturnBuffers(job.vif1);
                 gpuReturnBuffers(job.gif);
                 job = PS2Memory::GpuJob{};
-                s_gpuBusyNs.fetch_add(static_cast<uint64_t>(std::chrono::duration_cast<std::chrono::nanoseconds>(std::chrono::steady_clock::now() - t0).count()),
-                                      std::memory_order_relaxed);
+                const uint64_t busyNs = static_cast<uint64_t>(std::chrono::duration_cast<std::chrono::nanoseconds>(std::chrono::steady_clock::now() - t0).count());
+                s_gpuBusyNs.fetch_add(busyNs, std::memory_order_relaxed);
+                if (busyNs > 14000000ull)
+                    ps2SlowLog("VU1 thread", hadVif ? "a display list (VIF1 + VU1) took" : "a job took", busyNs);
                 s_gpuJobs.fetch_add(1u, std::memory_order_relaxed);
                 if (hadVif)
                     pendingVif.fetch_sub(1u, std::memory_order_relaxed);
@@ -442,9 +448,15 @@ namespace
             std::this_thread::yield();
         if (gs)
             gs->wait(); // the worker hands its last chunk over before a job counts as done
+        const uint64_t waited = static_cast<uint64_t>(std::chrono::duration_cast<std::chrono::nanoseconds>(std::chrono::steady_clock::now() - t0).count());
         s_gpuSyncCount[reason].fetch_add(1u, std::memory_order_relaxed);
-        s_gpuSyncNs[reason].fetch_add(static_cast<uint64_t>(std::chrono::duration_cast<std::chrono::nanoseconds>(std::chrono::steady_clock::now() - t0).count()),
-                                      std::memory_order_relaxed);
+        s_gpuSyncNs[reason].fetch_add(waited, std::memory_order_relaxed);
+        if (waited > kSlowNs / 2u)
+        {
+            char what[96];
+            std::snprintf(what, sizeof(what), "waited for everything queued for the GS (reason %u)", reason);
+            ps2SlowLog("game thread", what, waited);
+        }
     }
 
     bool gpuBusy()
@@ -503,6 +515,19 @@ void ps2GsMarkObject(const uint8_t *vu1Data, uint32_t pc, uint32_t top)
         ps2GsInterpObjectTag(pc, hash);
 }
 
+void ps2NameThisThread(const char *name)
+{
+    ThreadNaming::SetCurrentThreadName(name);
+}
+
+// For the stutter log (SSX3.cpp, declared there): time the game thread has waited so far for the
+// VU1 thread's queue, and for the GS.
+uint64_t ps2PerfBackpressureNs();
+uint64_t ps2PerfBackpressureNs()
+{
+    return s_gpuBackpressureNs.load(std::memory_order_relaxed);
+}
+
 void PS2Memory::gpuSync(uint32_t reason)
 {
     gpuSyncGlobal(reason < kGpuSyncReasonCount ? reason : kGpuSyncOther);
@@ -552,8 +577,10 @@ namespace
                 const auto t0 = std::chrono::steady_clock::now();
                 while (w.pendingVif.load(std::memory_order_acquire) >= kMaxPendingVif)
                     std::this_thread::yield();
-                s_gpuBackpressureNs.fetch_add(static_cast<uint64_t>(std::chrono::duration_cast<std::chrono::nanoseconds>(std::chrono::steady_clock::now() - t0).count()),
-                                              std::memory_order_relaxed);
+                const uint64_t waited = static_cast<uint64_t>(std::chrono::duration_cast<std::chrono::nanoseconds>(std::chrono::steady_clock::now() - t0).count());
+                s_gpuBackpressureNs.fetch_add(waited, std::memory_order_relaxed);
+                if (waited > kSlowNs / 2u)
+                    ps2SlowLog("game thread", "waited for the VU1 thread (three display lists queued)", waited);
             }
             w.pendingVif.fetch_add(1u, std::memory_order_relaxed);
         }
@@ -1887,7 +1914,11 @@ void PS2Memory::write32(uint32_t address, uint32_t value)
                     g_ps2FlipHook();
                 }
             };
-            if (gpuBusy())
+            // A flip always goes through the queue once there is one, also when nothing is
+            // queued: the flip is the GS thread's work (with frame interpolation it matches the
+            // frame with the previous one and hands it to the render thread, waiting for that
+            // thread if it is behind) and must not run on - and hold up - the game's own thread.
+            if (gpuBusy() || (flip && g_gpuWorker))
             {
                 // Display registers (DISPFB etc.) take effect in order with the queued drawing.
                 GpuJob job;
@@ -1975,7 +2006,7 @@ void PS2Memory::write64(uint32_t address, uint64_t value)
                     g_ps2FlipHook();
                 }
             };
-            if (gpuBusy())
+            if (gpuBusy() || (flip && g_gpuWorker)) // (see write32)
             {
                 GpuJob job;
                 job.fn = apply;

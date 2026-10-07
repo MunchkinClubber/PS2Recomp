@@ -11,6 +11,7 @@
 #include "../Syscalls/Common.h"
 #include "../Syscalls/Sync.h"
 #include "game_overrides.h"
+#include "runtime/ps2_hitch.h"
 
 #include <atomic>
 #include <chrono>
@@ -26,6 +27,7 @@ void ssx3FrameCallsFlush(PS2Runtime &runtime, uint32_t tag, uint32_t a0, uint32_
 extern std::atomic<uint32_t> g_ps2WatchChain; // ps2_runtime.cpp
 extern std::atomic<uint64_t> g_perfVif1Ns, g_perfGsNs; // ps2_runtime.cpp
 extern std::atomic<uint64_t> g_perfGsWorkerNs, g_perfGsWaitNs; // gs_cpu_backend.cpp
+uint64_t ps2PerfBackpressureNs(); // ps2_memory.cpp
 extern std::atomic<uint64_t> g_vu1NativeRuns, g_vu1NativeMisses, g_vu1NativeHandoffs; // vu1_native.cpp
 extern std::atomic<uint64_t> g_vu0NativeRuns, g_vu0NativeMisses; // vu1_native.cpp
 extern std::atomic<uint64_t> g_perfVu0Ns, g_perfVu0Calls; // ps2_runtime.cpp
@@ -352,6 +354,23 @@ namespace
         std::memcpy(&head, rdram + ((obj + 0x5a0cu) & PS2_RAM_MASK), 4);
         std::memcpy(&cur, rdram + ((obj + 0x5a00u) & PS2_RAM_MASK), 4);
         ssx3FrameCallsFlush(*runtime, 'S' | (idx << 16), getRegU32(ctx, 31), cur - head);
+
+        {
+            // Stutter log: a game frame that took more than 1.3 frame periods (a load screen's
+            // long gaps aside) - with the profiler on, with what every thread was doing meanwhile.
+            static uint64_t lastFrameNs = 0u, lastBackpressureNs = 0u;
+            const uint64_t frameNs = ps2HitchNowNs();
+            const uint64_t backpressureNs = ps2PerfBackpressureNs();
+            if (lastFrameNs != 0u && frameNs - lastFrameNs > 22000000ull && frameNs - lastFrameNs < 1000000000ull)
+            {
+                char text[160];
+                std::snprintf(text, sizeof(text), "game frame took %.1f ms (%.1f ms of that waiting for the VU1 thread)",
+                              (frameNs - lastFrameNs) / 1e6, (backpressureNs - lastBackpressureNs) / 1e6);
+                ps2HitchReport(text, lastFrameNs, frameNs);
+            }
+            lastFrameNs = frameNs;
+            lastBackpressureNs = backpressureNs;
+        }
 
         {
             // Frame-rate / time-split report every ~2 s: VIF1 time includes VU1 execution and the

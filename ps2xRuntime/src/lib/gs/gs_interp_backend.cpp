@@ -1,5 +1,6 @@
 #include "runtime/gs/gs_interp_backend.h"
 #include "runtime/gs/ps2_gs_memory.h"
+#include "runtime/ps2_hitch.h"
 
 #include <algorithm>
 #include <atomic>
@@ -2297,6 +2298,7 @@ namespace
             std::shared_ptr<Frame> frame, prev;
             GSPresentationRequest request{};
             uint64_t flipNs = 0, issuedNs = 0;
+            uint64_t readyNs = 0; // handed to the render thread (which may still be busy)
             uint32_t factor = 1;
             bool canInterp = false; // matched well enough against a whole previous frame
             bool cut = false;       // a new scene
@@ -2327,6 +2329,7 @@ namespace
 
         void renderMain()
         {
+            ps2NameThisThread("GS render thread");
             std::unique_lock<std::mutex> lock(m_jobMutex);
             for (;;)
             {
@@ -2352,6 +2355,7 @@ namespace
         // (so the GS thread is never more than one frame ahead of the one being drawn).
         void submitJob(Job &&job)
         {
+            const uint64_t readyNs = job.readyNs = nowNs();
             if (!m_threaded)
             {
                 runJob(job);
@@ -2365,6 +2369,9 @@ namespace
                 m_jobQueued = true;
             }
             m_jobCv.notify_all();
+            const uint64_t waited = nowNs() - readyNs;
+            if (waited > kSlowNs)
+                ps2SlowLog("GS thread", "waited for the render thread to take the frame", waited);
         }
 
         void waitRenderIdle()
@@ -2467,18 +2474,29 @@ namespace
             }
             m_statMatchNs += f.matchNs;
             const bool cut = job.cut;
-            // Falling behind the game (this frame is only being drawn long after the game issued
-            // its flip): no extra pictures for half a second, so that the game's own rate is kept.
+            // Not keeping up - this frame waited more than half a frame period for the render
+            // thread to finish the one before: no extra pictures for a while, so that the game's
+            // own rate is kept. Half a second at first; when it happens again soon after the extra
+            // pictures are back, twice as long each time (up to 8 s): switching between 60 and
+            // 120 pictures a second all the time looks worse than staying at 60 in a heavy scene.
+            // (How long ago the game issued the flip does not count: in a heavy scene most of
+            // that is the VU1 and GS work before the frame gets here, which fewer pictures do
+            // not shorten. Only far behind - 3 periods - it does.)
             const uint64_t startNs = nowNs();
             const uint64_t lag = job.issuedNs != 0u && job.issuedNs <= startNs ? startNs - job.issuedNs : 0u;
-            if (m_shedding && factor > 1u && lag > m_periodNs + m_periodNs * 6u / 10u)
+            const uint64_t queued = m_threaded && job.readyNs != 0u && job.readyNs <= startNs ? startNs - job.readyNs : 0u;
+            if (m_shedding && factor > 1u && (queued > m_periodNs / 2u || lag > 3u * m_periodNs))
             {
                 if (m_flipCount >= m_shedUntil)
+                {
                     ++m_statSheds;
-                m_shedUntil = m_flipCount + 30u;
+                    m_shedFrames = m_flipCount < m_shedUntil + 90u ? std::min<uint64_t>(m_shedFrames * 2u, 480u) : 30u;
+                }
+                m_shedUntil = m_flipCount + m_shedFrames;
             }
             const bool shed = m_flipCount < m_shedUntil;
             m_statLagNs += lag;
+            m_statQueuedNs += queued;
             const bool usable = job.canInterp && !shed;
             const uint32_t passes = usable ? factor : 1u;
             static const bool s_log = std::getenv("PS2_FRAME_INTERP_LOG") != nullptr;
@@ -2569,7 +2587,10 @@ namespace
                         const uint64_t latest = job.flipNs + step * (factor - 1u) + 2u * period; // (beyond this, late it is)
                         const uint64_t moved = std::min(showReal + (ready - first), std::max(latest, showReal));
                         if (moved != showReal)
+                        {
                             ++m_statPushed;
+                            m_statPushedNs += moved - showReal;
+                        }
                         showReal = moved;
                     }
                     else if (first - ready > m_slackNs)
@@ -2584,6 +2605,13 @@ namespace
             m_lastShowReal = showReal;
             m_haveSchedule = true;
             const uint64_t t1 = nowNs();
+            if (t1 - startNs > m_periodNs + m_periodNs / 3u)
+            {
+                char text[200];
+                std::snprintf(text, sizeof(text), "drawing a frame's %u picture(s) took %.1f ms (%zu primitives; it had waited %.1f ms for the frame before)", passes,
+                              (t1 - startNs) / 1e6, f.prims.size(), queued / 1e6);
+                ps2HitchReport(text, startNs, t1);
+            }
 
             ++m_statFlips;
             m_statPrims += f.prims.size();
@@ -2605,17 +2633,17 @@ namespace
             if (m_stats && m_statFlips >= 300u)
             {
                 const double n = static_cast<double>(m_statFlips);
-                std::fprintf(stderr, "[gs:interp] %ux: %.2f pictures per game frame; of %.0f primitives/frame %.1f%% matched, %.1f%% placed by the camera model or a neighbour, %.1f%% carried along, %.1f%% moved implausibly; matching %.2f ms/frame, drawing all passes %.2f ms/frame, game frame period %.2f ms, GS thread %.1f ms behind the game; frames without in-between pictures: %llu cut, %llu needed the renderer mid-frame (%llu such calls), %llu while behind (%llu times); texture pages put back between passes: %.1f per frame (%.2f of them in drawn buffers), transfers left for the last pass: %.1f per frame; real picture shown %.1f ms after its flip on average, schedule moved back %llu times\n",
+                std::fprintf(stderr, "[gs:interp] %ux: %.2f pictures per game frame; of %.0f primitives/frame %.1f%% matched, %.1f%% placed by the camera model or a neighbour, %.1f%% carried along, %.1f%% moved implausibly; matching %.2f ms/frame, drawing all passes %.2f ms/frame, game frame period %.2f ms, a frame reaches the render thread %.1f ms after the game's flip (%.2f ms of that waiting for the frame before); frames without in-between pictures: %llu cut, %llu needed the renderer mid-frame (%llu such calls), %llu while behind (%llu times); texture pages put back between passes: %.1f per frame (%.2f of them in drawn buffers), transfers left for the last pass: %.1f per frame; real picture shown %.1f ms after its flip on average, schedule moved back %llu times (%.1f ms in all)\n",
                              factor, static_cast<double>(m_statPictures) / n, static_cast<double>(m_statPrims) / n,
                              m_statPrims ? 100.0 * m_statMatched / m_statPrims : 0.0, m_statPrims ? 100.0 * m_statRecovered / m_statPrims : 0.0,
                              m_statPrims ? 100.0 * m_statCarried / m_statPrims : 0.0,
                              m_statPrims ? 100.0 * m_statRejected / m_statPrims : 0.0, m_statMatchNs / 1e6 / n, m_statPassNs / 1e6 / n, period / 1e6,
-                             m_statLagNs / 1e6 / n, static_cast<unsigned long long>(m_statCuts), static_cast<unsigned long long>(m_statBroken),
+                             m_statLagNs / 1e6 / n, m_statQueuedNs / 1e6 / n, static_cast<unsigned long long>(m_statCuts), static_cast<unsigned long long>(m_statBroken),
                              static_cast<unsigned long long>(m_statDrains), static_cast<unsigned long long>(m_statShedFrames),
                              static_cast<unsigned long long>(m_statSheds), static_cast<double>(m_statHazardPages) / n, static_cast<double>(m_statHazardDrawn) / n,
-                             static_cast<double>(m_statLate) / n, m_statDelayNs / 1e6 / n, static_cast<unsigned long long>(m_statPushed));
+                             static_cast<double>(m_statLate) / n, m_statDelayNs / 1e6 / n, static_cast<unsigned long long>(m_statPushed), m_statPushedNs / 1e6);
                 m_statHazardPages = m_statHazardFrames = m_statLate = m_statHazardDrawn = m_statCarried = 0;
-                m_statPushed = m_statDelayNs = 0;
+                m_statPushed = m_statDelayNs = m_statPushedNs = m_statQueuedNs = 0;
                 m_statFlips = m_statPrims = m_statMatched = m_statRejected = m_statPictures = m_statPassNs = m_statCuts = m_statBroken = m_statDrains = 0;
                 m_statLagNs = m_statShedFrames = m_statSheds = 0;
                 m_statMatchNs = m_statRecovered = 0;
@@ -2742,7 +2770,7 @@ namespace
         uint64_t m_statLate = 0, m_statHazardDrawn = 0, m_statCarried = 0;
         bool m_hazardLog = std::getenv("PS2_FRAME_INTERP_HAZARDLOG") != nullptr;
         uint64_t m_statHazardPages = 0, m_statHazardFrames = 0;
-        uint64_t m_flipCount = 0, m_shedUntil = 0, m_statLagNs = 0, m_statShedFrames = 0, m_statSheds = 0;
+        uint64_t m_flipCount = 0, m_shedUntil = 0, m_shedFrames = 30, m_statLagNs = 0, m_statQueuedNs = 0, m_statShedFrames = 0, m_statSheds = 0;
         bool m_shedding = !(std::getenv("PS2_FRAME_INTERP_SHED") && std::getenv("PS2_FRAME_INTERP_SHED")[0] == '0');
         float m_maxMove = 96.0f;
         uint32_t m_dbgSkip = std::getenv("PS2_FRAME_INTERP_SKIP") ? static_cast<uint32_t>(std::atoi(std::getenv("PS2_FRAME_INTERP_SKIP"))) : 0u;
@@ -2753,7 +2781,7 @@ namespace
         // a drawn picture is taken to be ready this much later (the GPU's share); slack kept before its time
         uint64_t m_marginNs = static_cast<uint64_t>((std::getenv("PS2_FRAME_INTERP_MARGIN_MS") ? std::max(0.0, std::atof(std::getenv("PS2_FRAME_INTERP_MARGIN_MS"))) : 3.0) * 1e6);
         uint64_t m_slackNs = 1000000ull;
-        uint64_t m_statPushed = 0, m_statDelayNs = 0;
+        uint64_t m_statPushed = 0, m_statPushedNs = 0, m_statDelayNs = 0;
 
         bool m_stats = false;
         uint64_t m_statFlips = 0, m_statPrims = 0, m_statMatched = 0, m_statRejected = 0, m_statPictures = 0, m_statPassNs = 0, m_statMatchNs = 0, m_statRecovered = 0,

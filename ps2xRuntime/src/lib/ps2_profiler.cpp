@@ -2,12 +2,102 @@
 // instruction pointer of every thread in the process about once per millisecond and every
 // 10 seconds writes profile_NNN.txt with the hottest functions per thread for that window
 // (symbols from ps2EntryRunner.pdb via DbgHelp).
+//
+// Also here: the stutter log (runtime/ps2_hitch.h) - "[slow]" lines for waits that took long and
+// "[hitch]" reports for frames that came late. With the profiler on, a hitch report lists what
+// every thread was executing while the late frame was being made: the sampler keeps each thread's
+// last few seconds of samples for that.
 
+#include "runtime/ps2_hitch.h"
+
+#include <atomic>
+#include <chrono>
 #include <cstdio>
 #include <cstdlib>
 #include <cstring>
+#include <mutex>
+#include <vector>
 
 void ps2ProfilerStartIfEnabled();
+
+namespace
+{
+    struct HitchRequest
+    {
+        uint64_t beginNs = 0, endNs = 0;
+    };
+    std::mutex s_hitchMutex; // the lines of the log below, and s_hitchRequests
+    std::vector<HitchRequest> s_hitchRequests;
+    std::atomic<bool> s_samplerOn{false};
+
+    uint64_t hitchOriginNs()
+    {
+        static const uint64_t origin = ps2HitchNowNs();
+        return origin;
+    }
+    const uint64_t s_hitchOriginInit = hitchOriginNs(); // (at program start)
+
+    double hitchSeconds(uint64_t ns)
+    {
+        const uint64_t origin = hitchOriginNs();
+        return ns > origin ? static_cast<double>(ns - origin) / 1e9 : 0.0;
+    }
+}
+
+uint64_t ps2HitchNowNs()
+{
+    return static_cast<uint64_t>(std::chrono::duration_cast<std::chrono::nanoseconds>(std::chrono::steady_clock::now().time_since_epoch()).count());
+}
+
+void ps2SlowLog(const char *thread, const char *what, uint64_t ns)
+{
+    static const bool s_off = std::getenv("PS2_SLOWLOG") && std::getenv("PS2_SLOWLOG")[0] == '0';
+    if (s_off)
+        return;
+    const uint64_t now = ps2HitchNowNs();
+    std::lock_guard<std::mutex> lock(s_hitchMutex);
+    static uint64_t windowStart = 0;
+    static uint32_t shown = 0, dropped = 0;
+    if (now - windowStart > 2000000000ull)
+    {
+        if (dropped)
+            std::fprintf(stderr, "[slow] (%u more lines not shown)\n", dropped);
+        windowStart = now;
+        shown = dropped = 0;
+    }
+    if (shown >= 40u)
+    {
+        ++dropped;
+        return;
+    }
+    ++shown;
+    std::fprintf(stderr, "[slow] t=%.3f %s: %s: %.1f ms\n", hitchSeconds(now), thread, what, static_cast<double>(ns) / 1e6);
+}
+
+void ps2HitchReport(const char *what, uint64_t beginNs, uint64_t endNs)
+{
+    static const bool s_off = std::getenv("PS2_SLOWLOG") && std::getenv("PS2_SLOWLOG")[0] == '0';
+    if (s_off)
+        return;
+    std::lock_guard<std::mutex> lock(s_hitchMutex);
+    // (the game thread's reports and the renderer's are limited separately)
+    static uint64_t lastNs[2] = {0, 0};
+    static uint32_t dropped[2] = {0, 0};
+    const int kind = what[0] == 'g' ? 0 : 1;
+    if (lastNs[kind] != 0u && endNs < lastNs[kind] + 150000000ull)
+    {
+        ++dropped[kind];
+        return;
+    }
+    lastNs[kind] = endNs;
+    if (dropped[kind])
+        std::fprintf(stderr, "[hitch] t=%.3f %s (and %u more like it since the last report)\n", hitchSeconds(endNs), what, dropped[kind]);
+    else
+        std::fprintf(stderr, "[hitch] t=%.3f %s\n", hitchSeconds(endNs), what);
+    dropped[kind] = 0;
+    if (s_samplerOn.load(std::memory_order_relaxed) && s_hitchRequests.size() < 16u)
+        s_hitchRequests.push_back(HitchRequest{beginNs, endNs});
+}
 
 #if defined(_WIN32)
 
@@ -69,6 +159,29 @@ namespace
         return name;
     }
 
+    // The thread's description (SetThreadDescription: "GS thread", ...), or "thread <id>".
+    std::string threadName(HANDLE thread, DWORD tid)
+    {
+        using GetThreadDescriptionFn = HRESULT(WINAPI *)(HANDLE, PWSTR *);
+        static const GetThreadDescriptionFn getDescription =
+            reinterpret_cast<GetThreadDescriptionFn>(GetProcAddress(GetModuleHandleW(L"Kernel32.dll"), "GetThreadDescription"));
+        char text[128];
+        text[0] = 0;
+        if (getDescription && thread)
+        {
+            PWSTR wide = nullptr;
+            if (getDescription(thread, &wide) >= 0 && wide)
+            {
+                if (WideCharToMultiByte(CP_UTF8, 0, wide, -1, text, static_cast<int>(sizeof(text)), nullptr, nullptr) <= 0)
+                    text[0] = 0;
+                LocalFree(wide);
+            }
+        }
+        if (!text[0])
+            std::snprintf(text, sizeof(text), "thread %lu", static_cast<unsigned long>(tid));
+        return text;
+    }
+
     void samplerMain()
     {
         const DWORD self = GetCurrentThreadId();
@@ -82,7 +195,11 @@ namespace
             HANDLE handle = nullptr;
             std::unordered_map<DWORD64, uint32_t> hits;
             uint64_t samples = 0;
+            // the last kRecent samples (time, instruction pointer), for hitch reports
+            std::vector<std::pair<uint64_t, DWORD64>> recent;
+            size_t recentAt = 0;
         };
+        constexpr size_t kRecent = 4096;
         std::unordered_map<DWORD, ThreadInfo> threads;
         std::unordered_map<DWORD64, std::string> names;
         auto lastEnum = std::chrono::steady_clock::now() - std::chrono::seconds(10);
@@ -112,6 +229,7 @@ namespace
                 }
             }
 
+            const uint64_t sampleNs = ps2HitchNowNs();
             for (auto &[tid, info] : threads)
             {
                 if (!info.handle)
@@ -131,6 +249,61 @@ namespace
                 {
                     ++info.hits[context.Rip];
                     ++info.samples;
+                    if (info.recent.size() < kRecent)
+                        info.recent.emplace_back(sampleNs, context.Rip);
+                    else
+                    {
+                        info.recent[info.recentAt] = {sampleNs, context.Rip};
+                        info.recentAt = (info.recentAt + 1u) % kRecent;
+                    }
+                }
+            }
+
+            // Hitch reports asked for since the last round: per thread, where its samples from
+            // that time were.
+            std::vector<HitchRequest> requests;
+            {
+                std::lock_guard<std::mutex> lock(s_hitchMutex);
+                requests.swap(s_hitchRequests);
+            }
+            for (const HitchRequest &request : requests)
+            {
+                std::string text;
+                for (auto &[tid, info] : threads)
+                {
+                    std::unordered_map<std::string, uint32_t> byName;
+                    uint32_t total = 0;
+                    for (const auto &sample : info.recent)
+                        if (sample.first >= request.beginNs && sample.first <= request.endNs)
+                        {
+                            ++byName[symbolFor(process, sample.second, names)];
+                            ++total;
+                        }
+                    if (total == 0u)
+                        continue;
+                    std::vector<std::pair<std::string, uint32_t>> top(byName.begin(), byName.end());
+                    std::sort(top.begin(), top.end(), [](const auto &a, const auto &b)
+                              { return a.second != b.second ? a.second > b.second : a.first < b.first; });
+                    const std::string name = threadName(info.handle, tid);
+                    // (threads without a name that only waited: the pool threads of the system)
+                    if (top.size() == 1u && name.compare(0, 7, "thread ") == 0 &&
+                        (top[0].first.find("Wait") != std::string::npos || top[0].first.find("GetMessage") != std::string::npos))
+                        continue;
+                    text += "[hitch]   " + name + ":";
+                    for (size_t i = 0; i < top.size() && i < 6u; ++i)
+                    {
+                        char item[320];
+                        std::snprintf(item, sizeof(item), "%s %.0f%% %.200s", i ? "," : "", 100.0 * top[i].second / total, top[i].first.c_str());
+                        text += item;
+                    }
+                    char tail[64];
+                    std::snprintf(tail, sizeof(tail), " (%u samples)\n", total);
+                    text += tail;
+                }
+                if (!text.empty())
+                {
+                    std::lock_guard<std::mutex> lock(s_hitchMutex);
+                    std::fprintf(stderr, "[hitch]  threads from %.3f to %.3f:\n%s", hitchSeconds(request.beginNs), hitchSeconds(request.endNs), text.c_str());
                 }
             }
 
@@ -157,8 +330,8 @@ namespace
                         std::vector<std::pair<std::string, uint64_t>> top(byName.begin(), byName.end());
                         std::sort(top.begin(), top.end(), [](const auto &a, const auto &b)
                                   { return a.second > b.second; });
-                        std::fprintf(f, "thread %lu: %llu samples\n", static_cast<unsigned long>(tid),
-                                     static_cast<unsigned long long>(info->samples));
+                        std::fprintf(f, "thread %lu: %llu samples (%s)\n", static_cast<unsigned long>(tid),
+                                     static_cast<unsigned long long>(info->samples), threadName(info->handle, tid).c_str());
                         for (size_t i = 0; i < top.size() && i < 80; ++i)
                             std::fprintf(f, "  %6.2f%%  %s\n", 100.0 * static_cast<double>(top[i].second) / static_cast<double>(info->samples),
                                          top[i].first.c_str());
@@ -180,6 +353,7 @@ void ps2ProfilerStartIfEnabled()
     if (!v || !*v || *v == '0')
         return;
     std::thread(samplerMain).detach();
+    s_samplerOn.store(true, std::memory_order_relaxed);
     std::fprintf(stderr, "[profile] sampling profiler on: profile_NNN.txt every 10 s\n");
 }
 
