@@ -1,5 +1,10 @@
 #include <algorithm>
 #include <cctype>
+#include <chrono>
+#include <fstream>
+#include <memory>
+#include <mutex>
+#include <unordered_map>
 
 namespace
 {
@@ -399,6 +404,25 @@ namespace
         return true;
     }
 
+    // The disc image (and the few host files read the same way) stays open between reads. Every
+    // read used to open the file, read and close it - on the game's own thread, many times a
+    // second while a course or speech is streamed: three system calls instead of one, and
+    // Windows' read-ahead for a file starts from nothing with every new handle.
+    // Also here: how long the game thread spent in these reads, reported every 10 s when it
+    // was worth mentioning ("[disc] ...").
+    struct HostReadCache
+    {
+        std::mutex mutex;
+        std::unordered_map<std::filesystem::path::string_type, std::unique_ptr<std::ifstream>> files;
+        uint64_t reads = 0, bytes = 0, ns = 0, longestNs = 0, slow = 0;
+        std::chrono::steady_clock::time_point lastReport = std::chrono::steady_clock::now();
+    };
+    inline HostReadCache &hostReadCache()
+    {
+        static HostReadCache cache;
+        return cache;
+    }
+
     bool readHostRange(const std::filesystem::path &path, uint64_t offsetBytes, uint8_t *dst, size_t byteCount)
     {
         if (!dst)
@@ -413,21 +437,50 @@ namespace
         }
 
         std::memset(dst, 0, byteCount);
-        std::ifstream file(path, std::ios::binary);
-        if (!file.is_open())
+        HostReadCache &cache = hostReadCache();
+        std::lock_guard<std::mutex> lock(cache.mutex);
+        const auto t0 = std::chrono::steady_clock::now();
+        auto it = cache.files.find(path.native());
+        if (it == cache.files.end())
         {
-            g_lastCdError = -1;
-            return false;
+            if (cache.files.size() >= 16u)
+                cache.files.clear();
+            auto stream = std::make_unique<std::ifstream>(path, std::ios::binary);
+            if (!stream->is_open())
+            {
+                g_lastCdError = -1;
+                return false;
+            }
+            it = cache.files.emplace(path.native(), std::move(stream)).first;
         }
-
+        std::ifstream &file = *it->second;
+        file.clear(); // (a read past the end last time)
         file.seekg(static_cast<std::streamoff>(offsetBytes), std::ios::beg);
         if (!file.good())
         {
+            cache.files.erase(it);
             g_lastCdError = -1;
             return false;
         }
 
         file.read(reinterpret_cast<char *>(dst), static_cast<std::streamsize>(byteCount));
+
+        const auto t1 = std::chrono::steady_clock::now();
+        const uint64_t took = static_cast<uint64_t>(std::chrono::duration_cast<std::chrono::nanoseconds>(t1 - t0).count());
+        ++cache.reads;
+        cache.bytes += byteCount;
+        cache.ns += took;
+        cache.longestNs = std::max(cache.longestNs, took);
+        cache.slow += took > 4000000ull ? 1u : 0u;
+        if (t1 - cache.lastReport >= std::chrono::seconds(10))
+        {
+            if (cache.longestNs > 2000000ull)
+                std::fprintf(stderr, "[disc] last 10 s: %llu reads (%.1f MB) took %.1f ms on the game thread, the longest %.1f ms, %llu over 4 ms\n",
+                             static_cast<unsigned long long>(cache.reads), cache.bytes / 1048576.0, cache.ns / 1e6, cache.longestNs / 1e6,
+                             static_cast<unsigned long long>(cache.slow));
+            cache.reads = cache.bytes = cache.ns = cache.longestNs = cache.slow = 0;
+            cache.lastReport = t1;
+        }
         g_lastCdError = 0;
         return true;
     }

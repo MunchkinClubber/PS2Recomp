@@ -153,6 +153,11 @@ namespace
         uint32_t primStart = 0, primCount = 0;
         float sumX = 0.0f, sumY = 0.0f; // of its vertices (for "which instance is which")
         uint32_t vertices = 0;
+        uint32_t implausible = 0;       // primitives whose partner was not where they can have come from
+        bool rejected = false;          // all of it keeps this frame's positions in the in-between pictures
+        bool affineDone = false, affineOk = false;
+        float affine[6] = {};           // where it was: x' = a0 x + a1 y + a2, y' = a3 x + a4 y + a5 (see objectAffine)
+        float ax0 = 0.0f, ay0 = 0.0f, ax1 = 0.0f, ay1 = 0.0f; // ... valid for corners in this rectangle
 
         float cx() const { return vertices ? sumX / static_cast<float>(vertices) : 0.0f; }
         float cy() const { return vertices ? sumY / static_cast<float>(vertices) : 0.0f; }
@@ -209,6 +214,7 @@ namespace
         bool broken = false;    // ... and they included drawing or transfers: no in-between pictures
         bool complete = false;  // recorded from flip to flip without a gap
         uint32_t matched = 0, rejected = 0, recovered = 0, carried = 0;
+        uint32_t held = 0; // primitives of things that stay as a whole (see settleMovers)
 
         void clear()
         {
@@ -232,7 +238,7 @@ namespace
             doneOps = 0;
             broken = false;
             complete = false;
-            matched = rejected = recovered = carried = 0;
+            matched = rejected = recovered = carried = held = 0;
         }
     };
 
@@ -651,17 +657,26 @@ namespace
         }
 
         // Could the primitive have moved from p to c in one frame? Not further than the limit,
-        // and its shape (the edges from the first vertex) about the same.
-        inline bool plausibleMove(const XY *c, const XY *p, uint32_t count) const
+        // and its shape (the edges from the first vertex) about the same. `mover`: wider limits,
+        // for a triangle known to be the same one of the same model (same input data, same
+        // place in the program's output or same texture coordinates) of something that moves
+        // by itself - a rider passing close to the camera moves a hundred pixels a frame and
+        // turns visibly, and is still the same rider; there the limits only have to catch what
+        // cannot be moved in a straight line. (Not for what stands in the world: its far-moving
+        // triangles are the ones next to the camera, half off the screen, and the camera model
+        // places those better than their partners do.)
+        inline bool plausibleMove(const XY *c, const XY *p, uint32_t count, bool mover) const
         {
+            const bool certain = mover;
+            const float limit = certain ? m_maxMove * 2.5f : m_maxMove;
             for (uint32_t v = 0; v < count; ++v)
-                if (std::fabs(c[v].x - p[v].x) > m_maxMove || std::fabs(c[v].y - p[v].y) > m_maxMove)
+                if (std::fabs(c[v].x - p[v].x) > limit || std::fabs(c[v].y - p[v].y) > limit)
                     return false;
             for (uint32_t v = 1; v < count; ++v)
             {
                 const float cex = c[v].x - c[0].x, cey = c[v].y - c[0].y, pex = p[v].x - p[0].x, pey = p[v].y - p[0].y;
                 const float longest = std::max(std::max(std::fabs(cex), std::fabs(cey)), std::max(std::fabs(pex), std::fabs(pey)));
-                const float allowed = 0.5f * longest + 4.0f;
+                const float allowed = (certain ? 1.0f : 0.5f) * longest + 4.0f;
                 if (std::fabs(cex - pex) > allowed || std::fabs(cey - pey) > allowed)
                     return false;
             }
@@ -672,7 +687,7 @@ namespace
         // come out of the same program in the same order, except where triangles were clipped
         // (a clipped one becomes a different number of primitives): walk both lists and, where
         // they stop agreeing, look a few primitives ahead in either for the next agreement.
-        void matchPrims(const Object &co, const Object &po, bool sameData)
+        void matchPrims(Object &co, const Object &po, bool sameData)
         {
             Frame &f = *m_cur;
             Prim *cp = f.prims.data() + co.primStart;
@@ -680,6 +695,19 @@ namespace
             const GSVertex *cverts = f.verts.data(), *pverts = m_last->verts.data();
             const XY *cpos = f.pos.data(), *ppos = m_last->pos.data();
             constexpr uint32_t kWindow = 8u;
+            const uint32_t objectIndex = static_cast<uint32_t>(&co - f.objects.data());
+            // a partner that is certainly the same triangle, but not where it can have come from
+            // (kept: settleMovers takes it after all when the object moves by itself)
+            auto implausible = [&](uint32_t prim, uint32_t partner)
+            {
+                ++f.rejected; // (may still be placed from its neighbours)
+                if (sameData)
+                {
+                    ++co.implausible;
+                    m_implausible.push_back({objectIndex, co.primStart + prim, partner,
+                                             plausibleMove(cpos + cp[prim].vtx, ppos + partner, cp[prim].count, true)});
+                }
+            };
             // The usual case: nothing clipped, both lists have the same primitives at the same
             // places in the program's output - pair them in order. Only for the same model data:
             // a mesh the game builds anew every frame (shadows, tracks in the snow) can have the
@@ -694,13 +722,13 @@ namespace
                 {
                     for (uint32_t k = 0; k < co.primCount; ++k)
                     {
-                        if (plausibleMove(cpos + cp[k].vtx, ppos + pp[k].vtx, cp[k].count))
+                        if (plausibleMove(cpos + cp[k].vtx, ppos + pp[k].vtx, cp[k].count, false))
                         {
                             cp[k].prev = pp[k].vtx;
                             ++f.matched;
                         }
                         else
-                            ++f.rejected; // may still be placed from its neighbours
+                            implausible(k, pp[k].vtx);
                     }
                     return;
                 }
@@ -736,28 +764,57 @@ namespace
                         continue;
                     }
                 }
-                if (plausibleMove(cpos + cp[i].vtx, ppos + pp[j].vtx, cp[i].count))
+                if (plausibleMove(cpos + cp[i].vtx, ppos + pp[j].vtx, cp[i].count, false))
                 {
                     cp[i].prev = pp[j].vtx;
                     ++f.matched;
                 }
                 else
-                    ++f.rejected; // may still be placed from its neighbours
+                    implausible(i, pp[j].vtx);
                 ++i;
                 ++j;
             }
         }
 
         // An object that turns or deforms a lot in one frame (the trick meter's spinning coil,
-        // some effects) cannot be moved in straight lines: triangles pass through each other and
-        // collapse on the way. Signs of that: triangles that face the other way than last frame,
-        // or that all but vanish half-way. If more than a tenth of the object's triangles show
-        // them, the object keeps this frame's positions in the in-between pictures.
-        void checkObject(const Object &co)
+        // some effects) cannot be moved in straight lines: its triangles pass through each other
+        // and collapse on the way. Two signs of that, counted over its sizeable triangles:
+        //  - triangles that all but vanish half-way while facing the same way before and after
+        //    (turning by more than a right angle on the screen, or moving through each other):
+        //    more than a tenth of them;
+        //  - triangles that face the other way than last frame: more than a third of them. Some
+        //    always do - the ones at the edge of anything that turns, a rider's arm, a board in
+        //    a flip - and half-way they are thin there, as they should be; a tenth of them was
+        //    enough to stop a body part of a rider doing a trick, while the parts next to it
+        //    moved on, and the rider came apart in the in-between pictures.
+        // Such an object keeps this frame's positions in the in-between pictures.
+        // `wrongPartners`: counts as a sign of a new scene (a camera cut pairs the same models at
+        // unrelated places); not when the object merely stays with its neighbours.
+        void rejectObject(Object &o, bool wrongPartners)
+        {
+            Frame &f = *m_cur;
+            Prim *cp = f.prims.data() + o.primStart;
+            for (uint32_t i = 0; i < o.primCount; ++i)
+            {
+                if (hasPrev(cp[i].prev))
+                {
+                    --f.matched;
+                    if (wrongPartners)
+                        ++f.rejected;
+                    else
+                        ++f.held;
+                }
+                cp[i].prev = kRejected; // the whole object, also what found no partner
+            }
+            o.rejected = true;
+            o.hasMotion = false;
+        }
+
+        void checkObject(Object &co)
         {
             Frame &f = *m_cur;
             Prim *cp = f.prims.data() + co.primStart;
-            uint32_t triangles = 0, bad = 0;
+            uint32_t triangles = 0, flipped = 0, collapsing = 0;
             for (uint32_t i = 0; i < co.primCount; ++i)
             {
                 if (!hasPrev(cp[i].prev) || cp[i].count != 3u)
@@ -770,26 +827,274 @@ namespace
                 if (smaller < 4.0f)
                     continue; // slivers flip and vanish all the time
                 ++triangles;
+                if ((ac > 0.0f) != (ap > 0.0f))
+                {
+                    ++flipped;
+                    continue;
+                }
                 const float mx0 = (c[0].x + q[0].x) * 0.5f, my0 = (c[0].y + q[0].y) * 0.5f;
                 const float am = ((c[1].x + q[1].x) * 0.5f - mx0) * ((c[2].y + q[2].y) * 0.5f - my0) - ((c[2].x + q[2].x) * 0.5f - mx0) * ((c[1].y + q[1].y) * 0.5f - my0);
-                if ((ac > 0.0f) != (ap > 0.0f) || std::fabs(am) < 0.25f * smaller)
-                    ++bad;
+                if (std::fabs(am) < 0.25f * smaller)
+                    ++collapsing;
             }
             static const bool s_dbg = std::getenv("PS2_FRAME_INTERP_DEBUG") != nullptr;
-            if (s_dbg && (bad != 0u || std::getenv("PS2_FRAME_INTERP_DEBUG")[0] == '2'))
-                std::fprintf(stderr, "[gs:interp] object %llx at %.0f,%.0f: %u prims, %u sizeable matched triangles, %u flipped or collapsing\n",
-                             static_cast<unsigned long long>(co.key), co.cx(), co.cy(), co.primCount, triangles, bad);
-            if (bad < 3u || bad * 10u <= triangles)
-                return;
-            for (uint32_t i = 0; i < co.primCount; ++i)
+            if (s_dbg && (flipped + collapsing != 0u || std::getenv("PS2_FRAME_INTERP_DEBUG")[0] == '2'))
+                std::fprintf(stderr, "[gs:interp] object %llx at %.0f,%.0f: %u prims, %u sizeable matched triangles, %u facing the other way, %u collapsing\n",
+                             static_cast<unsigned long long>(co.key), co.cx(), co.cy(), co.primCount, triangles, flipped, collapsing);
+            if ((collapsing >= 3u && collapsing * 10u > triangles) || (flipped >= 3u && flipped * 3u > triangles))
+                rejectObject(co, true);
+        }
+
+        // Things that move by themselves (riders, boards, effects), after the camera model has
+        // said which those are:
+        //  - their primitives whose partner was too far away or too different for the usual
+        //    limits are followed after all, within the wider limits (see plausibleMove). They
+        //    used to be placed by the object's average movement or - when none of its primitives
+        //    could be followed - by the camera model, as if the thing stood still in the world:
+        //    a rider next to the camera came apart in the in-between pictures;
+        //  - one that still has primitives that cannot be followed stays as a whole;
+        //  - a rider is drawn as dozens of objects, a body part each (and each part in several
+        //    layers). Half a rider moved on and half not is a rider torn apart, so when a good
+        //    part of one stays (a sixth of its primitives), all of it does. What belongs together
+        //    is known from the corners: neighbouring parts have corners at the very same place.
+        void settleMovers()
+        {
+            Frame &f = *m_cur;
+            for (size_t i = 0; i < m_implausible.size();)
             {
-                if (hasPrev(cp[i].prev))
+                const size_t first = i;
+                const uint32_t index = m_implausible[i].object;
+                Object &o = f.objects[index];
+                while (i < m_implausible.size() && m_implausible[i].object == index)
+                    ++i;
+                // by itself: its followed primitives say so, or none could be followed - and what
+                // its VU1 program draws does not as a rule move with the world (riders' programs:
+                // by themselves; the ground's: with the world. The ground next to the camera,
+                // half off the screen, has plenty of triangles that cannot be followed and a few
+                // that seem to move by themselves; it is left to the camera model as before)
+                const uint8_t progMotion = o.prog < m_progFrame.size() ? m_progFrame[o.prog].motion : uint8_t{0};
+                const bool mover = progMotion != 1u && (o.motion == 2u || (o.motion == 0u && progMotion == 2u));
+                if (o.rejected || !mover)
+                    continue;
+                uint32_t failed = 0, taken = 0;
+                float dx = 0.0f, dy = 0.0f;
+                for (size_t k = first; k < i; ++k)
                 {
-                    --f.matched;
-                    ++f.rejected;
+                    Prim &p = f.prims[m_implausible[k].prim];
+                    if (!m_implausible[k].wide || p.prev != kNone)
+                    {
+                        ++failed;
+                        continue;
+                    }
+                    p.prev = m_implausible[k].partner;
+                    ++f.matched;
+                    --f.rejected;
+                    dx += m_last->pos[p.prev].x - f.pos[p.vtx].x;
+                    dy += m_last->pos[p.prev].y - f.pos[p.vtx].y;
+                    ++taken;
                 }
-                cp[i].prev = kRejected; // the whole object, also what found no partner
+                if (taken != 0u)
+                {
+                    if (!o.hasMotion)
+                    {
+                        o.dx = dx / static_cast<float>(taken);
+                        o.dy = dy / static_cast<float>(taken);
+                        o.hasMotion = true;
+                    }
+                    o.motion = 2u;
+                    checkObject(o); // (with the ones just taken)
+                }
+                if (!o.rejected && (failed >= 3u || failed * 10u > o.primCount))
+                    rejectObject(o, false);
             }
+
+            // The things in the scene that stay, and the ones that move by themselves around
+            // them (within kAround of one that stays: a rider's parts are closer together than
+            // that, and there is no need to look at every rider on the screen).
+            constexpr float kAround = 320.0f;
+            m_movers.clear();
+            for (uint32_t k = 0; k < f.objects.size(); ++k)
+            {
+                const Object &o = f.objects[k];
+                if (o.rejected && o.inScene && o.primCount != 0u)
+                    m_movers.push_back(k);
+            }
+            if (m_movers.empty())
+                return;
+            const size_t held = m_movers.size();
+            for (uint32_t k = 0; k < f.objects.size(); ++k)
+            {
+                const Object &o = f.objects[k];
+                if (o.rejected || !o.inScene || o.primCount == 0u || o.motion != 2u)
+                    continue;
+                const float x = o.cx(), y = o.cy();
+                for (size_t h = 0; h < held; ++h)
+                {
+                    const Object &r = f.objects[m_movers[h]];
+                    const float dx = r.cx() - x, dy = r.cy() - y;
+                    if (dx * dx + dy * dy <= kAround * kAround)
+                    {
+                        m_movers.push_back(k);
+                        break;
+                    }
+                }
+            }
+            if (m_movers.size() == held)
+                return;
+            // joined by corners at the same place (union-find over m_movers)
+            m_moverParent.resize(m_movers.size());
+            for (uint32_t k = 0; k < m_moverParent.size(); ++k)
+                m_moverParent[k] = k;
+            auto find = [&](uint32_t k)
+            {
+                while (m_moverParent[k] != k)
+                    k = m_moverParent[k] = m_moverParent[m_moverParent[k]];
+                return k;
+            };
+            size_t corners = 0;
+            for (uint32_t k : m_movers)
+                corners += f.objects[k].vertices;
+            uint32_t capacity = 256u;
+            while (capacity < corners * 2u)
+                capacity <<= 1;
+            m_cornerTable.assign(capacity, CornerEntry{});
+            for (uint32_t m = 0; m < m_movers.size(); ++m)
+            {
+                const Object &o = f.objects[m_movers[m]];
+                const Prim *p = f.prims.data() + o.primStart;
+                for (uint32_t q = 0; q < o.primCount; ++q)
+                    for (uint32_t v = 0; v < p[q].count; ++v)
+                    {
+                        const XY &at = f.pos[p[q].vtx + v];
+                        uint32_t xb, yb;
+                        std::memcpy(&xb, &at.x, 4);
+                        std::memcpy(&yb, &at.y, 4);
+                        const uint64_t key = (static_cast<uint64_t>(xb) << 32) | yb;
+                        uint32_t slot = static_cast<uint32_t>((key * 0x9E3779B97F4A7C15ull) >> 40) & (capacity - 1u);
+                        while (m_cornerTable[slot].used && m_cornerTable[slot].key != key)
+                            slot = (slot + 1u) & (capacity - 1u);
+                        if (!m_cornerTable[slot].used)
+                            m_cornerTable[slot] = CornerEntry{key, m, true};
+                        else
+                        {
+                            const uint32_t a = find(m), b = find(m_cornerTable[slot].mover);
+                            if (a != b)
+                                m_moverParent[a] = b;
+                        }
+                    }
+            }
+            // per group: primitives, and primitives that stay
+            m_groupPrims.assign(m_movers.size(), 0u);
+            m_groupHeld.assign(m_movers.size(), 0u);
+            for (uint32_t m = 0; m < m_movers.size(); ++m)
+            {
+                const Object &o = f.objects[m_movers[m]];
+                const uint32_t root = find(m);
+                m_groupPrims[root] += o.primCount;
+                m_groupHeld[root] += o.rejected ? o.primCount : 0u;
+            }
+            static const bool s_dbg = std::getenv("PS2_FRAME_INTERP_DEBUG") != nullptr;
+            for (uint32_t m = 0; m < m_movers.size(); ++m)
+            {
+                const uint32_t root = find(m);
+                if (s_dbg && root == m && m_groupHeld[root] != 0u)
+                    std::fprintf(stderr, "[gs:interp] moving thing around %.0f,%.0f: %u of its %u primitives stay -> %s\n", f.objects[m_movers[m]].cx(), f.objects[m_movers[m]].cy(),
+                                 m_groupHeld[root], m_groupPrims[root], m_groupHeld[root] * 6u >= m_groupPrims[root] ? "all of it stays" : "the rest moves");
+                Object &o = f.objects[m_movers[m]];
+                if (!o.rejected && m_groupHeld[root] * 6u >= m_groupPrims[root])
+                    rejectObject(o, false);
+            }
+        }
+
+        // Where a thing that moves by itself was last frame, as one movement of the whole object:
+        // x' = a0 x + a1 y + a2, y' = a3 x + a4 y + a5, fitted to its followed primitives. For its
+        // primitives without a partner (clipped differently at the edge of the screen). The
+        // average movement alone, used before, is off by a lot at the far end of something
+        // that turns close to the camera. False: too little to fit to - use the average.
+        bool objectAffine(Object &o)
+        {
+            if (o.affineDone)
+                return o.affineOk;
+            o.affineDone = true;
+            Frame &f = *m_cur;
+            const Prim *p = f.prims.data() + o.primStart;
+            const double ox = o.cx(), oy = o.cy();
+            double sxx = 0, sxy = 0, syy = 0, sx = 0, sy = 0, tx[3] = {}, ty[3] = {};
+            float bx0 = 1e30f, by0 = 1e30f, bx1 = -1e30f, by1 = -1e30f;
+            uint32_t n = 0;
+            for (uint32_t k = 0; k < o.primCount; ++k)
+            {
+                if (!hasPrev(p[k].prev) || (p[k].prev & kSynth))
+                    continue;
+                for (uint32_t v = 0; v < p[k].count; ++v)
+                {
+                    const XY &c = f.pos[p[k].vtx + v];
+                    if (c.x < o.wx0 || c.x > o.wx1 || c.y < o.wy0 || c.y > o.wy1)
+                        continue;
+                    const XY &q = m_last->pos[p[k].prev + v];
+                    const double x = c.x - ox, y = c.y - oy;
+                    bx0 = std::min(bx0, c.x);
+                    bx1 = std::max(bx1, c.x);
+                    by0 = std::min(by0, c.y);
+                    by1 = std::max(by1, c.y);
+                    sxx += x * x;
+                    sxy += x * y;
+                    syy += y * y;
+                    sx += x;
+                    sy += y;
+                    tx[0] += q.x * x;
+                    tx[1] += q.x * y;
+                    tx[2] += q.x;
+                    ty[0] += q.y * x;
+                    ty[1] += q.y * y;
+                    ty[2] += q.y;
+                    ++n;
+                }
+            }
+            if (n < 9u)
+                return false;
+            // normal equations [sxx sxy sx; sxy syy sy; sx sy n] a = t, by Cramer's rule
+            const double m[3][3] = {{sxx, sxy, sx}, {sxy, syy, sy}, {sx, sy, static_cast<double>(n)}};
+            auto det3 = [](const double a[3][3])
+            {
+                return a[0][0] * (a[1][1] * a[2][2] - a[1][2] * a[2][1]) - a[0][1] * (a[1][0] * a[2][2] - a[1][2] * a[2][0]) + a[0][2] * (a[1][0] * a[2][1] - a[1][1] * a[2][0]);
+            };
+            const double det = det3(m);
+            // (spread in both directions: at least a few pixels across its narrow side)
+            const double vx = sxx / n - (sx / n) * (sx / n), vy = syy / n - (sy / n) * (sy / n), vxy = sxy / n - (sx / n) * (sy / n);
+            if (!(vx * vy - vxy * vxy > 4.0 * 4.0 * std::max(vx, vy)) || std::fabs(det) < 1e-9)
+                return false;
+            double a[6];
+            for (int row = 0; row < 2; ++row)
+            {
+                const double *t = row == 0 ? tx : ty;
+                for (int col = 0; col < 3; ++col)
+                {
+                    double r[3][3];
+                    for (int i = 0; i < 3; ++i)
+                        for (int j = 0; j < 3; ++j)
+                            r[i][j] = j == col ? t[i] : m[i][j];
+                    a[row * 3 + col] = det3(r) / det;
+                }
+            }
+            // nothing wild: neither axis more than doubled or halved
+            const double lx = std::sqrt(a[0] * a[0] + a[3] * a[3]), ly = std::sqrt(a[1] * a[1] + a[4] * a[4]);
+            if (!(lx > 0.5 && lx < 2.0 && ly > 0.5 && ly < 2.0))
+                return false;
+            // (in the object's own coordinates so far: x - ox, y - oy)
+            o.affine[0] = static_cast<float>(a[0]);
+            o.affine[1] = static_cast<float>(a[1]);
+            o.affine[2] = static_cast<float>(a[2] - a[0] * ox - a[1] * oy);
+            o.affine[3] = static_cast<float>(a[3]);
+            o.affine[4] = static_cast<float>(a[4]);
+            o.affine[5] = static_cast<float>(a[5] - a[3] * ox - a[4] * oy);
+            // (not far beyond the corners it was fitted to: half their extent on each side)
+            o.ax0 = bx0 - 0.5f * (bx1 - bx0);
+            o.ax1 = bx1 + 0.5f * (bx1 - bx0);
+            o.ay0 = by0 - 0.5f * (by1 - by0);
+            o.ay1 = by1 + 0.5f * (by1 - by0);
+            o.affineOk = true;
+            return true;
         }
 
         // ------------------------------------------------------------------------------------
@@ -1485,8 +1790,17 @@ namespace
                                 continue;
                             if (o.hasMotion)
                             {
-                                old[v].x += o.dx;
-                                old[v].y += o.dy;
+                                if (o.motion == 2u && objectAffine(o) && old[v].x >= o.ax0 && old[v].x <= o.ax1 && old[v].y >= o.ay0 && old[v].y <= o.ay1)
+                                {
+                                    const float x = old[v].x, y = old[v].y;
+                                    old[v].x = o.affine[0] * x + o.affine[1] * y + o.affine[2];
+                                    old[v].y = o.affine[3] * x + o.affine[4] * y + o.affine[5];
+                                }
+                                else
+                                {
+                                    old[v].x += o.dx;
+                                    old[v].y += o.dy;
+                                }
                             }
                             else
                             {
@@ -1906,6 +2220,7 @@ namespace
             if (m_last->objects.empty())
                 return;
             m_pairs.clear();
+            m_implausible.clear();
             m_curTaken.assign(f.objects.size(), 0u);
             m_prevTaken.assign(m_last->objects.size(), 0u);
 
@@ -1992,6 +2307,7 @@ namespace
             static const bool s_time = std::getenv("PS2_FRAME_INTERP_DEBUG") != nullptr;
             const uint64_t tc = s_time ? nowNs() : 0u;
             classifyObjects();
+            settleMovers();
             if (s_time)
                 std::fprintf(stderr, "[gs:interp] camera fit %.2f ms (%zu samples), classify %.2f ms\n", (tc - tm) / 1e6, m_samples.size(), (nowNs() - tc) / 1e6);
             const uint64_t t1 = nowNs();
@@ -2025,6 +2341,45 @@ namespace
             f.phaseNs[0] = t0 - tStart;
             f.phaseNs[1] = tm - t0;
             f.phaseNs[2] = nowNs() - t1;
+            if (const char *rect = std::getenv("PS2_FRAME_INTERP_OBJRECT"))
+            {
+                // PS2_FRAME_INTERP_OBJRECT=x0,y0,x1,y1 (GS coordinates): the objects whose centre
+                // lies in that rectangle, and what became of their primitives (debug)
+                float x0 = 0, y0 = 0, x1 = 0, y1 = 0;
+                if (std::sscanf(rect, "%f,%f,%f,%f", &x0, &y0, &x1, &y1) == 4)
+                {
+                    std::vector<int32_t> pairOf(f.objects.size(), -1);
+                    for (size_t k = 0; k < m_pairs.size(); ++k)
+                        pairOf[m_pairs[k].cur] = static_cast<int32_t>(k);
+                    for (size_t k = 0; k < f.objects.size(); ++k)
+                    {
+                        const Object &o = f.objects[k];
+                        if (o.vertices == 0u || o.cx() < x0 || o.cx() > x1 || o.cy() < y0 || o.cy() > y1)
+                            continue;
+                        uint32_t real = 0, synth = 0, rejected = 0, none = 0;
+                        float maxMove = 0.0f;
+                        for (uint32_t q = 0; q < o.primCount; ++q)
+                        {
+                            const Prim &pr = f.prims[o.primStart + q];
+                            if (pr.prev == kRejected)
+                                ++rejected;
+                            else if (pr.prev == kNone)
+                                ++none;
+                            else if (pr.prev & kSynth)
+                                ++synth;
+                            else
+                            {
+                                ++real;
+                                for (uint32_t v = 0; v < pr.count; ++v)
+                                    maxMove = std::max(maxMove, std::max(std::fabs(f.pos[pr.vtx + v].x - m_last->pos[pr.prev + v].x), std::fabs(f.pos[pr.vtx + v].y - m_last->pos[pr.prev + v].y)));
+                            }
+                        }
+                        std::fprintf(stderr, "[gs:interp] match %llu object %zu key %llx prog %u at %.0f,%.0f: %u prims = %u matched (largest move %.0f) + %u placed + %u rejected + %u alone; %s, motion %u%s (%.1f,%.1f) q0 %g\n",
+                                     static_cast<unsigned long long>(m_matchCount), k, static_cast<unsigned long long>(o.key), o.prog, o.cx(), o.cy(), o.primCount, real, maxMove, synth, rejected, none,
+                                     pairOf[k] < 0 ? "no partner" : m_pairs[pairOf[k]].sameData ? "same data" : "by kind", o.motion, o.hasMotion ? "" : " (no motion)", o.dx, o.dy, o.q0);
+                    }
+                }
+            }
             static const bool s_dbg = std::getenv("PS2_FRAME_INTERP_DEBUG") != nullptr;
             if (s_dbg)
             {
@@ -2715,6 +3070,20 @@ namespace
             uint32_t cur, prev;
         };
         std::vector<Pair> m_pairs;
+        struct Implausible
+        {
+            uint32_t object, prim, partner; // object and primitive of this frame, the partner's first vertex
+            bool wide;                      // within the wider limits for things that move by themselves
+        };
+        std::vector<Implausible> m_implausible;
+        std::vector<uint32_t> m_movers, m_moverParent, m_groupPrims, m_groupHeld;
+        struct CornerEntry
+        {
+            uint64_t key = 0;
+            uint32_t mover = 0;
+            bool used = false;
+        };
+        std::vector<CornerEntry> m_cornerTable;
         std::vector<Candidate> m_candidates;
         std::vector<uint8_t> m_curTaken;
         std::vector<uint32_t> m_restCur, m_restPrev;

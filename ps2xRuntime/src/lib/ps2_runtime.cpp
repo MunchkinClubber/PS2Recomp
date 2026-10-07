@@ -104,12 +104,86 @@ namespace
     AdmaPlayer *g_adma = nullptr;
     void admaFill(int16_t *out, unsigned int frames);
 
+    // The last 20 s of what was played, kept for F12 (which also records a few frames of
+    // graphics): written to ssx3_audiocap_stream.wav (music and speech, the auto-DMA stream as
+    // played) and ssx3_audiocap_voices.wav (the SPU2 voices: sound effects), so that "it sounds
+    // wrong" can be looked at.
+    struct AudioCapture
+    {
+        static constexpr size_t kFrames = 48000u * 20u;
+        std::mutex mutex;
+        std::vector<int16_t> stream = std::vector<int16_t>(kFrames * 2u), voices = std::vector<int16_t>(kFrames * 2u);
+        size_t at = 0, filled = 0;
+        void push(const int16_t *streamFrames, const int16_t *voiceFrames, unsigned int frames)
+        {
+            std::lock_guard<std::mutex> lock(mutex);
+            for (unsigned int i = 0; i < frames; ++i)
+            {
+                stream[2u * at] = streamFrames[2u * i];
+                stream[2u * at + 1u] = streamFrames[2u * i + 1u];
+                voices[2u * at] = voiceFrames[2u * i];
+                voices[2u * at + 1u] = voiceFrames[2u * i + 1u];
+                at = (at + 1u) % kFrames;
+            }
+            filled = std::min(kFrames, filled + frames);
+        }
+        static void writeWav(const char *path, const std::vector<int16_t> &ring, size_t at, size_t filled)
+        {
+            FILE *f = std::fopen(path, "wb");
+            if (!f)
+                return;
+            const uint32_t dataBytes = static_cast<uint32_t>(filled * 4u);
+            const uint32_t riffBytes = 36u + dataBytes, fmtBytes = 16u, rate = 48000u, byteRate = 48000u * 4u;
+            const uint16_t pcm = 1u, channels = 2u, blockAlign = 4u, bits = 16u;
+            std::fwrite("RIFF", 1, 4, f);
+            std::fwrite(&riffBytes, 4, 1, f);
+            std::fwrite("WAVEfmt ", 1, 8, f);
+            std::fwrite(&fmtBytes, 4, 1, f);
+            std::fwrite(&pcm, 2, 1, f);
+            std::fwrite(&channels, 2, 1, f);
+            std::fwrite(&rate, 4, 1, f);
+            std::fwrite(&byteRate, 4, 1, f);
+            std::fwrite(&blockAlign, 2, 1, f);
+            std::fwrite(&bits, 2, 1, f);
+            std::fwrite("data", 1, 4, f);
+            std::fwrite(&dataBytes, 4, 1, f);
+            const size_t first = (at + kFrames - filled) % kFrames; // oldest frame
+            const size_t head = std::min(filled, kFrames - first);
+            std::fwrite(ring.data() + 2u * first, 4, head, f);
+            std::fwrite(ring.data(), 4, filled - head, f);
+            std::fclose(f);
+        }
+        void dump()
+        {
+            // (copied first: the audio thread must not wait for the files)
+            std::vector<int16_t> streamCopy, voicesCopy;
+            size_t at = 0, filled = 0;
+            {
+                std::lock_guard<std::mutex> lock(mutex);
+                streamCopy = stream;
+                voicesCopy = voices;
+                at = this->at;
+                filled = this->filled;
+            }
+            writeWav("ssx3_audiocap_stream.wav", streamCopy, at, filled);
+            writeWav("ssx3_audiocap_voices.wav", voicesCopy, at, filled);
+            std::fprintf(stderr, "[audio] the last %.1f s written to ssx3_audiocap_stream.wav (music, speech) and ssx3_audiocap_voices.wav (sound effects)\n", filled / 48000.0);
+        }
+    };
+    AudioCapture *g_audioCapture = nullptr;
+
     void admaAudioCallback(void *buffer, unsigned int frames)
     {
         int16_t *out = static_cast<int16_t *>(buffer);
         admaFill(out, frames);
         // Sound effects play on SPU2 hardware voices (music and speech come through auto-DMA).
-        ps2x::iop::spu2Render(out, frames);
+        static std::vector<int16_t> voices;
+        voices.assign(static_cast<size_t>(frames) * 2u, int16_t{0});
+        ps2x::iop::spu2Render(voices.data(), frames);
+        if (g_audioCapture)
+            g_audioCapture->push(out, voices.data(), frames);
+        for (size_t i = 0; i < static_cast<size_t>(frames) * 2u; ++i)
+            out[i] = static_cast<int16_t>(std::clamp(static_cast<int32_t>(out[i]) + static_cast<int32_t>(voices[i]), -32768, 32767));
         if (g_adma->dumpOut && g_adma->framesOut < 48000ull * 90u)
             std::fwrite(out, 4u, frames, g_adma->dumpOut);
         g_adma->framesOut += frames;
@@ -264,6 +338,7 @@ namespace
         const char *env = std::getenv("PS2_AUDIO");
         if ((env && env[0] == '0') || !IsAudioDeviceReady() || g_adma)
             return;
+        g_audioCapture = new AudioCapture();
         g_adma = new AdmaPlayer();
         if (const char *dump = std::getenv("PS2_AUDIO_DUMP"); dump && dump[0] == '1')
         {
@@ -3413,6 +3488,8 @@ void PS2Runtime::run()
         {
             extern std::atomic<uint32_t> g_ssx3FrameRecArm; // ps2_vif1_interpreter.cpp
             g_ssx3FrameRecArm.store(1u);
+            if (g_audioCapture)
+                g_audioCapture->dump(); // (the last 20 s of sound)
             extern std::atomic<bool> g_ssx3FrameCallsOn;
             {
                 std::lock_guard<std::mutex> lock(g_ssx3ProfMutex);

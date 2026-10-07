@@ -463,6 +463,18 @@ namespace
     {
         return g_gpuWorker && (!g_gpuWorker->idle() || (g_gsStage && !g_gsStage->idle()));
     }
+
+    // PS2_FLIP_INLINE=1: a flip written while nothing is queued runs on the game thread, as it
+    // did up to r0393 (for comparing; see the DISPFB writes).
+    bool flipOnGameThread()
+    {
+        static const bool on = []()
+        {
+            const char *v = std::getenv("PS2_FLIP_INLINE");
+            return v && v[0] == '1';
+        }();
+        return on;
+    }
 }
 
 // GS thread entry points for PS2Runtime (declared at their use: ps2_memory.h is included by all
@@ -1918,7 +1930,7 @@ void PS2Memory::write32(uint32_t address, uint32_t value)
             // queued: the flip is the GS thread's work (with frame interpolation it matches the
             // frame with the previous one and hands it to the render thread, waiting for that
             // thread if it is behind) and must not run on - and hold up - the game's own thread.
-            if (gpuBusy() || (flip && g_gpuWorker))
+            if (gpuBusy() || (flip && g_gpuWorker && !flipOnGameThread()))
             {
                 // Display registers (DISPFB etc.) take effect in order with the queued drawing.
                 GpuJob job;
@@ -2006,7 +2018,7 @@ void PS2Memory::write64(uint32_t address, uint64_t value)
                     g_ps2FlipHook();
                 }
             };
-            if (gpuBusy() || (flip && g_gpuWorker)) // (see write32)
+            if (gpuBusy() || (flip && g_gpuWorker && !flipOnGameThread())) // (see write32)
             {
                 GpuJob job;
                 job.fn = apply;

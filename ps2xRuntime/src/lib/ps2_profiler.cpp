@@ -136,7 +136,28 @@ namespace
         DWORD64 displacement = 0;
         std::string name;
         if (SymFromAddr(process, address, &displacement, symbol))
+        {
             name = symbol->Name;
+            // Past the end of that symbol (or its size is not known and it is far away): the
+            // address belongs to code without a name of its own - a label in an assembly file
+            // is then the nearest one before it ("_NLG_Return2" collected a sixth of the VU1
+            // thread's samples that way). Say where it really is: source file and line.
+            if (displacement >= (symbol->Size != 0u ? symbol->Size : 0x100u))
+            {
+                IMAGEHLP_LINE64 line{};
+                line.SizeOfStruct = sizeof(line);
+                DWORD lineDisplacement = 0;
+                char text[512];
+                if (SymGetLineFromAddr64(process, address, &lineDisplacement, &line) && line.FileName)
+                {
+                    const char *file = std::strrchr(line.FileName, '\\');
+                    std::snprintf(text, sizeof(text), "(no name; %s:%lu, after %s)", file ? file + 1 : line.FileName, static_cast<unsigned long>(line.LineNumber), symbol->Name);
+                }
+                else
+                    std::snprintf(text, sizeof(text), "(no name; %s+0x%llx)", symbol->Name, static_cast<unsigned long long>(displacement & ~0xFFull));
+                name = text;
+            }
+        }
         else
         {
             char module[MAX_PATH] = "?";
@@ -187,7 +208,7 @@ namespace
         const DWORD self = GetCurrentThreadId();
         const DWORD pid = GetCurrentProcessId();
         HANDLE process = GetCurrentProcess();
-        SymSetOptions(SYMOPT_UNDNAME | SYMOPT_DEFERRED_LOADS);
+        SymSetOptions(SYMOPT_UNDNAME | SYMOPT_DEFERRED_LOADS | SYMOPT_LOAD_LINES);
         SymInitialize(process, nullptr, TRUE);
 
         struct ThreadInfo
