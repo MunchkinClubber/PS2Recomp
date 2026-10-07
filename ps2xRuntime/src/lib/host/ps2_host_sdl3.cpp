@@ -76,6 +76,7 @@ namespace
         VkCommandPool pool = VK_NULL_HANDLE;
         VkCommandBuffer cmd = VK_NULL_HANDLE;
         VkFence fence = VK_NULL_HANDLE;
+        VkFence acquired = VK_NULL_HANDLE; // signalled when the window image of vkAcquireNextImageKHR is really free
         VkSemaphore imageAvailable = VK_NULL_HANDLE;
         VkBuffer staging = VK_NULL_HANDLE;
         VkDeviceMemory stagingMemory = VK_NULL_HANDLE;
@@ -343,7 +344,9 @@ namespace
             VkFenceCreateInfo fci{VK_STRUCTURE_TYPE_FENCE_CREATE_INFO};
             fci.flags = VK_FENCE_CREATE_SIGNALED_BIT;
             VkSemaphoreCreateInfo sci{VK_STRUCTURE_TYPE_SEMAPHORE_CREATE_INFO};
+            VkFenceCreateInfo aci{VK_STRUCTURE_TYPE_FENCE_CREATE_INFO};
             if (vkCreateFence(g_vk.device, &fci, nullptr, &f.fence) != VK_SUCCESS ||
+                vkCreateFence(g_vk.device, &aci, nullptr, &f.acquired) != VK_SUCCESS ||
                 vkCreateSemaphore(g_vk.device, &sci, nullptr, &f.imageAvailable) != VK_SUCCESS)
                 return false;
         }
@@ -531,8 +534,12 @@ namespace
 
         static int s_logs = 0;
         if (s_logs++ < 8)
-            std::fprintf(stderr, "[host:vk] swapchain %ux%u, %u images, %s\n", extent.width, extent.height, count,
-                         mode == VK_PRESENT_MODE_MAILBOX_KHR ? "mailbox" : mode == VK_PRESENT_MODE_IMMEDIATE_KHR ? "immediate" : "fifo (vsync)");
+        {
+            const SDL_DisplayMode *dm = g_window ? SDL_GetCurrentDisplayMode(SDL_GetDisplayForWindow(g_window)) : nullptr;
+            std::fprintf(stderr, "[host:vk] swapchain %ux%u, %u images, %s; display %.2f Hz\n", extent.width, extent.height, count,
+                         mode == VK_PRESENT_MODE_MAILBOX_KHR ? "mailbox" : mode == VK_PRESENT_MODE_IMMEDIATE_KHR ? "immediate" : "fifo (vsync)",
+                         dm ? static_cast<double>(dm->refresh_rate) : 0.0);
+        }
         g_vk.swapchainDirty = false;
         return true;
     }
@@ -590,6 +597,8 @@ namespace
             destroyFrameImage(f);
             if (f.fence)
                 vkDestroyFence(g_vk.device, f.fence, nullptr);
+            if (f.acquired)
+                vkDestroyFence(g_vk.device, f.acquired, nullptr);
             if (f.imageAvailable)
                 vkDestroySemaphore(g_vk.device, f.imageAvailable, nullptr);
             if (f.pool)
@@ -631,10 +640,12 @@ namespace
                 return; // minimised or not ready yet
 
         FrameResources &f = g_vk.frames[g_vk.frameIndex];
+        const uint64_t tStart = SDL_GetTicksNS();
         vkWaitForFences(g_vk.device, 1, &f.fence, VK_TRUE, UINT64_MAX);
+        const uint64_t tOwn = SDL_GetTicksNS();
 
         uint32_t imageIndex = 0;
-        VkResult r = vkAcquireNextImageKHR(g_vk.device, g_vk.swapchain, UINT64_MAX, f.imageAvailable, VK_NULL_HANDLE, &imageIndex);
+        VkResult r = vkAcquireNextImageKHR(g_vk.device, g_vk.swapchain, UINT64_MAX, f.imageAvailable, f.acquired, &imageIndex);
         if (r == VK_ERROR_OUT_OF_DATE_KHR)
         {
             g_vk.swapchainDirty = true;
@@ -645,10 +656,22 @@ namespace
             logVk("vkAcquireNextImageKHR", r);
             return;
         }
+        // The call names the image at once, but the image may only be free a moment later (when
+        // the window system lets go of it, at a refresh of the display). The copy into it is
+        // submitted on the queue the GS renderer draws with, and a submission waiting for
+        // something holds up everything submitted after it: the renderer stood still until the
+        // display's next refresh. So wait for the image here, on this thread, before anything
+        // is submitted.
+        while (vkWaitForFences(g_vk.device, 1, &f.acquired, VK_TRUE, 1000000000ull) == VK_TIMEOUT)
+        {
+        }
+        vkResetFences(g_vk.device, 1, &f.acquired);
+        const uint64_t tImage = SDL_GetTicksNS();
         vkResetFences(g_vk.device, 1, &f.fence);
 
         // From here to the present the queue is ours (the GS renderer submits on it too).
         std::unique_lock<std::mutex> qlock(g_queueMutex);
+        const uint64_t tLocked = SDL_GetTicksNS();
 
         // A frame the GS renderer drew on this device, if it offers one; else the runtime's texture.
         HostGpuFrame gpu{};
@@ -808,12 +831,36 @@ namespace
         pi.swapchainCount = 1;
         pi.pSwapchains = &g_vk.swapchain;
         pi.pImageIndices = &imageIndex;
+        const uint64_t tPresent = SDL_GetTicksNS();
         r = vkQueuePresentKHR(g_vk.queue, &pi);
         if (r == VK_ERROR_OUT_OF_DATE_KHR || r == VK_SUBOPTIMAL_KHR)
             g_vk.swapchainDirty = true;
         else if (r != VK_SUCCESS)
             logVk("vkQueuePresentKHR", r);
         g_vk.frameIndex = (g_vk.frameIndex + 1u) % kFramesInFlight;
+        qlock.unlock();
+        {
+            // For the log, every 600 pictures: where showing a picture had to wait. (The first
+            // two are waits of this thread only; "queue held" keeps the GS renderer from
+            // submitting for that long.)
+            static uint64_t n = 0, ownNs = 0, ownMax = 0, imageNs = 0, imageMax = 0, imageLong = 0, presentMax = 0, heldMax = 0, heldNs = 0;
+            const uint64_t tEnd = SDL_GetTicksNS();
+            ownNs += tOwn - tStart;
+            ownMax = std::max(ownMax, tOwn - tStart);
+            imageNs += tImage - tOwn;
+            imageMax = std::max(imageMax, tImage - tOwn);
+            imageLong += tImage - tOwn > 1000000ull ? 1u : 0u;
+            presentMax = std::max(presentMax, tEnd - tPresent);
+            heldNs += tEnd - tLocked;
+            heldMax = std::max(heldMax, tEnd - tLocked);
+            if (++n >= 600u)
+            {
+                std::fprintf(stderr, "[host:vk] last %llu pictures: waited for the copy before last %.2f ms on average (longest %.1f), for a free window image %.2f ms on average (longest %.1f, %llu times over 1 ms); queue held %.2f ms on average (longest %.1f), the present call at most %.1f ms\n",
+                             static_cast<unsigned long long>(n), ownNs / 1e6 / n, ownMax / 1e6, imageNs / 1e6 / n, imageMax / 1e6, static_cast<unsigned long long>(imageLong),
+                             heldNs / 1e6 / n, heldMax / 1e6, presentMax / 1e6);
+                n = ownNs = ownMax = imageNs = imageMax = imageLong = presentMax = heldMax = heldNs = 0;
+            }
+        }
     }
 
     // ---------------------------------------------------------------- input

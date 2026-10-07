@@ -3508,11 +3508,14 @@ namespace
             // it creeps forward. So the delay settles a little above the longest the renderer
             // took lately, and the pictures come at even intervals instead of late.
             // How fast it creeps forward decides how even: creeping up to the edge again within
-            // a quarter of a second, it was pushed back three times a second in an ordinary race
-            // (by 1.4 ms on average - a sixth of the time between two pictures - and by much
-            // more whenever the game handed a frame over late). So what a push added is held
-            // (m_holdNs) and only given back slowly, over some ten seconds: the schedule stays
-            // where the late frames of the last seconds need it.
+            // a quarter of a second, it is pushed back three times a second in an ordinary race
+            // (by 1.4 ms on average - a sixth of the time between two pictures).
+            // PS2_FRAME_INTERP_STEADY=1 holds what a push added (m_holdNs) and gives it back
+            // slowly, over some ten seconds. Off by default: in the one run with it on, the
+            // schedule was pushed less than half as often, but the render thread fell behind
+            // three times as often (22-30 ms for a frame, most of it waiting for the GPU) and
+            // the in-between pictures were dropped for about a third of the race. Why the two
+            // go together is not understood yet.
             const uint64_t period = updatePeriod(job.flipNs);
             const uint64_t step = period / factor;
             uint64_t showReal = job.flipNs + step * (factor - 1u) + 8000000ull; // a first guess
@@ -3830,7 +3833,7 @@ namespace
         uint64_t m_statPushed = 0, m_statPushedNs = 0, m_statDelayNs = 0;
         uint64_t m_statPushedBig = 0, m_statPushedMaxNs = 0, m_statHoldNs = 0, m_statLongFrames = 0, m_statLongestNs = 0;
         uint64_t m_holdNs = 0; // what pushes added to the schedule lately and is not given back yet (see runJob)
-        bool m_steady = !(std::getenv("PS2_FRAME_INTERP_STEADY") && std::getenv("PS2_FRAME_INTERP_STEADY")[0] == '0');
+        bool m_steady = std::getenv("PS2_FRAME_INTERP_STEADY") && std::getenv("PS2_FRAME_INTERP_STEADY")[0] == '1';
 
         bool m_stats = false;
         uint64_t m_statFlips = 0, m_statPrims = 0, m_statMatched = 0, m_statRejected = 0, m_statPictures = 0, m_statPassNs = 0, m_statMatchNs = 0, m_statRecovered = 0,
