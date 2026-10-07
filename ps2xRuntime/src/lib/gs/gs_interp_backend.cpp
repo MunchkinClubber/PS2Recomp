@@ -3507,6 +3507,12 @@ namespace
             // than its time (see below), the schedule moves back at once; when there is slack,
             // it creeps forward. So the delay settles a little above the longest the renderer
             // took lately, and the pictures come at even intervals instead of late.
+            // How fast it creeps forward decides how even: creeping up to the edge again within
+            // a quarter of a second, it was pushed back three times a second in an ordinary race
+            // (by 1.4 ms on average - a sixth of the time between two pictures - and by much
+            // more whenever the game handed a frame over late). So what a push added is held
+            // (m_holdNs) and only given back slowly, over some ten seconds: the schedule stays
+            // where the late frames of the last seconds need it.
             const uint64_t period = updatePeriod(job.flipNs);
             const uint64_t step = period / factor;
             uint64_t showReal = job.flipNs + step * (factor - 1u) + 8000000ull; // a first guess
@@ -3587,11 +3593,18 @@ namespace
                         {
                             ++m_statPushed;
                             m_statPushedNs += moved - showReal;
+                            m_statPushedMaxNs = std::max(m_statPushedMaxNs, moved - showReal);
+                            if (moved - showReal > 2000000ull)
+                                ++m_statPushedBig;
+                            if (m_steady)
+                                m_holdNs = std::min(m_holdNs + (moved - showReal), period / 2u);
                         }
                         showReal = moved;
                     }
-                    else if (first - ready > m_slackNs)
-                        showReal -= std::min<uint64_t>((first - ready - m_slackNs) / 32u, 100000ull);
+                    else if (first - ready > m_slackNs + m_holdNs)
+                        showReal -= std::min<uint64_t>((first - ready - m_slackNs - m_holdNs) / 32u, 100000ull);
+                    m_holdNs -= m_holdNs / 512u;
+                    m_statHoldNs += m_holdNs;
                     m_statDelayNs += showReal - job.flipNs;
                 }
                 s_nextDueNs.store(showReal - step * (passes - pass), std::memory_order_relaxed);
@@ -3630,7 +3643,7 @@ namespace
             if (m_stats && m_statFlips >= 300u)
             {
                 const double n = static_cast<double>(m_statFlips);
-                std::fprintf(stderr, "[gs:interp] %ux: %.2f pictures per game frame; of %.0f primitives/frame %.1f%% matched, %.1f%% placed by the camera model or a neighbour, %.1f%% carried along, %.1f%% moved implausibly; matching %.2f ms/frame, drawing all passes %.2f ms/frame, game frame period %.2f ms, a frame reaches the render thread %.1f ms after the game's flip (%.2f ms of that waiting for the frame before); frames without in-between pictures: %llu cut, %llu needed the renderer mid-frame (%llu such calls), %llu while behind (%llu times); texture pages put back between passes: %.1f per frame (%.2f of them in drawn buffers), transfers left for the last pass: %.1f per frame; real picture shown %.1f ms after its flip on average, schedule moved back %llu times (%.1f ms in all)\n",
+                std::fprintf(stderr, "[gs:interp] %ux: %.2f pictures per game frame; of %.0f primitives/frame %.1f%% matched, %.1f%% placed by the camera model or a neighbour, %.1f%% carried along, %.1f%% moved implausibly; matching %.2f ms/frame, drawing all passes %.2f ms/frame, game frame period %.2f ms, a frame reaches the render thread %.1f ms after the game's flip (%.2f ms of that waiting for the frame before); frames without in-between pictures: %llu cut, %llu needed the renderer mid-frame (%llu such calls), %llu while behind (%llu times); texture pages put back between passes: %.1f per frame (%.2f of them in drawn buffers), transfers left for the last pass: %.1f per frame; real picture shown %.1f ms after its flip on average, schedule moved back %llu times (%.1f ms in all, %llu of them by more than 2 ms, the largest %.1f ms), held back %.1f ms on average to keep it steady; game frames that took 1.5 periods or more: %llu (the longest %.1f ms)\n",
                              factor, static_cast<double>(m_statPictures) / n, static_cast<double>(m_statPrims) / n,
                              m_statPrims ? 100.0 * m_statMatched / m_statPrims : 0.0, m_statPrims ? 100.0 * m_statRecovered / m_statPrims : 0.0,
                              m_statPrims ? 100.0 * m_statCarried / m_statPrims : 0.0,
@@ -3638,9 +3651,12 @@ namespace
                              m_statLagNs / 1e6 / n, m_statQueuedNs / 1e6 / n, static_cast<unsigned long long>(m_statCuts), static_cast<unsigned long long>(m_statBroken),
                              static_cast<unsigned long long>(m_statDrains), static_cast<unsigned long long>(m_statShedFrames),
                              static_cast<unsigned long long>(m_statSheds), static_cast<double>(m_statHazardPages) / n, static_cast<double>(m_statHazardDrawn) / n,
-                             static_cast<double>(m_statLate) / n, m_statDelayNs / 1e6 / n, static_cast<unsigned long long>(m_statPushed), m_statPushedNs / 1e6);
+                             static_cast<double>(m_statLate) / n, m_statDelayNs / 1e6 / n, static_cast<unsigned long long>(m_statPushed), m_statPushedNs / 1e6,
+                             static_cast<unsigned long long>(m_statPushedBig), m_statPushedMaxNs / 1e6, m_statHoldNs / 1e6 / n,
+                             static_cast<unsigned long long>(m_statLongFrames), m_statLongestNs / 1e6);
                 m_statHazardPages = m_statHazardFrames = m_statLate = m_statHazardDrawn = m_statCarried = 0;
                 m_statPushed = m_statDelayNs = m_statPushedNs = m_statQueuedNs = 0;
+                m_statPushedBig = m_statPushedMaxNs = m_statHoldNs = m_statLongFrames = m_statLongestNs = 0;
                 m_statFlips = m_statPrims = m_statMatched = m_statRejected = m_statPictures = m_statPassNs = m_statCuts = m_statBroken = m_statDrains = 0;
                 m_statLagNs = m_statShedFrames = m_statSheds = 0;
                 m_statMatchNs = m_statRecovered = 0;
@@ -3669,6 +3685,13 @@ namespace
             if (m_lastFlipNs != 0u)
             {
                 const uint64_t d = flipNs - m_lastFlipNs;
+                // (for the log: game frames that took a period and a half or more - a frame the
+                // game lost, not one that was merely handed over late within its period)
+                if (d > m_periodNs + m_periodNs / 2u && d < 100000000ull)
+                {
+                    ++m_statLongFrames;
+                    m_statLongestNs = std::max(m_statLongestNs, d);
+                }
                 if (d > 4000000ull && d < 100000000ull)
                     m_periodNs = (m_periodNs * 15u + d) / 16u;
             }
@@ -3805,6 +3828,9 @@ namespace
         uint64_t m_marginNs = static_cast<uint64_t>((std::getenv("PS2_FRAME_INTERP_MARGIN_MS") ? std::max(0.0, std::atof(std::getenv("PS2_FRAME_INTERP_MARGIN_MS"))) : 3.0) * 1e6);
         uint64_t m_slackNs = 1000000ull;
         uint64_t m_statPushed = 0, m_statPushedNs = 0, m_statDelayNs = 0;
+        uint64_t m_statPushedBig = 0, m_statPushedMaxNs = 0, m_statHoldNs = 0, m_statLongFrames = 0, m_statLongestNs = 0;
+        uint64_t m_holdNs = 0; // what pushes added to the schedule lately and is not given back yet (see runJob)
+        bool m_steady = !(std::getenv("PS2_FRAME_INTERP_STEADY") && std::getenv("PS2_FRAME_INTERP_STEADY")[0] == '0');
 
         bool m_stats = false;
         uint64_t m_statFlips = 0, m_statPrims = 0, m_statMatched = 0, m_statRejected = 0, m_statPictures = 0, m_statPassNs = 0, m_statMatchNs = 0, m_statRecovered = 0,

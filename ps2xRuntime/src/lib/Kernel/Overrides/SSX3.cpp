@@ -356,15 +356,18 @@ namespace
         ssx3FrameCallsFlush(*runtime, 'S' | (idx << 16), getRegU32(ctx, 31), cur - head);
 
         {
-            // Stutter log: a game frame that took more than 1.3 frame periods (a load screen's
-            // long gaps aside) - with the profiler on, with what every thread was doing meanwhile.
+            // Stutter log: a game frame handed to the renderer more than 1.3 frame periods after
+            // the one before (a load screen's long gaps aside) - with the profiler on, with what
+            // every thread was doing meanwhile. Mostly that is a frame handed over late WITHIN its
+            // period (the next one comes sooner again and no frame is lost); the frames the game
+            // really lost are counted in the "[gs:interp]" line.
             static uint64_t lastFrameNs = 0u, lastBackpressureNs = 0u;
             const uint64_t frameNs = ps2HitchNowNs();
             const uint64_t backpressureNs = ps2PerfBackpressureNs();
             if (lastFrameNs != 0u && frameNs - lastFrameNs > 22000000ull && frameNs - lastFrameNs < 1000000000ull)
             {
                 char text[160];
-                std::snprintf(text, sizeof(text), "game frame took %.1f ms (%.1f ms of that waiting for the VU1 thread)",
+                std::snprintf(text, sizeof(text), "game frame handed over %.1f ms after the one before (%.1f ms of that waiting for the VU1 thread)",
                               (frameNs - lastFrameNs) / 1e6, (backpressureNs - lastBackpressureNs) / 1e6);
                 ps2HitchReport(text, lastFrameNs, frameNs);
             }
