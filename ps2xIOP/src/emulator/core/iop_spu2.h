@@ -3,8 +3,8 @@
 #include <cstdint>
 
 // SPU2 voice emulation for host audio: SPU RAM (manual and DMA transfers), the 2x24 ADPCM voices
-// with ADSR envelopes, key on/off, noise, pitch modulation, volume sweeps, ENDX/ENVX/NAX
-// read-back, voice/master volumes and the dry mix switches. No reverb. Everything happens on the
+// with ADSR envelopes, key on/off, noise, pitch modulation, volume sweeps, ENDX/ENVX/VOLX/NAX
+// read-back, voice/master volumes, the mix switches and the reverb. Everything happens on the
 // IOP's thread, in emulated time: 48000 frames per second of the IOP's clock (see bindClock),
 // handed to the host as they are generated (ps2x::iop::setSpu2VoiceSink in iop_spu2.cpp).
 namespace ps2x::iop::detail::spu2

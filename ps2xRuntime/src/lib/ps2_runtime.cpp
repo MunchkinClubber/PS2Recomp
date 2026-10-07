@@ -27,6 +27,8 @@
 #endif
 #include "runtime/gs/gs_interp_backend.h"
 #include <cstring>
+#include <cmath>
+#include <algorithm>
 #include <limits>
 #include <chrono>
 #include <atomic>
@@ -310,9 +312,41 @@ namespace
     };
     VoiceQueue *g_voiceQueue = nullptr;
 
+    // How loud each of the two paths is (for the log: their balance is what one hears first).
+    struct LevelMeter
+    {
+        std::atomic<uint64_t> sumSquares{0u}, samples{0u};
+        std::atomic<uint32_t> peak{0u};
+        void add(const int16_t *interleaved, size_t count)
+        {
+            uint64_t sum = 0u;
+            uint32_t top = 0u;
+            for (size_t i = 0; i < count; ++i)
+            {
+                const int32_t v = interleaved[i];
+                sum += static_cast<uint64_t>(v * v);
+                top = std::max(top, static_cast<uint32_t>(v < 0 ? -v : v));
+            }
+            sumSquares.fetch_add(sum, std::memory_order_relaxed);
+            samples.fetch_add(count, std::memory_order_relaxed);
+            if (top > peak.load(std::memory_order_relaxed))
+                peak.store(top, std::memory_order_relaxed);
+        }
+        // rms and peak since the last call
+        void take(double &rms, uint32_t &top)
+        {
+            const uint64_t n = samples.exchange(0u, std::memory_order_relaxed);
+            const uint64_t sum = sumSquares.exchange(0u, std::memory_order_relaxed);
+            top = peak.exchange(0u, std::memory_order_relaxed);
+            rms = n ? std::sqrt(static_cast<double>(sum) / static_cast<double>(n)) : 0.0;
+        }
+    };
+    LevelMeter g_streamLevel, g_voiceLevel;
+
     // IOP thread: the voices' frames as they are generated.
     void spu2VoiceSink(const int16_t *stereo, uint32_t frames)
     {
+        g_voiceLevel.add(stereo, static_cast<size_t>(frames) * 2u);
         if (g_audioCapture)
             g_audioCapture->pushVoices(stereo, frames);
         if (g_voiceQueue)
@@ -416,6 +450,7 @@ namespace
                 std::fwrite(frames, 4u, 256u, p.dumpIn);
             if (g_audioCapture)
                 g_audioCapture->pushStream(frames, 256u);
+            g_streamLevel.add(frames, 512u);
             p.framesIn += 256u;
             for (int k = 0; k < 256; ++k)
             {
@@ -471,9 +506,13 @@ namespace
                 // (the sound effects' queue; read without its lock - numbers for a log line)
                 static uint64_t s_voiceUnder = 0u, s_voiceTrims = 0u, s_voiceIn = 0u;
                 VoiceQueue &q = *g_voiceQueue;
-                std::fprintf(stderr, "[audio] sound effects, last 10 s: %llu gaps, %llu overflow trims, queue %zu frames (target %zu), in %.0f/s\n",
+                double streamRms = 0.0, voiceRms = 0.0;
+                uint32_t streamPeak = 0u, voicePeak = 0u;
+                g_streamLevel.take(streamRms, streamPeak);
+                g_voiceLevel.take(voiceRms, voicePeak);
+                std::fprintf(stderr, "[audio] sound effects, last 10 s: %llu gaps, %llu overflow trims, queue %zu frames (target %zu), in %.0f/s; levels: music and speech rms %.0f peak %u, sound effects rms %.0f peak %u\n",
                              (unsigned long long)(q.underruns - s_voiceUnder), (unsigned long long)(q.trims - s_voiceTrims), q.count, q.target,
-                             (q.framesIn - s_voiceIn) / secs);
+                             (q.framesIn - s_voiceIn) / secs, streamRms, streamPeak, voiceRms, voicePeak);
                 s_voiceUnder = q.underruns;
                 s_voiceTrims = q.trims;
                 s_voiceIn = q.framesIn;

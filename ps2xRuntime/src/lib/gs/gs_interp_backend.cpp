@@ -156,6 +156,8 @@ namespace
         uint32_t implausible = 0;       // primitives whose partner was not where they can have come from
         bool rejected = false;          // all of it keeps this frame's positions in the in-between pictures
         bool affineDone = false, affineOk = false;
+        bool layer = false;   // a layer of the ground under it (see releaseWorldLayers)
+        bool clipped = false; // cut up by the game's own clipping: its primitives are not last frame's (see fitCamera)
         float affine[6] = {};           // where it was: x' = a0 x + a1 y + a2, y' = a3 x + a4 y + a5 (see objectAffine)
         float ax0 = 0.0f, ay0 = 0.0f, ax1 = 0.0f, ay1 = 0.0f; // ... valid for corners in this rectangle
 
@@ -215,6 +217,7 @@ namespace
         bool complete = false;  // recorded from flip to flip without a gap
         uint32_t matched = 0, rejected = 0, recovered = 0, carried = 0;
         uint32_t held = 0; // primitives of things that stay as a whole (see settleMovers)
+        uint32_t layers = 0; // objects taken for layers of the ground under them (see releaseWorldLayers)
 
         void clear()
         {
@@ -238,7 +241,7 @@ namespace
             doneOps = 0;
             broken = false;
             complete = false;
-            matched = rejected = recovered = carried = held = 0;
+            matched = rejected = recovered = carried = held = layers = 0;
         }
     };
 
@@ -857,9 +860,114 @@ namespace
         //    layers). Half a rider moved on and half not is a rider torn apart, so when a good
         //    part of one stays (a sixth of its primitives), all of it does. What belongs together
         //    is known from the corners: neighbouring parts have corners at the very same place.
+        // The world's layers. The ground is drawn in several passes over the very same corners
+        // - base texture, detail, shadows, each by its own VU1 program. The passes are matched
+        // one by one, and a pass can come out differently from the one under it: its triangles
+        // paired with the wrong ones of last frame (the game clips some passes itself, see
+        // fitCamera), it then looks like a thing that moves by itself, cannot be followed, and
+        // stays where it is while the pass under it moves on. In the in-between picture the
+        // layers then lie apart: a strip of ground without its base, the sky showing through.
+        // So: an object that is not known to move with the world, most of whose corners are
+        // corners of followed primitives that do, is a layer of that ground. Its own matches
+        // are dropped; recoverUnmatched gives every corner the position its twin has.
+        void releaseWorldLayers()
+        {
+            Frame &f = *m_cur;
+            m_layerObjects.clear();
+            size_t corners = 0;
+            for (uint32_t k = 0; k < f.objects.size(); ++k)
+            {
+                const Object &o = f.objects[k];
+                if (!o.inScene || o.primCount == 0u || (o.motion == 1u && !o.rejected))
+                    continue;
+                m_layerObjects.push_back(k);
+                corners += o.vertices;
+            }
+            if (m_layerObjects.empty())
+                return;
+            uint32_t capacity = 256u;
+            while (capacity < corners * 2u)
+                capacity <<= 1;
+            m_layerTable.assign(capacity, CornerEntry{});
+            const auto slotFor = [&](const XY &at, uint64_t &key)
+            {
+                uint32_t xb, yb;
+                std::memcpy(&xb, &at.x, 4);
+                std::memcpy(&yb, &at.y, 4);
+                key = (static_cast<uint64_t>(xb) << 32) | yb;
+                uint32_t slot = static_cast<uint32_t>((key * 0x9E3779B97F4A7C15ull) >> 40) & (capacity - 1u);
+                while (m_layerTable[slot].used && m_layerTable[slot].key != key)
+                    slot = (slot + 1u) & (capacity - 1u);
+                return slot;
+            };
+            for (uint32_t k : m_layerObjects)
+            {
+                const Object &o = f.objects[k];
+                const Prim *p = f.prims.data() + o.primStart;
+                for (uint32_t q = 0; q < o.primCount; ++q)
+                    for (uint32_t v = 0; v < p[q].count; ++v)
+                    {
+                        uint64_t key;
+                        const uint32_t slot = slotFor(f.pos[p[q].vtx + v], key);
+                        if (!m_layerTable[slot].used)
+                            m_layerTable[slot] = CornerEntry{key, 0u, true}; // (mover: 1 once a world corner is there)
+                    }
+            }
+            // the corners of what moves with the world and is followed
+            for (const Object &o : f.objects)
+            {
+                if (!o.inScene || o.motion != 1u || o.rejected)
+                    continue;
+                const Prim *p = f.prims.data() + o.primStart;
+                for (uint32_t q = 0; q < o.primCount; ++q)
+                {
+                    if (!hasPrev(p[q].prev))
+                        continue;
+                    for (uint32_t v = 0; v < p[q].count; ++v)
+                    {
+                        uint64_t key;
+                        const uint32_t slot = slotFor(f.pos[p[q].vtx + v], key);
+                        if (m_layerTable[slot].used)
+                            m_layerTable[slot].mover = 1u;
+                    }
+                }
+            }
+            static const bool s_dbg = std::getenv("PS2_FRAME_INTERP_DEBUG") != nullptr;
+            for (uint32_t k : m_layerObjects)
+            {
+                Object &o = f.objects[k];
+                Prim *p = f.prims.data() + o.primStart;
+                uint32_t all = 0, shared = 0;
+                for (uint32_t q = 0; q < o.primCount; ++q)
+                    for (uint32_t v = 0; v < p[q].count; ++v)
+                    {
+                        uint64_t key;
+                        shared += m_layerTable[slotFor(f.pos[p[q].vtx + v], key)].mover;
+                        ++all;
+                    }
+                if (all < 3u || shared * 5u < all * 3u)
+                    continue;
+                if (s_dbg)
+                    std::fprintf(stderr, "[gs:interp] object %llx at %.0f,%.0f (%u prims, motion %u%s): %u of its %u corners are the moving ground's -> a layer of it\n",
+                                 static_cast<unsigned long long>(o.key), o.cx(), o.cy(), o.primCount, o.motion, o.rejected ? ", was staying" : "", shared, all);
+                for (uint32_t q = 0; q < o.primCount; ++q)
+                {
+                    if (hasPrev(p[q].prev))
+                        --f.matched;
+                    p[q].prev = kNone;
+                }
+                o.motion = 1u;
+                o.hasMotion = false;
+                o.rejected = false;
+                o.layer = true;
+                ++f.layers;
+            }
+        }
+
         void settleMovers()
         {
             Frame &f = *m_cur;
+            releaseWorldLayers();
             for (size_t i = 0; i < m_implausible.size();)
             {
                 const size_t first = i;
@@ -873,7 +981,7 @@ namespace
                 // half off the screen, has plenty of triangles that cannot be followed and a few
                 // that seem to move by themselves; it is left to the camera model as before)
                 const uint8_t progMotion = o.prog < m_progFrame.size() ? m_progFrame[o.prog].motion : uint8_t{0};
-                const bool mover = progMotion != 1u && (o.motion == 2u || (o.motion == 0u && progMotion == 2u));
+                const bool mover = !o.clipped && progMotion != 1u && (o.motion == 2u || (o.motion == 0u && progMotion == 2u));
                 if (o.rejected || !mover)
                     continue;
                 uint32_t failed = 0, taken = 0;
@@ -1222,6 +1330,34 @@ namespace
             m_haveModel = false;
             m_samples.clear();
             m_progFrame.assign(m_progPc.size(), ProgFrame{});
+            // What the game clips itself (the ground next to the camera, by a VU1 program of its
+            // own) comes as a different set of triangles every frame: the n-th one of this frame
+            // is not the n-th one of the last. The count gives it away - an object and its
+            // partner differ in it - and so does the program, most of whose objects do. Such an
+            // object's few "matched" primitives say nothing about how it moves, and it is never
+            // taken for something that moves by itself (settleMovers, objectAffine).
+            m_progClips.resize(m_progPc.size(), 0u);
+            m_progPairs.assign(m_progPc.size() * 2u, 0u);
+            for (const Pair &pair : m_pairs)
+            {
+                Object &o = f.objects[pair.cur];
+                o.clipped = o.primCount != m_last->objects[pair.prev].primCount;
+                if (o.prog < m_progPc.size())
+                {
+                    ++m_progPairs[2u * o.prog];
+                    m_progPairs[2u * o.prog + 1u] += o.clipped ? 1u : 0u;
+                }
+            }
+            for (size_t i = 0; i < m_progClips.size(); ++i)
+            {
+                if (m_progPairs[2u * i + 1u] >= 2u && m_progPairs[2u * i + 1u] * 4u >= m_progPairs[2u * i])
+                    m_progClips[i] = 240u; // (frames it stays known for)
+                else if (m_progClips[i] != 0u)
+                    --m_progClips[i];
+            }
+            for (Object &o : f.objects)
+                if (o.prog < m_progClips.size() && m_progClips[o.prog] != 0u)
+                    o.clipped = true;
             uint32_t total = 0;
             for (const Pair &pair : m_pairs)
                 if (pair.sameData)
@@ -1790,7 +1926,7 @@ namespace
                                 continue;
                             if (o.hasMotion)
                             {
-                                if (o.motion == 2u && objectAffine(o) && old[v].x >= o.ax0 && old[v].x <= o.ax1 && old[v].y >= o.ay0 && old[v].y <= o.ay1)
+                                if (o.motion == 2u && !o.clipped && objectAffine(o) && old[v].x >= o.ax0 && old[v].x <= o.ax1 && old[v].y >= o.ay0 && old[v].y <= o.ay1)
                                 {
                                     const float x = old[v].x, y = old[v].y;
                                     old[v].x = o.affine[0] * x + o.affine[1] * y + o.affine[2];
@@ -2341,6 +2477,54 @@ namespace
             f.phaseNs[0] = t0 - tStart;
             f.phaseNs[1] = tm - t0;
             f.phaseNs[2] = nowNs() - t1;
+            if (const char *rect = std::getenv("PS2_FRAME_INTERP_PRIMRECT"))
+            {
+                // PS2_FRAME_INTERP_PRIMRECT=x0,y0,x1,y1,match (screen pixels): the primitives of
+                // that match that touch the rectangle, with where they are taken from (debug)
+                float x0 = 0, y0 = 0, x1 = 0, y1 = 0;
+                unsigned long long match = 0;
+                if (std::sscanf(rect, "%f,%f,%f,%f,%llu", &x0, &y0, &x1, &y1, &match) == 5 && match == m_matchCount)
+                {
+                    size_t objectIndex = 0;
+                    for (const Run &run : f.runs)
+                    {
+                        const GSContext &ctx = f.states[run.state].context;
+                        const float ox = static_cast<float>(ctx.xyoffset.ofx >> 4), oy = static_cast<float>(ctx.xyoffset.ofy >> 4);
+                        for (uint32_t k = 0; k < run.primCount; ++k)
+                        {
+                            const uint32_t index = run.primStart + k;
+                            const Prim &pr = f.prims[index];
+                            float bx0 = 1e9f, by0 = 1e9f, bx1 = -1e9f, by1 = -1e9f;
+                            for (uint32_t v = 0; v < pr.count; ++v)
+                            {
+                                bx0 = std::min(bx0, f.pos[pr.vtx + v].x - ox);
+                                bx1 = std::max(bx1, f.pos[pr.vtx + v].x - ox);
+                                by0 = std::min(by0, f.pos[pr.vtx + v].y - oy);
+                                by1 = std::max(by1, f.pos[pr.vtx + v].y - oy);
+                            }
+                            if (bx1 < x0 || bx0 > x1 || by1 < y0 || by0 > y1)
+                                continue;
+                            while (objectIndex + 1u < f.objects.size() && index >= f.objects[objectIndex].primStart + f.objects[objectIndex].primCount)
+                                ++objectIndex;
+                            const Object &o = f.objects[objectIndex];
+                            std::fprintf(stderr, "[gs:interp] prim %u object %zu prog %u fbp %x tex %x %s motion %u%s%s:", index, objectIndex, o.prog, ctx.frame.fbp, static_cast<unsigned>(ctx.tex0.tbp0),
+                                         pr.prev == kRejected ? "held" : pr.prev == kNone ? "alone" : (pr.prev & kSynth) ? "placed" : "matched", o.motion, o.clipped ? " clipped" : "", o.rejected ? " object-held" : "");
+                            for (uint32_t v = 0; v < pr.count; ++v)
+                            {
+                                const GSVertex &c = f.verts[pr.vtx + v];
+                                std::fprintf(stderr, " (%.0f,%.0f q%.4f", c.x - ox, c.y - oy, c.q);
+                                if (hasPrev(pr.prev))
+                                {
+                                    const GSVertex &q = (pr.prev & kSynth) ? f.synth[(pr.prev & ~kSynth) + v] : m_last->verts[pr.prev + v];
+                                    std::fprintf(stderr, " <- %.0f,%.0f q%.4f", q.x - ox, q.y - oy, q.q);
+                                }
+                                std::fprintf(stderr, ")");
+                            }
+                            std::fprintf(stderr, "\n");
+                        }
+                    }
+                }
+            }
             if (const char *rect = std::getenv("PS2_FRAME_INTERP_OBJRECT"))
             {
                 // PS2_FRAME_INTERP_OBJRECT=x0,y0,x1,y1 (GS coordinates): the objects whose centre
@@ -3084,6 +3268,8 @@ namespace
             bool used = false;
         };
         std::vector<CornerEntry> m_cornerTable;
+        std::vector<CornerEntry> m_layerTable;  // releaseWorldLayers
+        std::vector<uint32_t> m_layerObjects;
         std::vector<Candidate> m_candidates;
         std::vector<uint8_t> m_curTaken;
         std::vector<uint32_t> m_restCur, m_restPrev;
@@ -3114,6 +3300,8 @@ namespace
         std::vector<uint32_t> m_gridQueue;
         std::vector<uint32_t> m_progPc;       // VU1 programs seen (Object::prog indexes this)
         std::vector<ProgFrame> m_progFrame;   // per program, this frame
+        std::vector<uint16_t> m_progClips;    // per program: frames left for which it is known to clip (fitCamera)
+        std::vector<uint32_t> m_progPairs;    // per program, this frame: paired objects, and those whose count changed
         std::vector<Sample> m_samples;
         double m_model[3][4]{};
         bool m_haveModel = false;
