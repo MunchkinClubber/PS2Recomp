@@ -8,6 +8,7 @@
 #include "core/iop_kernel.h"
 #include "imports/iop_loadcore.h"
 #include "core/iop_memory.h"
+#include "core/iop_spu2.h"
 #include "services/iop_module_loader.h"
 #include "services/iop_rpc.h"
 #include "imports/iop_stdio.h"
@@ -138,6 +139,7 @@ namespace ps2x::iop::detail
             nextModuleId = 1;
             moduleCursor = kModuleLoadBase;
             totalCycles = 0;
+            spu2::bindClock(&totalCycles); // (the SPU2 voices are generated in this clock's time)
             totalInstructions = 0;
             eeCycleCarry = 0;
             activeCpu = nullptr;
@@ -669,6 +671,7 @@ namespace ps2x::iop::detail
                     if (totalCycles == before)
                         ++totalCycles;
                 }
+                spu2::sync(); // the voices' output up to here
             }
             catch (...)
             {

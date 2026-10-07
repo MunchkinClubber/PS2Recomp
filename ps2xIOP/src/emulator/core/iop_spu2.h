@@ -2,16 +2,21 @@
 
 #include <cstdint>
 
-// Minimal SPU2 voice emulation for host audio: SPU RAM (manual and DMA transfers), the 2x24
-// ADPCM voices with ADSR envelopes, key on/off, ENDX/ENVX/NAX read-back, voice/master volumes and
-// the dry mix switches. No reverb, no pitch modulation or noise. The IOP thread drives register
-// writes; the host audio thread renders (spu2Render in iop_host.h). Thread-safe.
+// SPU2 voice emulation for host audio: SPU RAM (manual and DMA transfers), the 2x24 ADPCM voices
+// with ADSR envelopes, key on/off, noise, pitch modulation, volume sweeps, ENDX/ENVX/NAX
+// read-back, voice/master volumes and the dry mix switches. No reverb. Everything happens on the
+// IOP's thread, in emulated time: 48000 frames per second of the IOP's clock (see bindClock),
+// handed to the host as they are generated (ps2x::iop::setSpu2VoiceSink in iop_spu2.cpp).
 namespace ps2x::iop::detail::spu2
 {
     constexpr uint32_t kBase = 0x1F900000u;
     constexpr uint32_t kEnd = 0x1F900800u;
 
     void reset();
+    // The IOP's cycle counter (36.864 MHz): what the voices are generated against.
+    void bindClock(const uint64_t *cycles);
+    // Generates the frames up to the clock's present value (also done by every access below).
+    void sync();
     // A 16-bit register write in [kBase, kEnd).
     void write16(uint32_t phys, uint16_t value);
     // Registers whose value the SPU2 itself changes (ENVX, NAX, ENDX): true and the value.

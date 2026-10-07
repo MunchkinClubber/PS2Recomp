@@ -34,6 +34,12 @@
 #include <unordered_map>
 #include <sstream>
 
+// The SPU2 voices (sound effects), generated in emulated time on the IOP's thread (iop_spu2.cpp).
+namespace ps2x::iop
+{
+    void setSpu2VoiceSink(void (*sink)(const int16_t *stereo, uint32_t frames));
+}
+
 static ps2x::iop::IopSubsystem *s_iopSubsystemForCmds = nullptr;
 static PS2IopHostAdapter *s_iopHostForCmds = nullptr;
 
@@ -111,21 +117,32 @@ namespace
     struct AudioCapture
     {
         static constexpr size_t kFrames = 48000u * 20u;
+        struct Ring
+        {
+            std::vector<int16_t> data = std::vector<int16_t>(kFrames * 2u);
+            size_t at = 0, filled = 0;
+            void push(const int16_t *stereo, size_t frames)
+            {
+                for (size_t i = 0; i < frames; ++i)
+                {
+                    data[2u * at] = stereo[2u * i];
+                    data[2u * at + 1u] = stereo[2u * i + 1u];
+                    at = (at + 1u) % kFrames;
+                }
+                filled = std::min(kFrames, filled + frames);
+            }
+        };
         std::mutex mutex;
-        std::vector<int16_t> stream = std::vector<int16_t>(kFrames * 2u), voices = std::vector<int16_t>(kFrames * 2u);
-        size_t at = 0, filled = 0;
-        void push(const int16_t *streamFrames, const int16_t *voiceFrames, unsigned int frames)
+        Ring stream, voices;
+        void pushStream(const int16_t *stereo, size_t frames)
         {
             std::lock_guard<std::mutex> lock(mutex);
-            for (unsigned int i = 0; i < frames; ++i)
-            {
-                stream[2u * at] = streamFrames[2u * i];
-                stream[2u * at + 1u] = streamFrames[2u * i + 1u];
-                voices[2u * at] = voiceFrames[2u * i];
-                voices[2u * at + 1u] = voiceFrames[2u * i + 1u];
-                at = (at + 1u) % kFrames;
-            }
-            filled = std::min(kFrames, filled + frames);
+            stream.push(stereo, frames);
+        }
+        void pushVoices(const int16_t *stereo, size_t frames)
+        {
+            std::lock_guard<std::mutex> lock(mutex);
+            voices.push(stereo, frames);
         }
         static void writeWav(const char *path, const std::vector<int16_t> &ring, size_t at, size_t filled)
         {
@@ -155,35 +172,160 @@ namespace
         }
         void dump()
         {
-            // (copied first: the audio thread must not wait for the files)
-            std::vector<int16_t> streamCopy, voicesCopy;
-            size_t at = 0, filled = 0;
+            // (copied first: the game's threads must not wait for the files)
+            Ring streamCopy, voicesCopy;
             {
                 std::lock_guard<std::mutex> lock(mutex);
                 streamCopy = stream;
                 voicesCopy = voices;
-                at = this->at;
-                filled = this->filled;
             }
-            writeWav("ssx3_audiocap_stream.wav", streamCopy, at, filled);
-            writeWav("ssx3_audiocap_voices.wav", voicesCopy, at, filled);
-            std::fprintf(stderr, "[audio] the last %.1f s written to ssx3_audiocap_stream.wav (music, speech) and ssx3_audiocap_voices.wav (sound effects)\n", filled / 48000.0);
+            writeWav("ssx3_audiocap_stream.wav", streamCopy.data, streamCopy.at, streamCopy.filled);
+            writeWav("ssx3_audiocap_voices.wav", voicesCopy.data, voicesCopy.at, voicesCopy.filled);
+            std::fprintf(stderr, "[audio] the last %.1f s written to ssx3_audiocap_stream.wav (music, speech) and ssx3_audiocap_voices.wav (sound effects)\n", voicesCopy.filled / 48000.0);
         }
     };
     AudioCapture *g_audioCapture = nullptr;
 
+    // The SPU2 voices' output (sound effects) on its way to the audio thread. It is generated in
+    // emulated time on the IOP's thread (see iop_spu2.cpp) and arrives the way the IOP's time
+    // passes: evenly while the game computes, then most of a frame's worth at once. Played like
+    // the stream - a queue held at a target level by nudging the rate, fades around a gap - but
+    // with a shorter queue: effects should follow the picture, and unlike the stream their
+    // frames do not wait for the EE's sound packets. PS2_SFX_QUEUE_MS sets the target (50).
+    struct VoiceQueue
+    {
+        static constexpr size_t kCapacity = 48000u; // frames (1 s)
+        static constexpr float kMaxRateDelta = 0.02f;
+        static constexpr int kFadeFrames = 96;
+        size_t target = 2400u;
+        std::mutex mutex;
+        std::vector<int16_t> ring = std::vector<int16_t>(kCapacity * 2u);
+        size_t readPos = 0u, count = 0u;
+        bool started = false;
+        double frac = 0.0;
+        float fillAvg = 0.0f;
+        int fadeIn = 0, fadeOut = 0;
+        float lastL = 0.0f, lastR = 0.0f;
+        uint64_t underruns = 0u, trims = 0u, framesIn = 0u;
+
+        void push(const int16_t *stereo, size_t frames)
+        {
+            std::lock_guard<std::mutex> lock(mutex);
+            for (size_t k = 0; k < frames; ++k)
+            {
+                if (count == kCapacity)
+                {
+                    readPos = (readPos + 1u) % kCapacity;
+                    --count;
+                }
+                const size_t w = (readPos + count) % kCapacity;
+                ring[2u * w] = stereo[2u * k];
+                ring[2u * w + 1u] = stereo[2u * k + 1u];
+                ++count;
+            }
+            framesIn += frames;
+            // Far too much queued (after a stall of the host): back to the target, fading over.
+            if (count > 4u * target + 4800u)
+            {
+                const size_t drop = count - target;
+                const size_t newPos = (readPos + drop) % kCapacity;
+                for (int k = 0; k < kFadeFrames; ++k)
+                {
+                    const float t = static_cast<float>(k + 1) / (kFadeFrames + 1);
+                    const size_t o = (readPos + 1u + k) % kCapacity;
+                    const size_t n = (newPos + 1u + k) % kCapacity;
+                    for (int c = 0; c < 2; ++c)
+                        ring[2u * n + c] = static_cast<int16_t>(ring[2u * o + c] * (1.0f - t) + ring[2u * n + c] * t);
+                }
+                ring[2u * newPos] = ring[2u * readPos];
+                ring[2u * newPos + 1u] = ring[2u * readPos + 1u];
+                readPos = newPos;
+                count -= drop;
+                fillAvg = static_cast<float>(count);
+                ++trims;
+            }
+        }
+
+        // Adds `frames` frames to `out` (saturating).
+        void mixInto(int16_t *out, unsigned int frames)
+        {
+            std::lock_guard<std::mutex> lock(mutex);
+            if (!started && count >= target)
+            {
+                started = true;
+                frac = 0.0;
+                fadeIn = kFadeFrames;
+                fillAvg = static_cast<float>(count);
+            }
+            fillAvg += (static_cast<float>(count) - fillAvg) * 0.05f;
+            float rate = 1.0f + kMaxRateDelta * ((fillAvg - static_cast<float>(target)) / static_cast<float>(target));
+            rate = std::clamp(rate, 1.0f - kMaxRateDelta, 1.0f + kMaxRateDelta);
+            for (unsigned int i = 0; i < frames; ++i)
+            {
+                float l = 0.0f, r = 0.0f;
+                if (started && count >= 2u)
+                {
+                    const size_t i0 = readPos, i1 = (readPos + 1u) % kCapacity;
+                    const float t = static_cast<float>(frac);
+                    l = ring[2u * i0] + (ring[2u * i1] - ring[2u * i0]) * t;
+                    r = ring[2u * i0 + 1u] + (ring[2u * i1 + 1u] - ring[2u * i0 + 1u]) * t;
+                    if (fadeIn > 0)
+                    {
+                        const float g = 1.0f - static_cast<float>(fadeIn) / kFadeFrames;
+                        l *= g;
+                        r *= g;
+                        --fadeIn;
+                    }
+                    lastL = l;
+                    lastR = r;
+                    frac += rate;
+                    while (frac >= 1.0 && count >= 2u)
+                    {
+                        frac -= 1.0;
+                        readPos = (readPos + 1u) % kCapacity;
+                        --count;
+                    }
+                }
+                else
+                {
+                    if (started)
+                    {
+                        // ran dry: fade out, fill up to the target again, fade back in
+                        started = false;
+                        fadeOut = kFadeFrames;
+                        ++underruns;
+                    }
+                    if (fadeOut > 0)
+                    {
+                        const float g = static_cast<float>(fadeOut) / kFadeFrames;
+                        l = lastL * g;
+                        r = lastR * g;
+                        --fadeOut;
+                    }
+                }
+                out[2u * i] = static_cast<int16_t>(std::clamp(static_cast<float>(out[2u * i]) + l, -32768.0f, 32767.0f));
+                out[2u * i + 1u] = static_cast<int16_t>(std::clamp(static_cast<float>(out[2u * i + 1u]) + r, -32768.0f, 32767.0f));
+            }
+        }
+    };
+    VoiceQueue *g_voiceQueue = nullptr;
+
+    // IOP thread: the voices' frames as they are generated.
+    void spu2VoiceSink(const int16_t *stereo, uint32_t frames)
+    {
+        if (g_audioCapture)
+            g_audioCapture->pushVoices(stereo, frames);
+        if (g_voiceQueue)
+            g_voiceQueue->push(stereo, frames);
+    }
+
     void admaAudioCallback(void *buffer, unsigned int frames)
     {
         int16_t *out = static_cast<int16_t *>(buffer);
+        // music and speech (the auto-DMA stream), then the sound effects (the SPU2 voices)
         admaFill(out, frames);
-        // Sound effects play on SPU2 hardware voices (music and speech come through auto-DMA).
-        static std::vector<int16_t> voices;
-        voices.assign(static_cast<size_t>(frames) * 2u, int16_t{0});
-        ps2x::iop::spu2Render(voices.data(), frames);
-        if (g_audioCapture)
-            g_audioCapture->push(out, voices.data(), frames);
-        for (size_t i = 0; i < static_cast<size_t>(frames) * 2u; ++i)
-            out[i] = static_cast<int16_t>(std::clamp(static_cast<int32_t>(out[i]) + static_cast<int32_t>(voices[i]), -32768, 32767));
+        if (g_voiceQueue)
+            g_voiceQueue->mixInto(out, frames);
         if (g_adma->dumpOut && g_adma->framesOut < 48000ull * 90u)
             std::fwrite(out, 4u, frames, g_adma->dumpOut);
         g_adma->framesOut += frames;
@@ -262,15 +404,18 @@ namespace
         std::lock_guard<std::mutex> lock(p.mutex);
         for (uint32_t block = 0; block + 1024u <= bytes; block += 1024u)
         {
-            int16_t left[256], right[256];
+            int16_t left[256], right[256], frames[512];
             std::memcpy(left, data + block, sizeof(left));
             std::memcpy(right, data + block + 512u, sizeof(right));
+            for (int k = 0; k < 256; ++k)
+            {
+                frames[2 * k] = left[k];
+                frames[2 * k + 1] = right[k];
+            }
             if (p.dumpIn && p.framesIn < 48000ull * 90u)
-                for (int k = 0; k < 256; ++k)
-                {
-                    const int16_t fr[2] = {left[k], right[k]};
-                    std::fwrite(fr, 2u, 2u, p.dumpIn);
-                }
+                std::fwrite(frames, 4u, 256u, p.dumpIn);
+            if (g_audioCapture)
+                g_audioCapture->pushStream(frames, 256u);
             p.framesIn += 256u;
             for (int k = 0; k < 256; ++k)
             {
@@ -321,6 +466,18 @@ namespace
                              (unsigned long long)(p.underruns - s_lastUnder), (unsigned long long)(p.trims - s_lastTrims),
                              (unsigned long long)(holds - s_lastHolds), p.count,
                              (p.framesIn - s_lastIn) / secs, (p.framesOut - s_lastOut) / secs);
+            if (g_voiceQueue)
+            {
+                // (the sound effects' queue; read without its lock - numbers for a log line)
+                static uint64_t s_voiceUnder = 0u, s_voiceTrims = 0u, s_voiceIn = 0u;
+                VoiceQueue &q = *g_voiceQueue;
+                std::fprintf(stderr, "[audio] sound effects, last 10 s: %llu gaps, %llu overflow trims, queue %zu frames (target %zu), in %.0f/s\n",
+                             (unsigned long long)(q.underruns - s_voiceUnder), (unsigned long long)(q.trims - s_voiceTrims), q.count, q.target,
+                             (q.framesIn - s_voiceIn) / secs);
+                s_voiceUnder = q.underruns;
+                s_voiceTrims = q.trims;
+                s_voiceIn = q.framesIn;
+            }
             s_lastHolds = holds;
             s_lastIn = p.framesIn;
             s_lastOut = p.framesOut;
@@ -345,11 +502,15 @@ namespace
             g_adma->dumpIn = std::fopen("audio_in.raw", "wb");
             g_adma->dumpOut = std::fopen("audio_out.raw", "wb");
         }
+        g_voiceQueue = new VoiceQueue();
+        if (const char *ms = std::getenv("PS2_SFX_QUEUE_MS"))
+            g_voiceQueue->target = static_cast<size_t>(std::clamp(std::atoi(ms), 10, 400)) * 48u;
         SetAudioStreamBufferSizeDefault(1024);
         g_adma->stream = LoadAudioStream(48000u, 16u, 2u);
         SetAudioStreamCallback(g_adma->stream, admaAudioCallback);
         PlayAudioStream(g_adma->stream);
         ps2x::iop::setAdmaSink(&admaSink);
+        ps2x::iop::setSpu2VoiceSink(&spu2VoiceSink);
         if (const char *gate = std::getenv("PS2_AUDIO_GATE"); !(gate && gate[0] == '0'))
             ps2x::iop::setAdmaGate(&admaGate);
         std::fprintf(stderr, "[audio] SPU2 auto-DMA playback started (48 kHz stereo)\n");
