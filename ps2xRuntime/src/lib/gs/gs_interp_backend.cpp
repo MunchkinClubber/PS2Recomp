@@ -134,6 +134,7 @@ namespace
         uint32_t prev = kNone; // first vertex of the matching primitive in the previous frame
         uint32_t kick = 0;    // position in its object's output
         uint8_t count = 0;
+        uint8_t uv = 0;       // 1 + index in Frame::uvModels: its texture is laid over the scene by a rule (see fitTextureModels)
     };
 
     struct Object
@@ -145,7 +146,7 @@ namespace
         float dx = 0.0f, dy = 0.0f; // average movement of its matched primitives (to last frame)
         bool hasMotion = false;
         bool inScene = false;       // depth-tested against the 3D scene
-        uint8_t motion = 0;         // 0 unknown, 1 moves with the world, 2 moves by itself
+        uint8_t motion = 0;         // 0 unknown, 1 moves with the world, 2 moves by itself, 3 turns with the camera at no distance (the sky)
         uint8_t prog = 0;           // index of its VU1 program in m_progPc
         float wx0 = 0.0f, wy0 = 0.0f, wx1 = 0.0f, wy1 = 0.0f; // the screen (plus a margin) in its coordinates
         bool zSlopeDone = false;
@@ -163,6 +164,19 @@ namespace
 
         float cx() const { return vertices ? sumX / static_cast<float>(vertices) : 0.0f; }
         float cy() const { return vertices ? sumY / static_cast<float>(vertices) : 0.0f; }
+    };
+
+    // A texture laid over the scene by a rule instead of by the model's own coordinates: the
+    // coordinates are a linear function of where the vertex is in front of the camera,
+    // (s/q, t/q) = l (x w, y w, w, 1) with w = 1 / q (see fitTextureModels).
+    struct UvModel
+    {
+        uint32_t tbp0 = 0;
+        double l[2][4]{};     // this frame's rule
+        double lPrev[2][4]{}; // last frame's (for this frame's in-between pictures)
+        float residual = 0.0f; // how well this frame's rule fits (texture repeats)
+        bool valid = false;   // the texture follows a rule this frame
+        bool hasPrev = false; // ... and last frame, and the two differ: the in-between pictures use both
     };
 
     struct ClutLoad
@@ -209,6 +223,7 @@ namespace
         std::vector<Object> objects;
         std::vector<uint32_t> byKey; // object indices sorted by key (built at the flip)
         std::vector<GSVertex> synth; // last-frame positions made up for primitives without a partner
+        std::vector<UvModel> uvModels; // textures laid over the scene by a rule
         uint64_t matchNs = 0, phaseNs[4]{}; // what the matching took
         bool haveModel = false;      // a camera model was found
         float modelShare = 0.0f;     // ... explaining this share of the sampled matched vertices
@@ -234,6 +249,7 @@ namespace
             objects.clear();
             byKey.clear();
             synth.clear();
+            uvModels.clear();
             matchNs = 0;
             phaseNs[0] = phaseNs[1] = phaseNs[2] = phaseNs[3] = 0;
             haveModel = false;
@@ -878,7 +894,7 @@ namespace
             for (uint32_t k = 0; k < f.objects.size(); ++k)
             {
                 const Object &o = f.objects[k];
-                if (!o.inScene || o.primCount == 0u || (o.motion == 1u && !o.rejected))
+                if (!o.inScene || o.primCount == 0u || (o.motion == 1u && !o.rejected) || o.motion == 3u)
                     continue;
                 m_layerObjects.push_back(k);
                 corners += o.vertices;
@@ -1488,6 +1504,11 @@ namespace
                 }
             m_haveModel = true;
             m_modelShare = static_cast<float>(inliers) / static_cast<float>(m_samples.size());
+            // The sky (and the mountains on the horizon) is a small shell around the camera,
+            // drawn with a projection of its own: it turns with the camera and never comes
+            // closer. Its rule is the camera's without the part that moves the camera.
+            std::memcpy(m_skyModel, m_model, sizeof(m_skyModel));
+            m_skyModel[0][3] = m_skyModel[1][3] = m_skyModel[2][3] = 0.0;
             // Depth per unit of q (to give a point placed by the model its old depth): per
             // program, and for programs without samples that of the program whose depth follows
             // q most closely (the world's projection).
@@ -1514,33 +1535,44 @@ namespace
 
         // Depth per unit of q for an object: from its own vertices when they say (a rebuilt mesh
         // has no matched samples), else its program's, else the world's.
+        bool ownDepthSlope(const Object &o, float &slope) const
+        {
+            const Frame &f = *m_cur;
+            double sq = 0.0, sz = 0.0, sqq = 0.0, sqz = 0.0, szz = 0.0;
+            uint32_t n = 0;
+            for (uint32_t k = 0; k < o.primCount; ++k)
+            {
+                const Prim &p = f.prims[o.primStart + k];
+                for (uint32_t v = 0; v < p.count; ++v)
+                {
+                    const GSVertex &c = f.verts[p.vtx + v];
+                    if (!perspective(c.q) || !(c.z > 0.0 && c.z < 16000000.0))
+                        continue;
+                    sq += c.q;
+                    sz += c.z;
+                    sqq += static_cast<double>(c.q) * c.q;
+                    sqz += static_cast<double>(c.q) * c.z;
+                    szz += c.z * c.z;
+                    ++n;
+                }
+            }
+            const double det = n * sqq - sq * sq, zvar = n * szz - sz * sz, cov = n * sqz - sq * sz;
+            if (!(n >= 6u && det > 0.0 && zvar > 0.0 && cov * cov > 0.98 * det * zvar))
+                return false;
+            slope = static_cast<float>(cov / det);
+            return true;
+        }
+
         float depthSlope(Object &o)
         {
             if (!o.zSlopeDone)
             {
                 o.zSlopeDone = true;
-                Frame &f = *m_cur;
-                double sq = 0.0, sz = 0.0, sqq = 0.0, sqz = 0.0, szz = 0.0;
-                uint32_t n = 0;
-                for (uint32_t k = 0; k < o.primCount; ++k)
-                {
-                    const Prim &p = f.prims[o.primStart + k];
-                    for (uint32_t v = 0; v < p.count; ++v)
-                    {
-                        const GSVertex &c = f.verts[p.vtx + v];
-                        if (!perspective(c.q) || !(c.z > 0.0 && c.z < 16000000.0))
-                            continue;
-                        sq += c.q;
-                        sz += c.z;
-                        sqq += static_cast<double>(c.q) * c.q;
-                        sqz += static_cast<double>(c.q) * c.z;
-                        szz += c.z * c.z;
-                        ++n;
-                    }
-                }
-                const double det = n * sqq - sq * sq, zvar = n * szz - sz * sz, cov = n * sqz - sq * sz;
-                if (n >= 6u && det > 0.0 && zvar > 0.0 && cov * cov > 0.98 * det * zvar)
-                    o.zSlope = static_cast<float>(cov / det);
+                float own = 0.0f;
+                if (ownDepthSlope(o, own))
+                    o.zSlope = own;
+                else if (o.motion == 3u && m_skySlope != 0.0f)
+                    o.zSlope = m_skySlope;
                 else if (o.prog < m_progFrame.size() && m_progFrame[o.prog].zSlope != 0.0f)
                     o.zSlope = m_progFrame[o.prog].zSlope;
                 else
@@ -1551,19 +1583,20 @@ namespace
 
         // Is the matched far corner `c` (last frame `p`) the same point of the model in both
         // frames (then it is where the camera model says), or a corner made by clipping?
-        inline bool farCornerIsReal(const GSVertex &c, const GSVertex &p) const
+        inline bool farCornerIsReal(const GSVertex &c, const GSVertex &p, bool sky = false) const
         {
             float mx, my, mq;
-            if (!predict(c, mx, my, mq))
+            if (!predict(c, mx, my, mq, sky))
                 return false;
             const float ex = mx - p.x, ey = my - p.y;
             const float allowed = 0.5f + 0.1f * (std::fabs(c.x - mx) + std::fabs(c.y - my));
             return ex * ex + ey * ey <= allowed * allowed;
         }
 
-        inline bool predict(const GSVertex &c, float &x, float &y, float &q) const
+        // `sky`: for what turns with the camera at no distance (see fitCamera)
+        inline bool predict(const GSVertex &c, float &x, float &y, float &q, bool sky = false) const
         {
-            return m_haveModel && perspective(c.q) && predictWith(m_model, c.x, c.y, c.q, x, y, q);
+            return m_haveModel && perspective(c.q) && predictWith(sky ? m_skyModel : m_model, c.x, c.y, c.q, x, y, q);
         }
 
         // Per paired object: how it moved on average, and whether it moves with the world
@@ -1582,15 +1615,15 @@ namespace
             {
                 Object &o = f.objects[pair.cur];
                 Prim *p = f.prims.data() + o.primStart;
-                // an unchanged model of a program that all but entirely follows the camera: no need to look
-                if (pair.sameData && o.prog < m_progFrame.size() && m_progFrame[o.prog].samples >= 32u &&
-                    m_progFrame[o.prog].inliers * 20u >= m_progFrame[o.prog].samples * 19u)
-                {
-                    o.motion = 1u;
-                    continue;
-                }
-                const uint32_t step = std::max<uint32_t>(1u, o.primCount / 6u);
-                uint32_t seen = 0, checked = 0, agree = 0;
+                // (Every object is looked at, also an unchanged model of a program that all but
+                // entirely follows the camera: the sky is drawn by the same program as most of the
+                // scenery, and does not - it turns with the camera and never comes closer. Taken
+                // for a part of the world, its pieces at the edge of the picture were placed by
+                // the camera model, hundreds of pixels from where they belong: shards of sky
+                // across the picture for one in-between picture.)
+                // (what the game clips is looked at more closely: see below)
+                const uint32_t step = std::max<uint32_t>(1u, o.primCount / (o.clipped ? 48u : 6u));
+                uint32_t seen = 0, checked = 0, agree = 0, agreeSky = 0;
                 float dx = 0.0f, dy = 0.0f;
                 auto isNear = [&o](const XY &at)
                 {
@@ -1614,7 +1647,11 @@ namespace
                     if (m_haveModel && perspective(c.q) && perspective(q.q))
                     {
                         ++checked;
-                        agree += agrees(m_model, Sample{c.x, c.y, c.q, q.x, q.y, q.q, 0.0f, 0u}, 0.5f) ? 1u : 0u;
+                        const Sample sample{c.x, c.y, c.q, q.x, q.y, q.q, 0.0f, 0u};
+                        if (agrees(m_model, sample, 0.5f))
+                            ++agree;
+                        else if (agrees(m_skyModel, sample, 0.5f))
+                            ++agreeSky;
                     }
                 }
                 if (seen != 0u)
@@ -1623,12 +1660,27 @@ namespace
                     o.dy = dy / static_cast<float>(seen);
                     o.hasMotion = true;
                 }
+                // An object the game clipped (a different number of primitives than last frame)
+                // had its primitives paired by their texture coordinates, and where those hardly
+                // change across a triangle - the detail layer of the ground next to the camera -
+                // a primitive can have been paired with its neighbour. None of those are where
+                // the camera model says, and the rightly paired ones all are: a quarter of them
+                // there is enough to know that the object stands in the world, and then every
+                // partner is checked, also when the model data did not change. (Unchecked, the
+                // detail layer kept its wrong partners while the base layer under it was placed
+                // by the model: shards of ground across the picture for one in-between picture.)
+                // The same for the sky, with its rule (what is far away follows both rules, and
+                // counts as standing in the world).
                 if (checked != 0u)
-                    o.motion = agree * 2u >= checked ? 1u : 2u;
-                if (pair.sameData || !m_haveModel)
-                    continue;
-                if (o.motion == 1u)
                 {
+                    const uint32_t share = o.clipped ? 4u : 2u;
+                    o.motion = agree * share >= checked ? 1u : agreeSky * share >= checked ? 3u : 2u;
+                }
+                if ((pair.sameData && !o.clipped) || !m_haveModel)
+                    continue;
+                if (o.motion == 1u || o.motion == 3u)
+                {
+                    const double (*model)[4] = o.motion == 3u ? m_skyModel : m_model;
                     for (uint32_t k = 0; k < o.primCount; ++k)
                     {
                         if (!hasPrev(p[k].prev))
@@ -1640,7 +1692,7 @@ namespace
                                 continue;
                             const GSVertex &c = f.verts[p[k].vtx + v];
                             const GSVertex &q = m_last->verts[p[k].prev + v];
-                            ok = !perspective(c.q) || !perspective(q.q) || agrees(m_model, Sample{c.x, c.y, c.q, q.x, q.y, q.q, 0.0f, 0u}, 0.5f);
+                            ok = !perspective(c.q) || !perspective(q.q) || agrees(model, Sample{c.x, c.y, c.q, q.x, q.y, q.q, 0.0f, 0u}, 0.5f);
                         }
                         if (!ok)
                         {
@@ -1649,7 +1701,7 @@ namespace
                         }
                     }
                 }
-                else if (o.motion == 0u && o.inScene)
+                else if (o.motion == 0u && o.inScene && !pair.sameData)
                 {
                     for (uint32_t k = 0; k < o.primCount; ++k)
                         if (hasPrev(p[k].prev))
@@ -1659,6 +1711,258 @@ namespace
                         }
                     o.hasMotion = false;
                 }
+            }
+            // Pieces of the sky without a partner (they come and go at the edge of the picture):
+            // nothing says how they move, and taken for part of the world they were placed by
+            // the camera's rule, far from where they belong - the sky jumped for one in-between
+            // picture. The sky's projection gives them away: its depth per unit of q is a
+            // thirtieth of the world's.
+            if (!m_haveModel)
+                return;
+            double sum = 0.0;
+            uint32_t n = 0;
+            for (const Object &o : f.objects)
+            {
+                float slope = 0.0f;
+                if (o.motion == 3u && ownDepthSlope(o, slope) && slope > 0.0f)
+                {
+                    sum += slope;
+                    ++n;
+                }
+            }
+            if (n != 0u)
+                m_skySlope = static_cast<float>(sum / n);
+            if (m_skySlope <= 0.0f || m_zSlope <= 0.0f || std::fabs(m_skySlope - m_zSlope) < 0.5f * m_zSlope)
+                return;
+            for (Object &o : f.objects)
+            {
+                float slope = 0.0f;
+                if (o.motion == 0u && o.inScene && perspective(o.q0) && ownDepthSlope(o, slope) &&
+                    std::fabs(slope - m_skySlope) < 0.2f * m_skySlope)
+                    o.motion = 3u;
+            }
+        }
+
+        // ------------------------------------------------------------------------------------
+        // Textures laid over the scene by a rule. SSX 3 draws the glitter of the snow as one
+        // more layer over the ground, by VU1 programs that work the texture coordinates out
+        // from where each vertex is - (s/q, t/q) is a linear function of the vertex's place in
+        // front of the camera, the same function for the whole frame and a different one every
+        // frame: the pattern is not fixed to the ground, it drifts over it as the camera moves.
+        // An in-between picture drew that layer with this frame's coordinates on vertices half
+        // a frame back, so the pattern sat half a frame's drift away from where it belongs, in
+        // every second picture shown: the glitter shook.
+        // The rule is recovered per texture from the frame's own vertices (a texture whose
+        // coordinates fit such a function all over the scene follows a rule: a model's own
+        // coordinates do not, unless the model is flat - and then they do not change from
+        // frame to frame, which is checked too) and kept with the frame. A vertex of an in-between picture then gets the coordinates
+        // half-way between this frame's and those last frame's rule gives for where the vertex
+        // was last frame.
+        // ------------------------------------------------------------------------------------
+        static inline void uvBasis(const GSVertex &c, double b[4])
+        {
+            const double w = 1.0 / (1024.0 * static_cast<double>(c.q));
+            b[0] = (static_cast<double>(c.x) - 2048.0) / 256.0 * w;
+            b[1] = (static_cast<double>(c.y) - 2048.0) / 256.0 * w;
+            b[2] = w;
+            b[3] = 1.0;
+        }
+
+        // calls fn(prim, model index) for the triangles of the scene's textured runs (`sample`:
+        // for a part of them, enough to tell whether a texture follows a rule; `known`: only for
+        // textures that have a rule)
+        template <typename Fn>
+        void forRuleCandidates(bool sample, bool known, Fn &&fn)
+        {
+            Frame &f = *m_cur;
+            for (const Run &run : f.runs)
+            {
+                const GSDrawState &st = f.states[run.state];
+                const GSContext &ctx = st.context;
+                if (!st.prim.tme || st.prim.fst || !(((ctx.test >> 16) & 1u) != 0u && ((ctx.test >> 17) & 3u) >= 2u))
+                    continue;
+                uint8_t &slot = m_uvIndex[ctx.tex0.tbp0 & 0x3FFFu];
+                if (slot == 0u)
+                {
+                    // (a texture found to follow no rule is not looked at again for a second)
+                    if (known || f.uvModels.size() >= 250u || m_uvSkipUntil[ctx.tex0.tbp0 & 0x3FFFu] > m_matchCount)
+                        continue;
+                    f.uvModels.emplace_back();
+                    f.uvModels.back().tbp0 = ctx.tex0.tbp0;
+                    slot = static_cast<uint8_t>(f.uvModels.size());
+                    m_uvIndexed.push_back(ctx.tex0.tbp0);
+                }
+                const uint32_t model = slot - 1u;
+                if (known && !f.uvModels[model].valid)
+                    continue;
+                const uint32_t step = sample && run.primCount >= 24u ? 4u : 1u;
+                for (uint32_t k = 0; k < run.primCount; k += step)
+                {
+                    Prim &p = f.prims[run.primStart + k];
+                    if (p.count != 3u)
+                        continue;
+                    const GSVertex *c = f.verts.data() + p.vtx;
+                    if (!perspective(c[0].q) || !perspective(c[1].q) || !perspective(c[2].q))
+                        continue;
+                    fn(p, model);
+                }
+            }
+        }
+
+        void fitTextureModels()
+        {
+            Frame &f = *m_cur;
+            if (m_uvIndex.empty())
+            {
+                m_uvIndex.assign(0x4000u, 0u);
+                m_uvSkipUntil.assign(0x4000u, 0ull);
+            }
+            for (uint32_t tbp0 : m_uvIndexed)
+                m_uvIndex[tbp0 & 0x3FFFu] = 0u;
+            m_uvIndexed.clear();
+            f.uvModels.clear();
+            m_uvNormals.clear();
+            m_uvCounts.clear();
+            forRuleCandidates(true, false, [&](Prim &p, uint32_t model)
+            {
+                if (m_uvNormals.size() <= model)
+                {
+                    m_uvNormals.resize(model + 1u);
+                    m_uvCounts.resize(model + 1u, 0u);
+                }
+                const GSVertex *c = f.verts.data() + p.vtx;
+                for (uint32_t v = 0; v < 3u; ++v)
+                {
+                    double b[4];
+                    uvBasis(c[v], b);
+                    const double t[3] = {static_cast<double>(c[v].s) / c[v].q, static_cast<double>(c[v].t) / c[v].q, 0.0};
+                    m_uvNormals[model].add(b, t);
+                }
+                ++m_uvCounts[model];
+            });
+            bool any = false;
+            for (uint32_t m = 0; m < f.uvModels.size(); ++m)
+            {
+                UvModel &u = f.uvModels[m];
+                double h[3][4];
+                if (m >= m_uvNormals.size() || m_uvCounts[m] < 16u || !m_uvNormals[m].solve(h))
+                    continue;
+                bool sane = true;
+                for (uint32_t i = 0; i < 2u; ++i)
+                    for (uint32_t j = 0; j < 4u; ++j)
+                    {
+                        u.l[i][j] = h[i][j];
+                        sane = sane && std::fabs(h[i][j]) < 1e4;
+                    }
+                u.valid = sane;
+            }
+            // Do the sampled triangles follow their texture's rule (within a hundredth of a
+            // repeat) - all but a twentieth of them? Else it is no rule, just a texture.
+            constexpr double kTolerance = 0.01;
+            const auto worstError = [&](const UvModel &u, const Prim &p)
+            {
+                const GSVertex *c = f.verts.data() + p.vtx;
+                double worst = 0.0;
+                for (uint32_t v = 0; v < 3u; ++v)
+                {
+                    double b[4];
+                    uvBasis(c[v], b);
+                    const double es = u.l[0][0] * b[0] + u.l[0][1] * b[1] + u.l[0][2] * b[2] + u.l[0][3] - static_cast<double>(c[v].s) / c[v].q;
+                    const double et = u.l[1][0] * b[0] + u.l[1][1] * b[1] + u.l[1][2] * b[2] + u.l[1][3] - static_cast<double>(c[v].t) / c[v].q;
+                    worst = std::max(worst, std::max(std::fabs(es), std::fabs(et)));
+                }
+                return worst;
+            };
+            m_uvFits.assign(f.uvModels.size(), 0u);
+            forRuleCandidates(true, false, [&](Prim &p, uint32_t model)
+            {
+                const UvModel &u = f.uvModels[model];
+                if (u.valid && worstError(u, p) <= kTolerance)
+                    ++m_uvFits[model];
+            });
+            static const bool s_dbg = std::getenv("PS2_FRAME_INTERP_DEBUG") != nullptr;
+            for (uint32_t m = 0; m < f.uvModels.size(); ++m)
+            {
+                UvModel &u = f.uvModels[m];
+                if (u.valid && m_uvFits[m] * 20u < m_uvCounts[m] * 19u)
+                    u.valid = false;
+                if (!u.valid)
+                    m_uvSkipUntil[u.tbp0 & 0x3FFFu] = m_matchCount + 48u + (u.tbp0 & 31u);
+                any = any || u.valid;
+                if (s_dbg && u.valid)
+                    std::fprintf(stderr, "[gs:interp] texture %x is laid over the scene by a rule: %u of %u sampled triangles follow it\n", u.tbp0, m_uvFits[m], m_uvCounts[m]);
+            }
+            if (!any)
+                return;
+            // all triangles of those textures: which follow the rule
+            forRuleCandidates(false, true, [&](Prim &p, uint32_t model)
+            {
+                UvModel &u = f.uvModels[model];
+                const double worst = worstError(u, p);
+                if (worst <= kTolerance)
+                {
+                    p.uv = static_cast<uint8_t>(model + 1u);
+                    u.residual = std::max(u.residual, static_cast<float>(worst));
+                }
+            });
+        }
+
+        // Last frame's rule for each of this frame's, and whether the two differ at all. (After
+        // recoverUnmatched: every primitive that moves has its last-frame vertices.)
+        void pairTextureModels()
+        {
+            Frame &f = *m_cur;
+            if (f.uvModels.empty() || !m_last)
+                return;
+            static const bool s_dbg = std::getenv("PS2_FRAME_INTERP_DEBUG") != nullptr;
+            for (uint32_t m = 0; m < f.uvModels.size(); ++m)
+            {
+                UvModel &u = f.uvModels[m];
+                if (!u.valid)
+                    continue;
+                const UvModel *before = nullptr;
+                for (const UvModel &candidate : m_last->uvModels)
+                    if (candidate.valid && candidate.tbp0 == u.tbp0)
+                        before = &candidate;
+                if (!before)
+                    continue;
+                std::memcpy(u.lPrev, before->l, sizeof(u.lPrev));
+                // how far the pattern moved over the scene since last frame, on this frame's vertices
+                double sum[2] = {0.0, 0.0}, largest = 0.0;
+                uint32_t n = 0;
+                m_uvChange.clear();
+                for (const Prim &p : f.prims)
+                {
+                    if (p.uv != m + 1u || !hasPrev(p.prev))
+                        continue;
+                    const GSVertex *c = f.verts.data() + p.vtx;
+                    const GSVertex *a = (p.prev & kSynth) ? f.synth.data() + (p.prev & ~kSynth) : m_last->verts.data() + p.prev;
+                    if (!perspective(a[0].q))
+                        continue;
+                    double b[4];
+                    uvBasis(a[0], b);
+                    const double ds = u.lPrev[0][0] * b[0] + u.lPrev[0][1] * b[1] + u.lPrev[0][2] * b[2] + u.lPrev[0][3] - static_cast<double>(c[0].s) / c[0].q;
+                    const double dt = u.lPrev[1][0] * b[0] + u.lPrev[1][1] * b[1] + u.lPrev[1][2] * b[2] + u.lPrev[1][3] - static_cast<double>(c[0].t) / c[0].q;
+                    sum[0] += ds;
+                    sum[1] += dt;
+                    m_uvChange.push_back(static_cast<float>(ds));
+                    m_uvChange.push_back(static_cast<float>(dt));
+                    ++n;
+                }
+                if (n < 8u)
+                    continue;
+                // (a rule that jumped by whole repeats shows the same picture: taken out)
+                const double whole[2] = {std::round(sum[0] / n), std::round(sum[1] / n)};
+                u.lPrev[0][3] -= whole[0];
+                u.lPrev[1][3] -= whole[1];
+                for (size_t i = 0; i < m_uvChange.size(); i += 2u)
+                    largest = std::max(largest, std::max(std::fabs(m_uvChange[i] - whole[0]), std::fabs(m_uvChange[i + 1u] - whole[1])));
+                // a pattern that stays on the ground, or a jump that is no drift: this frame's coordinates
+                static const bool s_off = std::getenv("PS2_FRAME_INTERP_NOUVRULE") != nullptr; // (debug: this frame's coordinates, as before)
+                u.hasPrev = !s_off && largest > 5.0 * (static_cast<double>(u.residual) + before->residual) + 0.002 && largest < 4.0;
+                if (s_dbg)
+                    std::fprintf(stderr, "[gs:interp] texture %x: moved over the scene by up to %.4f repeats since last frame (%u triangles) -> %s\n", u.tbp0, largest, n,
+                                 u.hasPrev ? "in-between pictures take the coordinates half-way" : "this frame's coordinates");
             }
         }
 
@@ -1765,12 +2069,22 @@ namespace
                 }
             }
 
-            // the corners that need a position, by where they are
+            // The corners that need a position, by where they are - and by how far away they are
+            // and whose they are: an entry per place, q and object. Layers of one surface must
+            // get the very same old numbers, or they lie at different depths in the in-between
+            // picture and fail each other's depth test. The patch of ground next door has a
+            // corner at the same place too, this frame often with the very same numbers - but
+            // not last frame (another VU1 program drew it then, and rounded differently). With
+            // one entry per place, whichever came first served everyone: a layer placed from the
+            // neighbour's old numbers under a layer that had its own partner - a white patch of
+            // ground for one in-between picture. So a corner takes its own object's entry, else
+            // that of the object drawn nearest to it (layers are drawn one after the other).
             uint32_t capacity = 64u;
-            while (capacity < wanted * 2u)
+            while (capacity < wanted * 4u)
                 capacity <<= 1;
             m_table.assign(capacity, TableEntry{});
             const uint32_t mask = capacity - 1u;
+            uint32_t tableUsed = 0;
             auto keyOf = [](const XY &v)
             {
                 uint32_t xb, yb;
@@ -1778,41 +2092,114 @@ namespace
                 std::memcpy(&yb, &v.y, 4);
                 return (static_cast<uint64_t>(xb) << 32) | yb;
             };
-            auto slotOf = [&](const XY &v)
+            auto firstSlot = [&](uint64_t key)
+            {
+                return static_cast<uint32_t>((key * 0x9E3779B97F4A7C15ull) >> 40) & mask;
+            };
+            // the entry for that place, q and object, or the free slot where it would go
+            auto slotOf = [&](const XY &v, float q, uint32_t object)
             {
                 const uint64_t key = keyOf(v);
-                uint32_t slot = static_cast<uint32_t>((key * 0x9E3779B97F4A7C15ull) >> 40) & mask;
-                while (m_table[slot].used && m_table[slot].key != key)
+                uint32_t slot = firstSlot(key);
+                while (m_table[slot].used && (m_table[slot].key != key || m_table[slot].qCur != q || m_table[slot].object != object))
                     slot = (slot + 1u) & mask;
                 return slot;
             };
-            auto want = [&](const XY &v)
+            auto insert = [&](uint32_t slot, const XY &v, float q, uint32_t object)
             {
-                const uint32_t slot = slotOf(v);
+                m_table[slot] = TableEntry{};
+                m_table[slot].key = keyOf(v);
+                m_table[slot].qCur = q;
+                m_table[slot].object = object;
+                m_table[slot].used = true;
+                ++tableUsed;
+            };
+            auto want = [&](const XY &v, float q, uint32_t object)
+            {
+                const uint32_t slot = slotOf(v, q, object);
                 if (!m_table[slot].used)
-                {
-                    m_table[slot] = TableEntry{};
-                    m_table[slot].key = keyOf(v);
-                    m_table[slot].used = true;
-                }
+                    insert(slot, v, q, object);
             };
             // An entry: the old position of the point at that place (`prev`), how its distance
             // from the camera changed (`ratio`, old q / new q; 1 when unknown) and the depth of
-            // the corner it came from. A corner with perspective replaces one without.
-            auto offer = [&](const XY &at, uint32_t ref, const GSVertex &cur, const GSVertex &old)
+            // the corner it came from. The first corner with those numbers that has an old
+            // position fills it.
+            auto offer = [&](const XY &at, uint32_t ref, const GSVertex &cur, const GSVertex &old, uint32_t object)
             {
-                const uint32_t slot = slotOf(at);
+                const uint32_t slot = slotOf(at, cur.q, object);
+                if (!m_table[slot].used)
+                {
+                    if (tableUsed * 4u >= capacity * 3u)
+                        return; // (full: the corners that want this place do without)
+                    insert(slot, at, cur.q, object);
+                }
                 TableEntry &e = m_table[slot];
-                if (!e.used)
+                if (e.prev != kNone)
                     return;
                 const bool persp = perspective(cur.q) && perspective(old.q);
-                if (e.prev != kNone && (e.persp || !persp))
-                    return;
                 e.prev = ref;
                 e.persp = persp;
                 e.ratio = persp ? old.q / cur.q : 1.0f;
                 e.zCur = static_cast<float>(cur.z);
-                e.qCur = cur.q;
+            };
+            // The entry a corner takes its old position from: one with its own numbers (its own
+            // object's, else the nearest object's), else - a neighbour's corner at the same
+            // place - the one nearest in distance (within a hundredth: the game clips what
+            // reaches past its drawing area to that area's edges, so corners of quite different
+            // surfaces end up at the very same place, the area's corner above all). A corner
+            // without perspective (a depth-only pass) takes one with perspective if there is
+            // one, and one with perspective takes one without only when there is nothing else.
+            auto lookup = [&](const XY &at, float q, uint32_t object) -> const TableEntry *
+            {
+                const uint64_t key = keyOf(at);
+                const bool persp = perspective(q);
+                const TableEntry *same = nullptr, *close = nullptr, *flat = nullptr;
+                uint32_t sameDist = 0;
+                float closeDiff = 0.0f;
+                const auto distance = [object](const TableEntry &e)
+                {
+                    return e.object > object ? e.object - object : object - e.object;
+                };
+                for (uint32_t slot = firstSlot(key); m_table[slot].used; slot = (slot + 1u) & mask)
+                {
+                    const TableEntry &e = m_table[slot];
+                    if (e.key != key || e.prev == kNone)
+                        continue;
+                    if (!e.persp)
+                    {
+                        if (!flat || (e.qCur == q && distance(e) < distance(*flat)))
+                            flat = &e;
+                        continue;
+                    }
+                    if (!persp || e.qCur == q)
+                    {
+                        const uint32_t d = distance(e);
+                        if (!same || d < sameDist)
+                        {
+                            same = &e;
+                            sameDist = d;
+                        }
+                        continue;
+                    }
+                    const float diff = std::fabs(q - e.qCur);
+                    if (diff > 0.01f * e.qCur)
+                        continue;
+                    if (!close || diff < closeDiff)
+                    {
+                        close = &e;
+                        closeDiff = diff;
+                    }
+                }
+                return same ? same : close ? close : flat;
+            };
+            // is that place wanted at all (whatever the q)?
+            auto wantedPlace = [&](const XY &at)
+            {
+                const uint64_t key = keyOf(at);
+                for (uint32_t slot = firstSlot(key); m_table[slot].used; slot = (slot + 1u) & mask)
+                    if (m_table[slot].key == key)
+                        return true;
+                return false;
             };
             // a small filter in front of the table: most corners of the frame are not wanted
             m_filter.assign(1024u, 0ull);
@@ -1828,7 +2215,7 @@ namespace
                 for (uint32_t v = 0; v < p.count; ++v)
                     if (p.prev == kNone || w.flat || (w.farMask & (1u << v)))
                     {
-                        want(f.pos[p.vtx + v]);
+                        want(f.pos[p.vtx + v], f.verts[p.vtx + v].q, w.object);
                         uint32_t word;
                         uint64_t bit;
                         filterBit(f.pos[p.vtx + v], word, bit);
@@ -1839,11 +2226,14 @@ namespace
             // only if it is a real vertex: where the camera model says)
             {
                 size_t cursor = 0;
+                uint32_t object = 0;
                 for (uint32_t index = 0; index < f.prims.size(); ++index)
                 {
                     const Prim &p = f.prims[index];
                     while (cursor < m_work.size() && m_work[cursor].prim < index)
                         ++cursor;
+                    while (object + 1u < f.objects.size() && index >= f.objects[object].primStart + f.objects[object].primCount)
+                        ++object;
                     if (!hasPrev(p.prev))
                         continue;
                     const uint8_t farMask = cursor < m_work.size() && m_work[cursor].prim == index ? m_work[cursor].farMask : uint8_t{0};
@@ -1854,14 +2244,13 @@ namespace
                         filterBit(f.pos[p.vtx + v], word, bit);
                         if (!(m_filter[word] & bit))
                             continue;
-                        const uint32_t slot = slotOf(f.pos[p.vtx + v]);
-                        if (!m_table[slot].used || (m_table[slot].prev != kNone && m_table[slot].persp))
+                        if (!wantedPlace(f.pos[p.vtx + v]))
                             continue;
                         const GSVertex &c = f.verts[p.vtx + v];
                         const GSVertex &q = m_last->verts[p.prev + v];
-                        if ((farMask & (1u << v)) && !farCornerIsReal(c, q))
+                        if ((farMask & (1u << v)) && !farCornerIsReal(c, q, f.objects[object].motion == 3u))
                             continue;
-                        offer(f.pos[p.vtx + v], p.prev + v, c, q);
+                        offer(f.pos[p.vtx + v], p.prev + v, c, q, object);
                     }
                 }
             }
@@ -1877,9 +2266,17 @@ namespace
                 old.y = pv.y;
                 // the same change of distance; the very same numbers for the same surface
                 old.q = c.q == e.qCur ? pv.q : c.q * e.ratio;
-                // the same depth as where it came from (a layer of the same surface): the same
-                // old depth; anything else (a pass at depth 0, say) keeps its own
-                old.z = static_cast<float>(c.z) == e.zCur ? pv.z : c.z;
+                // The same depth as where it came from (a layer of the same surface): the same
+                // old depth. Nearly the same (the neighbouring patch's corner, drawn by another
+                // program): the same change of depth. Anything else (a pass at depth 0, say)
+                // keeps its own.
+                const double zEntry = static_cast<double>(e.zCur);
+                if (static_cast<float>(c.z) == e.zCur)
+                    old.z = pv.z;
+                else if (c.z > 0.0 && zEntry > 0.0 && std::fabs(c.z - zEntry) <= 0.002 * zEntry + 2.0)
+                    old.z = std::max(0.0, c.z + (static_cast<double>(pv.z) - zEntry));
+                else
+                    old.z = c.z;
             };
 
             // Round 0: what the table and the camera model place completely (and the far
@@ -1898,6 +2295,7 @@ namespace
                     const uint8_t progMotion = o.prog < m_progFrame.size() ? m_progFrame[o.prog].motion : uint8_t{0};
                     // does it move with the world? its own matched primitives say, else its program, else: in the scene, yes
                     const bool withWorld = o.motion == 1u || (o.motion == 0u && (progMotion == 1u || (progMotion == 0u && inScene)));
+                    const bool sky = o.motion == 3u;
                     const GSVertex *cv = f.verts.data() + p.vtx;
                     GSVertex old[3];
                     uint8_t placed = 0u; // corners with a position
@@ -1913,21 +2311,14 @@ namespace
                             continue;
                         }
                         float mx = 0.0f, my = 0.0f, mq = 0.0f;
-                        const bool model = withWorld && predict(cv[v], mx, my, mq);
+                        const bool model = sky ? predict(cv[v], mx, my, mq, true) : withWorld && predict(cv[v], mx, my, mq);
                         // a far corner of a matched primitive is only replaced when it is
                         // not where the camera model says (a corner made by clipping)
-                        if (matched && (!model || farCornerIsReal(cv[v], old[v])))
+                        if (matched && (!model || farCornerIsReal(cv[v], old[v], sky)))
                             continue;
-                        const uint32_t slot = slotOf(f.pos[p.vtx + v]);
-                        // The entry is the same point only if it is as far away: the game clips
-                        // what reaches past its drawing area to that area's edges, so corners of
-                        // quite different surfaces (the ground under the camera, a sign next to
-                        // it) end up at the very same place - the area's corner above all.
-                        const TableEntry &entry = m_table[slot];
-                        const bool samePoint = entry.used && entry.prev != kNone &&
-                                               (!entry.persp || !perspective(cv[v].q) || std::fabs(cv[v].q - entry.qCur) <= 0.01f * entry.qCur);
-                        if (samePoint)
-                            adopt(entry, cv[v], old[v]);
+                        const TableEntry *entry = lookup(f.pos[p.vtx + v], cv[v].q, w.object);
+                        if (entry)
+                            adopt(*entry, cv[v], old[v]);
                         else if (model)
                         {
                             old[v].x = mx;
@@ -1986,7 +2377,7 @@ namespace
                     // later corners at the same places take the same positions
                     for (uint32_t v = 0; v < p.count; ++v)
                         if (!matched || (farMask & (1u << v)))
-                            offer(f.pos[p.vtx + v], kSynth | (base + v), cv[v], old[v]);
+                            offer(f.pos[p.vtx + v], kSynth | (base + v), cv[v], old[v], w.object);
                     if (!matched)
                     {
                         if (exact == all)
@@ -2011,9 +2402,10 @@ namespace
                 for (uint32_t v = 0; v < p.count; ++v)
                 {
                     old[v] = m_last->verts[p.prev + v];
-                    const TableEntry &e = m_table[slotOf(f.pos[p.vtx + v])];
-                    if (!e.used || e.prev == kNone || !e.persp)
+                    const TableEntry *found = lookup(f.pos[p.vtx + v], f.verts[p.vtx + v].q, w.object);
+                    if (!found || !found->persp)
                         continue;
+                    const TableEntry &e = *found;
                     const GSVertex &pv = source(e.prev);
                     if (std::fabs(pv.x - old[v].x) > 0.25f || std::fabs(pv.y - old[v].y) > 0.25f)
                         continue; // not the same thing after all
@@ -2466,6 +2858,7 @@ namespace
                 checkObject(f.objects[pair.cur]);
             }
             const uint64_t tm = nowNs();
+            fitTextureModels();
             if (static_cast<size_t>(f.matched) * 2u < f.prims.size())
             {
                 // a new scene (the flip shows this frame once): nothing more to work out
@@ -2506,6 +2899,7 @@ namespace
                 }
             }
             recoverUnmatched();
+            pairTextureModels();
             f.haveModel = m_haveModel;
             f.modelShare = m_modelShare;
             f.phaseNs[0] = t0 - tStart;
@@ -2678,6 +3072,7 @@ namespace
                         if (between && hasPrev(p->prev) && (m_dbgOnly == 0u || p->count == m_dbgOnly))
                         {
                             const GSVertex *pv = (p->prev & kSynth) ? f.synth.data() + (p->prev & ~kSynth) : prev->verts.data() + p->prev;
+                            const UvModel *rule = p->uv != 0u && p->uv <= f.uvModels.size() && f.uvModels[p->uv - 1u].hasPrev ? &f.uvModels[p->uv - 1u] : nullptr;
                             for (uint32_t v = 0; v < p->count; ++v)
                             {
                                 GSVertex &o = batch.vertices[v];
@@ -2710,9 +3105,24 @@ namespace
                                 }
                                 // Only the position moves. Colour, fog and texture coordinates stay
                                 // this frame's: they may scroll, wrap or pulse from frame to frame.
+                                // (Except a texture laid over the scene by a rule: half-way between
+                                // what last frame's rule gave where the vertex was and this frame's.)
                                 const float ratio = b.q != 0.0f ? o.q / b.q : 1.0f;
-                                o.s = b.s * ratio;
-                                o.t = b.t * ratio;
+                                if (rule && perspective(a.q) && perspective(b.q))
+                                {
+                                    double basis[4];
+                                    uvBasis(a, basis);
+                                    const double s0 = rule->lPrev[0][0] * basis[0] + rule->lPrev[0][1] * basis[1] + rule->lPrev[0][2] * basis[2] + rule->lPrev[0][3];
+                                    const double t0 = rule->lPrev[1][0] * basis[0] + rule->lPrev[1][1] * basis[1] + rule->lPrev[1][2] * basis[2] + rule->lPrev[1][3];
+                                    const double s1 = static_cast<double>(b.s) / b.q, t1 = static_cast<double>(b.t) / b.q;
+                                    o.s = static_cast<float>((s0 + (s1 - s0) * t) * o.q);
+                                    o.t = static_cast<float>((t0 + (t1 - t0) * t) * o.q);
+                                }
+                                else
+                                {
+                                    o.s = b.s * ratio;
+                                    o.t = b.t * ratio;
+                                }
                                 o.r = b.r;
                                 o.g = b.g;
                                 o.b = b.b;
@@ -3328,6 +3738,7 @@ namespace
             float ratio = 1.0f;
             float zCur = 0.0f;
             float qCur = 0.0f;
+            uint32_t object = 0; // whose corner it is
             bool used = false;
             bool persp = false;
         };
@@ -3351,7 +3762,14 @@ namespace
         std::vector<uint16_t> m_progClips;    // per program: frames left for which it is known to clip (fitCamera)
         std::vector<uint32_t> m_progPairs;    // per program, this frame: paired objects, and those whose count changed
         std::vector<Sample> m_samples;
+        std::vector<uint8_t> m_uvIndex; // by texture address: 1 + index in the frame's uvModels (fitTextureModels)
+        std::vector<uint64_t> m_uvSkipUntil; // by texture address: the match count before which it is not looked at
+        std::vector<Normal> m_uvNormals;
+        std::vector<uint32_t> m_uvCounts, m_uvFits, m_uvIndexed;
+        std::vector<float> m_uvChange;
         double m_model[3][4]{};
+        double m_skyModel[3][4]{}; // ... for what turns with the camera at no distance (the sky)
+        float m_skySlope = 0.0f;   // the sky's depth per unit of q (kept from frame to frame)
         bool m_haveModel = false;
         float m_modelShare = 0.0f; // of the sampled matched vertices, how many the camera model explains
         float m_zSlope = 0.0f;
