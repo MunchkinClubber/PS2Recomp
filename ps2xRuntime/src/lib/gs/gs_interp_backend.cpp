@@ -1312,11 +1312,19 @@ namespace
             t[2] = 1.0;
         }
 
-        // Does the model explain the sample? (within 0.3 px plus a tenth of how far it moved)
+        // Does the model explain the sample? Where it was (within 0.3 px plus a tenth of how
+        // far it moved) and how far away it was (within a thousandth; what stands in the world
+        // is within a hundred-thousandth). The distance matters: a rider standing about is
+        // where the model says, near enough, but not as far away as it says, and four such
+        // samples next to the camera among a thousand of the distant scenery were enough to
+        // halve the camera's forward movement in the fit - nothing far away shows that, and
+        // the ground under the camera, placed by the model, was off by up to twenty pixels.
         static inline bool agrees(const double h[3][4], const Sample &s, float slack)
         {
             float x, y, q;
             if (!predictWith(h, s.cx, s.cy, s.cq, x, y, q))
+                return false;
+            if (std::fabs(q - s.pq) > 0.001f * s.pq)
                 return false;
             const float ex = x - s.px, ey = y - s.py;
             const float mx = s.cx - s.px, my = s.cy - s.py;
@@ -1444,21 +1452,40 @@ namespace
             }
             if (bestCount < 24u || bestCount * 100u < evaluated * 35u)
                 return;
-            // Refit on everything that agrees, and note per program how much of it does.
-            Normal all;
+            // Refit on everything that agrees - twice, the second time on what agrees with the
+            // first refit - and note per program how much of it does.
             uint32_t inliers = 0;
-            for (const Sample &s : m_samples)
+            std::memcpy(m_model, bestH, sizeof(m_model));
+            for (uint32_t round = 0; round < 2u; ++round)
             {
-                if (!agrees(bestH, s, 0.3f))
-                    continue;
-                double b[4], t[3];
-                sampleEquation(s, b, t);
-                all.add(b, t);
-                ++m_progFrame[s.prog].inliers;
-                ++inliers;
+                Normal all;
+                uint32_t count = 0;
+                for (const Sample &s : m_samples)
+                {
+                    if (!agrees(m_model, s, 0.3f))
+                        continue;
+                    double b[4], t[3];
+                    sampleEquation(s, b, t);
+                    all.add(b, t);
+                    ++count;
+                }
+                double h[3][4];
+                if (count < 24u || !all.solve(h))
+                    break;
+                // (a refit that fewer samples agree with than with what it was made from is no better)
+                uint32_t after = 0;
+                for (const Sample &s : m_samples)
+                    after += agrees(h, s, 0.3f) ? 1u : 0u;
+                if (after < count)
+                    break;
+                std::memcpy(m_model, h, sizeof(m_model));
             }
-            if (!all.solve(m_model))
-                std::memcpy(m_model, bestH, sizeof(m_model));
+            for (const Sample &s : m_samples)
+                if (agrees(m_model, s, 0.3f))
+                {
+                    ++m_progFrame[s.prog].inliers;
+                    ++inliers;
+                }
             m_haveModel = true;
             m_modelShare = static_cast<float>(inliers) / static_cast<float>(m_samples.size());
             // Depth per unit of q (to give a point placed by the model its old depth): per
@@ -1892,8 +1919,15 @@ namespace
                         if (matched && (!model || farCornerIsReal(cv[v], old[v])))
                             continue;
                         const uint32_t slot = slotOf(f.pos[p.vtx + v]);
-                        if (m_table[slot].used && m_table[slot].prev != kNone)
-                            adopt(m_table[slot], cv[v], old[v]);
+                        // The entry is the same point only if it is as far away: the game clips
+                        // what reaches past its drawing area to that area's edges, so corners of
+                        // quite different surfaces (the ground under the camera, a sign next to
+                        // it) end up at the very same place - the area's corner above all.
+                        const TableEntry &entry = m_table[slot];
+                        const bool samePoint = entry.used && entry.prev != kNone &&
+                                               (!entry.persp || !perspective(cv[v].q) || std::fabs(cv[v].q - entry.qCur) <= 0.01f * entry.qCur);
+                        if (samePoint)
+                            adopt(entry, cv[v], old[v]);
                         else if (model)
                         {
                             old[v].x = mx;
@@ -2477,6 +2511,17 @@ namespace
             f.phaseNs[0] = t0 - tStart;
             f.phaseNs[1] = tm - t0;
             f.phaseNs[2] = nowNs() - t1;
+            if (const char *hold = std::getenv("PS2_FRAME_INTERP_HOLD"))
+            {
+                // PS2_FRAME_INTERP_HOLD=first,last,match: those objects keep this frame's positions
+                // in the in-between pictures of that match (debug: which object is it?)
+                unsigned first = 0, last = 0;
+                unsigned long long match = 0;
+                if (std::sscanf(hold, "%u,%u,%llu", &first, &last, &match) == 3 && match == m_matchCount)
+                    for (size_t k = first; k <= last && k < f.objects.size(); ++k)
+                        for (uint32_t q = 0; q < f.objects[k].primCount; ++q)
+                            f.prims[f.objects[k].primStart + q].prev = kRejected;
+            }
             if (const char *rect = std::getenv("PS2_FRAME_INTERP_PRIMRECT"))
             {
                 // PS2_FRAME_INTERP_PRIMRECT=x0,y0,x1,y1,match (screen pixels): the primitives of
@@ -2512,12 +2557,15 @@ namespace
                             for (uint32_t v = 0; v < pr.count; ++v)
                             {
                                 const GSVertex &c = f.verts[pr.vtx + v];
-                                std::fprintf(stderr, " (%.0f,%.0f q%.4f", c.x - ox, c.y - oy, c.q);
+                                std::fprintf(stderr, " (%.3f,%.3f q%.9g z%.0f st %.3f,%.3f", c.x - ox, c.y - oy, c.q, static_cast<double>(c.z), c.s / c.q, c.t / c.q);
                                 if (hasPrev(pr.prev))
                                 {
                                     const GSVertex &q = (pr.prev & kSynth) ? f.synth[(pr.prev & ~kSynth) + v] : m_last->verts[pr.prev + v];
-                                    std::fprintf(stderr, " <- %.0f,%.0f q%.4f", q.x - ox, q.y - oy, q.q);
+                                    std::fprintf(stderr, " <- %.3f,%.3f q%.9g z%.0f st %.3f,%.3f", q.x - ox, q.y - oy, q.q, static_cast<double>(q.z), q.s / q.q, q.t / q.q);
                                 }
+                                float mx = 0.0f, my = 0.0f, mq = 0.0f;
+                                if (predict(c, mx, my, mq))
+                                    std::fprintf(stderr, " ~ %.3f,%.3f q%.9g", mx - ox, my - oy, mq);
                                 std::fprintf(stderr, ")");
                             }
                             std::fprintf(stderr, "\n");
