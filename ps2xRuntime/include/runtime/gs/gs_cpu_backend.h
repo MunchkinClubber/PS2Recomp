@@ -76,6 +76,9 @@ public:
     // Texels [0, width) x [0, height) of the state's texture as RGBA8 (TEXA applied, indexed
     // formats looked up in `palette`), without any wrapping. False for an unsupported format.
     bool DecodeTexture(const GSDrawState &state, uint32_t width, uint32_t height, const uint32_t *palette, uint32_t *out);
+    // Sets to 1, in `mask` (laid out like GS memory), every bit the next UploadImage of
+    // `sizeBytes` bytes will write. The transfer itself does not advance.
+    void MarkUploadBits(uint32_t sizeBytes, uint8_t *mask);
 
 private:
     // ---- Threaded rasteriser -------------------------------------------------------------

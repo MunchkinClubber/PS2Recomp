@@ -919,8 +919,7 @@ private:
     DrawSetup m_lastSetup;
     bool m_haveLastAnalysed = false;
     PageSet m_uploadPages;
-    PageSet m_uploadWhole;          // pages the upload in progress overwrites completely (see UploadImage)
-    uint32_t m_uploadWholeBytes = 0; // data that has to come in the first UploadImage call for that
+    std::vector<uint8_t> m_uploadMask; // bits an upload writes, laid out like GS memory (zero outside UploadImage)
     std::vector<uint32_t> m_decodeBuf;
     struct PaletteEntry
     {
@@ -4189,7 +4188,6 @@ void GsVulkanBackend::BeginTransfer(const GSTransferCommand &command)
         addRectPages(dst, bb.dbp, bb.dbw, bb.dpsm, pos.dsax, pos.dsay, pos.dsax + reg.rrw - 1, pos.dsay + reg.rrh - 1);
     }
     m_uploadPages.reset();
-    m_uploadWhole.reset();
     m_why = command.direction == 0u ? "xfer-up" : command.direction == 1u ? "xfer-down" : "xfer-copy";
     static const bool s_logXfer = envFlag("PS2_GS_VK_LOGXFER");
     static uint32_t s_downLogged = 0;
@@ -4203,28 +4201,10 @@ void GsVulkanBackend::BeginTransfer(const GSTransferCommand &command)
     switch (command.direction)
     {
     case 0u:
-        // (GS memory is brought up to date in UploadImage, where it is known whether whole pages
-        // are overwritten and need nothing from the GPU)
+        // (GS memory is brought up to date in UploadImage: pages whose newest data is on the GPU
+        // take the upload there instead)
         m_cpu.BeginTransfer(command);
         m_uploadPages = dst;
-        if (gpuMem() && reg.rrw && reg.rrh)
-        {
-            // Pages the rectangle covers completely, in formats that write every bit of a pixel.
-            const uint8_t psm = static_cast<uint8_t>(bb.dpsm);
-            const bool allBits = psm == GS_PSM_CT32 || psm == GS_PSM_Z32 || psm == GS_PSM_CT16 || psm == GS_PSM_CT16S || psm == GS_PSM_Z16 ||
-                                 psm == GS_PSM_Z16S || psm == GS_PSM_T8 || psm == GS_PSM_T4;
-            const PageDims d = pageDims(psm);
-            const uint32_t width = std::max<uint32_t>(bb.dbw, 1u) * 64u;
-            const uint32_t x0 = pos.dsax, y0 = pos.dsay, x1 = x0 + reg.rrw - 1u, y1 = y0 + reg.rrh - 1u;
-            if (allBits && (bb.dbp & 31u) == 0u && x1 < width && width % d.w == 0u)
-            {
-                const uint32_t ppr = width / d.w;
-                for (uint32_t r = (y0 + d.h - 1u) / d.h; (r + 1u) * d.h - 1u <= y1; ++r)
-                    for (uint32_t c = (x0 + d.w - 1u) / d.w; (c + 1u) * d.w - 1u <= x1; ++c)
-                        m_uploadWhole.set(((bb.dbp >> 5) + r * ppr + c) & 511u);
-                m_uploadWholeBytes = static_cast<uint32_t>(reg.rrw) * static_cast<uint32_t>(reg.rrh) * GSInternal::bitsPerPixel(psm) / 8u;
-            }
-        }
         break;
     case 1u:
         ensureVramCurrent(src);
@@ -4249,29 +4229,88 @@ void GsVulkanBackend::UploadImage(const uint8_t *data, uint32_t sizeBytes)
         ScopeTimer t(m_iv.xferFlushNs);
         flushBatch();
     }
+    PageSet onGpu; // pages whose newest data is in the GPU mirror: the upload goes there too
     {
         ScopeTimer t(m_iv.xferSyncNs);
-        // Pages this upload overwrites completely need nothing back from the GPU - when all of its
-        // data comes in this first call (otherwise the rest could stay missing). Newer render
-        // target data is still put into the GPU mirror first, so that it lands under the upload.
-        if (m_uploadWhole.any() && sizeBytes >= m_uploadWholeBytes)
+        if (gpuMem())
         {
+            // Reading such pages back would wait for all GPU work. Instead GS memory takes the
+            // upload as usual (its other bytes stay out of date) and exactly the bytes the upload
+            // writes are copied into the mirror. Render targets with newer data go into the mirror
+            // first, so the upload lands on top. Uploads writing parts of bytes (4-bit formats)
+            // are read back as before.
             for (size_t i = 0; i < m_targets.size(); ++i)
             {
                 Target &tg = *m_targets[i];
-                if (tg.dirty && tg.dirtyPages.intersects(m_uploadWhole))
+                if (tg.dirty && tg.dirtyPages.intersects(m_uploadPages))
                     download(tg);
             }
-            m_mirrorNewer &= ~m_uploadWhole;
-            ensureVramCurrent(m_uploadPages & ~m_uploadWhole);
+            onGpu = m_mirrorNewer & m_uploadPages;
+            if (onGpu.any())
+            {
+                if (m_uploadMask.empty())
+                    m_uploadMask.assign(m_vramSize, 0u);
+                m_cpu.MarkUploadBits(sizeBytes, m_uploadMask.data());
+                bool partial = false;
+                onGpu.forEach([&](uint32_t p)
+                              {
+                                  const uint8_t *m = m_uploadMask.data() + static_cast<size_t>(p) * 8192u;
+                                  for (uint32_t k = 0; k < 8192u && !partial; ++k)
+                                      partial = m[k] != 0u && m[k] != 0xFFu;
+                              });
+                if (partial)
+                {
+                    m_uploadPages.forEach([&](uint32_t p) { std::memset(m_uploadMask.data() + static_cast<size_t>(p) * 8192u, 0, 8192u); });
+                    onGpu.reset();
+                }
+            }
         }
-        else
-            ensureVramCurrent(m_uploadPages);
-        m_uploadWhole.reset();
+        ensureVramCurrent(m_uploadPages & ~onGpu);
     }
     {
         ScopeTimer t(m_iv.xferCpuNs);
         m_cpu.UploadImage(data, sizeBytes);
+    }
+    if (onGpu.any())
+    {
+        // The written bytes, in runs, from GS memory into the mirror (each page recorded right
+        // after its staging copy: a full ring submits in between).
+        bool any = false;
+        std::vector<VkBufferCopy> copies;
+        onGpu.forEach([&](uint32_t p)
+                      {
+                          const size_t page = static_cast<size_t>(p) * 8192u;
+                          const uint8_t *m = m_uploadMask.data() + page;
+                          copies.clear();
+                          for (uint32_t k = 0; k < 8192u;)
+                          {
+                              if (!m[k])
+                              {
+                                  ++k;
+                                  continue;
+                              }
+                              uint32_t e = k;
+                              while (e < 8192u && m[e])
+                                  ++e;
+                              copies.push_back({k, page + k, e - k});
+                              k = e;
+                          }
+                          m_mirrorGen[p] = ++m_mirrorGenCounter; // (textures from it are out of date)
+                          if (copies.empty())
+                              return;
+                          const uint32_t off = ringAlloc(8192u, 16u);
+                          std::memcpy(m_ringPtr + off, m_vram + page, 8192u);
+                          for (VkBufferCopy &c : copies)
+                              c.srcOffset += off;
+                          if (!any)
+                              barrier(); // after earlier readers of the mirror
+                          any = true;
+                          endRendering();
+                          m_dt.vkCmdCopyBuffer(m_cmd, m_ring, m_vramBuf, static_cast<uint32_t>(copies.size()), copies.data());
+                      });
+        m_uploadPages.forEach([&](uint32_t p) { std::memset(m_uploadMask.data() + static_cast<size_t>(p) * 8192u, 0, 8192u); });
+        if (any)
+            barrier();
     }
     ScopeTimer t(m_iv.xferMarkNs);
     markCpuWrite(m_uploadPages);

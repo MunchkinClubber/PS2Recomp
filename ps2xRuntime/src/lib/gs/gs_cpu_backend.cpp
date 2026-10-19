@@ -3843,6 +3843,16 @@ void GSCpuBackend::UploadImage(const uint8_t *data, uint32_t sizeBytes)
         UploadImageUnlocked(data, sizeBytes);
 }
 
+void GSCpuBackend::MarkUploadBits(uint32_t sizeBytes, uint8_t *mask)
+{
+    std::lock_guard<GsLock> lock(m_mutex);
+    static thread_local std::vector<uint8_t> s_ones;
+    if (s_ones.size() < sizeBytes)
+        s_ones.assign(sizeBytes, 0xFFu);
+    GSTransferSnapshot st = m_transferState; // (a copy: only the copy advances)
+    UploadImageImpl(m_transfer, st, s_ones.data(), sizeBytes, mask);
+}
+
 void GSCpuBackend::UploadImageUnlocked(const uint8_t *data, uint32_t sizeBytes)
 {
     UploadImageImpl(m_transfer, m_transferState, data, sizeBytes, m_vram);
