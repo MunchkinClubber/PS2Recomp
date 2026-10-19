@@ -919,6 +919,8 @@ private:
     DrawSetup m_lastSetup;
     bool m_haveLastAnalysed = false;
     PageSet m_uploadPages;
+    PageSet m_uploadWhole;          // pages the upload in progress overwrites completely (see UploadImage)
+    uint32_t m_uploadWholeBytes = 0; // data that has to come in the first UploadImage call for that
     std::vector<uint32_t> m_decodeBuf;
     struct PaletteEntry
     {
@@ -4187,6 +4189,7 @@ void GsVulkanBackend::BeginTransfer(const GSTransferCommand &command)
         addRectPages(dst, bb.dbp, bb.dbw, bb.dpsm, pos.dsax, pos.dsay, pos.dsax + reg.rrw - 1, pos.dsay + reg.rrh - 1);
     }
     m_uploadPages.reset();
+    m_uploadWhole.reset();
     m_why = command.direction == 0u ? "xfer-up" : command.direction == 1u ? "xfer-down" : "xfer-copy";
     static const bool s_logXfer = envFlag("PS2_GS_VK_LOGXFER");
     static uint32_t s_downLogged = 0;
@@ -4200,9 +4203,28 @@ void GsVulkanBackend::BeginTransfer(const GSTransferCommand &command)
     switch (command.direction)
     {
     case 0u:
-        ensureVramCurrent(dst);
+        // (GS memory is brought up to date in UploadImage, where it is known whether whole pages
+        // are overwritten and need nothing from the GPU)
         m_cpu.BeginTransfer(command);
         m_uploadPages = dst;
+        if (gpuMem() && reg.rrw && reg.rrh)
+        {
+            // Pages the rectangle covers completely, in formats that write every bit of a pixel.
+            const uint8_t psm = static_cast<uint8_t>(bb.dpsm);
+            const bool allBits = psm == GS_PSM_CT32 || psm == GS_PSM_Z32 || psm == GS_PSM_CT16 || psm == GS_PSM_CT16S || psm == GS_PSM_Z16 ||
+                                 psm == GS_PSM_Z16S || psm == GS_PSM_T8 || psm == GS_PSM_T4;
+            const PageDims d = pageDims(psm);
+            const uint32_t width = std::max<uint32_t>(bb.dbw, 1u) * 64u;
+            const uint32_t x0 = pos.dsax, y0 = pos.dsay, x1 = x0 + reg.rrw - 1u, y1 = y0 + reg.rrh - 1u;
+            if (allBits && (bb.dbp & 31u) == 0u && x1 < width && width % d.w == 0u)
+            {
+                const uint32_t ppr = width / d.w;
+                for (uint32_t r = (y0 + d.h - 1u) / d.h; (r + 1u) * d.h - 1u <= y1; ++r)
+                    for (uint32_t c = (x0 + d.w - 1u) / d.w; (c + 1u) * d.w - 1u <= x1; ++c)
+                        m_uploadWhole.set(((bb.dbp >> 5) + r * ppr + c) & 511u);
+                m_uploadWholeBytes = static_cast<uint32_t>(reg.rrw) * static_cast<uint32_t>(reg.rrh) * GSInternal::bitsPerPixel(psm) / 8u;
+            }
+        }
         break;
     case 1u:
         ensureVramCurrent(src);
@@ -4229,7 +4251,23 @@ void GsVulkanBackend::UploadImage(const uint8_t *data, uint32_t sizeBytes)
     }
     {
         ScopeTimer t(m_iv.xferSyncNs);
-        ensureVramCurrent(m_uploadPages);
+        // Pages this upload overwrites completely need nothing back from the GPU - when all of its
+        // data comes in this first call (otherwise the rest could stay missing). Newer render
+        // target data is still put into the GPU mirror first, so that it lands under the upload.
+        if (m_uploadWhole.any() && sizeBytes >= m_uploadWholeBytes)
+        {
+            for (size_t i = 0; i < m_targets.size(); ++i)
+            {
+                Target &tg = *m_targets[i];
+                if (tg.dirty && tg.dirtyPages.intersects(m_uploadWhole))
+                    download(tg);
+            }
+            m_mirrorNewer &= ~m_uploadWhole;
+            ensureVramCurrent(m_uploadPages & ~m_uploadWhole);
+        }
+        else
+            ensureVramCurrent(m_uploadPages);
+        m_uploadWhole.reset();
     }
     {
         ScopeTimer t(m_iv.xferCpuNs);
