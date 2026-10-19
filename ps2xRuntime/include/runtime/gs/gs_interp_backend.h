@@ -67,5 +67,10 @@ bool ps2GsInterpDeferReadback(uint32_t bytes, std::function<void(std::vector<uin
 // its epoch; 0 = as soon as it is ready). Read by the renderer that shows the pictures.
 uint64_t ps2GsInterpNextPictureDueNs();
 
+// Time the calling thread spent waiting for the GPU in the renderer (ns, running totals):
+// [0] for a command buffer slot (its previous submission still running), [1] for all work to
+// finish (read-backs, syncs), [2] for a free picture image. For the interpolation log.
+extern thread_local uint64_t g_gsGpuWaitNs[3];
+
 // Tests: called after each pass's flip with the renderer that drew it.
 extern void (*g_gsInterpPassHook)(GSRasterBackend *inner, uint32_t pass, uint32_t passes, float t);

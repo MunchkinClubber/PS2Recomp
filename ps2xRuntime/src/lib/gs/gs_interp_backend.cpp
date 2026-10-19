@@ -21,6 +21,7 @@ extern std::atomic<uint64_t> g_ssx3GsKicks; // gs_frontend.cpp: vertex kicks so 
 extern std::atomic<uint64_t> g_ps2FlipIssuedNs; // ps2_memory.cpp: when the EE wrote the flip being processed
 
 void (*g_gsInterpPassHook)(GSRasterBackend *inner, uint32_t pass, uint32_t passes, float t) = nullptr;
+thread_local uint64_t g_gsGpuWaitNs[3] = {};
 
 namespace
 {
@@ -3527,6 +3528,8 @@ namespace
                     showReal = predicted; // (else: a hitch or a pause - start again)
             }
             const uint64_t t0 = nowNs();
+            const uint64_t gpuWait0[3] = {g_gsGpuWaitNs[0], g_gsGpuWaitNs[1], g_gsGpuWaitNs[2]};
+            uint64_t handOverNs = 0; // handing the pictures to the renderer (QueuePresentSnapshot)
             m_xferLate.clear();
             m_hazard.reset();
             if (passes > 1u)
@@ -3611,18 +3614,33 @@ namespace
                     m_statDelayNs += showReal - job.flipNs;
                 }
                 s_nextDueNs.store(showReal - step * (passes - pass), std::memory_order_relaxed);
+                const uint64_t h0 = nowNs();
                 m_inner->QueuePresentSnapshot(job.request);
+                handOverNs += nowNs() - h0;
                 if (g_gsInterpPassHook)
                     g_gsInterpPassHook(m_inner.get(), pass, passes, real ? 1.0f : t);
             }
             m_lastShowReal = showReal;
             m_haveSchedule = true;
             const uint64_t t1 = nowNs();
+            uint64_t gpuWait[3], gpuWaitAll = 0;
+            for (int k = 0; k < 3; ++k)
+            {
+                gpuWait[k] = g_gsGpuWaitNs[k] - gpuWait0[k];
+                gpuWaitAll += gpuWait[k];
+                m_statGpuWaitNs[k] += gpuWait[k];
+            }
+            m_statHandOverNs += handOverNs;
+            if (s_log)
+                std::fprintf(stderr, "[gs:interp] drawn: %u pass(es) %.2f ms = replay %.2f + hand-over %.2f; GPU waits %.2f (slot %.2f, all done %.2f, picture image %.2f), the rest %.2f\n",
+                             passes, (t1 - t0) / 1e6, (t1 - t0 - handOverNs) / 1e6, handOverNs / 1e6, gpuWaitAll / 1e6, gpuWait[0] / 1e6, gpuWait[1] / 1e6, gpuWait[2] / 1e6,
+                             (t1 - t0 - std::min(gpuWaitAll, t1 - t0)) / 1e6);
             if (t1 - startNs > m_periodNs + m_periodNs / 3u)
             {
-                char text[200];
-                std::snprintf(text, sizeof(text), "drawing a frame's %u picture(s) took %.1f ms (%zu primitives; it had waited %.1f ms for the frame before)", passes,
-                              (t1 - startNs) / 1e6, f.prims.size(), queued / 1e6);
+                char text[320];
+                std::snprintf(text, sizeof(text), "drawing a frame's %u picture(s) took %.1f ms (%zu primitives; it had waited %.1f ms for the frame before; replay %.1f + hand-over %.1f ms; waiting for the GPU %.1f ms: slot %.1f, all done %.1f, picture image %.1f)", passes,
+                              (t1 - startNs) / 1e6, f.prims.size(), queued / 1e6, (t1 - t0 - handOverNs) / 1e6, handOverNs / 1e6, gpuWaitAll / 1e6,
+                              gpuWait[0] / 1e6, gpuWait[1] / 1e6, gpuWait[2] / 1e6);
                 ps2HitchReport(text, startNs, t1);
             }
 
@@ -3657,6 +3675,12 @@ namespace
                              static_cast<double>(m_statLate) / n, m_statDelayNs / 1e6 / n, static_cast<unsigned long long>(m_statPushed), m_statPushedNs / 1e6,
                              static_cast<unsigned long long>(m_statPushedBig), m_statPushedMaxNs / 1e6, m_statHoldNs / 1e6 / n,
                              static_cast<unsigned long long>(m_statLongFrames), m_statLongestNs / 1e6);
+                const uint64_t waitAll = m_statGpuWaitNs[0] + m_statGpuWaitNs[1] + m_statGpuWaitNs[2];
+                std::fprintf(stderr, "[gs:interp] drawing all passes %.2f ms/frame = replaying the frame %.2f + handing the pictures over %.2f; of it waiting for the GPU %.2f (a command buffer slot %.2f, all work done %.2f, a picture image %.2f), the rest (own work, locks) %.2f\n",
+                             m_statPassNs / 1e6 / n, (m_statPassNs - m_statHandOverNs) / 1e6 / n, m_statHandOverNs / 1e6 / n, waitAll / 1e6 / n,
+                             m_statGpuWaitNs[0] / 1e6 / n, m_statGpuWaitNs[1] / 1e6 / n, m_statGpuWaitNs[2] / 1e6 / n,
+                             (m_statPassNs - std::min(waitAll, m_statPassNs)) / 1e6 / n);
+                m_statHandOverNs = m_statGpuWaitNs[0] = m_statGpuWaitNs[1] = m_statGpuWaitNs[2] = 0;
                 m_statHazardPages = m_statHazardFrames = m_statLate = m_statHazardDrawn = m_statCarried = 0;
                 m_statPushed = m_statDelayNs = m_statPushedNs = m_statQueuedNs = 0;
                 m_statPushedBig = m_statPushedMaxNs = m_statHoldNs = m_statLongFrames = m_statLongestNs = 0;
@@ -3836,6 +3860,7 @@ namespace
         bool m_steady = std::getenv("PS2_FRAME_INTERP_STEADY") && std::getenv("PS2_FRAME_INTERP_STEADY")[0] == '1';
 
         bool m_stats = false;
+        uint64_t m_statHandOverNs = 0, m_statGpuWaitNs[3] = {}; // parts of m_statPassNs
         uint64_t m_statFlips = 0, m_statPrims = 0, m_statMatched = 0, m_statRejected = 0, m_statPictures = 0, m_statPassNs = 0, m_statMatchNs = 0, m_statRecovered = 0,
                  m_statCuts = 0, m_statBroken = 0, m_statDrains = 0;
     };

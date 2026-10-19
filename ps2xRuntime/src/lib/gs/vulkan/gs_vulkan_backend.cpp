@@ -1724,6 +1724,7 @@ void GsVulkanBackend::submitAndWait()
         queueSubmit();
     {
         ScopeTimer timer(m_iv.waitNs);
+        ScopeTimer threadTimer(g_gsGpuWaitNs[1]);
         ++m_iv.waits;
         completeSlot(m_cur ^ 1u);
         completeSlot(m_cur);
@@ -1741,6 +1742,7 @@ void GsVulkanBackend::submitAsync()
     m_cur ^= 1u;
     {
         ScopeTimer timer(m_iv.waitNs);
+        ScopeTimer threadTimer(g_gsGpuWaitNs[0]);
         completeSlot(m_cur);
     }
     m_cmd = m_slots[m_cur].cmd;
@@ -4690,6 +4692,7 @@ int GsVulkanBackend::pickPresentImage()
             break; // every image is waiting to be shown
         // All being shown (should not happen): wait for the oldest, briefly.
         ScopeTimer timer(m_iv.waitNs);
+        ScopeTimer threadTimer(g_gsGpuWaitNs[2]);
         VkSemaphoreWaitInfo wi{VK_STRUCTURE_TYPE_SEMAPHORE_WAIT_INFO};
         wi.semaphoreCount = 1;
         wi.pSemaphores = &m_releaseSem;
